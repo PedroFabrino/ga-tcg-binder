@@ -1,6 +1,6 @@
 "use client";
 
-import { Modal } from "@/components/ui";
+import { Modal } from "@/components/common";
 import SignInPanel from "@/components/SignInPanel";
 
 export default function LoginModal({ onClose }: { onClose: () => void }) {

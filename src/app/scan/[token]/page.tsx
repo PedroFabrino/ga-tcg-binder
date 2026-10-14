@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { Camera, CameraOff, Flashlight, FlashlightOff, Loader2, Send, Check, Keyboard } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function MobileScanPage() {
   const params = useParams();
@@ -112,7 +114,7 @@ export default function MobileScanPage() {
       </div>
 
       <div className="relative aspect-[3/4] w-full overflow-hidden rounded-3xl border border-white/[0.08] bg-black shadow-2xl">
-        <video ref={videoRef} playsInline muted className={`h-full w-full object-cover ${streamActive ? "block" : "hidden"}`} />
+        <video ref={videoRef} playsInline muted className={`h-full w-full object-cover ${streamActive ? "block" : "hidden"}`}/>
         {!streamActive && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-8 text-center">
             {cameraError ? <CameraOff className="h-10 w-10 text-slate-600" /> : <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />}
@@ -122,7 +124,7 @@ export default function MobileScanPage() {
 
         <div className="pointer-events-none absolute inset-x-10 inset-y-14">
           {["left-0 top-0 border-l-2 border-t-2 rounded-tl-xl", "right-0 top-0 border-r-2 border-t-2 rounded-tr-xl", "bottom-0 left-0 border-b-2 border-l-2 rounded-bl-xl", "bottom-0 right-0 border-b-2 border-r-2 rounded-br-xl"].map((c) => (
-            <span key={c} className={`absolute h-8 w-8 border-cyan-300 ${c}`} />
+            <span key={c} className={`absolute h-8 w-8 border-cyan-300 ${c}`}/>
           ))}
           {streamActive && <span className="scan-line absolute inset-x-2 h-px bg-gradient-to-r from-transparent via-cyan-300 to-transparent shadow-[0_0_12px_2px_rgba(103,232,249,0.6)]" />}
         </div>
@@ -154,10 +156,10 @@ export default function MobileScanPage() {
       <form onSubmit={submitManual} className="rounded-2xl glass p-4">
         <label htmlFor="manual-code" className="label-caps mb-2 flex items-center gap-1.5"><Keyboard className="h-3 w-3" /> Manual Entry</label>
         <div className="flex gap-2">
-          <input id="manual-code" value={manualCode} onChange={(e) => setManualCode(e.target.value)} placeholder="DOA 001 or card name" className="input-field" />
-          <button type="submit" disabled={submitting || !manualCode.trim()} className="btn-accent shrink-0 !px-3" aria-label="Send">
+          <Input id="manual-code" value={manualCode} onChange={(e) => setManualCode(e.target.value)} placeholder="DOA 001 or card name" />
+          <Button type="submit" disabled={submitting || !manualCode.trim()} variant="accent" className="shrink-0 px-3" aria-label="Send">
             <Send className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
       </form>
 

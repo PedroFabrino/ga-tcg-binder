@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { Loader2, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 const DEMO_PROFILES = [
   { name: "Collector Alex", email: "alex@grandarchive.local", hint: "Seeded binder" },
@@ -57,10 +59,10 @@ export default function SignInPanel({ callbackUrl, onSignedIn }: { callbackUrl: 
   return (
     <div className="space-y-3">
       <button onClick={() => oauth("discord")} disabled={busy} className="flex w-full items-center justify-center gap-3 rounded-xl bg-[#5865F2] px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#5865F2]/20 transition-all hover:bg-[#4752C4] active:scale-[0.98] disabled:opacity-50">
-        {loading === "discord" ? <Loader2 className="h-4 w-4 animate-spin" /> : <DiscordIcon />} Continue with Discord
+        {loading === "discord" ? <Loader2 className="h-4 w-4 animate-spin" /> : <DiscordIcon/>} Continue with Discord
       </button>
       <button onClick={() => oauth("google")} disabled={busy} className="flex w-full items-center justify-center gap-3 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 transition-all hover:bg-slate-100 active:scale-[0.98] disabled:opacity-50">
-        {loading === "google" ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon />} Continue with Google
+        {loading === "google" ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon/>} Continue with Google
       </button>
 
       <div className="flex items-center gap-3 py-2">
@@ -95,8 +97,8 @@ export default function SignInPanel({ callbackUrl, onSignedIn }: { callbackUrl: 
         }}
         className="flex gap-2"
       >
-        <input value={customName} onChange={(e) => setCustomName(e.target.value)} placeholder="Or enter any collector name" aria-label="Custom collector name" className="input-field" />
-        <button type="submit" disabled={busy || !customName.trim()} className="btn-ghost shrink-0">Enter</button>
+        <Input value={customName} onChange={(e) => setCustomName(e.target.value)} placeholder="Or enter any collector name" aria-label="Custom collector name" />
+        <Button type="submit" disabled={busy || !customName.trim()} variant="outline" className="shrink-0">Enter</Button>
       </form>
     </div>
   );

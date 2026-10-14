@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { QrCode, Check, Loader2, ExternalLink, Smartphone, Wifi } from "lucide-react";
-import { Modal } from "@/components/ui";
+import { Modal } from "@/components/common";
 import { useToast } from "@/components/ToastProvider";
+import { Button } from "@/components/ui/button";
 
 interface Detection {
   rawText: string;
@@ -94,13 +95,13 @@ export default function QrScanModal({ onClose }: { onClose: () => void }) {
       footer={
         <div className="flex w-full items-center justify-between gap-3">
           <span className="text-xs text-slate-500">{pending.length} ready to add</span>
-          <button onClick={() => confirmCards(pending)} disabled={confirming || pending.length === 0} className="btn-accent">
+          <Button onClick={() => confirmCards(pending)} disabled={confirming || pending.length === 0} variant="accent">
             {confirming ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
             Confirm & Add to Binder
-          </button>
+          </Button>
         </div>
       }
-    >
+          >
       {loading ? (
         <div className="flex flex-col items-center justify-center gap-3 py-16">
           <Loader2 className="h-7 w-7 animate-spin text-cyan-400" />
@@ -116,8 +117,8 @@ export default function QrScanModal({ onClose }: { onClose: () => void }) {
             </div>
             <div className={`mt-4 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-medium ${paired ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-300" : "border-white/[0.08] text-slate-400"}`} role="status">
               <span className="relative flex h-2 w-2">
-                <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-60 ${paired ? "bg-emerald-400" : "bg-cyan-400"}`} />
-                <span className={`relative inline-flex h-2 w-2 rounded-full ${paired ? "bg-emerald-400" : "bg-cyan-400"}`} />
+                <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-60 ${paired ? "bg-emerald-400" : "bg-cyan-400"}`}/>
+                <span className={`relative inline-flex h-2 w-2 rounded-full ${paired ? "bg-emerald-400" : "bg-cyan-400"}`}/>
               </span>
               {paired ? "Phone connected" : "Waiting for phone..."}
             </div>

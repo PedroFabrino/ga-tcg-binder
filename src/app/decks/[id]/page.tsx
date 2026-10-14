@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Copy, Trash2, Crown, BookOpen, Check } from "lucide-react";
-import { ConfirmModal } from "@/components/ui";
+import { ConfirmModal } from "@/components/common";
 import { SkeletonRow, EmptyState } from "@/components/Skeletons";
 import { useToast } from "@/components/ToastProvider";
 import ShortageTable, { FeasibilityBanner, type ShortageItem, type ShortageReport } from "@/components/decks/ShortageTable";
 import DeckList, { type DeckCard } from "@/components/decks/DeckList";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 
 export default function DeckDetailPage() {
   const params = useParams();
@@ -104,7 +106,7 @@ export default function DeckDetailPage() {
   };
 
   if (notFound) {
-    return <EmptyState icon={BookOpen} title="Deck not found" description="It may have been deleted." action={<a href="/decks" className="btn-ghost">Back to Decks</a>} />;
+    return <EmptyState icon={BookOpen} title="Deck not found" description="It may have been deleted." action={<Button asChild variant="outline"><a href="/decks">Back to Decks</a></Button>} />;
   }
 
   return (
@@ -133,23 +135,23 @@ export default function DeckDetailPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <button onClick={copyOmnidex} disabled={!omnidexText} className="btn-ghost">
+          <Button onClick={copyOmnidex} disabled={!omnidexText} variant="outline">
             {copied ? <Check className="h-4 w-4 text-emerald-300" /> : <Copy className="h-4 w-4" />} Export Omnidex
-          </button>
-          <button onClick={() => setConfirmDelete(true)} disabled={!deck} className="btn-ghost hover:!border-rose-400/30 hover:!bg-rose-500/10 hover:!text-rose-300" aria-label="Delete deck">
+          </Button>
+          <Button onClick={() => setConfirmDelete(true)} disabled={!deck} variant="outline" className="hover:border-rose-400/30 hover:bg-rose-500/10 hover:text-rose-300" aria-label="Delete deck">
             <Trash2 className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
       </div>
 
       {loading ? (
         <div className="space-y-4">
           <div className="skeleton h-36 rounded-2xl" />
-          <div className="divide-y divide-white/[0.04] rounded-2xl glass">{Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)}</div>
+          <div className="divide-y divide-white/[0.04] rounded-2xl glass">{Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i}/>)}</div>
         </div>
       ) : (
         <>
-          {shortage && <FeasibilityBanner report={shortage} />}
+          {shortage && <FeasibilityBanner report={shortage}/>}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             <section className="rounded-2xl glass p-5 lg:col-span-2" aria-label="Demand and contention">
               <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -157,15 +159,15 @@ export default function DeckDetailPage() {
                   <h2 className="text-sm font-semibold text-white">Demand & Contention</h2>
                   <p className="text-[11px] text-slate-500">Shared copies may fill several decks; dedicated copies stay with one.</p>
                 </div>
-                <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-400">
-                  <input type="checkbox" checked={onlyMissing} onChange={(e) => setOnlyMissing(e.target.checked)} className="h-3.5 w-3.5 accent-cyan-400" />
+                <label htmlFor="only-missing" className="flex cursor-pointer items-center gap-2 text-xs text-slate-400">
+                  <Switch id="only-missing" checked={onlyMissing} onCheckedChange={setOnlyMissing} />
                   Only show shortages
                 </label>
               </div>
-              <ShortageTable items={shortage?.items || []} onAddMissing={addMissing} addingSlug={addingSlug} onlyMissing={onlyMissing} />
+              <ShortageTable items={shortage?.items || []} onAddMissing={addMissing} addingSlug={addingSlug} onlyMissing={onlyMissing}/>
             </section>
             <aside className="rounded-2xl glass p-5" aria-label="Decklist">
-              <DeckList {...cards} />
+              <DeckList {...cards}/>
             </aside>
           </div>
         </>

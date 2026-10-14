@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import {
   Layers, Sparkles, BookOpen, Trophy, Users, QrCode, Gem, ArrowRight, TrendingUp, Package, Swords, AlertTriangle,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface Stats {
   totalCards: number;
@@ -88,9 +89,9 @@ export default function HomePage() {
               : "Track exact printings, cross-deck sharing and playgroup idle copies before every event."}
           </p>
           <div className="mt-6 flex flex-wrap gap-2.5">
-            <a href="/collection" className="btn-primary !rounded-full"><Layers className="h-4 w-4" /> Open Binder</a>
-            <a href="/decks" className="btn-ghost !rounded-full"><BookOpen className="h-4 w-4" /> Build Deck</a>
-            <a href="/decks" className="btn-ghost !rounded-full"><AlertTriangle className="h-4 w-4 text-amber-300" /> Check Shortages</a>
+            <Button asChild className="rounded-full"><a href="/collection"><Layers className="h-4 w-4" /> Open Binder</a></Button>
+            <Button asChild variant="outline" className="rounded-full"><a href="/decks"><BookOpen className="h-4 w-4" /> Build Deck</a></Button>
+            <Button asChild variant="outline" className="rounded-full"><a href="/decks"><AlertTriangle className="h-4 w-4 text-amber-300" /> Check Shortages</a></Button>
           </div>
         </div>
       </section>

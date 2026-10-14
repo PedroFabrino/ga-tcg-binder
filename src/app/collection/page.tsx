@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Layers, Sparkles, Gem, TrendingUp, Upload, LayoutGrid, Table2 } from "lucide-react";
-import { PageHeader, Tabs } from "@/components/ui";
+import { PageHeader, Tabs } from "@/components/common";
 import { SkeletonRow, EmptyState } from "@/components/Skeletons";
 import { useToast } from "@/components/ToastProvider";
 import CollectionTable from "@/components/collection/CollectionTable";
@@ -10,6 +10,7 @@ import BinderView from "@/components/collection/BinderView";
 import QuickAddBar from "@/components/collection/QuickAddBar";
 import BulkImportModal from "@/components/collection/BulkImportModal";
 import type { CollectionItem } from "@/components/collection/types";
+import { Button } from "@/components/ui/button";
 
 type View = "ALL" | "STAPLES" | "LOW_POP" | "IDLE";
 const VIEWS: View[] = ["ALL", "STAPLES", "LOW_POP", "IDLE"];
@@ -118,17 +119,17 @@ export default function CollectionPage() {
             <span className="rounded-full border border-white/[0.08] px-3 py-1.5 font-mono text-xs text-slate-300">
               {totalCopies.toLocaleString()} copies
             </span>
-            <button onClick={() => setShowBulk(true)} className="btn-ghost">
+            <Button onClick={() => setShowBulk(true)} variant="outline">
               <Upload className="h-4 w-4" /> Bulk Import
-            </button>
+            </Button>
           </>
         }
       />
 
-      <QuickAddBar onAdd={handleQuickAdd} />
+      <QuickAddBar onAdd={handleQuickAdd}/>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
+        <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab}/>
         <div className="inline-flex self-start rounded-xl border border-white/[0.06] bg-white/[0.02] p-1" role="group" aria-label="View mode">
           {[
             { id: "table" as const, label: "Pro Table", icon: Table2 },
@@ -147,19 +148,19 @@ export default function CollectionPage() {
       </div>
 
       {error && !loading ? (
-        <EmptyState icon={Layers} title="We couldn't load your binder" description="Check your connection and try again." action={<button className="btn-ghost" onClick={() => fetchCollection()}>Retry</button>} />
+        <EmptyState icon={Layers} title="We couldn't load your binder" description="Check your connection and try again." action={<Button variant="outline" onClick={() => fetchCollection()}>Retry</Button>} />
       ) : loading ? (
         <div className="divide-y divide-white/[0.04] rounded-2xl glass">
-          {Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}
+          {Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i}/>)}
         </div>
       ) : items.length === 0 ? (
-        <EmptyState icon={Layers} {...EMPTY_COPY[activeTab]} />
+        <EmptyState icon={Layers} {...EMPTY_COPY[activeTab]}/>
       ) : (
         <div key={`${mode}-${activeTab}`} className="animate-fade-in">
           {mode === "table" ? (
-            <CollectionTable items={items} onQuantity={handleQuantity} onToggleDedicated={handleToggleDedicated} />
+            <CollectionTable items={items} onQuantity={handleQuantity} onToggleDedicated={handleToggleDedicated}/>
           ) : (
-            <BinderView items={items} onQuantity={handleQuantity} onToggleDedicated={handleToggleDedicated} />
+            <BinderView items={items} onQuantity={handleQuantity} onToggleDedicated={handleToggleDedicated}/>
           )}
         </div>
       )}

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Plus, Check, Sparkles, Gem } from "lucide-react";
 import TiltCard from "@/components/TiltCard";
-import { CardArt, ElementBadge, RarityGem } from "@/components/ui";
+import { CardArt, ElementBadge, RarityGem } from "@/components/common";
 import { formatPopulation, getElementClass } from "@/lib/elements";
 
 export interface Circulation { id: string; kind: string; population: number; foil: boolean }

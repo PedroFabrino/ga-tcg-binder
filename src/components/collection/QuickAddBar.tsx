@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Search, Sparkles, Loader2, Plus, Gem } from "lucide-react";
-import { ElementBadge } from "@/components/ui";
+import { ElementBadge } from "@/components/common";
 
 export default function QuickAddBar({ onAdd }: { onAdd: (edition: any, cardName: string, foil: boolean) => Promise<void> }) {
   const [query, setQuery] = useState("");

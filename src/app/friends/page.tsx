@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { Users, UserPlus, Copy, Check, QrCode, Sparkles, Loader2, ShieldCheck, ArrowRight, Layers } from "lucide-react";
-import { Modal, PageHeader, CardArt, ElementBadge, FoilBadge, LowPopBadge } from "@/components/ui";
+import { Modal, PageHeader, CardArt, ElementBadge, FoilBadge, LowPopBadge } from "@/components/common";
 import { SkeletonGrid, EmptyState } from "@/components/Skeletons";
 import { useToast } from "@/components/ToastProvider";
 import { getElementClass } from "@/lib/elements";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface Friend { id: string; name: string; friendCode: string; createdAt: string }
 interface IdleCard {
@@ -60,13 +62,13 @@ function FriendCodeCard({ code }: { code: string | null }) {
           <span className="skeleton h-8 w-40 rounded" />
         )}
         <div className="flex gap-2">
-          <button onClick={() => setShowQr(true)} disabled={!qr} className="btn-ghost !px-3" aria-label="Show friend code QR">
+          <Button onClick={() => setShowQr(true)} disabled={!qr} variant="outline" className="px-3" aria-label="Show friend code QR">
             <QrCode className="h-4 w-4" />
-          </button>
-          <button onClick={copy} disabled={!code} className="btn-primary">
+          </Button>
+          <Button onClick={copy} disabled={!code}>
             {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
             {copied ? "Copied" : "Copy"}
-          </button>
+          </Button>
         </div>
       </div>
       <p className="mt-3 text-xs leading-relaxed text-slate-400">Share this with your playgroup. Once linked, you can see each other's idle cards that aren't locked into decks.</p>
@@ -110,11 +112,11 @@ function IdleBinderModal({ friend, onClose }: { friend: Friend; onClose: () => v
   return (
     <Modal title={`${friend.name}'s Idle Binder`} subtitle="Copies not locked into any of their decks" onClose={onClose} size="xl">
       {loading ? (
-        <SkeletonGrid count={6} />
+        <SkeletonGrid count={6}/>
       ) : error ? (
         <p className="py-12 text-center text-sm text-rose-300">Couldn't load this binder.</p>
       ) : cards.length === 0 ? (
-        <EmptyState icon={Layers} title="Nothing idle right now" description={`Every copy ${friend.name} owns is assigned to a deck.`} />
+        <EmptyState icon={Layers} title="Nothing idle right now" description={`Every copy ${friend.name} owns is assigned to a deck.`}/>
       ) : (
         <>
           <p className="mb-4 text-xs text-slate-400"><span className="font-mono text-white">{totalIdle}</span> idle copies across <span className="font-mono text-white">{cards.length}</span> printings</p>
@@ -123,15 +125,15 @@ function IdleBinderModal({ friend, onClose }: { friend: Friend; onClose: () => v
               <div key={c.id} className={`${getElementClass(c.element)} overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.02]`}>
                 <div className={`relative aspect-[5/4] overflow-hidden ${c.foil ? "foil-static" : ""}`}>
                   <CardArt src={c.imageUrl} alt={c.cardName} className="h-full w-full object-top" />
-                  <div className="absolute left-2 top-2 z-[5]"><ElementBadge element={c.element} /></div>
+                  <div className="absolute left-2 top-2 z-[5]"><ElementBadge element={c.element}/></div>
                   <span className="absolute bottom-2 right-2 z-[5] rounded-full bg-black/70 px-2 py-0.5 font-mono text-[10px] font-semibold text-emerald-300 backdrop-blur">{c.idleQuantity} idle</span>
                 </div>
                 <div className="space-y-1.5 p-2.5">
                   <div className="truncate text-xs font-semibold text-white">{c.cardName}</div>
                   <div className="font-mono text-[10px] text-slate-500">{c.setPrefix} #{c.collectorNumber}</div>
                   <div className="flex flex-wrap gap-1">
-                    {c.foil && <FoilBadge />}
-                    {c.isLowPop && <LowPopBadge population={c.population} />}
+                    {c.foil && <FoilBadge/>}
+                    {c.isLowPop && <LowPopBadge population={c.population}/>}
                   </div>
                 </div>
               </div>
@@ -203,24 +205,24 @@ export default function FriendsPage() {
       />
 
       <div className="mb-10 grid gap-4 lg:grid-cols-5">
-        <div className="lg:col-span-3"><FriendCodeCard code={code} /></div>
+        <div className="lg:col-span-3"><FriendCodeCard code={code}/></div>
         <form onSubmit={connect} className="flex flex-col justify-between gap-4 rounded-2xl glass p-6 lg:col-span-2">
           <div>
             <p className="label-caps">Connect a Friend</p>
             <p className="mt-2 text-xs text-slate-400">Enter their code to create a mutual link.</p>
           </div>
           <div className="flex gap-2">
-            <input
+            <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="GA-XXXXXX"
               aria-label="Friend code"
-              className="input-field font-mono uppercase tracking-wider"
+              className="font-mono uppercase tracking-wider"
             />
-            <button type="submit" disabled={connecting || !input.trim()} className="btn-accent shrink-0">
+            <Button type="submit" disabled={connecting || !input.trim()} variant="accent" className="shrink-0">
               {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
               <span className="hidden sm:inline">Connect</span>
-            </button>
+            </Button>
           </div>
         </form>
       </div>
@@ -231,7 +233,7 @@ export default function FriendsPage() {
       </div>
 
       {loading ? (
-        <SkeletonGrid count={3} />
+        <SkeletonGrid count={3}/>
       ) : friends.length === 0 ? (
         <EmptyState icon={Users} title="No friends linked yet" description="Swap friend codes with your playgroup to start sharing idle cards." />
       ) : (
@@ -250,9 +252,9 @@ export default function FriendsPage() {
               <div className="mt-4 flex items-center gap-1.5 text-[11px] text-emerald-300/90">
                 <ShieldCheck className="h-3.5 w-3.5" /> Mutual link active
               </div>
-              <button onClick={() => setInspecting(f)} className="btn-ghost mt-4 !text-xs group-hover:border-cyan-400/30 group-hover:text-cyan-200">
+              <Button onClick={() => setInspecting(f)} variant="outline" className="mt-4 text-xs group-hover:border-cyan-400/30 group-hover:text-cyan-200">
                 <Sparkles className="h-3.5 w-3.5" /> View Idle Binder <ArrowRight className="ml-auto h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-              </button>
+              </Button>
             </article>
           ))}
         </div>

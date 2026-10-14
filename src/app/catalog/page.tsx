@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Search, Sparkles, Gem, RefreshCw, SlidersHorizontal, X } from "lucide-react";
-import { PageHeader } from "@/components/ui";
+import { PageHeader } from "@/components/common";
 import { SkeletonGrid, EmptyState } from "@/components/Skeletons";
 import { useToast } from "@/components/ToastProvider";
 import CatalogCard, { type CatalogCardData, type Edition } from "@/components/catalog/CatalogCard";
 import { getElementColor } from "@/lib/elements";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 
 const ELEMENTS = ["NORM", "FIRE", "WATER", "WIND", "EARTH"];
 const CLASSES = ["WARRIOR", "MAGE", "TANK", "CLERIC", "ASSASSIN", "RANGER", "TAMER"];
@@ -22,7 +24,7 @@ function Chip({ active, onClick, children, color }: { active: boolean; onClick: 
       }`}
       style={active && color ? { borderColor: `${color}66`, background: `${color}1f`, color } : undefined}
     >
-      {color && <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />}
+      {color && <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }}/>}
       {children}
     </button>
   );
@@ -138,20 +140,17 @@ export default function CatalogPage() {
           ))}
         </div>
       </div>
-      <button
-        onClick={() => setLowPopOnly((v) => !v)}
-        aria-pressed={lowPopOnly}
-        className={`flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-xs font-semibold transition-all ${
+      <label
+        htmlFor="lowpop-switch"
+        className={`flex w-full cursor-pointer items-center justify-between rounded-xl border px-3 py-2.5 text-xs font-semibold transition-all ${
           lowPopOnly ? "border-amber-300/30 bg-amber-300/10 text-amber-200 shadow-[0_0_20px_-8px_rgba(232,201,103,0.6)]" : "border-white/[0.06] text-slate-400 hover:text-slate-200"
         }`}
       >
         <span className="flex items-center gap-2"><Gem className="h-3.5 w-3.5" /> Low population only</span>
-        <span className={`relative h-4 w-7 rounded-full transition-colors ${lowPopOnly ? "bg-amber-300" : "bg-white/10"}`}>
-          <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all ${lowPopOnly ? "left-3.5" : "left-0.5"}`} />
-        </span>
-      </button>
+        <Switch id="lowpop-switch" tone="gold" checked={lowPopOnly} onCheckedChange={setLowPopOnly} />
+      </label>
       {activeCount > 0 && (
-        <button onClick={clearAll} className="text-xs text-slate-400 underline-offset-2 hover:text-white hover:underline">Clear all filters</button>
+        <Button variant="link" size="sm" onClick={clearAll} className="px-0 text-slate-400 hover:text-white">Clear all filters</Button>
       )}
     </div>
   );
@@ -165,15 +164,15 @@ export default function CatalogPage() {
         actions={
           <>
             <span className="rounded-full border border-white/[0.08] px-3 py-1.5 font-mono text-xs text-slate-300">{total.toLocaleString()} cards</span>
-            <button onClick={handleSync} disabled={syncing} className="btn-ghost relative overflow-hidden">
-              <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin text-cyan-300" : ""}`} />
+            <Button onClick={handleSync} disabled={syncing} variant="outline" className="relative overflow-hidden">
+              <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin text-cyan-300" : ""}`}/>
               {syncing ? "Syncing..." : "Sync Catalog"}
               {syncing && (
                 <span className="absolute inset-x-0 bottom-0 h-0.5 overflow-hidden bg-white/5">
                   <span className="sync-slide block h-full w-1/3 bg-cyan-400" />
                 </span>
               )}
-            </button>
+            </Button>
           </>
         }
       />
@@ -198,24 +197,24 @@ export default function CatalogPage() {
                 <button onClick={() => setQuery("")} aria-label="Clear search" className="text-slate-500 hover:text-white"><X className="h-4 w-4" /></button>
               )}
             </div>
-            <button onClick={() => setShowFilters((v) => !v)} className="btn-ghost lg:hidden" aria-expanded={showFilters}>
+            <Button onClick={() => setShowFilters((v) => !v)} variant="outline" className="lg:hidden" aria-expanded={showFilters}>
               <SlidersHorizontal className="h-4 w-4" />
               {activeCount > 0 && <span className="font-mono text-xs">{activeCount}</span>}
-            </button>
+            </Button>
           </div>
 
           {showFilters && <div className="rounded-2xl glass p-5 lg:hidden animate-fade-in">{filters}</div>}
 
           {loading ? (
-            <SkeletonGrid count={8} />
+            <SkeletonGrid count={8}/>
           ) : error ? (
-            <EmptyState icon={Sparkles} title="We couldn't load the catalog" action={<button onClick={fetchCards} className="btn-ghost">Retry</button>} />
+            <EmptyState icon={Sparkles} title="We couldn't load the catalog" action={<Button onClick={fetchCards} variant="outline">Retry</Button>} />
           ) : cards.length === 0 ? (
             <EmptyState
               icon={Sparkles}
               title="No cards match these filters"
               description="Try a different name or clear some filters. If the catalog looks empty, run a sync."
-              action={activeCount > 0 ? <button onClick={clearAll} className="btn-ghost">Clear filters</button> : <button onClick={handleSync} className="btn-ghost">Sync Catalog</button>}
+              action={activeCount> 0 ? <Button onClick={clearAll} variant="outline">Clear filters</Button> : <Button onClick={handleSync} variant="outline">Sync Catalog</Button>}
             />
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">

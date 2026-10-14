@@ -20,6 +20,27 @@
   --gold: #c8a951;
   --gold-bright: #e8c967;
   --gold-glow: rgba(200, 169, 81, 0.25);
+
+  --background: 222 42% 5%;
+  --foreground: 214 32% 91%;
+  --card: 223 39% 7%;
+  --card-foreground: 214 32% 91%;
+  --popover: 223 39% 7%;
+  --popover-foreground: 214 32% 91%;
+  --primary: 0 0% 100%;
+  --primary-foreground: 222 47% 11%;
+  --secondary: 222 30% 12%;
+  --secondary-foreground: 214 32% 91%;
+  --muted: 222 30% 10%;
+  --muted-foreground: 215 20% 65%;
+  --accent: 222 30% 13%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 350 89% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 222 20% 15%;
+  --input: 222 20% 17%;
+  --ring: 187 85% 53%;
+  --radius: 0.5rem;
 }
 
 html {
@@ -184,15 +205,6 @@ body {
   100% { background-position: -200% 0; }
 }
 
-/* ─── Toast Slide In ─── */
-@keyframes toast-in {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-.animate-toast {
-  animation: toast-in 0.3s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
 /* ─── Fade In ─── */
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(8px); }
@@ -200,15 +212,6 @@ body {
 }
 .animate-fade-in {
   animation: fade-in 0.4s ease-out;
-}
-
-/* ─── Drawer / Modal Backdrop ─── */
-@keyframes backdrop-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-.animate-backdrop {
-  animation: backdrop-in 0.25s ease;
 }
 
 @keyframes modal-in {
@@ -259,12 +262,6 @@ body {
 .tier-C {
   background: linear-gradient(135deg, #334155, #475569);
   color: #cbd5e1;
-}
-
-/* ─── Spotlight / Command Palette ─── */
-.cmdk-overlay {
-  background: rgba(7, 10, 17, 0.8);
-  backdrop-filter: blur(8px);
 }
 
 /* ─── Hover Lift ─── */
@@ -340,18 +337,6 @@ body {
 }
 
 @layer components {
-  .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg shadow-black/30 transition-all hover:bg-slate-200 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
-  }
-  .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-4 py-2 text-sm font-medium text-slate-200 transition-all hover:bg-white/[0.07] hover:text-white active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
-  }
-  .btn-accent {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-b from-cyan-400 to-cyan-600 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-cyan-500/20 transition-all hover:from-cyan-300 hover:to-cyan-500 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
-  }
-  .input-field {
-    @apply w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-slate-500 outline-none transition-all focus:border-cyan-400/50 focus:bg-white/[0.05] focus:ring-2 focus:ring-cyan-400/15;
-  }
   .label-caps {
     @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500;
   }

@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { Trophy, ExternalLink, Link2, Loader2, Swords } from "lucide-react";
-import { Modal, PageHeader } from "@/components/ui";
+import { Modal, PageHeader } from "@/components/common";
 import { SkeletonGrid, EmptyState } from "@/components/Skeletons";
 import { useToast } from "@/components/ToastProvider";
 import ShortageTable, { FeasibilityBanner, type ShortageReport } from "@/components/decks/ShortageTable";
+import { Button } from "@/components/ui/button";
 
 interface MetaArchetype {
   id: string;
@@ -51,20 +52,20 @@ function ArchetypeCard({ meta, onCompare }: { meta: MetaArchetype; onCompare: ()
             <div className="label-caps !text-[9px]">{s.label}</div>
             <div className="mt-1 font-mono text-lg font-semibold text-white">{s.value}</div>
             <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/[0.06]">
-              <div className={`h-full rounded-full ${s.bar}`} style={{ width: `${Math.min(100, (pctValue(s.value) / s.max) * 100)}%` }} />
+              <div className={`h-full rounded-full ${s.bar}`} style={{ width: `${Math.min(100, (pctValue(s.value) / s.max) * 100)}%` }}/>
             </div>
           </div>
         ))}
       </div>
 
       <div className="mt-4 flex items-center gap-2 border-t border-white/[0.05] pt-4">
-        <button onClick={onCompare} className="btn-ghost flex-1 !py-1.5 !text-xs group-hover:border-cyan-400/30 group-hover:text-cyan-200">
+        <Button onClick={onCompare} variant="outline" className="flex-1 py-1.5 text-xs group-hover:border-cyan-400/30 group-hover:text-cyan-200">
           <Swords className="h-3.5 w-3.5" /> Compare to Binder
-        </button>
+        </Button>
         {meta.sourceUrl && (
-          <a href={meta.sourceUrl} target="_blank" rel="noopener noreferrer" aria-label={`View ${meta.name} stats`} className="btn-ghost !px-2.5 !py-1.5">
+          <Button asChild variant="outline" className="px-2.5 py-1.5"><a href={meta.sourceUrl} target="_blank" rel="noopener noreferrer" aria-label={`View ${meta.name} stats`}>
             <ExternalLink className="h-3.5 w-3.5" />
-          </a>
+          </a></Button>
         )}
       </div>
     </article>
@@ -146,13 +147,13 @@ export default function MetaExplorerPage() {
             className="min-w-0 flex-1 bg-transparent py-2.5 text-sm text-white placeholder:text-slate-500 outline-none"
           />
         </div>
-        <button type="submit" disabled={!customText.trim() || comparing} className="btn-accent">
+        <Button type="submit" disabled={!customText.trim() || comparing} variant="accent">
           <Swords className="h-4 w-4" /> Compare
-        </button>
+        </Button>
       </form>
 
       {loading ? (
-        <SkeletonGrid count={6} />
+        <SkeletonGrid count={6}/>
       ) : error ? (
         <EmptyState icon={Trophy} title="Couldn't load the meta" description="Please refresh to try again." />
       ) : archetypes.length === 0 ? (
@@ -204,8 +205,8 @@ export default function MetaExplorerPage() {
                   </div>
                 ))}
               </div>
-              <FeasibilityBanner report={report} />
-              <ShortageTable items={report.items} onlyMissing={missingCount > 0} />
+              <FeasibilityBanner report={report}/>
+              <ShortageTable items={report.items} onlyMissing={missingCount> 0} />
             </div>
           )}
         </Modal>

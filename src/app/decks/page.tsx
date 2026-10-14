@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { BookOpen, Plus, Upload, ArrowRight, CheckCircle2, AlertTriangle, Trash2, Crown } from "lucide-react";
-import { PageHeader, ConfirmModal } from "@/components/ui";
+import { PageHeader, ConfirmModal } from "@/components/common";
 import { SkeletonCard, EmptyState } from "@/components/Skeletons";
 import { useToast } from "@/components/ToastProvider";
 import DeckFormModal from "@/components/decks/DeckFormModal";
+import { Button } from "@/components/ui/button";
 
 interface DeckSummary {
   id: string;
@@ -81,24 +82,24 @@ export default function DecksPage() {
         description="Every constructed list, checked live against your binder with shared and dedicated copy rules."
         actions={
           <>
-            <button onClick={() => setFormMode("import")} className="btn-ghost"><Upload className="h-4 w-4" /> Import Omnidex</button>
-            <button onClick={() => setFormMode("create")} className="btn-primary"><Plus className="h-4 w-4" /> New Deck</button>
+            <Button onClick={() => setFormMode("import")} variant="outline"><Upload className="h-4 w-4" /> Import Omnidex</Button>
+            <Button onClick={() => setFormMode("create")} ><Plus className="h-4 w-4" /> New Deck</Button>
           </>
         }
       />
 
       {loading ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)}
+          {Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i}/>)}
         </div>
       ) : error ? (
-        <EmptyState icon={BookOpen} title="We couldn't load your decks" action={<button onClick={fetchDecks} className="btn-ghost">Retry</button>} />
+        <EmptyState icon={BookOpen} title="We couldn't load your decks" action={<Button onClick={fetchDecks} variant="outline">Retry</Button>} />
       ) : decks.length === 0 ? (
         <EmptyState
           icon={BookOpen}
           title="No decks yet"
           description="Create an empty deck or paste an Omnidex list to see what you're missing."
-          action={<button onClick={() => setFormMode("import")} className="btn-primary"><Upload className="h-4 w-4" /> Import a Decklist</button>}
+          action={<Button onClick={() => setFormMode("import")} ><Upload className="h-4 w-4" /> Import a Decklist</Button>}
         />
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">

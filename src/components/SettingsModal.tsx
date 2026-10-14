@@ -2,8 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { Copy, Check, Loader2, Gem } from "lucide-react";
-import { Modal } from "@/components/ui";
+import { Modal } from "@/components/common";
 import { useToast } from "@/components/ToastProvider";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Slider } from "@/components/ui/slider";
 
 const MIN = 100;
 const MAX = 5000;
@@ -59,8 +62,6 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const pct = ((threshold - MIN) / (MAX - MIN)) * 100;
-
   return (
     <Modal
       title="Preferences"
@@ -69,10 +70,10 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
       size="sm"
       footer={
         <div className="flex w-full justify-end gap-2">
-          <button onClick={onClose} className="btn-ghost">Cancel</button>
-          <button onClick={save} disabled={saving || loading} className="btn-primary">
+          <Button onClick={onClose} variant="outline">Cancel</Button>
+          <Button onClick={save} disabled={saving || loading}>
             {saving && <Loader2 className="h-4 w-4 animate-spin" />} Save
-          </button>
+          </Button>
         </div>
       }
     >
@@ -82,9 +83,9 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
             <p className="label-caps !text-[10px]">Friend Code</p>
             {friendCode ? <p className="mt-1 font-mono text-base font-semibold tracking-wider text-white">{friendCode}</p> : <span className="skeleton mt-1 block h-5 w-28 rounded" />}
           </div>
-          <button onClick={copy} disabled={!friendCode} className="btn-ghost !px-3 !py-1.5 !text-xs">
+          <Button onClick={copy} disabled={!friendCode} variant="outline" size="sm">
             {copied ? <Check className="h-3.5 w-3.5 text-emerald-300" /> : <Copy className="h-3.5 w-3.5" />} {copied ? "Copied" : "Copy"}
-          </button>
+          </Button>
         </div>
 
         <div>
@@ -94,7 +95,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
             </label>
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-slate-500">≤</span>
-              <input
+              <Input
                 id="threshold-input"
                 type="number"
                 min={MIN}
@@ -107,22 +108,19 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
                   if (!isNaN(v)) setThreshold(v);
                 }}
                 onBlur={() => setThreshold((v) => Math.min(MAX, Math.max(MIN, v)))}
-                className="input-field !w-24 !py-1 text-right font-mono"
+                className="w-24 py-1 text-right font-mono"
               />
             </div>
           </div>
           <p className="mb-4 text-xs leading-relaxed text-slate-500">Printings with a circulation at or below this count get the gold Low Pop badge.</p>
-          <input
-            type="range"
+          <Slider
             min={MIN}
             max={MAX}
             step={50}
-            value={Math.min(MAX, Math.max(MIN, threshold))}
+            value={[Math.min(MAX, Math.max(MIN, threshold))]}
             disabled={loading}
-            onChange={(e) => setThreshold(parseInt(e.target.value, 10))}
+            onValueChange={([v]) => setThreshold(v)}
             aria-label="Low pop threshold slider"
-            className="h-1.5 w-full cursor-pointer appearance-none rounded-full accent-amber-300"
-            style={{ background: `linear-gradient(to right, #e8c967 ${pct}%, rgba(255,255,255,0.08) ${pct}%)` }}
           />
           <div className="mt-2 flex justify-between font-mono text-[10px] text-slate-600">
             <span>{MIN}</span>

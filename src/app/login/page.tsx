@@ -3,6 +3,7 @@
 import { useSession } from "next-auth/react";
 import { CheckCircle2, Layers } from "lucide-react";
 import SignInPanel from "@/components/SignInPanel";
+import { Button } from "@/components/ui/button";
 
 export default function LoginPage() {
   const { data: session, status } = useSession();
@@ -18,7 +19,7 @@ export default function LoginPage() {
             <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-300" />
             <h1 className="text-xl font-semibold text-white">You're signed in</h1>
             <p className="text-sm text-slate-400">Signed in as <span className="text-white">{session.user.name}</span></p>
-            <a href="/collection" className="btn-primary">Go to My Binder</a>
+            <Button asChild><a href="/collection">Go to My Binder</a></Button>
           </div>
         ) : (
           <>

@@ -1,7 +1,7 @@
 "use client";
 
 import { Lock, Unlock } from "lucide-react";
-import { ElementBadge, FoilBadge, LowPopBadge, QuantityStepper, CardArt } from "@/components/ui";
+import { ElementBadge, FoilBadge, LowPopBadge, QuantityStepper, CardArt } from "@/components/common";
 import { formatPopulation } from "@/lib/elements";
 import type { CollectionItem, CollectionActions } from "./types";
 

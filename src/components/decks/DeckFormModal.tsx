@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { Loader2, Plus, Upload } from "lucide-react";
-import { Modal } from "@/components/ui";
+import { Modal } from "@/components/common";
+import { Button } from "@/components/ui/button";
+import { Input, Textarea } from "@/components/ui/input";
 
 const OMNIDEX_PLACEHOLDER = `# Material Deck
 1 Spirit of Water
@@ -61,29 +63,29 @@ export default function DeckFormModal({
       size={isImport ? "lg" : "sm"}
       footer={
         <>
-          <button onClick={onClose} className="btn-ghost">Cancel</button>
-          <button onClick={submit} disabled={submitting || !canSubmit} className="btn-primary">
+          <Button onClick={onClose} variant="outline">Cancel</Button>
+          <Button onClick={submit} disabled={submitting || !canSubmit}>
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : isImport ? <Upload className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
             {isImport ? "Import & Analyze" : "Create Deck"}
-          </button>
+          </Button>
         </>
       }
-    >
+          >
       <div className="space-y-4">
         <div className={`grid gap-4 ${isImport ? "sm:grid-cols-2" : ""}`}>
           <div>
             <label htmlFor="deck-name" className="label-caps mb-1.5 block">Deck Name</label>
-            <input id="deck-name" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Water Lorraine" className="input-field" />
+            <Input id="deck-name" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Water Lorraine" />
           </div>
           <div>
             <label htmlFor="deck-champion" className="label-caps mb-1.5 block">Champion (optional)</label>
-            <input id="deck-champion" value={champion} onChange={(e) => setChampion(e.target.value)} placeholder="Lorraine, Wandering Warrior" className="input-field" />
+            <Input id="deck-champion" value={champion} onChange={(e) => setChampion(e.target.value)} placeholder="Lorraine, Wandering Warrior" />
           </div>
         </div>
         {isImport && (
           <div>
             <label htmlFor="deck-text" className="label-caps mb-1.5 block">Decklist Text</label>
-            <textarea id="deck-text" rows={10} value={text} onChange={(e) => setText(e.target.value)} placeholder={OMNIDEX_PLACEHOLDER} className="input-field resize-none font-mono text-xs leading-relaxed" />
+            <Textarea id="deck-text" rows={10} value={text} onChange={(e) => setText(e.target.value)} placeholder={OMNIDEX_PLACEHOLDER} className="resize-none font-mono text-xs leading-relaxed" />
           </div>
         )}
         {error && <p className="rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{error}</p>}

@@ -5,13 +5,18 @@ import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import {
   BookOpen, Layers, Sparkles, Trophy, Users, QrCode, Settings as SettingsIcon,
-  LogIn, LogOut, Menu, X, Search, Command, ChevronDown, Copy, Home,
+  LogIn, LogOut, Menu, Search, Command, ChevronDown, Copy, Home,
 } from "lucide-react";
 import QrScanModal from "./QrScanModal";
 import SettingsModal from "./SettingsModal";
 import LoginModal from "./LoginModal";
 import CommandPalette from "./CommandPalette";
 import { useToast } from "./ToastProvider";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 const NAV_ITEMS = [
   { href: "/collection", label: "Collection", icon: Layers },
@@ -28,7 +33,6 @@ export default function Navbar() {
   const [showQrModal, setShowQrModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [showCmdk, setShowCmdk] = useState(false);
   const [friendCode, setFriendCode] = useState<string | null>(null);
@@ -38,10 +42,6 @@ export default function Navbar() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setShowCmdk(true);
-      }
-      if (e.key === "Escape") {
-        setShowUserDropdown(false);
-        setMobileOpen(false);
       }
     };
     const openScanner = () => setShowQrModal(true);
@@ -127,137 +127,106 @@ export default function Navbar() {
               </kbd>
             </button>
 
-            <button onClick={() => setShowQrModal(true)} className="btn-accent !px-3 !py-1.5 !text-xs" aria-label="Scan cards with phone">
+            <Button onClick={() => setShowQrModal(true)} variant="accent" size="sm" aria-label="Scan cards with phone">
               <QrCode className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Scan with Phone</span>
-            </button>
+            </Button>
 
             {session?.user ? (
-              <div className="relative">
-                <button
-                  onClick={() => setShowUserDropdown((v) => !v)}
-                  aria-haspopup="menu"
-                  aria-expanded={showUserDropdown}
-                  className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] py-1 pl-1 pr-2 text-xs font-medium transition-all hover:bg-white/[0.05]"
-                >
-                  <div className="flex h-6 w-6 items-center justify-center rounded-md border border-amber-300/25 bg-amber-300/10 text-[11px] font-bold text-amber-200">
-                    {session.user.name?.charAt(0).toUpperCase() || "C"}
-                  </div>
-                  <span className="hidden font-medium text-slate-200 sm:inline">{session.user.name?.split(" ")[0] || "Collector"}</span>
-                  <ChevronDown className={`h-3 w-3 text-slate-500 transition-transform ${showUserDropdown ? "rotate-180" : ""}`} />
-                </button>
-
-                {showUserDropdown && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowUserDropdown(false)} />
-                    <div role="menu" className="absolute right-0 z-50 mt-2 w-64 rounded-xl glass-strong p-1.5 shadow-2xl animate-modal">
-                      <div className="border-b border-white/[0.06] px-3 py-2.5">
-                        <div className="flex items-center gap-2">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#10b981]" />
-                          <span className="truncate text-sm font-semibold text-white">{session.user.name}</span>
-                        </div>
-                        <div className="truncate font-mono text-[11px] text-slate-500">{session.user.email}</div>
-                      </div>
-                      {friendCode && (
-                        <button
-                          onClick={copyFriendCode}
-                          className="mx-1.5 my-2 flex w-[calc(100%-12px)] items-center justify-between rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-left transition-colors hover:bg-white/[0.06]"
-                        >
-                          <div>
-                            <div className="label-caps !text-[9px]">Friend Code</div>
-                            <div className="font-mono text-sm font-semibold text-amber-200">{friendCode}</div>
-                          </div>
-                          <Copy className="h-3.5 w-3.5 text-slate-400" />
-                        </button>
-                      )}
-                      <button
-                        role="menuitem"
-                        onClick={() => { setShowUserDropdown(false); setShowSettingsModal(true); }}
-                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs text-slate-300 transition-colors hover:bg-white/[0.04]"
-                      >
-                        <SettingsIcon className="h-3.5 w-3.5" />
-                        Collector Preferences
-                      </button>
-                      <button
-                        role="menuitem"
-                        onClick={() => { setShowUserDropdown(false); signOut(); showToast("Signed out", "info"); }}
-                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs text-rose-400 transition-colors hover:bg-rose-500/10"
-                      >
-                        <LogOut className="h-3.5 w-3.5" />
-                        Sign Out
-                      </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="group flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] py-1 pl-1 pr-2 text-xs font-medium transition-all hover:bg-white/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-md border border-amber-300/25 bg-amber-300/10 text-[11px] font-bold text-amber-200">
+                      {session.user.name?.charAt(0).toUpperCase() || "C"}
                     </div>
-                  </>
-                )}
-              </div>
+                    <span className="hidden font-medium text-slate-200 sm:inline">{session.user.name?.split(" ")[0] || "Collector"}</span>
+                    <ChevronDown className="h-3 w-3 text-slate-500 transition-transform group-data-[state=open]:rotate-180" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  <DropdownMenuLabel className="border-b border-white/[0.06] pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#10b981]" />
+                      <span className="truncate text-sm font-semibold text-white">{session.user.name}</span>
+                    </div>
+                    <div className="truncate font-mono text-[11px] font-normal text-slate-500">{session.user.email}</div>
+                  </DropdownMenuLabel>
+                  {friendCode && (
+                    <DropdownMenuItem
+                      onSelect={copyFriendCode}
+                      className="my-1.5 justify-between border border-white/[0.06] bg-white/[0.03]"
+                    >
+                      <div>
+                        <div className="label-caps !text-[9px]">Friend Code</div>
+                        <div className="font-mono text-sm font-semibold text-amber-200">{friendCode}</div>
+                      </div>
+                      <Copy className="text-slate-400" />
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onSelect={() => setShowSettingsModal(true)} className="text-xs">
+                    <SettingsIcon />
+                    Collector Preferences
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={() => { signOut(); showToast("Signed out", "info"); }}
+                    className="text-xs text-rose-400 data-[highlighted]:bg-rose-500/10 data-[highlighted]:text-rose-300"
+                  >
+                    <LogOut />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : (
               <>
-                <button
-                  onClick={() => setShowSettingsModal(true)}
-                  className="hidden rounded-lg p-2 text-slate-400 transition-all hover:bg-white/[0.04] hover:text-slate-200 sm:block"
-                  aria-label="Preferences"
-                >
+                <Button onClick={() => setShowSettingsModal(true)} variant="ghost" size="icon" className="hidden sm:inline-flex" aria-label="Preferences">
                   <SettingsIcon className="h-4 w-4" />
-                </button>
-                <button onClick={() => setShowLoginModal(true)} className="btn-ghost !px-3 !py-1.5 !text-xs">
+                </Button>
+                <Button onClick={() => setShowLoginModal(true)} variant="outline" size="sm">
                   <LogIn className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">Sign In</span>
-                </button>
+                </Button>
               </>
             )}
 
-            <button
-              onClick={() => setMobileOpen(true)}
-              className="rounded-lg p-2 text-slate-400 hover:bg-white/[0.04] hover:text-slate-200 md:hidden"
-              aria-label="Open menu"
-            >
-              <Menu className="h-4 w-4" />
-            </button>
+            <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="md:hidden" aria-label="Open menu">
+                  <Menu className="h-4 w-4" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent aria-describedby={undefined}>
+                <div className="border-b border-white/[0.06] px-5 py-4">
+                  <SheetTitle className="label-caps">Navigate</SheetTitle>
+                </div>
+                <nav className="flex flex-col gap-1 p-3" aria-label="Mobile navigation">
+                  {[{ href: "/", label: "Dashboard", icon: Home }, ...NAV_ITEMS].map(({ href, label, icon: Icon }) => {
+                    const active = href === "/" ? pathname === "/" : isActive(href);
+                    return (
+                      <a
+                        key={href}
+                        href={href}
+                        aria-current={active ? "page" : undefined}
+                        className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
+                          active ? "bg-white/[0.07] text-white" : "text-slate-400 hover:bg-white/[0.03] hover:text-slate-200"
+                        }`}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {label}
+                      </a>
+                    );
+                  })}
+                </nav>
+                <div className="mt-auto space-y-2 border-t border-white/[0.06] p-4">
+                  <Button onClick={() => { setMobileOpen(false); setShowSettingsModal(true); }} variant="outline" className="w-full">
+                    <SettingsIcon className="h-4 w-4" /> Preferences
+                  </Button>
+                </div>
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
       </header>
-
-      <div className={`fixed inset-0 z-50 md:hidden ${mobileOpen ? "" : "pointer-events-none"}`} aria-hidden={!mobileOpen}>
-        <div
-          className={`absolute inset-0 bg-[#05070c]/70 backdrop-blur-sm transition-opacity duration-300 ${mobileOpen ? "opacity-100" : "opacity-0"}`}
-          onClick={() => setMobileOpen(false)}
-        />
-        <aside
-          className={`absolute right-0 top-0 flex h-full w-[82%] max-w-xs flex-col glass-strong transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-            mobileOpen ? "translate-x-0" : "translate-x-full"
-          }`}
-          aria-label="Mobile navigation"
-        >
-          <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
-            <span className="label-caps">Navigate</span>
-            <button onClick={() => setMobileOpen(false)} aria-label="Close menu" className="rounded-lg p-1.5 text-slate-400 hover:bg-white/[0.06]">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          <nav className="flex flex-col gap-1 p-3">
-            {[{ href: "/", label: "Dashboard", icon: Home }, ...NAV_ITEMS].map(({ href, label, icon: Icon }) => {
-              const active = href === "/" ? pathname === "/" : isActive(href);
-              return (
-                <a
-                  key={href}
-                  href={href}
-                  className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
-                    active ? "bg-white/[0.07] text-white" : "text-slate-400 hover:bg-white/[0.03] hover:text-slate-200"
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {label}
-                </a>
-              );
-            })}
-          </nav>
-          <div className="mt-auto space-y-2 border-t border-white/[0.06] p-4">
-            <button onClick={() => { setMobileOpen(false); setShowSettingsModal(true); }} className="btn-ghost w-full">
-              <SettingsIcon className="h-4 w-4" /> Preferences
-            </button>
-          </div>
-        </aside>
-      </div>
 
       {showQrModal && <QrScanModal onClose={() => setShowQrModal(false)} />}
       {showSettingsModal && <SettingsModal onClose={() => setShowSettingsModal(false)} />}

@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { Check, Loader2, AlertTriangle, Sparkles } from "lucide-react";
-import { Modal } from "@/components/ui";
+import { Modal } from "@/components/common";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/input";
 
 interface ParsedLine {
   raw: string;
@@ -73,24 +75,24 @@ export default function BulkImportModal({ onClose, onImported }: { onClose: () =
       size="lg"
       footer={
         <>
-          <button onClick={onClose} className="btn-ghost">Close</button>
-          <button onClick={handleImport} disabled={importing || valid.length === 0} className="btn-primary">
+          <Button onClick={onClose} variant="outline">Close</Button>
+          <Button onClick={handleImport} disabled={importing || valid.length === 0}>
             {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
             {importing ? "Importing..." : `Import ${totalCopies} ${totalCopies === 1 ? "copy" : "copies"}`}
-          </button>
+          </Button>
         </>
       }
-    >
+          >
       <div className="grid gap-5 md:grid-cols-2">
         <div>
           <label htmlFor="bulk-text" className="label-caps mb-2 block">Raw Text</label>
-          <textarea
+          <Textarea
             id="bulk-text"
             rows={12}
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder={"4x Fracturize [DOA]\n2 Rayne, Sword of Light\n1 Beseech the Winds Foil"}
-            className="input-field resize-none font-mono text-xs leading-relaxed"
+            className="resize-none font-mono text-xs leading-relaxed"
           />
         </div>
         <div>

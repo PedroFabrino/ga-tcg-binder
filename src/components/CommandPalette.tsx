@@ -15,6 +15,7 @@ import {
   Home,
   CornerDownLeft,
 } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 interface CommandItem {
   label: string;
@@ -83,13 +84,9 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
   let runningIdx = 0;
 
   return (
-    <div className="fixed inset-0 z-[90] cmdk-overlay flex items-start justify-center pt-[20vh] px-4 animate-backdrop" onClick={onClose}>
-      <div
-        className="w-full max-w-xl rounded-2xl glass-strong shadow-2xl animate-modal overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={handleKeyDown}
-      >
-        {/* Search Input */}
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent hideClose aria-describedby={undefined} onKeyDown={handleKeyDown} className="sm:top-[20vh] sm:max-w-xl sm:translate-y-0">
+        <DialogTitle className="sr-only">Quick search</DialogTitle>
         <div className="flex items-center space-x-3 border-b border-white/[0.06] px-4 py-3.5">
           <Search className="h-4 w-4 text-slate-500" />
           <input
@@ -103,7 +100,6 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
           <kbd className="rounded border border-white/10 px-1.5 py-0.5 text-[10px] font-mono text-slate-500">ESC</kbd>
         </div>
 
-        {/* Results */}
         <div className="max-h-[50vh] overflow-y-auto py-2">
           {flatFiltered.length === 0 ? (
             <div className="px-4 py-8 text-center text-sm text-slate-500">No results found</div>
@@ -137,7 +133,7 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
             ))
           )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

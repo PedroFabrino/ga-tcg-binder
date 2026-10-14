@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Gem, Lock } from "lucide-react";
 import TiltCard from "@/components/TiltCard";
-import { CardArt, QuantityStepper } from "@/components/ui";
+import { CardArt, QuantityStepper } from "@/components/common";
 import { getElementClass } from "@/lib/elements";
 import type { CollectionItem, CollectionActions } from "./types";
+import { Button } from "@/components/ui/button";
 
 const PER_PAGE = 9;
 
@@ -26,7 +27,7 @@ export default function BinderView({ items, onQuantity, onToggleDedicated }: { i
         <div className="relative grid grid-cols-3 gap-2 rounded-2xl bg-black/30 p-2 sm:gap-4 sm:p-4">
           {slots.map((item, i) =>
             item ? (
-              <BinderSlot key={item.id} item={item} onQuantity={onQuantity} onToggleDedicated={onToggleDedicated} />
+              <BinderSlot key={item.id} item={item} onQuantity={onQuantity} onToggleDedicated={onToggleDedicated}/>
             ) : (
               <div key={`empty-${i}`} className="pocket-slot flex items-center justify-center">
                 <span className="text-[10px] uppercase tracking-widest text-white/10">Empty</span>
@@ -37,15 +38,15 @@ export default function BinderView({ items, onQuantity, onToggleDedicated }: { i
       </div>
 
       <div className="mt-5 flex items-center justify-center gap-4">
-        <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} className="btn-ghost !p-2" aria-label="Previous binder page">
+        <Button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} variant="outline" size="icon" aria-label="Previous binder page">
           <ChevronLeft className="h-4 w-4" />
-        </button>
+        </Button>
         <span className="font-mono text-xs text-slate-400">
           Page {page + 1} / {pages}
         </span>
-        <button onClick={() => setPage((p) => Math.min(pages - 1, p + 1))} disabled={page >= pages - 1} className="btn-ghost !p-2" aria-label="Next binder page">
+        <Button onClick={() => setPage((p) => Math.min(pages - 1, p + 1))} disabled={page >= pages - 1} variant="outline" size="icon" aria-label="Next binder page">
           <ChevronRight className="h-4 w-4" />
-        </button>
+        </Button>
       </div>
     </div>
   );
