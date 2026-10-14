@@ -81,53 +81,85 @@ export default function DeckDetailPage() {
   const addMissing = async (item: ShortageItem) => {
     setAddingSlug(item.cardSlug);
     try {
+      let editionId: string | undefined;
+      let cardName = item.cardName;
+
+      // Check if catalog has printings
       const catRes = await fetch(`/api/catalog?query=${encodeURIComponent(item.cardSlug)}&limit=1`);
       const catData = catRes.ok ? await catRes.json() : null;
-      const edition = catData?.cards?.[0]?.editions?.[0];
-      if (!edition) throw new Error("No printing found");
+      const foundCard = catData?.cards?.[0];
+      if (foundCard?.editions?.[0]?.id) {
+        editionId = foundCard.editions[0].id;
+        cardName = foundCard.name || cardName;
+      }
+
+      if (!editionId) {
+        throw new Error("No catalog edition found for this card. Please sync catalog.");
+      }
+
       const res = await fetch("/api/collection", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          editionId: edition.id,
+          editionId,
           foil: false,
           quantity: item.missingQuantity,
           userId: session?.user?.id,
         }),
       });
-      if (!res.ok) throw new Error();
-      showToast(`Added ${item.missingQuantity}x ${item.cardName} to Binder`, "success");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to add to collection");
+      }
+
+      showToast(`Added ${item.missingQuantity}x ${cardName} to Binder`, "success");
       load(true);
-    } catch {
-      showToast(`Couldn't add ${item.cardName}`, "error");
+    } catch (e: any) {
+      showToast(e.message || `Couldn't add ${item.cardName}`, "error");
     } finally {
       setAddingSlug(null);
     }
   };
 
-  const addOne = async (cardSlug: string) => {
+  const addOne = async (cardSlug: string, cardNameParam?: string | null, assignedEditionId?: string | null) => {
     setAddingSlug(cardSlug);
     try {
-      const catRes = await fetch(`/api/catalog?query=${encodeURIComponent(cardSlug)}&limit=1`);
-      const catData = catRes.ok ? await catRes.json() : null;
-      const edition = catData?.cards?.[0]?.editions?.[0];
-      if (!edition) throw new Error("No printing found");
-      const cardName = catData?.cards?.[0]?.name || cardSlug;
+      let editionId = assignedEditionId;
+      let cardName = cardNameParam || cardSlug;
+
+      if (!editionId) {
+        const catRes = await fetch(`/api/catalog?query=${encodeURIComponent(cardSlug)}&limit=1`);
+        const catData = catRes.ok ? await catRes.json() : null;
+        const foundCard = catData?.cards?.[0];
+        if (foundCard?.editions?.[0]?.id) {
+          editionId = foundCard.editions[0].id;
+          cardName = foundCard.name || cardName;
+        }
+      }
+
+      if (!editionId) {
+        throw new Error("No printing found for this card. Please sync catalog.");
+      }
+
       const res = await fetch("/api/collection", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          editionId: edition.id,
+          editionId,
           foil: false,
           quantity: 1,
           userId: session?.user?.id,
         }),
       });
-      if (!res.ok) throw new Error();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to add to collection");
+      }
+
       showToast(`Added 1x ${cardName} to Binder`, "success");
       load(true);
-    } catch {
-      showToast(`Couldn't add copy of card`, "error");
+    } catch (e: any) {
+      showToast(e.message || `Couldn't add copy of card`, "error");
     } finally {
       setAddingSlug(null);
     }

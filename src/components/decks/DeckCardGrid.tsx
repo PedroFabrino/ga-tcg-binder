@@ -16,7 +16,7 @@ interface DeckCardGridProps {
     side: DeckCard[];
   };
   shortageItems?: ShortageItem[];
-  onAddOne?: (cardSlug: string) => Promise<void> | void;
+  onAddOne?: (cardSlug: string, cardName?: string | null, assignedEditionId?: string | null) => Promise<void> | void;
   addingSlug?: string | null;
 }
 
@@ -170,7 +170,7 @@ export default function DeckCardGrid({
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => onAddOne(card.cardSlug)}
+                              onClick={() => onAddOne(card.cardSlug, card.cardName, card.assignedEditionId)}
                               disabled={isAdding}
                               className="h-6 px-1.5 text-[10px] gap-1 hover:border-cyan-400/40 hover:bg-cyan-500/10 hover:text-cyan-200"
                               title="Add 1 copy to Binder"

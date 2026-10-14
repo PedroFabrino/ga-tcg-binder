@@ -214,3 +214,132 @@ export async function syncCatalogFromApi(
     durationMs: Date.now() - startTime,
   };
 }
+
+/**
+ * On-demand sync for a single card by slug or name query from official Grand Archive API.
+ * Ensures cards imported from Omnidex/TTS decklists that aren't yet in local catalog can be added immediately.
+ */
+export async function syncSingleCardFromApi(
+  query: string,
+  targetDb: any = db
+): Promise<{ cardSlug: string; editionId: string } | null> {
+  try {
+    const res = await fetch(`https://api.gatcg.com/cards/search?name=${encodeURIComponent(query)}`);
+    if (!res.ok) return null;
+    const json: GatcgApiResponse = await res.json();
+    const cardData = json.data?.[0];
+    if (!cardData) return null;
+
+    const element = cardData.element || (cardData.elements && cardData.elements[0]) || "NORM";
+    const cardClass = (cardData.classes && cardData.classes[0]) || "ALL";
+    const cardType = (cardData.types && cardData.types[0]) || "UNKNOWN";
+    const subtypes = JSON.stringify(cardData.subtypes || []);
+    const effect = cardData.effect || cardData.effect_raw || "";
+
+    await targetDb
+      .insert(cards)
+      .values({
+        slug: cardData.slug,
+        name: cardData.name,
+        element,
+        class: cardClass,
+        type: cardType,
+        subtypes,
+        effect,
+        costReserve: cardData.cost_reserve ?? null,
+        costMemory: cardData.cost_memory ?? null,
+        level: cardData.level ?? null,
+        speed: cardData.speed ? true : false,
+      })
+      .onConflictDoUpdate({
+        target: cards.slug,
+        set: {
+          name: cardData.name,
+          element,
+          class: cardClass,
+          type: cardType,
+          subtypes,
+          effect,
+          costReserve: cardData.cost_reserve ?? null,
+          costMemory: cardData.cost_memory ?? null,
+          level: cardData.level ?? null,
+          speed: cardData.speed ? true : false,
+          updatedAt: sql`(strftime('%s', 'now'))`,
+        },
+      });
+
+    const editionsList = cardData.editions || cardData.result_editions || [];
+    let firstEditionId = "";
+
+    for (const edition of editionsList) {
+      if (!edition.uuid) continue;
+      if (!firstEditionId) firstEditionId = edition.uuid;
+      const setPrefix = edition.set?.prefix || "UNK";
+      const setName = edition.set?.name || "Unknown Set";
+      const collectorNumber = edition.collector_number || "000";
+      const rarity = edition.rarity ?? 0;
+      const imageUrl = edition.image
+        ? edition.image.startsWith("http")
+          ? edition.image
+          : `https://api.gatcg.com${edition.image}`
+        : "";
+
+      await targetDb
+        .insert(cardEditions)
+        .values({
+          id: edition.uuid,
+          cardSlug: cardData.slug,
+          setPrefix,
+          setName,
+          collectorNumber,
+          rarity,
+          imageUrl,
+        })
+        .onConflictDoUpdate({
+          target: cardEditions.id,
+          set: {
+            cardSlug: cardData.slug,
+            setPrefix,
+            setName,
+            collectorNumber,
+            rarity,
+            imageUrl,
+          },
+        });
+
+      const circulationsList = edition.circulations || [];
+      for (const circ of circulationsList) {
+        const circId = circ.uuid || `${edition.uuid}-${circ.kind || "CIRC"}-${circ.foil ? "FOIL" : "NON"}`;
+        const kind = circ.kind || (circ.foil ? "FOIL" : "NONFOIL");
+        const population = circ.population ?? 0;
+        const foil = Boolean(circ.foil);
+        const printing = Boolean(circ.printing);
+
+        await targetDb
+          .insert(cardCirculations)
+          .values({
+            id: circId,
+            editionId: edition.uuid,
+            kind,
+            population,
+            foil,
+            printing,
+          })
+          .onConflictDoUpdate({
+            target: cardCirculations.id,
+            set: {
+              kind,
+              population,
+              foil,
+              printing,
+            },
+          });
+      }
+    }
+
+    return firstEditionId ? { cardSlug: cardData.slug, editionId: firstEditionId } : null;
+  } catch (e) {
+    console.error("Failed to sync single card on demand:", e);
+    return null;
+  }
+}

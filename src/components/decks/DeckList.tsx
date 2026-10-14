@@ -8,6 +8,7 @@ export interface DeckCard {
   cardSlug: string;
   zone: string;
   quantity: number;
+  assignedEditionId?: string | null;
   cardName: string | null;
   element: string | null;
   class: string | null;
