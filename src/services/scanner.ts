@@ -92,6 +92,41 @@ export async function getScannerSession(
   };
 }
 
+export function levenshteinDistance(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] =
+        a[i - 1] === b[j - 1]
+          ? dp[i - 1][j - 1]
+          : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+  return dp[m][n];
+}
+
+export function stringSimilarity(s1: string, s2: string): number {
+  const longer = s1.length > s2.length ? s1 : s2;
+  const shorter = s1.length > s2.length ? s2 : s1;
+  if (longer.length === 0) return 1.0;
+  return (longer.length - levenshteinDistance(longer, shorter)) / longer.length;
+}
+
+export function normalizeCardText(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export async function submitScannerDetections(
   token: string,
   rawTexts: string[],
@@ -114,25 +149,58 @@ export async function submitScannerDetections(
     const trimmed = raw.trim();
     if (!trimmed) continue;
 
-    // Check collector number format e.g. "DOA 001", "DOA-001", "P24 000"
-    const codeMatch = trimmed.match(/([A-Za-z0-9]{2,4})[\s\-]+(\d{3})/);
-    let matchedEdition = null;
-    let matchedCard = null;
+    let matchedEdition: any = null;
+    let matchedCard: any = null;
+    let confidence = 0;
+
+    // 1. Check for collector number pattern e.g. "DOA 001", "DOA 1st 001", "DOA-1st-001", "ALC 042", "P24 000"
+    const codeMatch = trimmed.match(/(?:^|\b)([A-Za-z0-9]{2,6})(?:[\s\-_]+(1st|alter|sd|dp|evp|p))?[\s\-_#]+(\d{3})(?:\b|$)/i);
 
     if (codeMatch) {
-      const setPrefix = codeMatch[1].toUpperCase();
-      const collectorNumber = codeMatch[2];
+      const basePrefix = codeMatch[1].toUpperCase();
+      const modifier = codeMatch[2];
+      const collectorNumber = codeMatch[3];
 
-      matchedEdition = await database
-        .select()
-        .from(cardEditions)
-        .where(
-          and(
-            sql`upper(${cardEditions.setPrefix}) = ${setPrefix}`,
-            eq(cardEditions.collectorNumber, collectorNumber)
+      if (modifier) {
+        const fullPrefix = `${basePrefix} ${modifier}`.toUpperCase();
+        matchedEdition = await database
+          .select()
+          .from(cardEditions)
+          .where(
+            and(
+              sql`upper(${cardEditions.setPrefix}) = ${fullPrefix}`,
+              eq(cardEditions.collectorNumber, collectorNumber)
+            )
           )
-        )
-        .get();
+          .get();
+      }
+
+      if (!matchedEdition) {
+        matchedEdition = await database
+          .select()
+          .from(cardEditions)
+          .where(
+            and(
+              sql`upper(${cardEditions.setPrefix}) = ${basePrefix}`,
+              eq(cardEditions.collectorNumber, collectorNumber)
+            )
+          )
+          .get();
+      }
+
+      if (!matchedEdition) {
+        // Prefix startsWith fallback (e.g. 'DOA' matches 'DOA 1st' or 'DOA Alter')
+        matchedEdition = await database
+          .select()
+          .from(cardEditions)
+          .where(
+            and(
+              sql`upper(${cardEditions.setPrefix}) LIKE ${basePrefix + "%"}`,
+              eq(cardEditions.collectorNumber, collectorNumber)
+            )
+          )
+          .get();
+      }
 
       if (matchedEdition) {
         matchedCard = await database
@@ -140,11 +208,16 @@ export async function submitScannerDetections(
           .from(cards)
           .where(eq(cards.slug, matchedEdition.cardSlug))
           .get();
+
+        if (matchedCard) {
+          confidence = 0.95;
+        }
       }
     }
 
-    // If no match by code, match by card name
+    // 2. If no match by code, match by card name
     if (!matchedCard) {
+      // 2a. Direct exact match
       matchedCard = await database
         .select()
         .from(cards)
@@ -152,12 +225,86 @@ export async function submitScannerDetections(
         .get();
 
       if (matchedCard) {
-        const eds = await database
-          .select()
-          .from(cardEditions)
-          .where(eq(cardEditions.cardSlug, matchedCard.slug));
-        matchedEdition = eds[0] || null;
+        confidence = 0.95;
       }
+    }
+
+    // 2b. Line-by-line exact match (if multi-line OCR text)
+    if (!matchedCard && trimmed.includes("\n")) {
+      const lines = trimmed.split("\n").map((l) => l.trim()).filter((l) => l.length >= 3);
+      for (const line of lines) {
+        const found = await database
+          .select()
+          .from(cards)
+          .where(sql`lower(${cards.name}) = lower(${line})`)
+          .get();
+
+        if (found) {
+          matchedCard = found;
+          confidence = 0.92;
+          break;
+        }
+      }
+    }
+
+    // 2c. Normalized / fuzzy match against card names
+    if (!matchedCard) {
+      const normInput = normalizeCardText(trimmed);
+      if (normInput.length >= 4) {
+        // Query candidate cards that could match
+        const candidates = await database
+          .select({ slug: cards.slug, name: cards.name })
+          .from(cards)
+          .all();
+
+        let bestCard: any = null;
+        let bestSim = 0;
+
+        for (const cand of candidates) {
+          const normCand = normalizeCardText(cand.name);
+          if (normCand === normInput) {
+            bestCard = cand;
+            bestSim = 0.95;
+            break;
+          }
+
+          // Check if input contains candidate name or vice-versa
+          if (normInput.includes(normCand) && normCand.length >= 4) {
+            const sim = normCand.length / normInput.length;
+            if (sim > 0.6 && sim > bestSim) {
+              bestCard = cand;
+              bestSim = 0.90;
+            }
+          }
+
+          // Levenshtein similarity for OCR typos
+          if (Math.abs(normCand.length - normInput.length) <= 3) {
+            const sim = stringSimilarity(normCand, normInput);
+            if (sim >= 0.82 && sim > bestSim) {
+              bestSim = sim;
+              bestCard = cand;
+            }
+          }
+        }
+
+        if (bestCard && bestSim >= 0.82) {
+          matchedCard = await database
+            .select()
+            .from(cards)
+            .where(eq(cards.slug, bestCard.slug))
+            .get();
+          confidence = Math.round(bestSim * 100) / 100;
+        }
+      }
+    }
+
+    // If card was matched but edition wasn't, find primary edition
+    if (matchedCard && !matchedEdition) {
+      const eds = await database
+        .select()
+        .from(cardEditions)
+        .where(eq(cardEditions.cardSlug, matchedCard.slug));
+      matchedEdition = eds[0] || null;
     }
 
     const detection: ScannerCardDetection = {
@@ -167,7 +314,7 @@ export async function submitScannerDetections(
       editionId: matchedEdition?.id,
       setPrefix: matchedEdition?.setPrefix,
       collectorNumber: matchedEdition?.collectorNumber,
-      confidence: matchedCard ? 0.95 : 0.4,
+      confidence: matchedCard ? confidence : 0,
       timestamp: Date.now(),
       confirmed: false,
     };

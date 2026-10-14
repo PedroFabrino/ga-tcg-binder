@@ -5,6 +5,7 @@ import { Plus, Check, Sparkles, Gem } from "lucide-react";
 import TiltCard from "@/components/TiltCard";
 import { CardArt, ElementBadge, RarityGem } from "@/components/common";
 import { formatPopulation, getElementClass } from "@/lib/elements";
+import { CardPreviewTrigger } from "@/components/CardHoverPreview";
 
 export interface Circulation { id: string; kind: string; population: number; foil: boolean }
 export interface Edition {
@@ -46,7 +47,14 @@ export default function CatalogCard({ card, onAdd }: { card: CatalogCardData; on
   return (
     <article className={`${getElementClass(card.element)} group flex flex-col overflow-hidden rounded-2xl glass transition-colors hover:border-white/[0.12]`}>
       <TiltCard maxTilt={5} className="rounded-t-2xl">
-        <div className="relative aspect-[5/4] overflow-hidden bg-black/40">
+        <CardPreviewTrigger
+          name={card.name}
+          slug={card.slug}
+          imageUrl={ed?.imageUrl}
+          element={card.element}
+          as="div"
+          className="relative aspect-[5/4] overflow-hidden bg-black/40 cursor-pointer"
+        >
           <CardArt src={ed?.imageUrl} alt={card.name} className="h-full w-full object-top transition-transform duration-500 group-hover:scale-105" />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0b0f19] via-transparent to-transparent" />
           <div className="absolute left-2.5 top-2.5 z-[5]"><ElementBadge element={card.element} /></div>
@@ -55,12 +63,20 @@ export default function CatalogCard({ card, onAdd }: { card: CatalogCardData; on
               <Gem className="h-2.5 w-2.5" /> Low Pop
             </span>
           )}
-        </div>
+        </CardPreviewTrigger>
       </TiltCard>
 
       <div className="flex flex-1 flex-col gap-3 p-4">
         <div>
-          <h3 className="truncate text-sm font-semibold text-white">{card.name}</h3>
+          <CardPreviewTrigger
+            name={card.name}
+            slug={card.slug}
+            imageUrl={ed?.imageUrl}
+            element={card.element}
+            className="inline-block max-w-full"
+          >
+            <h3 className="truncate text-sm font-semibold text-white transition-colors hover:text-cyan-300 cursor-pointer">{card.name}</h3>
+          </CardPreviewTrigger>
           <p className="mt-0.5 text-[11px] text-slate-500">{[card.type, card.class].filter(Boolean).join(" · ")}</p>
           {card.effect && <p className="mt-2 line-clamp-2 text-[11px] leading-relaxed text-slate-400">{card.effect}</p>}
         </div>

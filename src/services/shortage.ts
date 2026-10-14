@@ -22,6 +22,7 @@ export interface CardShortageDetail {
   cardSlug: string;
   cardName: string;
   zone: string;
+  imageUrl?: string | null;
   requiredQuantity: number;
   availableQuantity: number;
   missingQuantity: number;
@@ -173,11 +174,29 @@ export async function calculateDeckShortage(
   let totalCardsRequired = 0;
   let totalCardsMissing = 0;
 
+  const targetSlugs = Array.from(new Set(targetDeckCards.map((c: any) => c.cardSlug)));
+  let targetEditions: any[] = [];
+  if (targetSlugs.length > 0) {
+    targetEditions = await database
+      .select({
+        id: cardEditions.id,
+        cardSlug: cardEditions.cardSlug,
+        imageUrl: cardEditions.imageUrl,
+      })
+      .from(cardEditions)
+      .where(inArray(cardEditions.cardSlug, targetSlugs));
+  }
+
   for (const dc of targetDeckCards) {
     const slug = dc.cardSlug;
     const cardName = dc.name || slug;
     const required = dc.quantity;
     totalCardsRequired += required;
+
+    const matchingEd = dc.assignedEditionId
+      ? targetEditions.find((e: any) => e.id === dc.assignedEditionId)
+      : targetEditions.find((e: any) => e.cardSlug === slug);
+    const imageUrl = matchingEd?.imageUrl || null;
 
     // Copies owned by user for this card slug
     const ownedForSlug = userInventory.filter((inv: any) => inv.cardSlug === slug);
@@ -246,6 +265,7 @@ export async function calculateDeckShortage(
       cardSlug: slug,
       cardName,
       zone: dc.zone,
+      imageUrl,
       requiredQuantity: required,
       availableQuantity: available,
       missingQuantity: missing,

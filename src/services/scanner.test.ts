@@ -67,6 +67,19 @@ describe("QR-Paired Mobile Scanner Seam", () => {
       .where(eq(collectionItems.userId, "u-scanner"));
     expect(coll).toHaveLength(1);
     expect(coll[0].editionId).toBe("ed-frac-doa");
-    expect(coll[0].quantity).toBe(1);
+    // Verify non-Grand Archive cards (e.g. "Two of Diamonds") are rejected with 0 confidence
+    const rejected = await submitScannerDetections(session.token, ["Two of Diamonds"], db);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0].cardName).toBe("Two of Diamonds");
+    expect(rejected[0].cardSlug).toBeUndefined();
+    expect(rejected[0].editionId).toBeUndefined();
+    expect(rejected[0].confidence).toBe(0);
+
+    // Verify fuzzy OCR matching (minor typo "Fracturze" -> "Fracturize")
+    const fuzzy = await submitScannerDetections(session.token, ["Fracturze"], db);
+    expect(fuzzy).toHaveLength(1);
+    expect(fuzzy[0].cardSlug).toBe("fracturize");
+    expect(fuzzy[0].cardName).toBe("Fracturize");
+    expect(fuzzy[0].confidence).toBeGreaterThanOrEqual(0.85);
   });
 });

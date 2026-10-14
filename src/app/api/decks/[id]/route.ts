@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { decks, deckCards, cards, cardEditions } from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { DEFAULT_USER_ID, ensureDefaultUserAndSeed } from "@/services/seed";
 import { serializeOmnidexText } from "@/services/omnidex";
 
@@ -32,9 +32,32 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       .leftJoin(cards, eq(deckCards.cardSlug, cards.slug))
       .where(eq(deckCards.deckId, params.id));
 
-    const material = cardsInDeck.filter((c) => c.zone === "material");
-    const main = cardsInDeck.filter((c) => c.zone === "main");
-    const side = cardsInDeck.filter((c) => c.zone === "side");
+    const deckSlugs = Array.from(new Set(cardsInDeck.map((c) => c.cardSlug)));
+    let deckEditions: { id: string; cardSlug: string; imageUrl: string }[] = [];
+    if (deckSlugs.length > 0) {
+      deckEditions = await db
+        .select({
+          id: cardEditions.id,
+          cardSlug: cardEditions.cardSlug,
+          imageUrl: cardEditions.imageUrl,
+        })
+        .from(cardEditions)
+        .where(inArray(cardEditions.cardSlug, deckSlugs));
+    }
+
+    const cardsWithImages = cardsInDeck.map((c) => {
+      const ed = c.assignedEditionId
+        ? deckEditions.find((e) => e.id === c.assignedEditionId)
+        : deckEditions.find((e) => e.cardSlug === c.cardSlug);
+      return {
+        ...c,
+        imageUrl: ed?.imageUrl || null,
+      };
+    });
+
+    const material = cardsWithImages.filter((c) => c.zone === "material");
+    const main = cardsWithImages.filter((c) => c.zone === "main");
+    const side = cardsWithImages.filter((c) => c.zone === "side");
 
     const omnidexText = serializeOmnidexText({
       material: material.map((c) => ({ name: c.cardName || c.cardSlug, quantity: c.quantity })),
