@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import {
   Layers,
   Sparkles,
@@ -11,9 +12,11 @@ import {
   ShieldAlert,
   ArrowRight,
   TrendingUp,
+  LogIn,
 } from "lucide-react";
 
 export default function HomePage() {
+  const { data: session } = useSession();
   const [stats, setStats] = useState({
     totalCards: 0,
     lowPopCount: 0,
@@ -88,6 +91,15 @@ export default function HomePage() {
               <BookOpen className="h-4 w-4" />
               <span>Deck Builder & Shortages</span>
             </a>
+            {!session?.user && (
+              <a
+                href="/login"
+                className="flex items-center space-x-2 rounded-xl border border-indigo-500/40 bg-indigo-600/10 px-4 py-2.5 text-sm font-semibold text-indigo-300 hover:bg-indigo-600 hover:text-white transition-colors"
+              >
+                <LogIn className="h-4 w-4" />
+                <span>Sign In to Account</span>
+              </a>
+            )}
           </div>
         </div>
       </div>
