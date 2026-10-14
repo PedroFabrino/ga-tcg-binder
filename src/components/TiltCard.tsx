@@ -17,9 +17,9 @@ export default function TiltCard({ children, className = "", maxTilt = 6 }: Tilt
     const rect = el.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width;
     const y = (e.clientY - rect.top) / rect.height;
-    const tiltY = (x - 0.5) * maxTilt * 2;
-    const tiltX = (0.5 - y) * maxTilt * 2;
-    el.style.transform = `perspective(800px) rotateX(${tiltX}deg) rotateY(${tiltY}deg) scale(1.04)`;
+    el.style.transform = `perspective(800px) rotateX(${(0.5 - y) * maxTilt * 2}deg) rotateY(${(x - 0.5) * maxTilt * 2}deg) scale(1.03)`;
+    el.style.setProperty("--mx", `${x * 100}%`);
+    el.style.setProperty("--my", `${y * 100}%`);
   };
 
   const handleMouseLeave = () => {
@@ -33,10 +33,11 @@ export default function TiltCard({ children, className = "", maxTilt = 6 }: Tilt
       ref={ref}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      className={`transition-transform duration-300 ease-out will-change-transform ${className}`}
+      className={`tilt-root relative transition-transform duration-300 ease-out will-change-transform ${className}`}
       style={{ transformStyle: "preserve-3d" }}
     >
       {children}
+      <div className="specular rounded-[inherit]" aria-hidden="true" />
     </div>
   );
 }

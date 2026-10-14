@@ -1,20 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  Trophy,
-  ArrowRight,
-  TrendingUp,
-  Percent,
-  Sparkles,
-  ExternalLink,
-  ShieldAlert,
-  CheckCircle2,
-  AlertTriangle,
-  X,
-  Loader2,
-  Users,
-} from "lucide-react";
+import { Trophy, ExternalLink, Link2, Loader2, Swords } from "lucide-react";
+import { Modal, PageHeader } from "@/components/ui";
+import { SkeletonGrid, EmptyState } from "@/components/Skeletons";
+import { useToast } from "@/components/ToastProvider";
+import ShortageTable, { FeasibilityBanner, type ShortageReport } from "@/components/decks/ShortageTable";
 
 interface MetaArchetype {
   id: string;
@@ -27,294 +18,197 @@ interface MetaArchetype {
   sourceUrl?: string | null;
 }
 
-interface ShortageItem {
-  cardSlug: string;
-  cardName: string;
-  zone: string;
-  requiredQuantity: number;
-  availableQuantity: number;
-  missingQuantity: number;
-  isContended: boolean;
-  friendsWithIdle: {
-    friendId: string;
-    friendName: string;
-    friendCode: string;
-    idleQuantity: number;
-  }[];
+const TIERS = ["S", "A", "B", "C"];
+const TIER_COPY: Record<string, string> = {
+  S: "Defining the format",
+  A: "Top contenders",
+  B: "Strong picks",
+  C: "Niche and rogue",
+};
+
+function pctValue(v: string) {
+  const n = parseFloat(String(v).replace("%", ""));
+  return isNaN(n) ? 0 : n;
 }
 
-interface ShortageReport {
-  deckName: string;
-  totalCardsRequired: number;
-  totalCardsMissing: number;
-  items: ShortageItem[];
+function ArchetypeCard({ meta, onCompare }: { meta: MetaArchetype; onCompare: () => void }) {
+  return (
+    <article className="hover-lift group flex flex-col rounded-2xl glass p-5">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="truncate text-base font-semibold text-white">{meta.name}</h3>
+          <p className="mt-0.5 truncate text-xs text-slate-400">{meta.champion}</p>
+        </div>
+        <span className={`tier-${meta.tier} shrink-0 rounded-lg px-2 py-0.5 font-mono text-xs font-bold`}>{meta.tier}</span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        {[
+          { label: "Win Rate", value: meta.winRate, bar: "bg-emerald-400", max: 70 },
+          { label: "Meta Share", value: meta.shareRate, bar: "bg-cyan-400", max: 30 },
+        ].map((s) => (
+          <div key={s.label} className="rounded-xl border border-white/[0.05] bg-black/20 p-3">
+            <div className="label-caps !text-[9px]">{s.label}</div>
+            <div className="mt-1 font-mono text-lg font-semibold text-white">{s.value}</div>
+            <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/[0.06]">
+              <div className={`h-full rounded-full ${s.bar}`} style={{ width: `${Math.min(100, (pctValue(s.value) / s.max) * 100)}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 flex items-center gap-2 border-t border-white/[0.05] pt-4">
+        <button onClick={onCompare} className="btn-ghost flex-1 !py-1.5 !text-xs group-hover:border-cyan-400/30 group-hover:text-cyan-200">
+          <Swords className="h-3.5 w-3.5" /> Compare to Binder
+        </button>
+        {meta.sourceUrl && (
+          <a href={meta.sourceUrl} target="_blank" rel="noopener noreferrer" aria-label={`View ${meta.name} stats`} className="btn-ghost !px-2.5 !py-1.5">
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        )}
+      </div>
+    </article>
+  );
 }
 
 export default function MetaExplorerPage() {
+  const { showToast } = useToast();
   const [archetypes, setArchetypes] = useState<MetaArchetype[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Comparison state
-  const [activeMeta, setActiveMeta] = useState<MetaArchetype | null>(null);
-  const [customDeckText, setCustomDeckText] = useState("");
+  const [error, setError] = useState(false);
+  const [customText, setCustomText] = useState("");
+  const [compareTitle, setCompareTitle] = useState<string | null>(null);
   const [comparing, setComparing] = useState(false);
-  const [comparisonReport, setComparisonReport] = useState<ShortageReport | null>(null);
-  const [showCompareModal, setShowCompareModal] = useState(false);
-
-  const fetchMeta = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/meta");
-      const data = await res.json();
-      setArchetypes(data.archetypes || []);
-    } catch (err) {
-      console.error("Failed to load meta archetypes:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [report, setReport] = useState<ShortageReport | null>(null);
 
   useEffect(() => {
-    fetchMeta();
+    (async () => {
+      try {
+        const res = await fetch("/api/meta");
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        setArchetypes(Array.isArray(data.archetypes) ? data.archetypes : []);
+      } catch {
+        setError(true);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, []);
 
-  const handleCompare = async (metaId?: string, text?: string) => {
+  const compare = async (title: string, body: { metaId?: string; deckText?: string }) => {
+    setCompareTitle(title);
     setComparing(true);
-    setShowCompareModal(true);
-    setComparisonReport(null);
+    setReport(null);
     try {
       const res = await fetch("/api/meta/compare", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          metaId,
-          deckText: text,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
-      setComparisonReport(data);
-    } catch (err) {
-      console.error("Comparison error:", err);
+      if (!res.ok || !Array.isArray(data.items)) throw new Error();
+      setReport(data);
+    } catch {
+      showToast("Couldn't compare that decklist", "error");
+      setCompareTitle(null);
     } finally {
       setComparing(false);
     }
   };
 
+  const missingCount = report?.items.filter((i) => i.missingQuantity > 0).length ?? 0;
+  const borrowable = report?.items.filter((i) => i.missingQuantity > 0 && (i.friendsWithIdle?.length ?? 0) > 0).length ?? 0;
+  const pct = report && report.totalCardsRequired ? Math.round(((report.totalCardsRequired - report.totalCardsMissing) / report.totalCardsRequired) * 100) : 0;
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white flex items-center space-x-2">
-            <span>Tournament Meta Explorer</span>
-            <span className="rounded-full bg-amber-500/20 border border-amber-500/30 px-2.5 py-0.5 text-xs font-bold text-amber-400">
-              GrandArchiveStats
-            </span>
-          </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Track top competitive archetypes and compare winning decklists against your physical card collection.
-          </p>
-        </div>
-      </div>
+    <div className="pb-12">
+      <PageHeader
+        eyebrow="Tournament Meta"
+        title="Meta Tier List"
+        description="Top competitive archetypes by win rate and share. Compare any list against your binder to see how close you are."
+      />
 
-      {/* Custom Deck URL / Omnidex Importer Bar */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 space-y-3">
-        <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
-          Compare Any GrandArchiveStats Deck URL or Omnidex Text
-        </span>
-        <div className="flex flex-col sm:flex-row gap-3">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (customText.trim()) compare("Custom Decklist", { deckText: customText.trim() });
+        }}
+        className="mb-8 flex flex-col gap-2 rounded-2xl glass p-2 sm:flex-row"
+      >
+        <div className="flex flex-1 items-center gap-2 px-3">
+          <Link2 className="h-4 w-4 shrink-0 text-slate-500" />
           <input
-            type="text"
-            placeholder="Paste GrandArchiveStats deck URL or Omnidex snippet..."
-            value={customDeckText}
-            onChange={(e) => setCustomDeckText(e.target.value)}
-            className="flex-1 rounded-xl border border-slate-700 bg-slate-950 px-3.5 py-2 text-sm text-slate-100 placeholder-slate-600 focus:border-indigo-500 focus:outline-none"
+            value={customText}
+            onChange={(e) => setCustomText(e.target.value)}
+            placeholder="Paste a GrandArchiveStats URL or Omnidex decklist..."
+            aria-label="Custom decklist or URL"
+            className="min-w-0 flex-1 bg-transparent py-2.5 text-sm text-white placeholder:text-slate-500 outline-none"
           />
-          <button
-            onClick={() => handleCompare(undefined, customDeckText)}
-            disabled={!customDeckText.trim() || comparing}
-            className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-md hover:bg-indigo-500 transition-colors disabled:opacity-50 whitespace-nowrap"
-          >
-            Compare Against My Collection
-          </button>
         </div>
-      </div>
+        <button type="submit" disabled={!customText.trim() || comparing} className="btn-accent">
+          <Swords className="h-4 w-4" /> Compare
+        </button>
+      </form>
 
-      {/* Meta Tier List Grid */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 space-y-3">
-          <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
-          <p className="text-sm text-slate-400">Loading tournament archetypes...</p>
-        </div>
+        <SkeletonGrid count={6} />
+      ) : error ? (
+        <EmptyState icon={Trophy} title="Couldn't load the meta" description="Please refresh to try again." />
+      ) : archetypes.length === 0 ? (
+        <EmptyState icon={Trophy} title="No archetypes yet" description="Meta data will appear once tournament results are synced." />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {archetypes.map((meta) => (
-            <div
-              key={meta.id}
-              className="flex flex-col justify-between rounded-2xl border border-slate-800 bg-slate-900/50 p-5 hover:border-slate-700 transition-all shadow-md"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <span
-                    className={`rounded-lg px-2.5 py-1 text-xs font-black border ${
-                      meta.tier === "S"
-                        ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
-                        : "bg-indigo-500/20 text-indigo-300 border-indigo-500/30"
-                    }`}
-                  >
-                    TIER {meta.tier}
-                  </span>
-
-                  {meta.sourceUrl && (
-                    <a
-                      href={meta.sourceUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-xs text-slate-400 hover:text-indigo-400 flex items-center space-x-1"
-                    >
-                      <span>Stats</span>
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  )}
-                </div>
-
-                <h3 className="font-bold text-white text-lg">{meta.name}</h3>
-                <p className="text-xs text-slate-400 mt-1">
-                  Champion: <span className="text-slate-200 font-medium">{meta.champion}</span>
-                </p>
-
-                {/* Tournament Stats */}
-                <div className="grid grid-cols-2 gap-3 mt-4 pt-3 border-t border-slate-800 text-center">
-                  <div className="rounded-lg bg-slate-950 p-2.5">
-                    <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
-                      Meta Share
-                    </div>
-                    <div className="text-base font-bold text-indigo-400 font-mono mt-0.5">
-                      {meta.shareRate}
-                    </div>
+        <div className="space-y-10">
+          {TIERS.map((tier) => {
+            const list = archetypes.filter((a) => a.tier === tier);
+            if (list.length === 0) return null;
+            return (
+              <section key={tier} aria-label={`Tier ${tier}`}>
+                <div className="mb-4 flex items-center gap-3">
+                  <span className={`tier-${tier} flex h-9 w-9 items-center justify-center rounded-xl font-mono text-base font-bold`}>{tier}</span>
+                  <div>
+                    <h2 className="text-sm font-semibold text-white">Tier {tier}</h2>
+                    <p className="text-[11px] text-slate-500">{TIER_COPY[tier]} · {list.length} archetype{list.length === 1 ? "" : "s"}</p>
                   </div>
-                  <div className="rounded-lg bg-slate-950 p-2.5">
-                    <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
-                      Win Rate
-                    </div>
-                    <div className="text-base font-bold text-emerald-400 font-mono mt-0.5">
-                      {meta.winRate}
-                    </div>
-                  </div>
+                  <div className="ml-2 h-px flex-1 bg-gradient-to-r from-white/[0.08] to-transparent" />
                 </div>
-              </div>
-
-              {/* Action Button */}
-              <div className="pt-5 mt-4 border-t border-slate-800">
-                <button
-                  onClick={() => handleCompare(meta.id)}
-                  className="w-full flex items-center justify-center space-x-2 rounded-xl bg-slate-800 hover:bg-indigo-600 py-2.5 text-xs font-semibold text-slate-200 hover:text-white transition-all shadow-sm"
-                >
-                  <Trophy className="h-3.5 w-3.5" />
-                  <span>Compare Against My Collection</span>
-                </button>
-              </div>
-            </div>
-          ))}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {list.map((m) => (
+                    <ArchetypeCard key={m.id} meta={m} onCompare={() => compare(m.name, { metaId: m.id })} />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
         </div>
       )}
 
-      {/* Comparison Modal */}
-      {showCompareModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
-          <div className="relative w-full max-w-2xl rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl max-h-[90vh] flex flex-col">
-            <button
-              onClick={() => setShowCompareModal(false)}
-              className="absolute right-4 top-4 rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white"
-            >
-              <X className="h-5 w-5" />
-            </button>
-
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
-                <Trophy className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-white">
-                  {comparisonReport?.deckName || "Meta Deck Comparison"}
-                </h2>
-                <p className="text-xs text-slate-400">
-                  Real-time shortage report against your registered collection items.
-                </p>
-              </div>
+      {compareTitle && (
+        <Modal title={report?.deckName || compareTitle} subtitle="Shortage report against your binder" onClose={() => setCompareTitle(null)} size="xl">
+          {comparing || !report ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-16">
+              <Loader2 className="h-7 w-7 animate-spin text-cyan-400" />
+              <p className="text-sm text-slate-400">Analyzing your binder...</p>
             </div>
-
-            {comparing ? (
-              <div className="flex flex-col items-center justify-center py-16 space-y-3">
-                <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
-                <p className="text-sm text-slate-400">Running shortage gap analysis...</p>
-              </div>
-            ) : comparisonReport ? (
-              <div className="space-y-4 overflow-y-auto pr-1">
-                {/* Feasibility Summary */}
-                <div
-                  className={`rounded-xl border p-4 ${
-                    comparisonReport.totalCardsMissing === 0
-                      ? "border-emerald-500/30 bg-emerald-950/20 text-emerald-300"
-                      : "border-amber-500/30 bg-amber-950/20 text-amber-300"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-bold text-sm">
-                        {comparisonReport.totalCardsMissing === 0
-                          ? "You own all cards required to build this meta archetype!"
-                          : `Deficit: Missing ${comparisonReport.totalCardsMissing} card copies`}
-                      </div>
-                      <div className="text-xs text-slate-300 mt-0.5">
-                        {comparisonReport.totalCardsRequired - comparisonReport.totalCardsMissing} of{" "}
-                        {comparisonReport.totalCardsRequired} required cards available in binder
-                      </div>
-                    </div>
+          ) : (
+            <div className="space-y-5">
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { label: "Feasibility", value: `${pct}%`, tone: pct === 100 ? "text-emerald-300" : "text-white" },
+                  { label: "Cards Missing", value: missingCount, tone: missingCount ? "text-rose-300" : "text-emerald-300" },
+                  { label: "Friend Idle", value: borrowable, tone: borrowable ? "text-emerald-300" : "text-slate-400" },
+                ].map((s) => (
+                  <div key={s.label} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-center">
+                    <div className={`font-mono text-xl font-semibold ${s.tone}`}>{s.value}</div>
+                    <div className="label-caps mt-1 !text-[9px]">{s.label}</div>
                   </div>
-                </div>
-
-                {/* Shortage Breakdown */}
-                <div className="divide-y divide-slate-800 border border-slate-800 rounded-xl bg-slate-950/60 overflow-hidden">
-                  {comparisonReport.items.map((item) => (
-                    <div
-                      key={item.cardSlug}
-                      className="p-3 flex items-center justify-between hover:bg-slate-900/40 text-xs"
-                    >
-                      <div>
-                        <div className="font-bold text-white">{item.cardName}</div>
-                        <div className="text-[11px] text-slate-400">
-                          Zone: {item.zone} • Required: {item.requiredQuantity} • Available: {item.availableQuantity}
-                        </div>
-                        {item.missingQuantity > 0 && item.friendsWithIdle.length > 0 && (
-                          <div className="mt-1 text-[11px] text-indigo-400 flex items-center space-x-1">
-                            <Users className="h-3 w-3" />
-                            <span>
-                              Available from Friend: {item.friendsWithIdle[0].friendName} ({item.friendsWithIdle[0].idleQuantity} idle copies)
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      <div>
-                        {item.missingQuantity > 0 ? (
-                          <span className="rounded bg-rose-500/20 border border-rose-500/30 px-2 py-0.5 font-bold text-rose-300">
-                            Missing -{item.missingQuantity}
-                          </span>
-                        ) : (
-                          <span className="text-emerald-400 font-semibold flex items-center space-x-1">
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                            <span>Satisfied</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                ))}
               </div>
-            ) : null}
-          </div>
-        </div>
+              <FeasibilityBanner report={report} />
+              <ShortageTable items={report.items} onlyMissing={missingCount > 0} />
+            </div>
+          )}
+        </Modal>
       )}
     </div>
   );

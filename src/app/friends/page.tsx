@@ -1,26 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  Users,
-  UserPlus,
-  Copy,
-  Check,
-  Sparkles,
-  Layers,
-  ArrowRight,
-  X,
-  Loader2,
-  ShieldCheck,
-} from "lucide-react";
+import QRCode from "qrcode";
+import { Users, UserPlus, Copy, Check, QrCode, Sparkles, Loader2, ShieldCheck, ArrowRight, Layers } from "lucide-react";
+import { Modal, PageHeader, CardArt, ElementBadge, FoilBadge, LowPopBadge } from "@/components/ui";
+import { SkeletonGrid, EmptyState } from "@/components/Skeletons";
+import { useToast } from "@/components/ToastProvider";
+import { getElementClass } from "@/lib/elements";
 
-interface Friend {
-  id: string;
-  name: string;
-  friendCode: string;
-  createdAt: string;
-}
-
+interface Friend { id: string; name: string; friendCode: string; createdAt: string }
 interface IdleCard {
   id: string;
   cardName: string;
@@ -36,265 +24,241 @@ interface IdleCard {
   imageUrl: string;
 }
 
+function FriendCodeCard({ code }: { code: string | null }) {
+  const { showToast } = useToast();
+  const [copied, setCopied] = useState(false);
+  const [qr, setQr] = useState<string | null>(null);
+  const [showQr, setShowQr] = useState(false);
+
+  useEffect(() => {
+    if (!code) return;
+    QRCode.toDataURL(code, { margin: 1, width: 240, color: { dark: "#070a11", light: "#ffffff" } })
+      .then(setQr)
+      .catch(() => setQr(null));
+  }, [code]);
+
+  const copy = async () => {
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      showToast("Friend Code Copied", "success");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      showToast("Could not access clipboard", "error");
+    }
+  };
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-amber-200/10 bg-gradient-to-br from-amber-200/[0.06] via-white/[0.02] to-transparent p-6">
+      <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-amber-300/10 blur-3xl" />
+      <p className="label-caps">Your Friend Code</p>
+      <div className="mt-3 flex items-center justify-between gap-4">
+        {code ? (
+          <span className="font-mono text-2xl font-semibold tracking-wider text-white sm:text-3xl">{code}</span>
+        ) : (
+          <span className="skeleton h-8 w-40 rounded" />
+        )}
+        <div className="flex gap-2">
+          <button onClick={() => setShowQr(true)} disabled={!qr} className="btn-ghost !px-3" aria-label="Show friend code QR">
+            <QrCode className="h-4 w-4" />
+          </button>
+          <button onClick={copy} disabled={!code} className="btn-primary">
+            {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+            {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
+      </div>
+      <p className="mt-3 text-xs leading-relaxed text-slate-400">Share this with your playgroup. Once linked, you can see each other's idle cards that aren't locked into decks.</p>
+
+      {showQr && qr && (
+        <Modal title="Scan to connect" subtitle="Friends can scan this to read your code" onClose={() => setShowQr(false)} size="sm">
+          <div className="flex flex-col items-center gap-4 py-2">
+            <div className="rounded-2xl bg-white p-3 shadow-[0_0_60px_-10px_rgba(6,182,212,0.4)]">
+              <img src={qr} alt={`QR code for friend code ${code}`} className="h-52 w-52" />
+            </div>
+            <span className="font-mono text-lg font-semibold tracking-wider text-white">{code}</span>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function IdleBinderModal({ friend, onClose }: { friend: Friend; onClose: () => void }) {
+  const [cards, setCards] = useState<IdleCard[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`/api/friends/${friend.id}/idle`);
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        setCards(Array.isArray(data.idleCards) ? data.idleCards : []);
+      } catch {
+        setError(true);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [friend.id]);
+
+  const totalIdle = cards.reduce((s, c) => s + c.idleQuantity, 0);
+
+  return (
+    <Modal title={`${friend.name}'s Idle Binder`} subtitle="Copies not locked into any of their decks" onClose={onClose} size="xl">
+      {loading ? (
+        <SkeletonGrid count={6} />
+      ) : error ? (
+        <p className="py-12 text-center text-sm text-rose-300">Couldn't load this binder.</p>
+      ) : cards.length === 0 ? (
+        <EmptyState icon={Layers} title="Nothing idle right now" description={`Every copy ${friend.name} owns is assigned to a deck.`} />
+      ) : (
+        <>
+          <p className="mb-4 text-xs text-slate-400"><span className="font-mono text-white">{totalIdle}</span> idle copies across <span className="font-mono text-white">{cards.length}</span> printings</p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {cards.map((c) => (
+              <div key={c.id} className={`${getElementClass(c.element)} overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.02]`}>
+                <div className={`relative aspect-[5/4] overflow-hidden ${c.foil ? "foil-static" : ""}`}>
+                  <CardArt src={c.imageUrl} alt={c.cardName} className="h-full w-full object-top" />
+                  <div className="absolute left-2 top-2 z-[5]"><ElementBadge element={c.element} /></div>
+                  <span className="absolute bottom-2 right-2 z-[5] rounded-full bg-black/70 px-2 py-0.5 font-mono text-[10px] font-semibold text-emerald-300 backdrop-blur">{c.idleQuantity} idle</span>
+                </div>
+                <div className="space-y-1.5 p-2.5">
+                  <div className="truncate text-xs font-semibold text-white">{c.cardName}</div>
+                  <div className="font-mono text-[10px] text-slate-500">{c.setPrefix} #{c.collectorNumber}</div>
+                  <div className="flex flex-wrap gap-1">
+                    {c.foil && <FoilBadge />}
+                    {c.isLowPop && <LowPopBadge population={c.population} />}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
 export default function FriendsPage() {
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const { showToast } = useToast();
+  const [code, setCode] = useState<string | null>(null);
   const [friends, setFriends] = useState<Friend[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Add friend state
-  const [friendCodeInput, setFriendCodeInput] = useState("");
+  const [input, setInput] = useState("");
   const [connecting, setConnecting] = useState(false);
-  const [connectMsg, setConnectMsg] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [inspecting, setInspecting] = useState<Friend | null>(null);
 
-  // Friend Idle Binder Modal
-  const [inspectingFriend, setInspectingFriend] = useState<Friend | null>(null);
-  const [idleCards, setIdleCards] = useState<IdleCard[]>([]);
-  const [loadingIdle, setLoadingIdle] = useState(false);
-
-  const fetchFriends = async () => {
-    setLoading(true);
+  const load = async () => {
     try {
       const res = await fetch("/api/friends");
+      if (!res.ok) throw new Error();
       const data = await res.json();
-      setCurrentUser(data.currentUser);
-      setFriends(data.friends || []);
-    } catch (err) {
-      console.error("Failed to load friends:", err);
+      setCode(data.currentUser?.friendCode ?? null);
+      setFriends(Array.isArray(data.friends) ? data.friends : []);
+    } catch {
+      showToast("Couldn't load your playgroup", "error");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchFriends();
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleConnectFriend = async () => {
-    if (!friendCodeInput.trim()) return;
+  const connect = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const friendCode = input.trim().toUpperCase();
+    if (!friendCode) return;
     setConnecting(true);
-    setConnectMsg("");
     try {
       const res = await fetch("/api/friends", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ friendCode: friendCodeInput.trim() }),
+        body: JSON.stringify({ friendCode }),
       });
       const data = await res.json();
-      if (data.success || data.friend) {
-        setConnectMsg(`Connected with ${data.friend?.name || "Friend"}!`);
-        setFriendCodeInput("");
-        fetchFriends();
-      } else {
-        setConnectMsg(data.error || "Failed to link friend");
-      }
+      if (!res.ok || !(data.success || data.friend)) throw new Error(data.error);
+      showToast(`Connected with ${data.friend?.name || "your friend"}`, "success");
+      setInput("");
+      load();
     } catch (err: any) {
-      setConnectMsg(err.message);
+      showToast(err?.message || "That friend code didn't work", "error");
     } finally {
       setConnecting(false);
-      setTimeout(() => setConnectMsg(""), 4000);
-    }
-  };
-
-  const handleInspectIdle = async (friend: Friend) => {
-    setInspectingFriend(friend);
-    setLoadingIdle(true);
-    try {
-      const res = await fetch(`/api/friends/${friend.id}/idle`);
-      const data = await res.json();
-      setIdleCards(data.idleCards || []);
-    } catch (err) {
-      console.error("Failed to load idle binder:", err);
-    } finally {
-      setLoadingIdle(false);
-    }
-  };
-
-  const copyCode = () => {
-    if (currentUser?.friendCode) {
-      navigator.clipboard.writeText(currentUser.friendCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
     }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white flex items-center space-x-2">
-          <span>Playgroup Friends & Idle Sharing</span>
-          <span className="rounded-full bg-indigo-500/20 border border-indigo-500/30 px-2.5 py-0.5 text-xs text-indigo-400">
-            {friends.length} Friends
-          </span>
-        </h1>
-        <p className="text-xs text-slate-400 mt-1">
-          Connect with your local playgroup to view idle binder cards and borrow missing tournament copies.
-        </p>
-      </div>
+    <div className="pb-12">
+      <PageHeader
+        eyebrow="Playgroup"
+        title="Friends & Idle Sharing"
+        description="Link up with your local group to see who has spare copies and borrow what your decks are missing."
+      />
 
-      {/* Code Sharing & Connect Bar */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Your Friend Code */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-2">
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-            Your Playgroup Friend Link Code
-          </span>
-          <div className="flex items-center justify-between pt-1">
-            <span className="font-mono text-base font-extrabold text-indigo-400">
-              {currentUser?.friendCode || "GA-ALEX01"}
-            </span>
-            <button
-              onClick={copyCode}
-              className="flex items-center space-x-1.5 rounded-xl bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition-colors"
-            >
-              {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-              <span>{copied ? "Copied!" : "Copy Code"}</span>
-            </button>
+      <div className="mb-10 grid gap-4 lg:grid-cols-5">
+        <div className="lg:col-span-3"><FriendCodeCard code={code} /></div>
+        <form onSubmit={connect} className="flex flex-col justify-between gap-4 rounded-2xl glass p-6 lg:col-span-2">
+          <div>
+            <p className="label-caps">Connect a Friend</p>
+            <p className="mt-2 text-xs text-slate-400">Enter their code to create a mutual link.</p>
           </div>
-          <p className="text-[11px] text-slate-500">
-            Share this code with teammates so they can connect with you in one click.
-          </p>
-        </div>
-
-        {/* Connect Friend Bar */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-2">
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-            Establish Mutual Friend Link
-          </span>
-          <div className="flex items-center space-x-2 pt-1">
+          <div className="flex gap-2">
             <input
-              type="text"
-              placeholder="Enter friend code (e.g. GA-BOB77)..."
-              value={friendCodeInput}
-              onChange={(e) => setFriendCodeInput(e.target.value)}
-              className="flex-1 rounded-xl border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs text-slate-100 placeholder-slate-600 focus:border-indigo-500 focus:outline-none uppercase font-mono"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="GA-XXXXXX"
+              aria-label="Friend code"
+              className="input-field font-mono uppercase tracking-wider"
             />
-            <button
-              onClick={handleConnectFriend}
-              disabled={connecting || !friendCodeInput.trim()}
-              className="flex items-center space-x-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white shadow-md hover:bg-indigo-500 transition-colors disabled:opacity-50"
-            >
-              <UserPlus className="h-3.5 w-3.5" />
-              <span>Connect</span>
+            <button type="submit" disabled={connecting || !input.trim()} className="btn-accent shrink-0">
+              {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+              <span className="hidden sm:inline">Connect</span>
             </button>
           </div>
-          {connectMsg && <p className="text-xs text-indigo-400 animate-pulse">{connectMsg}</p>}
-        </div>
+        </form>
       </div>
 
-      {/* Friends List Grid */}
+      <div className="mb-4 flex items-baseline justify-between">
+        <h2 className="text-sm font-semibold text-white">Your Playgroup</h2>
+        <span className="font-mono text-xs text-slate-500">{friends.length} linked</span>
+      </div>
+
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 space-y-3">
-          <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
-          <p className="text-sm text-slate-400">Loading friend network...</p>
-        </div>
+        <SkeletonGrid count={3} />
       ) : friends.length === 0 ? (
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-12 text-center">
-          <Users className="mx-auto h-8 w-8 text-slate-600 mb-2" />
-          <p className="text-slate-400 text-sm">No friends linked yet.</p>
-          <p className="text-xs text-slate-500 mt-1">
-            Connect using the code bar above (e.g. try adding demo friend code <code className="text-indigo-400">GA-BOB77</code>).
-          </p>
-        </div>
+        <EmptyState icon={Users} title="No friends linked yet" description="Swap friend codes with your playgroup to start sharing idle cards." />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {friends.map((friend) => (
-            <div
-              key={friend.id}
-              className="rounded-2xl border border-slate-800 bg-slate-900/50 p-5 hover:border-slate-700 transition-all shadow-md flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-center space-x-3 mb-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-500/20 text-indigo-400 font-bold border border-indigo-500/30">
-                    {friend.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-white text-base">{friend.name}</h3>
-                    <span className="font-mono text-xs text-slate-400">{friend.friendCode}</span>
-                  </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {friends.map((f) => (
+            <article key={f.id} className="hover-lift group flex flex-col rounded-2xl glass p-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-cyan-300/30 to-emerald-300/10 text-sm font-semibold text-white ring-1 ring-white/10">
+                  {f.name.charAt(0).toUpperCase()}
                 </div>
-
-                <div className="flex items-center space-x-1.5 text-xs text-emerald-400 mt-2">
-                  <ShieldCheck className="h-4 w-4" />
-                  <span>Mutual Friend Link Active</span>
+                <div className="min-w-0">
+                  <h3 className="truncate text-sm font-semibold text-white">{f.name}</h3>
+                  <span className="font-mono text-[11px] text-slate-500">{f.friendCode}</span>
                 </div>
               </div>
-
-              <div className="pt-4 mt-4 border-t border-slate-800">
-                <button
-                  onClick={() => handleInspectIdle(friend)}
-                  className="w-full flex items-center justify-center space-x-2 rounded-xl bg-slate-800 hover:bg-indigo-600 py-2.5 text-xs font-semibold text-slate-200 hover:text-white transition-all shadow-sm"
-                >
-                  <Sparkles className="h-3.5 w-3.5 text-indigo-400 group-hover:text-white" />
-                  <span>Explore {friend.name.split(" ")[0]}'s Idle Binder</span>
-                </button>
+              <div className="mt-4 flex items-center gap-1.5 text-[11px] text-emerald-300/90">
+                <ShieldCheck className="h-3.5 w-3.5" /> Mutual link active
               </div>
-            </div>
+              <button onClick={() => setInspecting(f)} className="btn-ghost mt-4 !text-xs group-hover:border-cyan-400/30 group-hover:text-cyan-200">
+                <Sparkles className="h-3.5 w-3.5" /> View Idle Binder <ArrowRight className="ml-auto h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+              </button>
+            </article>
           ))}
         </div>
       )}
 
-      {/* Friend Idle Binder Modal */}
-      {inspectingFriend && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
-          <div className="relative w-full max-w-2xl rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl max-h-[85vh] flex flex-col">
-            <button
-              onClick={() => setInspectingFriend(null)}
-              className="absolute right-4 top-4 rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white"
-            >
-              <X className="h-5 w-5" />
-            </button>
-
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
-                <Sparkles className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-white">
-                  {inspectingFriend.name}'s Idle Trade Binder
-                </h2>
-                <p className="text-xs text-slate-400">
-                  Cards owned by {inspectingFriend.name} that are unassigned and NOT locked in active decks.
-                </p>
-              </div>
-            </div>
-
-            {loadingIdle ? (
-              <div className="flex flex-col items-center justify-center py-16 space-y-3">
-                <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
-                <p className="text-sm text-slate-400">Fetching idle inventory...</p>
-              </div>
-            ) : idleCards.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-xs">
-                No idle unassigned cards currently available in {inspectingFriend.name}'s binder.
-              </div>
-            ) : (
-              <div className="overflow-y-auto divide-y divide-slate-800 border border-slate-800 rounded-xl bg-slate-950/60">
-                {idleCards.map((card) => (
-                  <div
-                    key={card.id}
-                    className="p-3 flex items-center justify-between hover:bg-slate-900/40 text-xs"
-                  >
-                    <div>
-                      <div className="font-bold text-white">{card.cardName}</div>
-                      <div className="text-[11px] text-slate-400">
-                        {card.setPrefix} #{card.collectorNumber} • {card.foil ? "Foil" : "Non-Foil"}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <span className="rounded bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 text-xs font-bold text-emerald-300">
-                        {card.idleQuantity} Idle {card.idleQuantity === 1 ? "Copy" : "Copies"} Available
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {inspecting && <IdleBinderModal friend={inspecting} onClose={() => setInspecting(null)} />}
     </div>
   );
 }

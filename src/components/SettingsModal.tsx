@@ -1,133 +1,136 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Sliders, Copy, Check, Save } from "lucide-react";
+import { Copy, Check, Loader2, Gem } from "lucide-react";
+import { Modal } from "@/components/ui";
+import { useToast } from "@/components/ToastProvider";
+
+const MIN = 100;
+const MAX = 5000;
 
 export default function SettingsModal({ onClose }: { onClose: () => void }) {
-  const [threshold, setThreshold] = useState<number>(1000);
-  const [friendCode, setFriendCode] = useState<string>("GA-ALEX01");
-  const [copied, setCopied] = useState(false);
+  const { showToast } = useToast();
+  const [threshold, setThreshold] = useState(1000);
+  const [friendCode, setFriendCode] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     fetch("/api/settings")
-      .then((res) => res.json())
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((data) => {
         if (data.user) {
           setThreshold(data.user.lowPopThreshold ?? 1000);
-          setFriendCode(data.user.friendCode ?? "GA-ALEX01");
+          setFriendCode(data.user.friendCode ?? null);
         }
       })
-      .catch((err) => console.error("Failed to load settings:", err));
-  }, []);
+      .catch(() => showToast("Couldn't load your preferences", "error"))
+      .finally(() => setLoading(false));
+  }, [showToast]);
 
-  const copyFriendCode = () => {
-    navigator.clipboard.writeText(friendCode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const copy = async () => {
+    if (!friendCode) return;
+    try {
+      await navigator.clipboard.writeText(friendCode);
+      setCopied(true);
+      showToast("Friend Code Copied", "success");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      showToast("Could not access clipboard", "error");
+    }
   };
 
-  const handleSave = async () => {
+  const save = async () => {
     setSaving(true);
     try {
-      await fetch("/api/settings", {
+      const res = await fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ lowPopThreshold: threshold }),
       });
-      setSaved(true);
-      setTimeout(() => {
-        setSaved(false);
-        onClose();
-      }, 1000);
-    } catch (err) {
-      console.error("Save error:", err);
+      if (!res.ok) throw new Error();
+      showToast("Preferences saved", "success");
+      onClose();
+    } catch {
+      showToast("Couldn't save preferences", "error");
     } finally {
       setSaving(false);
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
-      <div className="relative w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
-        <button
-          onClick={onClose}
-          className="absolute right-4 top-4 rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white"
-        >
-          <X className="h-5 w-5" />
-        </button>
+  const pct = ((threshold - MIN) / (MAX - MIN)) * 100;
 
-        <div className="flex items-center space-x-3 mb-6">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
-            <Sliders className="h-5 w-5" />
-          </div>
+  return (
+    <Modal
+      title="Preferences"
+      subtitle="Scarcity cutoffs and your playgroup code"
+      onClose={onClose}
+      size="sm"
+      footer={
+        <div className="flex w-full justify-end gap-2">
+          <button onClick={onClose} className="btn-ghost">Cancel</button>
+          <button onClick={save} disabled={saving || loading} className="btn-primary">
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />} Save
+          </button>
+        </div>
+      }
+    >
+      <div className="space-y-6">
+        <div className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
           <div>
-            <h2 className="text-lg font-bold text-white">Collector Preferences</h2>
-            <p className="text-xs text-slate-400">Manage scarcity cutoffs and your Friend Link code.</p>
+            <p className="label-caps !text-[10px]">Friend Code</p>
+            {friendCode ? <p className="mt-1 font-mono text-base font-semibold tracking-wider text-white">{friendCode}</p> : <span className="skeleton mt-1 block h-5 w-28 rounded" />}
           </div>
+          <button onClick={copy} disabled={!friendCode} className="btn-ghost !px-3 !py-1.5 !text-xs">
+            {copied ? <Check className="h-3.5 w-3.5 text-emerald-300" /> : <Copy className="h-3.5 w-3.5" />} {copied ? "Copied" : "Copy"}
+          </button>
         </div>
 
-        <div className="space-y-5">
-          {/* Friend Code */}
-          <div className="rounded-xl border border-slate-800 bg-slate-950 p-3.5">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Your Playgroup Friend Code
-            </span>
-            <div className="mt-2 flex items-center justify-between">
-              <span className="font-mono text-sm font-bold text-indigo-400">{friendCode}</span>
-              <button
-                onClick={copyFriendCode}
-                className="flex items-center space-x-1 rounded bg-slate-800 px-2.5 py-1 text-xs text-slate-200 hover:bg-slate-700"
-              >
-                {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-                <span>{copied ? "Copied" : "Copy"}</span>
-              </button>
+        <div>
+          <div className="mb-1 flex items-center justify-between">
+            <label htmlFor="threshold-input" className="flex items-center gap-1.5 text-sm font-medium text-white">
+              <Gem className="h-3.5 w-3.5 text-amber-200" /> Low Pop Threshold
+            </label>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-slate-500">≤</span>
+              <input
+                id="threshold-input"
+                type="number"
+                min={MIN}
+                max={MAX}
+                step={50}
+                value={threshold}
+                disabled={loading}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value, 10);
+                  if (!isNaN(v)) setThreshold(v);
+                }}
+                onBlur={() => setThreshold((v) => Math.min(MAX, Math.max(MIN, v)))}
+                className="input-field !w-24 !py-1 text-right font-mono"
+              />
             </div>
           </div>
-
-          {/* Low Pop Threshold */}
-          <div>
-            <div className="flex items-center justify-between">
-              <label htmlFor="threshold-slider" className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Low Population Threshold
-              </label>
-              <span className="rounded bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 text-xs font-bold text-amber-400 font-mono">
-                ≤ {threshold.toLocaleString()} copies
-              </span>
-            </div>
-            <p className="text-xs text-slate-400 mt-1 mb-2">
-              Cards with publisher circulation count at or below this limit are marked with the "Low Population" badge.
-            </p>
-            <input
-              id="threshold-slider"
-              type="range"
-              min="100"
-              max="5000"
-              step="50"
-              value={threshold}
-              onChange={(e) => setThreshold(parseInt(e.target.value, 10))}
-              className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-            />
-            <div className="flex justify-between text-[11px] text-slate-500 mt-1">
-              <span>100 (Ultra Rare)</span>
-              <span>1,000 (Standard Cutoff)</span>
-              <span>5,000</span>
-            </div>
-          </div>
-
-          <div className="pt-2">
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="w-full flex items-center justify-center space-x-2 rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white shadow-md hover:bg-indigo-500 transition-colors disabled:opacity-50"
-            >
-              {saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
-              <span>{saved ? "Preferences Saved!" : saving ? "Saving..." : "Save Preferences"}</span>
-            </button>
+          <p className="mb-4 text-xs leading-relaxed text-slate-500">Printings with a circulation at or below this count get the gold Low Pop badge.</p>
+          <input
+            type="range"
+            min={MIN}
+            max={MAX}
+            step={50}
+            value={Math.min(MAX, Math.max(MIN, threshold))}
+            disabled={loading}
+            onChange={(e) => setThreshold(parseInt(e.target.value, 10))}
+            aria-label="Low pop threshold slider"
+            className="h-1.5 w-full cursor-pointer appearance-none rounded-full accent-amber-300"
+            style={{ background: `linear-gradient(to right, #e8c967 ${pct}%, rgba(255,255,255,0.08) ${pct}%)` }}
+          />
+          <div className="mt-2 flex justify-between font-mono text-[10px] text-slate-600">
+            <span>{MIN}</span>
+            <span>1,000</span>
+            <span>{MAX.toLocaleString()}</span>
           </div>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

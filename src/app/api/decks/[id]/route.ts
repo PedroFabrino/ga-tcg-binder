@@ -25,6 +25,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         element: cards.element,
         class: cards.class,
         type: cards.type,
+        costReserve: cards.costReserve,
+        costMemory: cards.costMemory,
       })
       .from(deckCards)
       .leftJoin(cards, eq(deckCards.cardSlug, cards.slug))
