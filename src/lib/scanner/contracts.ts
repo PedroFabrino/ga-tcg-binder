@@ -31,7 +31,7 @@ export interface QualityGateConfig {
 export const DEFAULT_QUALITY_GATE: QualityGateConfig = {
   minCoverage: 0.6,
   maxCornerDeltaPx: 8,
-  minSharpness: 100,
+  minSharpness: 70,
   maxGlareRatio: 0.12,
   glareLuminance: 250,
   requiredFrames: 3,
