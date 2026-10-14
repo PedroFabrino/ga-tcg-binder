@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { ArrowLeft, Copy, Trash2, Crown, BookOpen, Check } from "lucide-react";
+import { ArrowLeft, Copy, Trash2, Crown, BookOpen, Check, LayoutGrid, List } from "lucide-react";
 import { ConfirmModal } from "@/components/common";
 import { SkeletonRow, EmptyState } from "@/components/Skeletons";
 import { useToast } from "@/components/ToastProvider";
 import ShortageTable, { FeasibilityBanner, type ShortageItem, type ShortageReport } from "@/components/decks/ShortageTable";
 import DeckList, { type DeckCard } from "@/components/decks/DeckList";
+import DeckCardGrid from "@/components/decks/DeckCardGrid";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 
@@ -29,6 +30,7 @@ export default function DeckDetailPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [onlyMissing, setOnlyMissing] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -103,6 +105,34 @@ export default function DeckDetailPage() {
     }
   };
 
+  const addOne = async (cardSlug: string) => {
+    setAddingSlug(cardSlug);
+    try {
+      const catRes = await fetch(`/api/catalog?query=${encodeURIComponent(cardSlug)}&limit=1`);
+      const catData = catRes.ok ? await catRes.json() : null;
+      const edition = catData?.cards?.[0]?.editions?.[0];
+      if (!edition) throw new Error("No printing found");
+      const cardName = catData?.cards?.[0]?.name || cardSlug;
+      const res = await fetch("/api/collection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          editionId: edition.id,
+          foil: false,
+          quantity: 1,
+          userId: session?.user?.id,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      showToast(`Added 1x ${cardName} to Binder`, "success");
+      load(true);
+    } catch {
+      showToast(`Couldn't add copy of card`, "error");
+    } finally {
+      setAddingSlug(null);
+    }
+  };
+
   const doDelete = async () => {
     setDeleting(true);
     try {
@@ -163,24 +193,69 @@ export default function DeckDetailPage() {
       ) : (
         <>
           {shortage && <FeasibilityBanner report={shortage}/>}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <section className="rounded-2xl glass p-5 lg:col-span-2" aria-label="Demand and contention">
-              <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-sm font-semibold text-white">Demand & Contention</h2>
-                  <p className="text-[11px] text-slate-500">Shared copies may fill several decks; dedicated copies stay with one.</p>
-                </div>
-                <label htmlFor="only-missing" className="flex cursor-pointer items-center gap-2 text-xs text-slate-400">
-                  <Switch id="only-missing" checked={onlyMissing} onCheckedChange={setOnlyMissing} />
-                  Only show shortages
-                </label>
-              </div>
-              <ShortageTable items={shortage?.items || []} onAddMissing={addMissing} addingSlug={addingSlug} onlyMissing={onlyMissing}/>
-            </section>
-            <aside className="rounded-2xl glass p-5" aria-label="Decklist">
-              <DeckList {...cards}/>
-            </aside>
+
+          {/* View Toggle Bar */}
+          <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
+            <span className="text-xs text-slate-400 font-medium">Deck Content & Visuals</span>
+            <div className="inline-flex rounded-lg border border-white/[0.08] bg-slate-900/60 p-0.5">
+              <button
+                type="button"
+                onClick={() => setViewMode("list")}
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  viewMode === "list"
+                    ? "bg-cyan-500/20 text-cyan-200 border border-cyan-500/30 shadow-sm"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+                title="List View with Contention table"
+              >
+                <List className="h-3.5 w-3.5" />
+                <span>List View</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("grid")}
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  viewMode === "grid"
+                    ? "bg-cyan-500/20 text-cyan-200 border border-cyan-500/30 shadow-sm"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+                title="Artwork Grid View by Zone"
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+                <span>Artwork Grid</span>
+              </button>
+            </div>
           </div>
+
+          {viewMode === "grid" ? (
+            <section className="rounded-2xl glass p-5 animate-fade-in" aria-label="Visual artwork grid">
+              <DeckCardGrid
+                cards={cards}
+                shortageItems={shortage?.items || []}
+                onAddOne={addOne}
+                addingSlug={addingSlug}
+              />
+            </section>
+          ) : (
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+              <section className="rounded-2xl glass p-5 lg:col-span-2" aria-label="Demand and contention">
+                <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-sm font-semibold text-white">Demand & Contention</h2>
+                    <p className="text-[11px] text-slate-500">Shared copies may fill several decks; dedicated copies stay with one.</p>
+                  </div>
+                  <label htmlFor="only-missing" className="flex cursor-pointer items-center gap-2 text-xs text-slate-400">
+                    <Switch id="only-missing" checked={onlyMissing} onCheckedChange={setOnlyMissing} />
+                    Only show shortages
+                  </label>
+                </div>
+                <ShortageTable items={shortage?.items || []} onAddMissing={addMissing} addingSlug={addingSlug} onlyMissing={onlyMissing}/>
+              </section>
+              <aside className="rounded-2xl glass p-5" aria-label="Decklist">
+                <DeckList {...cards}/>
+              </aside>
+            </div>
+          )}
         </>
       )}
 
