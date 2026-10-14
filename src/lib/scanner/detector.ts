@@ -1,5 +1,6 @@
 import type { Point, Quad, Rect } from "./contracts";
 import { orderCorners, quadArea } from "./geometry";
+import { logScanner } from "./debug-client";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 declare global {
@@ -24,6 +25,7 @@ export function loadOpenCv(): Promise<any> {
       resolved = true;
       cachedCv = realCv;
       window.cv = realCv;
+      logScanner("opencv_finish", "OpenCV fully initialized and cached", { hasMat: Boolean(realCv?.Mat) });
       resolve(realCv);
     };
 

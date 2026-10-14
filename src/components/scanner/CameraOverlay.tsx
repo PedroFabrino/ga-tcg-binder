@@ -1,10 +1,12 @@
 "use client";
 
-import { Camera, Loader2, RefreshCw } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Camera, Loader2, RefreshCw, Terminal, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CARD_ASPECT } from "@/lib/scanner/contracts";
 import type { NormalizedCapture } from "@/lib/scanner/warp";
 import { useScannerCamera } from "@/hooks/useScannerCamera";
+import { getDebugLogs, subscribeDebugLogs, type LogEntry } from "@/lib/scanner/debug-client";
 
 interface Props {
   enabled?: boolean;
@@ -19,10 +21,19 @@ export function CameraOverlay({ enabled = true, onCapture }: Props) {
     error,
     cameraReady,
     cvReady,
+    cameraStage,
     permissionDenied,
     requestCamera,
     capture,
   } = useScannerCamera({ enabled, onAutoCapture: onCapture });
+
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [showLogs, setShowLogs] = useState(false);
+
+  useEffect(() => {
+    setLogs(getDebugLogs());
+    return subscribeDebugLogs((updated) => setLogs(updated));
+  }, []);
 
   const verdict = metrics?.verdict ?? "no_card";
   const locked = verdict === "ready" || (metrics?.stableFrames ?? 0) > 0;
@@ -34,7 +45,7 @@ export function CameraOverlay({ enabled = true, onCapture }: Props) {
 
   if (error || permissionDenied) {
     return (
-      <div className="mx-auto flex h-[70vh] w-full max-w-md flex-col items-center justify-center rounded-xl bg-slate-900 p-6 text-center text-slate-200">
+      <div className="mx-auto flex min-h-[70vh] w-full max-w-md flex-col items-center justify-center rounded-xl bg-slate-900 p-6 text-center text-slate-200">
         <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-rose-500/10 text-rose-400">
           <Camera className="h-8 w-8" />
         </div>
@@ -45,6 +56,27 @@ export function CameraOverlay({ enabled = true, onCapture }: Props) {
         <Button onClick={requestCamera} className="gap-2 bg-emerald-600 hover:bg-emerald-500">
           <RefreshCw className="h-4 w-4" /> Grant Camera Permission
         </Button>
+
+        {/* Diagnostic logs */}
+        <div className="mt-8 w-full text-left">
+          <button
+            onClick={() => setShowLogs(!showLogs)}
+            className="flex items-center gap-1.5 text-xs font-mono text-slate-400 hover:text-slate-200"
+          >
+            <Terminal className="h-3.5 w-3.5" />
+            Diagnostics ({logs.length} events)
+            {showLogs ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          </button>
+          {showLogs && (
+            <div className="mt-2 max-h-48 overflow-y-auto rounded bg-black/60 p-2 font-mono text-[11px] text-slate-300">
+              {logs.map((l, i) => (
+                <div key={i} className={`py-0.5 ${l.level === "error" ? "text-rose-400" : l.level === "warn" ? "text-amber-400" : ""}`}>
+                  <span className="text-slate-500">[{l.time}]</span> [{l.stage}] {l.message}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -67,20 +99,49 @@ export function CameraOverlay({ enabled = true, onCapture }: Props) {
         />
       </div>
 
-      <div className="absolute inset-x-0 top-3 text-center text-sm font-medium text-white drop-shadow">
-        {!cameraReady ? (
-          <span className="inline-flex items-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin" /> Starting camera…
-          </span>
-        ) : !cvReady ? (
-          <span className="inline-flex items-center gap-2 text-slate-300">
-            <Loader2 className="h-4 w-4 animate-spin text-amber-400" /> Preparing card detector…
-          </span>
-        ) : (
-          metrics?.hint ?? "Align the card inside the guide"
-        )}
+      {/* Top status bar */}
+      <div className="absolute inset-x-0 top-3 px-4 flex items-center justify-between text-sm font-medium text-white drop-shadow">
+        <div className="flex-1 text-center">
+          {!cameraReady ? (
+            <span className="inline-flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" /> Starting camera ({cameraStage})…
+            </span>
+          ) : !cvReady ? (
+            <span className="inline-flex items-center gap-2 text-slate-300">
+              <Loader2 className="h-4 w-4 animate-spin text-amber-400" /> Preparing card detector…
+            </span>
+          ) : (
+            metrics?.hint ?? "Align the card inside the guide"
+          )}
+        </div>
+
+        {/* Small debug toggle */}
+        <button
+          onClick={() => setShowLogs(!showLogs)}
+          className="rounded p-1 text-white/60 hover:text-white"
+          title="Toggle Diagnostics"
+          aria-label="Toggle Diagnostics"
+        >
+          <Terminal className="h-4 w-4" />
+        </button>
       </div>
 
+      {/* Live in-screen debug log overlay */}
+      {showLogs && (
+        <div className="absolute inset-x-2 top-12 z-20 max-h-48 overflow-y-auto rounded-lg bg-black/85 p-2 font-mono text-[10px] text-slate-300 shadow-xl backdrop-blur">
+          <div className="mb-1 font-bold text-slate-400 flex justify-between">
+            <span>LIVE SCANNER TELEMETRY</span>
+            <span className="text-emerald-400">Stage: {cameraStage}</span>
+          </div>
+          {logs.map((l, i) => (
+            <div key={i} className={`py-0.5 ${l.level === "error" ? "text-rose-400" : l.level === "warn" ? "text-amber-400" : ""}`}>
+              <span className="text-slate-500">[{l.time}]</span> [{l.stage}] {l.message}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Shutter button */}
       <div className="absolute inset-x-0 bottom-4 flex justify-center">
         <Button
           size="lg"
