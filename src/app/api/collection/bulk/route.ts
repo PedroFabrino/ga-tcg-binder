@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { importBulkCollectionText } from "@/services/collection";
 import { db } from "@/db";
 import { DEFAULT_USER_ID, ensureDefaultUserAndSeed } from "@/services/seed";
+import { auth } from "@/auth";
 
 export async function POST(req: NextRequest) {
   try {
     await ensureDefaultUserAndSeed();
+    const session = await auth();
     const body = await req.json();
-    const userId = body.userId || DEFAULT_USER_ID;
+    const userId = body.userId || session?.user?.id || DEFAULT_USER_ID;
     const text = body.text;
 
     if (!text || typeof text !== "string") {

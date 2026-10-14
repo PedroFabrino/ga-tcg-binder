@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { ArrowLeft, Copy, Trash2, Crown, BookOpen, Check } from "lucide-react";
 import { ConfirmModal } from "@/components/common";
 import { SkeletonRow, EmptyState } from "@/components/Skeletons";
@@ -14,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 export default function DeckDetailPage() {
   const params = useParams();
   const deckId = params?.id as string;
+  const { data: session } = useSession();
   const { showToast } = useToast();
 
   const [deck, setDeck] = useState<any>(null);
@@ -31,7 +33,11 @@ export default function DeckDetailPage() {
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [deckRes, shortageRes] = await Promise.all([fetch(`/api/decks/${deckId}`), fetch(`/api/decks/${deckId}/shortage`)]);
+      const userIdQuery = session?.user?.id ? `?userId=${encodeURIComponent(session.user.id)}` : "";
+      const [deckRes, shortageRes] = await Promise.all([
+        fetch(`/api/decks/${deckId}`),
+        fetch(`/api/decks/${deckId}/shortage${userIdQuery}`),
+      ]);
       if (deckRes.status === 404) {
         setNotFound(true);
         return;
@@ -53,7 +59,7 @@ export default function DeckDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [deckId, showToast]);
+  }, [deckId, session?.user?.id, showToast]);
 
   useEffect(() => {
     if (deckId) load();
@@ -80,7 +86,12 @@ export default function DeckDetailPage() {
       const res = await fetch("/api/collection", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ editionId: edition.id, foil: false, quantity: item.missingQuantity }),
+        body: JSON.stringify({
+          editionId: edition.id,
+          foil: false,
+          quantity: item.missingQuantity,
+          userId: session?.user?.id,
+        }),
       });
       if (!res.ok) throw new Error();
       showToast(`Added ${item.missingQuantity}x ${item.cardName} to Binder`, "success");

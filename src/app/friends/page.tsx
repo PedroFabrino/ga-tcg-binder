@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import QRCode from "qrcode";
 import { Users, UserPlus, Copy, Check, QrCode, Sparkles, Loader2, ShieldCheck, ArrowRight, Layers } from "lucide-react";
 import { Modal, PageHeader, CardArt, ElementBadge, FoilBadge, LowPopBadge } from "@/components/common";
@@ -146,6 +147,7 @@ function IdleBinderModal({ friend, onClose }: { friend: Friend; onClose: () => v
 }
 
 export default function FriendsPage() {
+  const { data: session } = useSession();
   const { showToast } = useToast();
   const [code, setCode] = useState<string | null>(null);
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -156,7 +158,8 @@ export default function FriendsPage() {
 
   const load = async () => {
     try {
-      const res = await fetch("/api/friends");
+      const userIdQuery = session?.user?.id ? `?userId=${encodeURIComponent(session.user.id)}` : "";
+      const res = await fetch(`/api/friends${userIdQuery}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
       setCode(data.currentUser?.friendCode ?? null);
@@ -171,7 +174,7 @@ export default function FriendsPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [session?.user?.id]);
 
   const connect = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -182,7 +185,7 @@ export default function FriendsPage() {
       const res = await fetch("/api/friends", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ friendCode }),
+        body: JSON.stringify({ friendCode, userId: session?.user?.id }),
       });
       const data = await res.json();
       if (!res.ok || !(data.success || data.friend)) throw new Error(data.error);

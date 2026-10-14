@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { Copy, Check, Loader2, Gem } from "lucide-react";
 import { Modal } from "@/components/common";
 import { useToast } from "@/components/ToastProvider";
@@ -12,6 +13,7 @@ const MIN = 100;
 const MAX = 5000;
 
 export default function SettingsModal({ onClose }: { onClose: () => void }) {
+  const { data: session } = useSession();
   const { showToast } = useToast();
   const [threshold, setThreshold] = useState(1000);
   const [friendCode, setFriendCode] = useState<string | null>(null);
@@ -20,7 +22,8 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    fetch("/api/settings")
+    const userIdQuery = session?.user?.id ? `?userId=${encodeURIComponent(session.user.id)}` : "";
+    fetch(`/api/settings${userIdQuery}`)
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((data) => {
         if (data.user) {
@@ -30,7 +33,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
       })
       .catch(() => showToast("Couldn't load your preferences", "error"))
       .finally(() => setLoading(false));
-  }, [showToast]);
+  }, [session?.user?.id, showToast]);
 
   const copy = async () => {
     if (!friendCode) return;
@@ -50,7 +53,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
       const res = await fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lowPopThreshold: threshold }),
+        body: JSON.stringify({ lowPopThreshold: threshold, userId: session?.user?.id }),
       });
       if (!res.ok) throw new Error();
       showToast("Preferences saved", "success");

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { Layers, Sparkles, Gem, TrendingUp, Upload, LayoutGrid, Table2 } from "lucide-react";
 import { PageHeader, Tabs } from "@/components/common";
 import { SkeletonRow, EmptyState } from "@/components/Skeletons";
@@ -30,6 +31,7 @@ const EMPTY_COPY: Record<View, { title: string; description: string }> = {
 };
 
 export default function CollectionPage() {
+  const { data: session } = useSession();
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<View>("ALL");
   const [mode, setMode] = useState<"table" | "binder">("table");
@@ -46,7 +48,8 @@ export default function CollectionPage() {
   const fetchCollection = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const res = await fetch(`/api/collection?view=${activeTab}`);
+      const userParam = session?.user?.id ? `&userId=${encodeURIComponent(session.user.id)}` : "";
+      const res = await fetch(`/api/collection?view=${activeTab}${userParam}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
       setItems(Array.isArray(data.items) ? data.items : []);
@@ -56,7 +59,7 @@ export default function CollectionPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab]);
+  }, [activeTab, session?.user?.id]);
 
   useEffect(() => {
     fetchCollection();
@@ -66,7 +69,7 @@ export default function CollectionPage() {
     const res = await fetch("/api/collection", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, userId: session?.user?.id }),
     });
     if (!res.ok) throw new Error();
   };

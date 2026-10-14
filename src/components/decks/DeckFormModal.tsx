@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { Loader2, Plus, Upload } from "lucide-react";
 import { Modal } from "@/components/common";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ export default function DeckFormModal({
   onClose: () => void;
   onCreated: (id: string, name: string) => void;
 }) {
+  const { data: session } = useSession();
   const [name, setName] = useState("");
   const [champion, setChampion] = useState("");
   const [text, setText] = useState("");
@@ -43,7 +45,12 @@ export default function DeckFormModal({
       const res = await fetch("/api/decks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), champion: champion.trim(), ...(isImport ? { omnidexText: text } : {}) }),
+        body: JSON.stringify({
+          name: name.trim(),
+          champion: champion.trim(),
+          userId: session?.user?.id,
+          ...(isImport ? { omnidexText: text } : {}),
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data.id) throw new Error(data.error || "Couldn't save deck");

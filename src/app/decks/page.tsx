@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { BookOpen, Plus, Upload, ArrowRight, CheckCircle2, AlertTriangle, Trash2, Crown } from "lucide-react";
 import { PageHeader, ConfirmModal } from "@/components/common";
 import { SkeletonCard, EmptyState } from "@/components/Skeletons";
@@ -20,6 +21,7 @@ interface DeckSummary {
 }
 
 export default function DecksPage() {
+  const { data: session } = useSession();
   const { showToast } = useToast();
   const [decks, setDecks] = useState<DeckSummary[]>([]);
   const [shortages, setShortages] = useState<Record<string, number | null>>({});
@@ -32,7 +34,8 @@ export default function DecksPage() {
   const fetchDecks = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/decks");
+      const userIdQuery = session?.user?.id ? `?userId=${encodeURIComponent(session.user.id)}` : "";
+      const res = await fetch(`/api/decks${userIdQuery}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
       const list: DeckSummary[] = Array.isArray(data.decks) ? data.decks : [];
@@ -40,7 +43,7 @@ export default function DecksPage() {
       setError(false);
       list.forEach(async (d) => {
         try {
-          const r = await fetch(`/api/decks/${d.id}/shortage`);
+          const r = await fetch(`/api/decks/${d.id}/shortage${userIdQuery}`);
           const s = r.ok ? await r.json() : null;
           setShortages((prev) => ({ ...prev, [d.id]: typeof s?.totalCardsMissing === "number" ? s.totalCardsMissing : null }));
         } catch {
@@ -56,7 +59,7 @@ export default function DecksPage() {
 
   useEffect(() => {
     fetchDecks();
-  }, []);
+  }, [session?.user?.id]);
 
   const confirmDelete = async () => {
     if (!pendingDelete) return;

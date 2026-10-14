@@ -40,6 +40,18 @@ _Avoid_: Print run, supply count
 A recognized competitive deck classification derived from tournament results and event playrates.
 _Avoid_: Meta build, tournament category
 
+**Meta Tier**:
+The competitive hierarchy rating (Tier 1, Tier 2, Tier 3, Rogue) assigned to a Meta Archetype based on tournament share and game win rates.
+_Avoid_: Letter tier, power rank, rating bracket
+
+**Canonical Decklist**:
+A specific verified tournament-winning or high-cut decklist adopted as the representative card configuration for a Meta Archetype.
+_Avoid_: Default list, netdeck template, sample deck
+
+**Meta Sync**:
+The periodic or on-demand automated ingestion process that crawls tournament data sources to synchronize Meta Archetypes, Meta Tiers, and Canonical Decklists.
+_Avoid_: Deck scraper, meta pull, bot refresh
+
 **Card Catalog**:
 The canonical reference repository of Cards and Printings synchronized from the official game API.
 _Avoid_: Card master list, card index

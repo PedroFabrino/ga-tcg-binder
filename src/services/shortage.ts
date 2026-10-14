@@ -8,6 +8,8 @@ import {
   friendLinks,
   users,
 } from "../db/schema";
+import { db } from "../db";
+import { DEFAULT_USER_ID } from "./seed";
 
 export interface FriendIdleCard {
   friendId: string;
@@ -40,19 +42,22 @@ export interface DeckShortageReport {
 
 export async function calculateDeckShortage(
   deckId: string,
-  userId: string,
-  database: any
+  userId?: string,
+  database: any = db
 ): Promise<DeckShortageReport> {
   // 1. Fetch current deck
   const deck = await database
     .select()
     .from(decks)
-    .where(and(eq(decks.id, deckId), eq(decks.userId, userId)))
+    .where(eq(decks.id, deckId))
     .get();
 
   if (!deck) {
     throw new Error(`Deck not found with id ${deckId}`);
   }
+
+  // If userId is unspecified or default, use the deck owner's ID
+  const effectiveUserId = !userId || userId === DEFAULT_USER_ID ? deck.userId : userId;
 
   // 2. Fetch cards in this deck
   const targetDeckCards = await database
@@ -73,7 +78,7 @@ export async function calculateDeckShortage(
   const allUserDecks = await database
     .select()
     .from(decks)
-    .where(eq(decks.userId, userId));
+    .where(eq(decks.userId, effectiveUserId));
 
   const otherDeckIds = allUserDecks
     .filter((d: any) => d.id !== deckId)
@@ -106,7 +111,7 @@ export async function calculateDeckShortage(
     })
     .from(collectionItems)
     .innerJoin(cardEditions, eq(collectionItems.editionId, cardEditions.id))
-    .where(eq(collectionItems.userId, userId));
+    .where(eq(collectionItems.userId, effectiveUserId));
 
   // 5. Fetch accepted friends
   const friendLinks1 = await database
@@ -114,14 +119,14 @@ export async function calculateDeckShortage(
       friendId: friendLinks.userId2,
     })
     .from(friendLinks)
-    .where(and(eq(friendLinks.userId1, userId), eq(friendLinks.status, "accepted")));
+    .where(and(eq(friendLinks.userId1, effectiveUserId), eq(friendLinks.status, "accepted")));
 
   const friendLinks2 = await database
     .select({
       friendId: friendLinks.userId1,
     })
     .from(friendLinks)
-    .where(and(eq(friendLinks.userId2, userId), eq(friendLinks.status, "accepted")));
+    .where(and(eq(friendLinks.userId2, effectiveUserId), eq(friendLinks.status, "accepted")));
 
   const friendIds = Array.from(
     new Set([...friendLinks1.map((f: any) => f.friendId), ...friendLinks2.map((f: any) => f.friendId)])

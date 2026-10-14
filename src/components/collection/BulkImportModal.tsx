@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
 import { Check, Loader2, AlertTriangle, Sparkles } from "lucide-react";
 import { Modal } from "@/components/common";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ function parseLine(raw: string): ParsedLine | null {
 }
 
 export default function BulkImportModal({ onClose, onImported }: { onClose: () => void; onImported: (count: number) => void }) {
+  const { data: session } = useSession();
   const [text, setText] = useState("");
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<{ addedCount: number; errors: string[] } | null>(null);
@@ -52,7 +54,7 @@ export default function BulkImportModal({ onClose, onImported }: { onClose: () =
       const res = await fetch("/api/collection/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, userId: session?.user?.id }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Import failed");
