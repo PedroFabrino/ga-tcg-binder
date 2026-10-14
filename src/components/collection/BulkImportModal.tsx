@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Check, Loader2, AlertTriangle, Sparkles } from "lucide-react";
 import { Modal } from "@/components/common";
+import { CardPreviewTrigger } from "@/components/CardHoverPreview";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 
@@ -115,7 +116,9 @@ export default function BulkImportModal({ onClose, onImported }: { onClose: () =
                     ) : (
                       <>
                         <span className="w-8 shrink-0 font-mono font-semibold text-emerald-300">+{p.qty}</span>
-                        <span className="truncate text-white">{p.name}</span>
+                        <CardPreviewTrigger name={p.name} className="truncate">
+                          <span className="truncate text-white transition-colors hover:text-cyan-300 cursor-pointer">{p.name}</span>
+                        </CardPreviewTrigger>
                         <span className="ml-auto flex shrink-0 items-center gap-1.5">
                           {p.set && <span className="rounded border border-white/[0.08] px-1.5 font-mono text-[10px] text-slate-300">{p.set}</span>}
                           {p.foil && <Sparkles className="h-3 w-3 text-cyan-300" aria-label="Foil" />}
