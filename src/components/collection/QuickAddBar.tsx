@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Search, Sparkles, Loader2, Plus, Gem } from "lucide-react";
 import { ElementBadge } from "@/components/common";
+import { CardPreviewTrigger } from "@/components/CardHoverPreview";
 
 export default function QuickAddBar({ onAdd }: { onAdd: (edition: any, cardName: string, foil: boolean) => Promise<void> }) {
   const [query, setQuery] = useState("");
@@ -75,7 +76,15 @@ export default function QuickAddBar({ onAdd }: { onAdd: (edition: any, cardName:
               {results.map((card) => (
                 <li key={card.slug} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold text-white">{card.name}</div>
+                    <CardPreviewTrigger
+                      name={card.name}
+                      slug={card.slug}
+                      imageUrl={card.editions?.[0]?.imageUrl}
+                      element={card.element}
+                      className="inline-block"
+                    >
+                      <div className="truncate text-sm font-semibold text-white transition-colors hover:text-cyan-300 cursor-pointer">{card.name}</div>
+                    </CardPreviewTrigger>
                     <div className="mt-1 flex items-center gap-2">
                       <ElementBadge element={card.element} />
                       <span className="text-[11px] text-slate-500">{card.editions?.length || 0} printings</span>
@@ -83,19 +92,26 @@ export default function QuickAddBar({ onAdd }: { onAdd: (edition: any, cardName:
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {(card.editions || []).slice(0, 3).map((ed: any) => (
-                      <button
+                      <CardPreviewTrigger
                         key={ed.id}
-                        onClick={async () => {
-                          await onAdd(ed, card.name, foil);
-                          setQuery("");
-                          setOpen(false);
-                        }}
-                        className="inline-flex items-center gap-1 rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 font-mono text-[11px] font-medium text-slate-200 transition-all hover:border-cyan-400/40 hover:bg-cyan-400/10 hover:text-cyan-200 active:scale-95"
+                        name={card.name}
+                        slug={card.slug}
+                        imageUrl={ed.imageUrl}
+                        element={card.element}
                       >
-                        <Plus className="h-3 w-3" />
-                        {ed.setPrefix} #{ed.collectorNumber}
-                        {ed.isLowPop && <Gem className="h-2.5 w-2.5 text-amber-300" />}
-                      </button>
+                        <button
+                          onClick={async () => {
+                            await onAdd(ed, card.name, foil);
+                            setQuery("");
+                            setOpen(false);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 font-mono text-[11px] font-medium text-slate-200 transition-all hover:border-cyan-400/40 hover:bg-cyan-400/10 hover:text-cyan-200 active:scale-95"
+                        >
+                          <Plus className="h-3 w-3" />
+                          {ed.setPrefix} #{ed.collectorNumber}
+                          {ed.isLowPop && <Gem className="h-2.5 w-2.5 text-amber-300" />}
+                        </button>
+                      </CardPreviewTrigger>
                     ))}
                   </div>
                 </li>

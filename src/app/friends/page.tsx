@@ -8,6 +8,7 @@ import { Modal, PageHeader, CardArt, ElementBadge, FoilBadge, LowPopBadge } from
 import { SkeletonGrid, EmptyState } from "@/components/Skeletons";
 import { useToast } from "@/components/ToastProvider";
 import { getElementClass } from "@/lib/elements";
+import { CardPreviewTrigger } from "@/components/CardHoverPreview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -124,13 +125,28 @@ function IdleBinderModal({ friend, onClose }: { friend: Friend; onClose: () => v
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {cards.map((c) => (
               <div key={c.id} className={`${getElementClass(c.element)} overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.02]`}>
-                <div className={`relative aspect-[5/4] overflow-hidden ${c.foil ? "foil-static" : ""}`}>
+                <CardPreviewTrigger
+                  name={c.cardName}
+                  slug={c.cardSlug}
+                  imageUrl={c.imageUrl}
+                  element={c.element}
+                  as="div"
+                  className={`relative aspect-[5/4] overflow-hidden cursor-pointer ${c.foil ? "foil-static" : ""}`}
+                >
                   <CardArt src={c.imageUrl} alt={c.cardName} className="h-full w-full object-top" />
                   <div className="absolute left-2 top-2 z-[5]"><ElementBadge element={c.element}/></div>
                   <span className="absolute bottom-2 right-2 z-[5] rounded-full bg-black/70 px-2 py-0.5 font-mono text-[10px] font-semibold text-emerald-300 backdrop-blur">{c.idleQuantity} idle</span>
-                </div>
+                </CardPreviewTrigger>
                 <div className="space-y-1.5 p-2.5">
-                  <div className="truncate text-xs font-semibold text-white">{c.cardName}</div>
+                  <CardPreviewTrigger
+                    name={c.cardName}
+                    slug={c.cardSlug}
+                    imageUrl={c.imageUrl}
+                    element={c.element}
+                    className="inline-block max-w-full"
+                  >
+                    <div className="truncate text-xs font-semibold text-white transition-colors hover:text-cyan-300 cursor-pointer">{c.cardName}</div>
+                  </CardPreviewTrigger>
                   <div className="font-mono text-[10px] text-slate-500">{c.setPrefix} #{c.collectorNumber}</div>
                   <div className="flex flex-wrap gap-1">
                     {c.foil && <FoilBadge/>}
