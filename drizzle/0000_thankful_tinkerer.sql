@@ -120,3 +120,5 @@ CREATE TABLE `users` (
 --> statement-breakpoint
 CREATE UNIQUE INDEX `users_email_unique` ON `users` (`email`);--> statement-breakpoint
 CREATE UNIQUE INDEX `users_friend_code_unique` ON `users` (`friend_code`);
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `card_hashes` (`edition_id` text PRIMARY KEY NOT NULL, `phash` text NOT NULL, `updated_at` integer DEFAULT (strftime('%s', 'now')), FOREIGN KEY (`edition_id`) REFERENCES `card_editions`(`id`) ON UPDATE no action ON DELETE cascade);

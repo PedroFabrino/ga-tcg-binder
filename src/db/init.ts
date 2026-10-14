@@ -103,6 +103,13 @@ CREATE TABLE IF NOT EXISTS \`meta_archetypes\` (
 	\`updated_at\` integer DEFAULT (strftime('%s', 'now'))
 );
 --> statement-breakpoint
+CREATE TABLE IF NOT EXISTS \`card_hashes\` (
+	\`edition_id\` text PRIMARY KEY NOT NULL,
+	\`phash\` text NOT NULL,
+	\`updated_at\` integer DEFAULT (strftime('%s', 'now')),
+	FOREIGN KEY (\`edition_id\`) REFERENCES \`card_editions\`(\`id\`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS \`scanner_sessions\` (
 	\`id\` text PRIMARY KEY NOT NULL,
 	\`user_id\` text NOT NULL,

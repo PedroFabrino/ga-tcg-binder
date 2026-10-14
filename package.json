@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:push": "drizzle-kit push",
-    "sync:catalog": "tsx scripts/sync-catalog.ts"
+    "sync:catalog": "tsx scripts/sync-catalog.ts",
+    "sync:hashes": "tsx scripts/sync-hashes.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.14.0",
@@ -43,6 +44,7 @@
     "autoprefixer": "^10.4.20",
     "drizzle-kit": "^0.28.1",
     "postcss": "^8.4.49",
+    "sharp": "^0.35.5",
     "tailwindcss": "^3.4.16",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",

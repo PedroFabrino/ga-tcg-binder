@@ -107,6 +107,12 @@ export const friendLinks = sqliteTable("friend_links", {
 // ---------------------------------------------------------------------------
 // Mobile Camera Scanner Sessions (QR Pairing)
 // ---------------------------------------------------------------------------
+export const cardHashes = sqliteTable("card_hashes", {
+  editionId: text("edition_id").primaryKey().references(() => cardEditions.id, { onDelete: "cascade" }),
+  phash: text("phash").notNull(), // 64-bit dHash, 16 hex chars
+  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+});
+
 export const scannerSessions = sqliteTable("scanner_sessions", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
