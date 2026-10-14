@@ -33,7 +33,12 @@ export default function HomePage() {
     setHello(greeting());
     async function loadStats() {
       try {
-        const [collRes, decksRes] = await Promise.all([fetch("/api/collection?view=ALL"), fetch("/api/decks")]);
+        const userParam = session?.user?.id ? `&userId=${encodeURIComponent(session.user.id)}` : "";
+        const decksUserParam = session?.user?.id ? `?userId=${encodeURIComponent(session.user.id)}` : "";
+        const [collRes, decksRes] = await Promise.all([
+          fetch(`/api/collection?view=ALL${userParam}`),
+          fetch(`/api/decks${decksUserParam}`),
+        ]);
         if (!collRes.ok || !decksRes.ok) throw new Error("Request failed");
         const collData = await collRes.json();
         const decksData = await decksRes.json();
@@ -51,7 +56,7 @@ export default function HomePage() {
       }
     }
     loadStats();
-  }, []);
+  }, [session?.user?.id]);
 
   const name = session?.user?.name?.split(" ")[0] || "Collector";
 

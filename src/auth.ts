@@ -5,6 +5,7 @@ import Credentials from "next-auth/providers/credentials";
 import { db } from "./db";
 import { users } from "./db/schema";
 import { eq } from "drizzle-orm";
+import { migrateDefaultUserDataToUser } from "./services/seed";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
@@ -64,28 +65,82 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   callbacks: {
     async signIn({ user, account, profile }) {
-      if (!user.id || !user.email) return true;
+      if (!user.email) return true;
       try {
-        const existing = await db.select().from(users).where(eq(users.id, user.id)).get();
-        if (!existing) {
+        const normalizedEmail = user.email.toLowerCase().trim();
+
+        // 1. Look up existing user by email to ensure multi-device and re-login consistency
+        const existingByEmail = await db
+          .select()
+          .from(users)
+          .where(eq(users.email, normalizedEmail))
+          .get();
+
+        if (existingByEmail) {
+          // Canonical user exists! Set user.id so jwt receives the canonical DB id
+          user.id = existingByEmail.id;
+          if (
+            (user.name && user.name !== existingByEmail.name) ||
+            (user.image && user.image !== existingByEmail.image)
+          ) {
+            await db
+              .update(users)
+              .set({
+                name: user.name || existingByEmail.name,
+                image: user.image || existingByEmail.image,
+              })
+              .where(eq(users.id, existingByEmail.id));
+          }
+          await migrateDefaultUserDataToUser(existingByEmail.id, db);
+          return true;
+        }
+
+        // 2. New user: resolve or assign ID
+        const id = user.id || `user_${normalizedEmail.replace(/[^a-z0-9]/gi, "_")}`;
+        user.id = id;
+
+        const existingById = await db
+          .select()
+          .from(users)
+          .where(eq(users.id, id))
+          .get();
+
+        if (!existingById) {
           const friendCode = `GA-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
           await db.insert(users).values({
-            id: user.id,
+            id,
             name: user.name || "Collector",
-            email: user.email,
+            email: normalizedEmail,
             image: user.image || null,
             friendCode,
             lowPopThreshold: 1000,
           });
         }
+        await migrateDefaultUserDataToUser(id, db);
       } catch (err) {
         console.error("Error in signIn callback:", err);
       }
       return true;
     },
     async jwt({ token, user }) {
-      if (user) {
+      if (user?.id) {
         token.id = user.id;
+      }
+      // Guarantee canonical user ID in token, auto-repairing any stale or mismatched device sessions
+      if (token?.email) {
+        try {
+          const normalizedEmail = (token.email as string).toLowerCase().trim();
+          const dbUser = await db
+            .select({ id: users.id })
+            .from(users)
+            .where(eq(users.email, normalizedEmail))
+            .get();
+          if (dbUser?.id) {
+            token.id = dbUser.id;
+          }
+        } catch (e) {
+          console.error("Error in jwt callback resolving user id:", e);
+        }
       }
       return token;
     },

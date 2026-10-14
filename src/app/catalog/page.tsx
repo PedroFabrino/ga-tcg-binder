@@ -98,13 +98,19 @@ export default function CatalogPage() {
       const res = await fetch("/api/collection", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ editionId: ed.id, foil, quantity: 1 }),
+        body: JSON.stringify({
+          editionId: ed.id,
+          foil,
+          quantity: 1,
+          userId: session?.user?.id,
+        }),
       });
-      if (!res.ok) throw new Error();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to add card");
       showToast(`Added 1x ${foil ? "Foil " : ""}${name} to Binder`, "success");
       return true;
-    } catch {
-      showToast(`Couldn't add ${name}`, "error");
+    } catch (e: any) {
+      showToast(e.message || `Couldn't add ${name}`, "error");
       return false;
     }
   };

@@ -1,10 +1,62 @@
 import { db } from "../db";
-import { users } from "../db/schema";
+import { users, decks, collectionItems } from "../db/schema";
 import { runMigrations } from "../db/init";
 import { seedMetaArchetypes } from "./meta";
-import { eq } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 
 export const DEFAULT_USER_ID = "user_default";
+
+export async function migrateDefaultUserDataToUser(targetUserId: string, database = db) {
+  if (!targetUserId || targetUserId === DEFAULT_USER_ID) return;
+
+  try {
+    // 1. Move any decks belonging to DEFAULT_USER_ID to targetUserId
+    await database
+      .update(decks)
+      .set({ userId: targetUserId })
+      .where(eq(decks.userId, DEFAULT_USER_ID));
+
+    // 2. Move or merge collection items
+    const defaultItems = await database
+      .select()
+      .from(collectionItems)
+      .where(eq(collectionItems.userId, DEFAULT_USER_ID));
+
+    for (const item of defaultItems) {
+      const existing = await database
+        .select()
+        .from(collectionItems)
+        .where(
+          and(
+            eq(collectionItems.userId, targetUserId),
+            eq(collectionItems.editionId, item.editionId),
+            eq(collectionItems.foil, item.foil)
+          )
+        )
+        .get();
+
+      if (existing) {
+        await database
+          .update(collectionItems)
+          .set({
+            quantity: existing.quantity + item.quantity,
+            updatedAt: sql`(strftime('%s', 'now'))`,
+          })
+          .where(eq(collectionItems.id, existing.id));
+        await database
+          .delete(collectionItems)
+          .where(eq(collectionItems.id, item.id));
+      } else {
+        await database
+          .update(collectionItems)
+          .set({ userId: targetUserId })
+          .where(eq(collectionItems.id, item.id));
+      }
+    }
+  } catch (err) {
+    console.error("Error migrating default user data to user:", err);
+  }
+}
 
 async function doSeed(database = db) {
   const existing = await database

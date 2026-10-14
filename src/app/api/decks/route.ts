@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { decks, deckCards, cards } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { DEFAULT_USER_ID, ensureDefaultUserAndSeed } from "@/services/seed";
+import { DEFAULT_USER_ID, ensureDefaultUserAndSeed, migrateDefaultUserDataToUser } from "@/services/seed";
 import { parseOmnidexText } from "@/services/omnidex";
 import { auth } from "@/auth";
 
@@ -12,6 +12,10 @@ export async function GET(req: NextRequest) {
     const session = await auth();
     const url = new URL(req.url);
     const userId = url.searchParams.get("userId") || session?.user?.id || DEFAULT_USER_ID;
+
+    if (userId !== DEFAULT_USER_ID) {
+      await migrateDefaultUserDataToUser(userId, db);
+    }
 
     const userDecks = await db
       .select()

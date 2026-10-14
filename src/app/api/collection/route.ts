@@ -5,7 +5,7 @@ import {
   SmartViewType,
 } from "@/services/collection";
 import { db } from "@/db";
-import { DEFAULT_USER_ID, ensureDefaultUserAndSeed } from "@/services/seed";
+import { DEFAULT_USER_ID, ensureDefaultUserAndSeed, migrateDefaultUserDataToUser } from "@/services/seed";
 import { auth } from "@/auth";
 
 export async function GET(req: NextRequest) {
@@ -15,6 +15,10 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url);
     const view = (url.searchParams.get("view") || "ALL").toUpperCase() as SmartViewType;
     const userId = url.searchParams.get("userId") || session?.user?.id || DEFAULT_USER_ID;
+
+    if (userId !== DEFAULT_USER_ID) {
+      await migrateDefaultUserDataToUser(userId, db);
+    }
 
     const items = await getCollectionSmartView(userId, view, db);
     return NextResponse.json({ items });
