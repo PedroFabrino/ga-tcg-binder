@@ -7,6 +7,7 @@ import { users } from "./db/schema";
 import { eq } from "drizzle-orm";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
   secret: process.env.AUTH_SECRET || "default_ga_secret_key_change_in_production_32char",
   session: {
     strategy: "jwt",

@@ -1,11 +1,12 @@
 import { db } from "../db";
 import { users } from "../db/schema";
+import { runMigrations } from "../db/init";
 import { seedMetaArchetypes } from "./meta";
 import { eq } from "drizzle-orm";
 
 export const DEFAULT_USER_ID = "user_default";
 
-export async function ensureDefaultUserAndSeed(database = db) {
+async function doSeed(database = db) {
   const existing = await database
     .select()
     .from(users)
@@ -40,4 +41,18 @@ export async function ensureDefaultUserAndSeed(database = db) {
   }
 
   await seedMetaArchetypes(database);
+}
+
+export async function ensureDefaultUserAndSeed(database = db) {
+  try {
+    await doSeed(database);
+  } catch (err: any) {
+    const errorMsg = (err?.message || "").toLowerCase();
+    if (errorMsg.includes("no such table") || errorMsg.includes("sqlite_error")) {
+      await runMigrations();
+      await doSeed(database);
+      return;
+    }
+    throw err;
+  }
 }

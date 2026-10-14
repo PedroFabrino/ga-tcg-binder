@@ -20,6 +20,8 @@ export interface ShortageItem {
 export interface ShortageReport {
   deckId?: string;
   deckName?: string;
+  champion?: string;
+  decklistText?: string;
   totalCardsRequired: number;
   totalCardsMissing: number;
   items: ShortageItem[];

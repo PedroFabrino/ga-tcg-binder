@@ -6,13 +6,15 @@ import {
 } from "@/services/collection";
 import { db } from "@/db";
 import { DEFAULT_USER_ID, ensureDefaultUserAndSeed } from "@/services/seed";
+import { auth } from "@/auth";
 
 export async function GET(req: NextRequest) {
   try {
     await ensureDefaultUserAndSeed();
+    const session = await auth();
     const url = new URL(req.url);
     const view = (url.searchParams.get("view") || "ALL").toUpperCase() as SmartViewType;
-    const userId = url.searchParams.get("userId") || DEFAULT_USER_ID;
+    const userId = url.searchParams.get("userId") || session?.user?.id || DEFAULT_USER_ID;
 
     const items = await getCollectionSmartView(userId, view, db);
     return NextResponse.json({ items });
@@ -24,8 +26,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     await ensureDefaultUserAndSeed();
+    const session = await auth();
     const body = await req.json();
-    const userId = body.userId || DEFAULT_USER_ID;
+    const userId = body.userId || session?.user?.id || DEFAULT_USER_ID;
     const editionId = body.editionId;
     const foil = Boolean(body.foil);
     const quantity = parseInt(body.quantity, 10);

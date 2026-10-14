@@ -4,12 +4,14 @@ import { decks, deckCards, cards } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { DEFAULT_USER_ID, ensureDefaultUserAndSeed } from "@/services/seed";
 import { parseOmnidexText } from "@/services/omnidex";
+import { auth } from "@/auth";
 
 export async function GET(req: NextRequest) {
   try {
     await ensureDefaultUserAndSeed();
+    const session = await auth();
     const url = new URL(req.url);
-    const userId = url.searchParams.get("userId") || DEFAULT_USER_ID;
+    const userId = url.searchParams.get("userId") || session?.user?.id || DEFAULT_USER_ID;
 
     const userDecks = await db
       .select()
@@ -54,8 +56,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     await ensureDefaultUserAndSeed();
+    const session = await auth();
     const body = await req.json();
-    const userId = body.userId || DEFAULT_USER_ID;
+    const userId = body.userId || session?.user?.id || DEFAULT_USER_ID;
     const name = body.name?.trim();
     const champion = body.champion?.trim() || "";
     const format = body.format || "standard";

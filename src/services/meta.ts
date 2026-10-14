@@ -1,6 +1,6 @@
 import { eq, desc, sql } from "drizzle-orm";
 import { metaArchetypes, decks, deckCards, cards, cardEditions } from "../db/schema";
-import { parseOmnidexText } from "./omnidex";
+import { parseOmnidexText, fetchDeckFromUrl } from "./omnidex";
 import { calculateDeckShortage, DeckShortageReport } from "./shortage";
 
 export interface MetaArchetypeSummary {
@@ -158,24 +158,36 @@ export async function compareMetaDeckAgainstCollection(
   metaDeckIdOrText: string,
   userId: string,
   database: any
-): Promise<DeckShortageReport> {
-  // If it's a known meta archetype ID, grab its decklist
-  let decklistText = metaDeckIdOrText;
+): Promise<DeckShortageReport & { champion: string; decklistText: string }> {
+  let decklistText = metaDeckIdOrText.trim();
   let deckTitle = "Meta Comparison Deck";
+  let champion = "";
 
-  const metaRow = await database
-    .select()
-    .from(metaArchetypes)
-    .where(eq(metaArchetypes.id, metaDeckIdOrText))
-    .get();
+  if (decklistText.startsWith("http://") || decklistText.startsWith("https://")) {
+    const fetched = await fetchDeckFromUrl(decklistText);
+    decklistText = fetched.decklist;
+    deckTitle = fetched.name;
+    champion = fetched.champion || "";
+  } else {
+    // If it's a known meta archetype ID, grab its decklist
+    const metaRow = await database
+      .select()
+      .from(metaArchetypes)
+      .where(eq(metaArchetypes.id, metaDeckIdOrText))
+      .get();
 
-  if (metaRow) {
-    decklistText = metaRow.decklist;
-    deckTitle = `Meta: ${metaRow.name}`;
+    if (metaRow) {
+      decklistText = metaRow.decklist;
+      deckTitle = `Meta: ${metaRow.name}`;
+      champion = metaRow.champion;
+    }
   }
 
   // Parse Omnidex deck
   const parsed = parseOmnidexText(decklistText);
+  if (!champion) {
+    champion = parsed.champion || "Unknown Champion";
+  }
 
   // Create temporary in-memory or ephemeral deck entry for shortage analysis
   const tempDeckId = `meta-comp-${Date.now()}`;
@@ -183,7 +195,7 @@ export async function compareMetaDeckAgainstCollection(
     id: tempDeckId,
     userId,
     name: deckTitle,
-    champion: parsed.champion || "Unknown Champion",
+    champion,
     format: "standard",
   });
 
@@ -250,5 +262,10 @@ export async function compareMetaDeckAgainstCollection(
   await database.delete(deckCards).where(eq(deckCards.deckId, tempDeckId));
   await database.delete(decks).where(eq(decks.id, tempDeckId));
 
-  return report;
+  return {
+    ...report,
+    deckName: deckTitle,
+    champion,
+    decklistText,
+  };
 }

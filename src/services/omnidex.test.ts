@@ -1,7 +1,11 @@
-import { describe, it, expect } from "vitest";
-import { parseOmnidexText, serializeOmnidexText } from "./omnidex";
+import { parseOmnidexText, serializeOmnidexText, decodeHtmlEntities } from "./omnidex";
 
 describe("Omnidex Decklist Parser & Serializer", () => {
+  it("decodes HTML entities properly in deck names", () => {
+    const raw = "2 Jianyu, Fate&#39;s Premonition &amp; &quot;Echoes&quot;";
+    expect(decodeHtmlEntities(raw)).toBe('2 Jianyu, Fate\'s Premonition & "Echoes"');
+  });
+
   it("parses standard Omnidex format with material, main, and sideboard sections", () => {
     const rawDeck = `
 # Material Deck
