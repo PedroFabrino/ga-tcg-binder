@@ -174,7 +174,7 @@ export async function calculateDeckShortage(
   let totalCardsRequired = 0;
   let totalCardsMissing = 0;
 
-  const targetSlugs = Array.from(new Set(targetDeckCards.map((c: any) => c.cardSlug)));
+  const targetSlugs: string[] = Array.from(new Set(targetDeckCards.map((c: any) => c.cardSlug as string)));
   let targetEditions: any[] = [];
   if (targetSlugs.length > 0) {
     targetEditions = await database

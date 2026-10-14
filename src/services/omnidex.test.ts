@@ -1,3 +1,4 @@
+import { describe, it, expect } from "vitest";
 import { parseOmnidexText, serializeOmnidexText, decodeHtmlEntities } from "./omnidex";
 
 describe("Omnidex Decklist Parser & Serializer", () => {

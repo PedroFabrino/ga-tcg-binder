@@ -136,6 +136,7 @@ describe("Shortage Calculation & Friend Idle Discovery Seams", () => {
     expect(fracItem?.missingQuantity).toBe(0);
     expect(fracItem?.isContended).toBe(true);
     expect(fracItem?.contendingDeckNames).toContain("Alice Tournament Backup");
+    expect(fracItem?.imageUrl).toBe("https://example.com/frac.jpg");
 
     // Dispel: required 2, available 1, missing 1
     const dispItem = report1.items.find((i) => i.cardSlug === "dispel");
@@ -143,6 +144,7 @@ describe("Shortage Calculation & Friend Idle Discovery Seams", () => {
     expect(dispItem?.requiredQuantity).toBe(2);
     expect(dispItem?.availableQuantity).toBe(1);
     expect(dispItem?.missingQuantity).toBe(1);
+    expect(dispItem?.imageUrl).toBe("https://example.com/disp.jpg");
   });
 
   it("calculates Friend Idle inventory correctly when cards are missing", async () => {
@@ -235,6 +237,7 @@ describe("Shortage Calculation & Friend Idle Discovery Seams", () => {
 
     expect(gcItem).toBeDefined();
     expect(gcItem?.missingQuantity).toBe(2);
+    expect(gcItem?.imageUrl).toBe("https://example.com/gc.jpg");
     expect(gcItem?.friendsWithIdle).toHaveLength(1);
     expect(gcItem?.friendsWithIdle[0]).toEqual({
       friendId: "bob",
