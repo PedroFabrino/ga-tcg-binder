@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Gem, Lock } from "lucide-react";
 import TiltCard from "@/components/TiltCard";
 import { CardArt, QuantityStepper } from "@/components/common";
 import { getElementClass } from "@/lib/elements";
+import { CardPreviewTrigger } from "@/components/CardHoverPreview";
 import type { CollectionItem, CollectionActions } from "./types";
 import { Button } from "@/components/ui/button";
 
@@ -56,7 +57,13 @@ function BinderSlot({ item, onQuantity, onToggleDedicated }: { item: CollectionI
   return (
     <div className={`${getElementClass(item.element)} group relative`}>
       <TiltCard maxTilt={8} className="rounded-[10px]">
-        <div className={`pocket-slot ${item.foil ? "foil-static" : ""}`}>
+        <CardPreviewTrigger
+          name={item.cardName}
+          imageUrl={item.imageUrl}
+          element={item.element}
+          as="div"
+          className={`pocket-slot cursor-pointer ${item.foil ? "foil-static" : ""}`}
+        >
           <CardArt src={item.imageUrl} alt={item.cardName} className="absolute inset-0 h-full w-full" />
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/[0.06] via-transparent to-black/70" />
           <div className="absolute left-1.5 top-1.5 z-[5] flex flex-col gap-1">
@@ -78,7 +85,7 @@ function BinderSlot({ item, onQuantity, onToggleDedicated }: { item: CollectionI
               {item.setPrefix} #{item.collectorNumber}{item.foil ? " · FOIL" : ""}
             </div>
           </div>
-        </div>
+        </CardPreviewTrigger>
       </TiltCard>
       <div className="absolute inset-x-1 bottom-12 z-10 flex flex-col items-center gap-1.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
         <div className="rounded-lg bg-black/80 backdrop-blur">

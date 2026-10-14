@@ -1,6 +1,7 @@
 "use client";
 
 import { getElementColor } from "@/lib/elements";
+import { CardPreviewTrigger } from "@/components/CardHoverPreview";
 
 export interface DeckCard {
   id: string;
@@ -11,6 +12,7 @@ export interface DeckCard {
   element: string | null;
   class: string | null;
   type: string | null;
+  imageUrl?: string | null;
   costReserve?: number | null;
   costMemory?: number | null;
 }
@@ -32,7 +34,15 @@ function ZoneList({ title, hint, cards, max }: { title: string; hint: string; ca
           {cards.map((c) => (
             <li key={c.id} className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-white/[0.03]">
               <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: getElementColor(c.element || "NORM") }} />
-              <span className="flex-1 truncate text-slate-200">{c.cardName || c.cardSlug}</span>
+              <CardPreviewTrigger
+                name={c.cardName || c.cardSlug}
+                slug={c.cardSlug}
+                imageUrl={c.imageUrl}
+                element={c.element}
+                className="flex-1 min-w-0"
+              >
+                <span className="block truncate text-slate-200 transition-colors hover:text-cyan-300 cursor-pointer">{c.cardName || c.cardSlug}</span>
+              </CardPreviewTrigger>
               {c.costReserve != null && <span className="font-mono text-[10px] text-slate-500">{c.costReserve}</span>}
               <span className="w-6 text-right font-mono font-semibold text-slate-400">x{c.quantity}</span>
             </li>

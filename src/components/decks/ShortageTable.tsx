@@ -2,11 +2,13 @@
 
 import { AlertTriangle, Check, Users, Plus, Loader2, MessageSquare, Lock } from "lucide-react";
 import { useToast } from "@/components/ToastProvider";
+import { CardPreviewTrigger } from "@/components/CardHoverPreview";
 
 export interface ShortageItem {
   cardSlug: string;
   cardName: string;
   zone: string;
+  imageUrl?: string | null;
   requiredQuantity: number;
   availableQuantity: number;
   missingQuantity: number;
@@ -128,7 +130,14 @@ export default function ShortageTable({
             return (
               <tr key={`${item.zone}-${item.cardSlug}`} className={`transition-colors hover:bg-white/[0.02] ${short ? "bg-rose-500/[0.02]" : ""}`}>
                 <td className="px-3 py-3 align-top">
-                  <div className="text-sm font-semibold text-white">{item.cardName}</div>
+                  <CardPreviewTrigger
+                    name={item.cardName}
+                    slug={item.cardSlug}
+                    imageUrl={item.imageUrl}
+                    className="inline-block"
+                  >
+                    <div className="text-sm font-semibold text-white transition-colors hover:text-cyan-300 cursor-pointer">{item.cardName}</div>
+                  </CardPreviewTrigger>
                   {item.dedicatedCopiesOwned > 0 && (
                     <div className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500">
                       <Lock className="h-2.5 w-2.5" /> {item.dedicatedCopiesOwned} dedicated · {item.sharedCopiesOwned} shared
