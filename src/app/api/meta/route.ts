@@ -3,6 +3,8 @@ import { getMetaArchetypes, seedMetaArchetypes } from "@/services/meta";
 import { db } from "@/db";
 import { ensureDefaultUserAndSeed } from "@/services/seed";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   try {
     await ensureDefaultUserAndSeed();
