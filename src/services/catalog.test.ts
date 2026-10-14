@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createTestDb } from "../db/test-utils";
-import { cards, cardEditions, cardCirculations } from "../db/schema";
+import { cards, cardEditions, cardCirculations, users, decks, deckCards } from "../db/schema";
 import { searchCatalog } from "./catalog";
 
 describe("Catalog & Search Seam", () => {
@@ -121,5 +121,25 @@ describe("Catalog & Search Seam", () => {
     const lowPopFilter = await searchCatalog({ lowPopOnly: true, lowPopThreshold: 1000 }, db);
     expect(lowPopFilter.total).toBe(1);
     expect(lowPopFilter.cards[0].slug).toBe("apotheosis-rite");
+
+    // 5. Deck usage detection
+    await db.insert(users).values({ id: "user-1", name: "Player 1", friendCode: "P1-TEST", lowPopThreshold: 1000 });
+    await db.insert(decks).values({ id: "deck-1", userId: "user-1", name: "Fire Aggro" });
+    await db.insert(deckCards).values({
+      id: "dc-1",
+      deckId: "deck-1",
+      cardSlug: "flame-burst",
+      zone: "main",
+      quantity: 4,
+    });
+
+    const deckUsageSearch = await searchCatalog({ query: "flame", userId: "user-1" }, db);
+    expect(deckUsageSearch.cards[0].deckUsage).toHaveLength(1);
+    expect(deckUsageSearch.cards[0].deckUsage[0]).toMatchObject({
+      deckId: "deck-1",
+      deckName: "Fire Aggro",
+      quantity: 4,
+      zone: "main",
+    });
   });
 });

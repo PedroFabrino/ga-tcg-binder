@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { Search, Sparkles, Gem, RefreshCw, SlidersHorizontal, X } from "lucide-react";
 import { PageHeader } from "@/components/common";
 import { SkeletonGrid, EmptyState } from "@/components/Skeletons";
@@ -31,6 +32,7 @@ function Chip({ active, onClick, children, color }: { active: boolean; onClick: 
 }
 
 export default function CatalogPage() {
+  const { data: session } = useSession();
   const { showToast } = useToast();
   const [cards, setCards] = useState<CatalogCardData[]>([]);
   const [total, setTotal] = useState(0);
@@ -48,6 +50,7 @@ export default function CatalogPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams({ limit: "48" });
+      if (session?.user?.id) params.set("userId", session.user.id);
       if (query.trim()) params.set("query", query.trim());
       if (element) params.set("element", element);
       if (cardClass) params.set("class", cardClass);
@@ -64,7 +67,7 @@ export default function CatalogPage() {
     } finally {
       setLoading(false);
     }
-  }, [query, element, cardClass, setPrefix, lowPopOnly]);
+  }, [session?.user?.id, query, element, cardClass, setPrefix, lowPopOnly]);
 
   useEffect(() => {
     const t = setTimeout(fetchCards, 250);

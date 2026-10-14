@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchCatalog } from "@/services/catalog";
 import { db } from "@/db";
-import { ensureDefaultUserAndSeed } from "@/services/seed";
+import { ensureDefaultUserAndSeed, DEFAULT_USER_ID } from "@/services/seed";
+import { auth } from "@/auth";
 
 export async function GET(req: NextRequest) {
   try {
     await ensureDefaultUserAndSeed();
+    const session = await auth();
     const url = new URL(req.url);
+    const userId = url.searchParams.get("userId") || session?.user?.id || DEFAULT_USER_ID;
     const query = url.searchParams.get("query") || undefined;
     const element = url.searchParams.get("element") || undefined;
     const cardClass = url.searchParams.get("class") || undefined;
@@ -32,6 +35,7 @@ export async function GET(req: NextRequest) {
         setPrefix,
         lowPopOnly,
         lowPopThreshold,
+        userId,
         limit,
         offset,
       },

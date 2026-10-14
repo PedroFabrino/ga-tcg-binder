@@ -1,5 +1,5 @@
 import { and, eq, like, or, sql, inArray } from "drizzle-orm";
-import { cards, cardEditions, cardCirculations } from "../db/schema";
+import { cards, cardEditions, cardCirculations, decks, deckCards } from "../db/schema";
 
 export interface CatalogSearchFilters {
   query?: string;
@@ -9,8 +9,16 @@ export interface CatalogSearchFilters {
   setPrefix?: string;
   lowPopOnly?: boolean;
   lowPopThreshold?: number;
+  userId?: string;
   limit?: number;
   offset?: number;
+}
+
+export interface DeckUsage {
+  deckId: string;
+  deckName: string;
+  quantity: number;
+  zone: string;
 }
 
 export interface EditionWithCirculations {
@@ -45,6 +53,7 @@ export interface CatalogCardResult {
   level: number | null;
   speed: boolean | null;
   hasLowPopEdition: boolean;
+  deckUsage: DeckUsage[];
   editions: EditionWithCirculations[];
 }
 
@@ -119,6 +128,27 @@ export async function searchCatalog(
       .where(inArray(cardCirculations.editionId, editionIds));
   }
 
+  // Fetch deck usage if userId is provided
+  let deckUsageData: any[] = [];
+  if (filters.userId && matchingSlugs.length > 0) {
+    deckUsageData = await database
+      .select({
+        cardSlug: deckCards.cardSlug,
+        deckId: deckCards.deckId,
+        deckName: decks.name,
+        quantity: deckCards.quantity,
+        zone: deckCards.zone,
+      })
+      .from(deckCards)
+      .innerJoin(decks, eq(deckCards.deckId, decks.id))
+      .where(
+        and(
+          eq(decks.userId, filters.userId),
+          inArray(deckCards.cardSlug, matchingSlugs)
+        )
+      );
+  }
+
   // Group editions and circulations by card slug
   const results: CatalogCardResult[] = [];
 
@@ -166,6 +196,15 @@ export async function searchCatalog(
       continue;
     }
 
+    const cardDeckUsage: DeckUsage[] = deckUsageData
+      .filter((d: any) => d.cardSlug === card.slug)
+      .map((d: any) => ({
+        deckId: d.deckId,
+        deckName: d.deckName,
+        quantity: d.quantity,
+        zone: d.zone,
+      }));
+
     results.push({
       slug: card.slug,
       name: card.name,
@@ -179,6 +218,7 @@ export async function searchCatalog(
       level: card.level,
       speed: card.speed,
       hasLowPopEdition: cardHasLowPop,
+      deckUsage: cardDeckUsage,
       editions: populatedEditions,
     });
   }

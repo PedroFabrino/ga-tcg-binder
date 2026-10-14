@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Check, Sparkles, Gem } from "lucide-react";
+import { Plus, Check, Sparkles, Gem, Layers } from "lucide-react";
 import TiltCard from "@/components/TiltCard";
 import { CardArt, ElementBadge, RarityGem } from "@/components/common";
 import { formatPopulation, getElementClass } from "@/lib/elements";
@@ -19,6 +19,12 @@ export interface Edition {
   isLowPop: boolean;
   circulations: Circulation[];
 }
+export interface DeckUsage {
+  deckId: string;
+  deckName: string;
+  quantity: number;
+  zone: string;
+}
 export interface CatalogCardData {
   slug: string;
   name: string;
@@ -27,6 +33,7 @@ export interface CatalogCardData {
   type: string;
   effect: string | null;
   hasLowPopEdition: boolean;
+  deckUsage?: DeckUsage[];
   editions: Edition[];
 }
 
@@ -63,6 +70,19 @@ export default function CatalogCard({ card, onAdd }: { card: CatalogCardData; on
               <Gem className="h-2.5 w-2.5" /> Low Pop
             </span>
           )}
+          {card.deckUsage && card.deckUsage.length > 0 && (
+            <div className="absolute bottom-2 left-2.5 right-2.5 z-[5] flex flex-wrap gap-1">
+              <span
+                className="inline-flex items-center gap-1 rounded-md bg-cyan-950/80 px-2 py-0.5 text-[10px] font-semibold text-cyan-200 border border-cyan-500/30 backdrop-blur-md shadow-sm"
+                title={card.deckUsage.map((u) => `${u.deckName} (${u.quantity}x ${u.zone})`).join(", ")}
+              >
+                <Layers className="h-3 w-3 text-cyan-400" />
+                <span>
+                  In {card.deckUsage.length} {card.deckUsage.length === 1 ? "Deck" : "Decks"}
+                </span>
+              </span>
+            </div>
+          )}
         </CardPreviewTrigger>
       </TiltCard>
 
@@ -78,6 +98,22 @@ export default function CatalogCard({ card, onAdd }: { card: CatalogCardData; on
             <h3 className="truncate text-sm font-semibold text-white transition-colors hover:text-cyan-300 cursor-pointer">{card.name}</h3>
           </CardPreviewTrigger>
           <p className="mt-0.5 text-[11px] text-slate-500">{[card.type, card.class].filter(Boolean).join(" · ")}</p>
+
+          {card.deckUsage && card.deckUsage.length > 0 && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {card.deckUsage.map((u) => (
+                <a
+                  key={`${u.deckId}-${u.zone}`}
+                  href={`/decks/${u.deckId}`}
+                  className="inline-flex items-center gap-1 rounded-md border border-cyan-400/20 bg-cyan-500/[0.08] px-2 py-0.5 text-[10px] font-medium text-cyan-200 transition-colors hover:border-cyan-400/40 hover:bg-cyan-500/15"
+                  title={`Used in ${u.deckName} (${u.zone} deck)`}
+                >
+                  <span className="truncate max-w-[120px]">{u.deckName}</span>
+                  <span className="font-mono text-cyan-300 font-semibold">x{u.quantity}</span>
+                </a>
+              ))}
+            </div>
+          )}
           {card.effect && <p className="mt-2 line-clamp-2 text-[11px] leading-relaxed text-slate-400">{card.effect}</p>}
         </div>
 
