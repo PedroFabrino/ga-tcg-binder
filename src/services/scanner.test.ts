@@ -52,9 +52,10 @@ describe("QR-Paired Mobile Scanner Seam", () => {
     expect(detections[0].editionId).toBe("ed-frac-doa");
     expect(detections[0].confidence).toBe(0.95);
 
-    // 3. Desktop fetches live session status
+    // 3. Desktop fetches live session status (unrecognized items are NOT saved to live queue)
     const liveSession = await getScannerSession(session.token, db);
-    expect(liveSession?.detections).toHaveLength(2);
+    expect(liveSession?.detections).toHaveLength(1);
+    expect(liveSession?.detections[0].cardName).toBe("Fracturize");
 
     // 4. Desktop confirms card into collection
     const confirmedCount = await confirmScannedCardsToCollection(session.token, [0], db);
@@ -67,13 +68,16 @@ describe("QR-Paired Mobile Scanner Seam", () => {
       .where(eq(collectionItems.userId, "u-scanner"));
     expect(coll).toHaveLength(1);
     expect(coll[0].editionId).toBe("ed-frac-doa");
-    // Verify non-Grand Archive cards (e.g. "Two of Diamonds") are rejected with 0 confidence
-    const rejected = await submitScannerDetections(session.token, ["Two of Diamonds"], db);
+    // Verify non-Grand Archive cards (e.g. "Unknown Junk") are rejected with 0 confidence and NOT stored
+    const rejected = await submitScannerDetections(session.token, ["Unknown Non Card"], db);
     expect(rejected).toHaveLength(1);
-    expect(rejected[0].cardName).toBe("Two of Diamonds");
+    expect(rejected[0].cardName).toBe("Unknown Non Card");
     expect(rejected[0].cardSlug).toBeUndefined();
     expect(rejected[0].editionId).toBeUndefined();
     expect(rejected[0].confidence).toBe(0);
+
+    const liveAfterReject = await getScannerSession(session.token, db);
+    expect(liveAfterReject?.detections).toHaveLength(1); // Still 1, junk was not added!
 
     // Verify fuzzy OCR matching (minor typo "Fracturze" -> "Fracturize")
     const fuzzy = await submitScannerDetections(session.token, ["Fracturze"], db);
@@ -81,5 +85,12 @@ describe("QR-Paired Mobile Scanner Seam", () => {
     expect(fuzzy[0].cardSlug).toBe("fracturize");
     expect(fuzzy[0].cardName).toBe("Fracturize");
     expect(fuzzy[0].confidence).toBeGreaterThanOrEqual(0.85);
+
+    // Verify Grand Archive format with language code and separator: "DOA » EN-001 C"
+    const gaFormat = await submitScannerDetections(session.token, ["DOA » EN-001 C » illust: Test"], db);
+    expect(gaFormat).toHaveLength(1);
+    expect(gaFormat[0].cardSlug).toBe("fracturize");
+    expect(gaFormat[0].editionId).toBe("ed-frac-doa");
+    expect(gaFormat[0].confidence).toBe(0.95);
   });
 });

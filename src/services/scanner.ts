@@ -13,6 +13,7 @@ export interface ScannerCardDetection {
   confidence: number;
   timestamp: number;
   confirmed?: boolean;
+  foil?: boolean;
 }
 
 export interface ScannerSessionInfo {
@@ -153,40 +154,25 @@ export async function submitScannerDetections(
     let matchedCard: any = null;
     let confidence = 0;
 
-    // 1. Check for collector number pattern e.g. "DOA 001", "DOA 1st 001", "DOA-1st-001", "ALC 042", "P24 000"
-    const codeMatch = trimmed.match(/(?:^|\b)([A-Za-z0-9]{2,6})(?:[\s\-_]+(1st|alter|sd|dp|evp|p))?[\s\-_#]+(\d{3})(?:\b|$)/i);
+    // 1. Check for collector number pattern e.g. "RDO » EN-250 C", "DOA » EN-001", "DOA 001", "DOA 1st 001", "ALC 042", "P24 000"
+    const codeMatch = trimmed.match(
+      /(?:^|\b)([A-Za-z0-9]{2,6}(?:[\s\-_]+(?:1st|alter|sd|dp|evp|p))?)\s*(?:[»\-\.:·|~]\s*)?(?:(?:EN|FR|DE|JP|KR|CN|TC)[\s\-_»\.]+)?\s*(\d{3})(?:\b|$)/i
+    );
 
     if (codeMatch) {
-      const basePrefix = codeMatch[1].toUpperCase();
-      const modifier = codeMatch[2];
-      const collectorNumber = codeMatch[3];
+      const basePrefix = codeMatch[1].trim().toUpperCase();
+      const collectorNumber = codeMatch[2];
 
-      if (modifier) {
-        const fullPrefix = `${basePrefix} ${modifier}`.toUpperCase();
-        matchedEdition = await database
-          .select()
-          .from(cardEditions)
-          .where(
-            and(
-              sql`upper(${cardEditions.setPrefix}) = ${fullPrefix}`,
-              eq(cardEditions.collectorNumber, collectorNumber)
-            )
+      matchedEdition = await database
+        .select()
+        .from(cardEditions)
+        .where(
+          and(
+            sql`upper(${cardEditions.setPrefix}) = ${basePrefix}`,
+            eq(cardEditions.collectorNumber, collectorNumber)
           )
-          .get();
-      }
-
-      if (!matchedEdition) {
-        matchedEdition = await database
-          .select()
-          .from(cardEditions)
-          .where(
-            and(
-              sql`upper(${cardEditions.setPrefix}) = ${basePrefix}`,
-              eq(cardEditions.collectorNumber, collectorNumber)
-            )
-          )
-          .get();
-      }
+        )
+        .get();
 
       if (!matchedEdition) {
         // Prefix startsWith fallback (e.g. 'DOA' matches 'DOA 1st' or 'DOA Alter')
@@ -322,13 +308,33 @@ export async function submitScannerDetections(
     newDetections.push(detection);
   }
 
-  const updatedPayload = [...existingDetections, ...newDetections];
-  await database
-    .update(scannerSessions)
-    .set({
-      scannedPayload: JSON.stringify(updatedPayload),
-    })
-    .where(eq(scannerSessions.id, session.id));
+  // ONLY persist valid recognized cards (with editionId and confidence >= 0.7) to the session queue
+  const validNewDetections = newDetections.filter(
+    (d) => d.editionId && d.confidence >= 0.7
+  );
+
+  if (validNewDetections.length > 0) {
+    // Avoid immediate duplicate entries of the exact same edition within the last 15 seconds
+    const filteredToAdd = validNewDetections.filter((d) => {
+      const alreadyPending = existingDetections.some(
+        (existing) =>
+          existing.editionId === d.editionId &&
+          !existing.confirmed &&
+          Math.abs(existing.timestamp - d.timestamp) < 15000
+      );
+      return !alreadyPending;
+    });
+
+    if (filteredToAdd.length > 0) {
+      const updatedPayload = [...existingDetections, ...filteredToAdd];
+      await database
+        .update(scannerSessions)
+        .set({
+          scannedPayload: JSON.stringify(updatedPayload),
+        })
+        .where(eq(scannerSessions.id, session.id));
+    }
+  }
 
   return newDetections;
 }
@@ -359,7 +365,7 @@ export async function confirmScannedCardsToCollection(
           {
             userId: session.userId,
             editionId: item.editionId,
-            foil: false,
+            foil: item.foil ?? false,
             quantity: 1,
           },
           database
