@@ -1,31 +1,294 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --background: #090d16;
-  --foreground: #f1f5f9;
+  --bg-base: #070a11;
+  --bg-surface: #0b0f19;
+  --bg-elevated: #0f1424;
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.12);
+
+  --el-norm: #94a3b8;
+  --el-fire: #f43f5e;
+  --el-water: #06b6d4;
+  --el-wind: #10b981;
+  --el-earth: #f59e0b;
+
+  --gold: #c8a951;
+  --gold-bright: #e8c967;
+  --gold-glow: rgba(200, 169, 81, 0.25);
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  min-height: 100vh;
+  color: #e2e8f0;
+  background: var(--bg-base);
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom scrollbar for card binders */
+.font-mono {
+  font-family: "JetBrains Mono", monospace;
+  font-feature-settings: "tnum";
+}
+
+/* ─── Scrollbar ─── */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 4px;
+  background: rgba(148, 163, 184, 0.15);
+  border-radius: 8px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: rgba(148, 163, 184, 0.3);
+}
+
+/* ─── Glass Panels ─── */
+.glass {
+  background: rgba(15, 20, 36, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-subtle);
+}
+
+.glass-strong {
+  background: rgba(11, 15, 25, 0.85);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border-strong);
+}
+
+/* ─── Element Accents ─── */
+.el-norm { --el: var(--el-norm); }
+.el-fire { --el: var(--el-fire); }
+.el-water { --el: var(--el-water); }
+.el-wind { --el: var(--el-wind); }
+.el-earth { --el: var(--el-earth); }
+
+.el-glow {
+  box-shadow: 0 0 20px -4px var(--el, transparent);
+}
+
+.el-text {
+  color: var(--el, var(--el-norm));
+}
+
+.el-border {
+  border-color: color-mix(in srgb, var(--el, var(--el-norm)) 40%, transparent);
+}
+
+.el-bg-soft {
+  background: color-mix(in srgb, var(--el, var(--el-norm)) 12%, transparent);
+}
+
+/* ─── Holographic Foil Effect ─── */
+.foil-shine {
+  position: relative;
+  overflow: hidden;
+}
+.foil-shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: conic-gradient(
+    from 180deg at 50% 50%,
+    #f43f5e 0deg,
+    #06b6d4 72deg,
+    #10b981 144deg,
+    #f59e0b 216deg,
+    #a78bfa 288deg,
+    #f43f5e 360deg
+  );
+  opacity: 0;
+  mix-blend-mode: overlay;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+.foil-shine:hover::after {
+  opacity: 0.35;
+  animation: foil-rotate 3s linear infinite;
+}
+
+@keyframes foil-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Gold Low-Pop Badge ─── */
+.gold-badge {
+  background: linear-gradient(135deg, #c8a951 0%, #e8c967 50%, #b8932f 100%);
+  box-shadow: 0 0 12px var(--gold-glow), inset 0 1px 0 rgba(255,255,255,0.3);
+  color: #1a1206;
+}
+
+/* ─── 3D Card Tilt ─── */
+.card-tilt {
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.card-tilt:hover {
+  transform: perspective(800px) rotateY(-4deg) rotateX(2deg) scale(1.03);
+}
+.card-tilt-specular {
+  position: relative;
+  overflow: hidden;
+}
+.card-tilt-specular::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    rgba(255,255,255,0.08) 45%,
+    rgba(255,255,255,0.15) 50%,
+    rgba(255,255,255,0.08) 55%,
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity 0.4s ease, transform 0.6s ease;
+  pointer-events: none;
+  z-index: 2;
+}
+.card-tilt-specular:hover::before {
+  opacity: 1;
+  transform: translateX(30%);
+}
+
+/* ─── Skeleton Loader ─── */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.03) 0%,
+    rgba(255,255,255,0.08) 50%,
+    rgba(255,255,255,0.03) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ─── Toast Slide In ─── */
+@keyframes toast-in {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.animate-toast {
+  animation: toast-in 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ─── Fade In ─── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out;
+}
+
+/* ─── Drawer / Modal Backdrop ─── */
+@keyframes backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-backdrop {
+  animation: backdrop-in 0.25s ease;
+}
+
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.animate-modal {
+  animation: modal-in 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ─── Quantity Stepper ─── */
+.stepper-btn {
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+.stepper-btn:active {
+  transform: scale(0.85);
+}
+
+/* ─── 9-Pocket Binder Slot ─── */
+.pocket-slot {
+  background: linear-gradient(145deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  aspect-ratio: 2.5/3.5;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+.pocket-slot:hover {
+  border-color: rgba(255,255,255,0.12);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+}
+
+/* ─── Tier Badge ─── */
+.tier-S {
+  background: linear-gradient(135deg, #c8a951, #e8c967);
+  color: #1a1206;
+  box-shadow: 0 0 12px var(--gold-glow);
+}
+.tier-A {
+  background: linear-gradient(135deg, #6366f1, #818cf8);
+  color: #fff;
+}
+.tier-B {
+  background: linear-gradient(135deg, #475569, #64748b);
+  color: #fff;
+}
+.tier-C {
+  background: linear-gradient(135deg, #334155, #475569);
+  color: #cbd5e1;
+}
+
+/* ─── Spotlight / Command Palette ─── */
+.cmdk-overlay {
+  background: rgba(7, 10, 17, 0.8);
+  backdrop-filter: blur(8px);
+}
+
+/* ─── Hover Lift ─── */
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+}
+
+/* ─── Animated Progress Bar ─── */
+.progress-bar {
+  background: linear-gradient(90deg, var(--el, #6366f1), color-mix(in srgb, var(--el, #6366f1) 60%, #fff));
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ─── Subtle Grain Texture ─── */
+.grain::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.015;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
