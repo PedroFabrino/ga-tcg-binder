@@ -3,6 +3,7 @@
 import { Lock, Unlock } from "lucide-react";
 import { ElementBadge, FoilBadge, LowPopBadge, QuantityStepper, CardArt } from "@/components/common";
 import { formatPopulation } from "@/lib/elements";
+import { CardPreviewTrigger } from "@/components/CardHoverPreview";
 import type { CollectionItem, CollectionActions } from "./types";
 
 export default function CollectionTable({ items, onQuantity, onToggleDedicated }: { items: CollectionItem[] } & CollectionActions) {
@@ -25,11 +26,25 @@ export default function CollectionTable({ items, onQuantity, onToggleDedicated }
             <tr key={item.id} className="group transition-colors hover:bg-white/[0.02]">
               <td className="px-4 py-3">
                 <div className="flex items-center gap-3">
-                  <div className={`relative h-12 w-9 shrink-0 overflow-hidden rounded-md border border-white/[0.08] ${item.foil ? "foil-static" : ""}`}>
-                    <CardArt src={item.imageUrl} alt={item.cardName} className="h-full w-full" />
-                  </div>
+                  <CardPreviewTrigger
+                    name={item.cardName}
+                    imageUrl={item.imageUrl}
+                    element={item.element}
+                    className="shrink-0 cursor-pointer"
+                  >
+                    <div className={`relative h-12 w-9 overflow-hidden rounded-md border border-white/[0.08] hover:border-cyan-400/50 transition-colors ${item.foil ? "foil-static" : ""}`}>
+                      <CardArt src={item.imageUrl} alt={item.cardName} className="h-full w-full" />
+                    </div>
+                  </CardPreviewTrigger>
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold text-white">{item.cardName}</div>
+                    <CardPreviewTrigger
+                      name={item.cardName}
+                      imageUrl={item.imageUrl}
+                      element={item.element}
+                      className="inline-block max-w-full"
+                    >
+                      <div className="truncate text-sm font-semibold text-white hover:text-cyan-300 transition-colors cursor-pointer">{item.cardName}</div>
+                    </CardPreviewTrigger>
                     <div className="mt-1 flex items-center gap-1.5">
                       <ElementBadge element={item.element} />
                       <span className="truncate text-[11px] text-slate-500">{item.class}</span>
