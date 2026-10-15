@@ -66,7 +66,7 @@ export const useScannerStore = create<ScannerStore>((set, get) => {
   };
 
   return {
-    settings: { hapticsEnabled: true, soundEnabled: true, testFeed: true, torch: false, facing: "back", qualityGate: DEFAULT_QUALITY_GATE },
+    settings: { hapticsEnabled: true, soundEnabled: true, testFeed: false, torch: false, facing: "back", qualityGate: DEFAULT_QUALITY_GATE },
     metrics: null,
     pending: null,
     candidates: null,
