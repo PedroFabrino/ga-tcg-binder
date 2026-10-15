@@ -31,6 +31,7 @@ export function CameraViewfinder({ active, onToggle, children, cameraRef }: Came
           autofocus="on"
           enableTorch={torch && facing === "back"}
           active={active}
+          responsiveOrientationWhenOrientationLocked={false}
         />
       ) : (
         <View style={[StyleSheet.absoluteFill, styles.permission]}>

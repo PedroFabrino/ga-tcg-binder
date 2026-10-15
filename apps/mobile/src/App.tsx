@@ -1,6 +1,8 @@
+import { useEffect } from "react";
 import { DarkTheme, NavigationContainer, type Theme } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { StatusBar } from "expo-status-bar";
+import * as ScreenOrientation from "expo-screen-orientation";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { BottomTabBar, type TabName } from "./components/layout/BottomTabBar";
 import { BinderPreview } from "./components/suite/BinderPreview";
@@ -23,6 +25,11 @@ const theme: Theme = {
 };
 
 export default function App() {
+  useEffect(() => {
+    // Lock strictly to standard Portrait (disables upside-down reverse portrait & landscape)
+    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+  }, []);
+
   return (
     <SafeAreaProvider>
       <NavigationContainer theme={theme}>
