@@ -104,7 +104,14 @@ export default function ScannerDashboardPage() {
     if (!sessionInfo) return;
 
     let active = true;
-    const ws = new WebSocket(sessionInfo.wsEndpoint);
+    let endpoint = sessionInfo.wsEndpoint;
+    if (typeof window !== "undefined") {
+      const host = window.location.hostname;
+      if (host === "localhost" || host === "127.0.0.1") {
+        endpoint = `ws://${host}:3001`;
+      }
+    }
+    const ws = new WebSocket(endpoint);
     wsRef.current = ws;
 
     ws.onopen = () => {

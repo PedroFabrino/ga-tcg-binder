@@ -76,14 +76,17 @@ export async function processCardFrame(
     top = Math.max(0, Math.floor((imgH - guideH) / 2));
   }
 
-  // Normalize cropped card to canonical 630x880
-  const cardPipeline = sharp(orientedBuffer)
+  // Materialize canonical 630x880 card to JPEG buffer (decouples pipeline from source orientation)
+  const cardJpegBuf = await sharp(orientedBuffer)
     .extract({ left, top, width: guideW, height: guideH })
-    .resize(630, 880, { fit: "fill" });
+    .resize(630, 880, { fit: "fill" })
+    .jpeg({ quality: 80 })
+    .toBuffer();
+
+  const cardImageBase64 = `data:image/jpeg;base64,${cardJpegBuf.toString("base64")}`;
 
   // 1. Grayscale buffer for dHash and glare analysis
-  const { data: grayData, info: grayInfo } = await cardPipeline
-    .clone()
+  const { data: grayData, info: grayInfo } = await sharp(cardJpegBuf)
     .grayscale()
     .raw()
     .toBuffer({ resolveWithObject: true });
@@ -98,41 +101,15 @@ export async function processCardFrame(
   const meanBrightness = sum / grayData.length;
   const glareRatio = glareCount / grayData.length;
 
-  let sumSq = 0;
-  for (let i = 0; i < grayData.length; i++) {
-    const diff = grayData[i] - meanBrightness;
-    sumSq += diff * diff;
-  }
-  const variance = sumSq / grayData.length;
-
-  // Reject completely dark frames (phone face down / blocked camera)
-  if (meanBrightness < 12) {
-    return {
-      candidates: [],
-      topCandidates: [],
-      phash: "",
-      headerText: "",
-      footerText: "",
-      glareRatio,
-    };
-  }
-
-  const phash = dHash(grayData, grayInfo.width, grayInfo.height);
-
-  // 2. Crop header strip (title area) and footer strip (collector info) with 2x resolution and contrast enhancement
+  // Extract header and footer strips directly from materialized 630x880 card
   let headerText = "";
   let footerText = "";
-  let cardImageBase64: string | undefined;
   let headerImageBase64: string | undefined;
   let footerImageBase64: string | undefined;
 
   try {
-    const worker = await getWorker();
-
-    const [cardJpegBuf, headerBuf, footerBuf] = await Promise.all([
-      cardPipeline.clone().jpeg({ quality: 75 }).toBuffer(),
-      cardPipeline
-        .clone()
+    const [headerBuf, footerBuf] = await Promise.all([
+      sharp(cardJpegBuf)
         .extract({ left: 50, top: 12, width: 520, height: 75 })
         .resize(1040, 150)
         .grayscale()
@@ -140,8 +117,7 @@ export async function processCardFrame(
         .sharpen()
         .png()
         .toBuffer(),
-      cardPipeline
-        .clone()
+      sharp(cardJpegBuf)
         .extract({ left: 10, top: 815, width: 600, height: 55 })
         .resize(1200, 110)
         .grayscale()
@@ -151,7 +127,6 @@ export async function processCardFrame(
         .toBuffer(),
     ]);
 
-    cardImageBase64 = `data:image/jpeg;base64,${cardJpegBuf.toString("base64")}`;
     headerImageBase64 = `data:image/png;base64,${headerBuf.toString("base64")}`;
     footerImageBase64 = `data:image/png;base64,${footerBuf.toString("base64")}`;
 
@@ -173,16 +148,35 @@ export async function processCardFrame(
       fs.promises.writeFile(path.join(scratchDir, "debug-footer.png"), footerBuf).catch(() => {}),
     ]);
 
-    const [hRes, fRes] = await Promise.all([
-      worker.recognize(headerBuf),
-      worker.recognize(footerBuf),
-    ]);
-
-    headerText = hRes.data.text.trim();
-    footerText = fRes.data.text.trim();
+    // Reject completely dark frames after saving debug preview
+    if (meanBrightness >= 12) {
+      const worker = await getWorker();
+      const [hRes, fRes] = await Promise.all([
+        worker.recognize(headerBuf),
+        worker.recognize(footerBuf),
+      ]);
+      headerText = hRes.data.text.trim();
+      footerText = fRes.data.text.trim();
+    }
   } catch (err) {
     console.warn("[frame-processor] OCR error fallback:", err);
   }
+
+  if (meanBrightness < 12) {
+    return {
+      candidates: [],
+      topCandidates: [],
+      phash: "",
+      headerText: "",
+      footerText: "",
+      glareRatio,
+      cardImageBase64,
+      headerImageBase64,
+      footerImageBase64,
+    };
+  }
+
+  const phash = dHash(grayData, grayInfo.width, grayInfo.height);
 
   // 3. Match against Turso database catalog
   const { candidates, topCandidates } = await identifyCardWithDebug(
