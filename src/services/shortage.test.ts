@@ -9,7 +9,7 @@ import {
   deckCards,
   friendLinks,
 } from "../db/schema";
-import { calculateDeckShortage } from "./shortage";
+import { calculateDeckShortage, calculateAggregatedShortages } from "./shortage";
 
 describe("Shortage Calculation & Friend Idle Discovery Seams", () => {
   it("evaluates deck demand under Shared rules and detects cross-deck contention", async () => {
@@ -246,4 +246,154 @@ describe("Shortage Calculation & Friend Idle Discovery Seams", () => {
       idleQuantity: 2,
     });
   });
+
+  it("calculates aggregated shortages across all user decks with peak and concurrent shortages", async () => {
+    const { db } = await createTestDb();
+
+    await db.insert(users).values({
+      id: "u-agg",
+      name: "Agg User",
+      friendCode: "GA-AGG",
+      lowPopThreshold: 1000,
+    });
+
+    await db.insert(cards).values([
+      {
+        slug: "fracturize",
+        name: "Fracturize",
+        element: "NORM",
+        class: "WARRIOR",
+        type: "ACTION",
+        subtypes: "[]",
+      },
+      {
+        slug: "fireball",
+        name: "Fireball",
+        element: "FIRE",
+        class: "MAGE",
+        type: "SPELL",
+        subtypes: "[]",
+      },
+      {
+        slug: "covered-card",
+        name: "Covered Card",
+        element: "WATER",
+        class: "MAGE",
+        type: "SPELL",
+        subtypes: "[]",
+      },
+    ]);
+
+    await db.insert(cardEditions).values([
+      {
+        id: "ed-f1",
+        cardSlug: "fracturize",
+        setPrefix: "DOA",
+        setName: "Dawn of Ashes",
+        collectorNumber: "001",
+        rarity: 1,
+        imageUrl: "https://example.com/f1.jpg",
+      },
+      {
+        id: "ed-f2",
+        cardSlug: "fracturize",
+        setPrefix: "FTC",
+        setName: "Fractured Crown",
+        collectorNumber: "050",
+        rarity: 1,
+        imageUrl: "https://example.com/f2.jpg",
+      },
+      {
+        id: "ed-fb",
+        cardSlug: "fireball",
+        setPrefix: "DOA",
+        setName: "Dawn of Ashes",
+        collectorNumber: "020",
+        rarity: 2,
+        imageUrl: "https://example.com/fb.jpg",
+      },
+      {
+        id: "ed-cov",
+        cardSlug: "covered-card",
+        setPrefix: "DOA",
+        setName: "Dawn of Ashes",
+        collectorNumber: "030",
+        rarity: 1,
+        imageUrl: "https://example.com/cov.jpg",
+      },
+    ]);
+
+    // Inventory:
+    // User owns 2 Fracturize (shared)
+    // User owns 0 Fireball
+    // User owns 4 Covered Card
+    await db.insert(collectionItems).values([
+      {
+        id: "ci-1",
+        userId: "u-agg",
+        editionId: "ed-f1",
+        quantity: 2,
+        isDedicated: false,
+      },
+      {
+        id: "ci-2",
+        userId: "u-agg",
+        editionId: "ed-cov",
+        quantity: 4,
+        isDedicated: false,
+      },
+    ]);
+
+    // Decks:
+    // Deck A needs: 3 Fracturize, 2 Fireball, 2 Covered Card
+    // Deck B needs: 2 Fracturize, 2 Fireball
+    await db.insert(decks).values([
+      { id: "d-a", userId: "u-agg", name: "Deck A", champion: "Lorraine" },
+      { id: "d-b", userId: "u-agg", name: "Deck B", champion: "Rai" },
+    ]);
+
+    await db.insert(deckCards).values([
+      { id: "dc-a1", deckId: "d-a", cardSlug: "fracturize", zone: "main", quantity: 3 },
+      { id: "dc-a2", deckId: "d-a", cardSlug: "fireball", zone: "main", quantity: 2 },
+      { id: "dc-a3", deckId: "d-a", cardSlug: "covered-card", zone: "main", quantity: 2 },
+      { id: "dc-b1", deckId: "d-b", cardSlug: "fracturize", zone: "main", quantity: 2 },
+      { id: "dc-b2", deckId: "d-b", cardSlug: "fireball", zone: "main", quantity: 2 },
+    ]);
+
+    const report = await calculateAggregatedShortages("u-agg", db);
+
+    // Summary checks
+    expect(report.summary.deckCount).toBe(2);
+    // Covered card is completely covered (needed 2 in Deck A, user owns 4), so it should NOT be in shortage!
+    expect(report.cards.find((c) => c.cardSlug === "covered-card")).toBeUndefined();
+
+    // Fracturize:
+    // Demand: Deck A (3), Deck B (2) -> total demand = 5, peak demand = 3
+    // Owned = 2
+    // Concurrent missing: 5 - 2 = 3
+    // Peak missing: 3 - 2 = 1
+    const frac = report.cards.find((c) => c.cardSlug === "fracturize");
+    expect(frac).toBeDefined();
+    expect(frac?.totalDemand).toBe(5);
+    expect(frac?.peakDemand).toBe(3);
+    expect(frac?.totalOwned).toBe(2);
+    expect(frac?.concurrentMissing).toBe(3);
+    expect(frac?.peakMissing).toBe(1);
+    expect(frac?.deckRequirements).toHaveLength(2);
+    expect(frac?.editions).toHaveLength(2);
+
+    // Fireball:
+    // Demand: Deck A (2), Deck B (2) -> total demand = 4, peak demand = 2
+    // Owned = 0
+    // Concurrent missing = 4, Peak missing = 2
+    const fire = report.cards.find((c) => c.cardSlug === "fireball");
+    expect(fire).toBeDefined();
+    expect(fire?.concurrentMissing).toBe(4);
+    expect(fire?.peakMissing).toBe(2);
+
+    expect(report.summary.totalShortageCopies).toBe(7); // 3 (frac) + 4 (fireball)
+    expect(report.summary.totalPeakShortageCopies).toBe(3); // 1 (frac) + 2 (fireball)
+    expect(report.summary.uniqueShortageCards).toBe(2);
+  });
 });
+

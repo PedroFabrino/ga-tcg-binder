@@ -285,3 +285,230 @@ export async function calculateDeckShortage(
     items,
   };
 }
+
+export interface DeckRequirement {
+  deckId: string;
+  deckName: string;
+  quantity: number;
+  zone: string;
+}
+
+export interface CardEditionSummary {
+  id: string;
+  setPrefix: string;
+  setName: string;
+  collectorNumber: string;
+  imageUrl: string;
+}
+
+export interface AggregatedShortageCard {
+  cardSlug: string;
+  cardName: string;
+  element: string;
+  class: string;
+  type: string;
+  imageUrl: string | null;
+  editions: CardEditionSummary[];
+  deckRequirements: DeckRequirement[];
+  totalDemand: number;
+  peakDemand: number;
+  totalOwned: number;
+  dedicatedOwned: number;
+  sharedOwned: number;
+  peakMissing: number;
+  concurrentMissing: number;
+}
+
+export interface AggregatedShortageReport {
+  summary: {
+    totalShortageCopies: number;
+    totalPeakShortageCopies: number;
+    uniqueShortageCards: number;
+    deckCount: number;
+  };
+  cards: AggregatedShortageCard[];
+}
+
+export async function calculateAggregatedShortages(
+  userId?: string,
+  database: any = db
+): Promise<AggregatedShortageReport> {
+  const effectiveUserId = userId || DEFAULT_USER_ID;
+
+  // 1. Fetch all decks for user
+  const userDecks = await database
+    .select({
+      id: decks.id,
+      name: decks.name,
+      champion: decks.champion,
+      format: decks.format,
+    })
+    .from(decks)
+    .where(eq(decks.userId, effectiveUserId));
+
+  if (!userDecks || userDecks.length === 0) {
+    return {
+      summary: {
+        totalShortageCopies: 0,
+        totalPeakShortageCopies: 0,
+        uniqueShortageCards: 0,
+        deckCount: 0,
+      },
+      cards: [],
+    };
+  }
+
+  const deckIds = userDecks.map((d: any) => d.id);
+
+  // 2. Fetch all cards across all user decks
+  const allDeckCards = await database
+    .select({
+      id: deckCards.id,
+      deckId: deckCards.deckId,
+      cardSlug: deckCards.cardSlug,
+      zone: deckCards.zone,
+      quantity: deckCards.quantity,
+      assignedEditionId: deckCards.assignedEditionId,
+      deckName: decks.name,
+      cardName: cards.name,
+      element: cards.element,
+      class: cards.class,
+      type: cards.type,
+    })
+    .from(deckCards)
+    .innerJoin(decks, eq(deckCards.deckId, decks.id))
+    .leftJoin(cards, eq(deckCards.cardSlug, cards.slug))
+    .where(inArray(deckCards.deckId, deckIds));
+
+  // 3. Fetch user collection items
+  const userInventory = await database
+    .select({
+      id: collectionItems.id,
+      editionId: collectionItems.editionId,
+      cardSlug: cardEditions.cardSlug,
+      foil: collectionItems.foil,
+      quantity: collectionItems.quantity,
+      isDedicated: collectionItems.isDedicated,
+    })
+    .from(collectionItems)
+    .innerJoin(cardEditions, eq(collectionItems.editionId, cardEditions.id))
+    .where(eq(collectionItems.userId, effectiveUserId));
+
+  // 4. Unique card slugs needed across all decks
+  const uniqueSlugs: string[] = Array.from(new Set(allDeckCards.map((c: any) => String(c.cardSlug))));
+  let allEditions: any[] = [];
+  if (uniqueSlugs.length > 0) {
+    allEditions = await database
+      .select({
+        id: cardEditions.id,
+        cardSlug: cardEditions.cardSlug,
+        setPrefix: cardEditions.setPrefix,
+        setName: cardEditions.setName,
+        collectorNumber: cardEditions.collectorNumber,
+        imageUrl: cardEditions.imageUrl,
+      })
+      .from(cardEditions)
+      .where(inArray(cardEditions.cardSlug, uniqueSlugs));
+  }
+
+  // 5. Aggregate by card slug
+  const shortageCards: AggregatedShortageCard[] = [];
+
+  for (const slug of uniqueSlugs) {
+    const matchingDeckCards = allDeckCards.filter((c: any) => c.cardSlug === slug);
+    const firstMatch = matchingDeckCards[0];
+    const cardName = firstMatch?.cardName || slug;
+    const element = firstMatch?.element || "NORM";
+    const cardClass = firstMatch?.class || "WARRIOR";
+    const cardType = firstMatch?.type || "ACTION";
+
+    const editionsForSlug = allEditions
+      .filter((e: any) => e.cardSlug === slug)
+      .map((e: any) => ({
+        id: e.id,
+        setPrefix: e.setPrefix,
+        setName: e.setName,
+        collectorNumber: e.collectorNumber,
+        imageUrl: e.imageUrl,
+      }));
+
+    // Best image
+    const assignedEdId = matchingDeckCards.find((c: any) => c.assignedEditionId)?.assignedEditionId;
+    const matchedEd = assignedEdId
+      ? editionsForSlug.find((e: any) => e.id === assignedEdId)
+      : editionsForSlug[0];
+    const imageUrl = matchedEd?.imageUrl || null;
+
+    // Deck requirements (aggregate if same card in same deck across zones or list individually)
+    const deckRequirements: DeckRequirement[] = matchingDeckCards.map((c: any) => ({
+      deckId: c.deckId,
+      deckName: c.deckName,
+      quantity: c.quantity,
+      zone: c.zone,
+    }));
+
+    const totalDemand = deckRequirements.reduce((sum, d) => sum + d.quantity, 0);
+
+    // Peak demand in any single deck
+    // Group quantities by deckId in case same card is in main + side of same deck
+    const demandByDeck: Record<string, number> = {};
+    for (const req of deckRequirements) {
+      demandByDeck[req.deckId] = (demandByDeck[req.deckId] || 0) + req.quantity;
+    }
+    const peakDemand = Object.values(demandByDeck).reduce((max, q) => Math.max(max, q), 0);
+
+    const ownedForSlug = userInventory.filter((inv: any) => inv.cardSlug === slug);
+    const dedicatedOwned = ownedForSlug
+      .filter((inv: any) => inv.isDedicated)
+      .reduce((sum: number, inv: any) => sum + inv.quantity, 0);
+    const sharedOwned = ownedForSlug
+      .filter((inv: any) => !inv.isDedicated)
+      .reduce((sum: number, inv: any) => sum + inv.quantity, 0);
+    const totalOwned = dedicatedOwned + sharedOwned;
+
+    const concurrentMissing = Math.max(0, totalDemand - totalOwned);
+    const peakMissing = Math.max(0, peakDemand - totalOwned);
+
+    // Only include cards with a shortage
+    if (concurrentMissing > 0 || peakMissing > 0) {
+      shortageCards.push({
+        cardSlug: slug,
+        cardName,
+        element,
+        class: cardClass,
+        type: cardType,
+        imageUrl,
+        editions: editionsForSlug,
+        deckRequirements,
+        totalDemand,
+        peakDemand,
+        totalOwned,
+        dedicatedOwned,
+        sharedOwned,
+        peakMissing,
+        concurrentMissing,
+      });
+    }
+  }
+
+  // Sort descending by concurrentMissing then peakMissing
+  shortageCards.sort((a, b) => {
+    if (b.concurrentMissing !== a.concurrentMissing) {
+      return b.concurrentMissing - a.concurrentMissing;
+    }
+    return b.peakMissing - a.peakMissing;
+  });
+
+  const totalShortageCopies = shortageCards.reduce((sum, c) => sum + c.concurrentMissing, 0);
+  const totalPeakShortageCopies = shortageCards.reduce((sum, c) => sum + c.peakMissing, 0);
+
+  return {
+    summary: {
+      totalShortageCopies,
+      totalPeakShortageCopies,
+      uniqueShortageCards: shortageCards.length,
+      deckCount: userDecks.length,
+    },
+    cards: shortageCards,
+  };
+}
