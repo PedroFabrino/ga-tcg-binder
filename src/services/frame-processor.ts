@@ -2,7 +2,7 @@ import sharp from "sharp";
 import { createWorker } from "tesseract.js";
 import { dHash } from "../lib/scanner/phash";
 import { parseFooter } from "../lib/scanner/ocr-parse";
-import { identifyCard } from "./scanner-match";
+import { identifyCard, identifyCardWithDebug } from "./scanner-match";
 import type { CardMatchResult, ScanFrameMetrics } from "@ga/contracts";
 
 let ocrWorker: any = null;
@@ -16,6 +16,7 @@ async function getWorker() {
 
 export interface FrameProcessingResult {
   candidates: CardMatchResult[];
+  topCandidates: CardMatchResult[];
   phash: string;
   headerText: string;
   footerText: string;
@@ -31,8 +32,15 @@ export async function processCardFrame(
   imageBuffer: Buffer,
   database: any
 ): Promise<FrameProcessingResult> {
-  const orientedBuffer = await sharp(imageBuffer).rotate().toBuffer();
-  const meta = await sharp(orientedBuffer).metadata();
+  let orientedBuffer = await sharp(imageBuffer).rotate().toBuffer();
+  let meta = await sharp(orientedBuffer).metadata();
+
+  // If phone back sensor delivered unrotated landscape JPEG, rotate 90 deg to portrait
+  if (meta.width && meta.height && meta.width > meta.height) {
+    orientedBuffer = await sharp(orientedBuffer).rotate(90).toBuffer();
+    meta = await sharp(orientedBuffer).metadata();
+  }
+
   const imgW = meta.width || 1080;
   const imgH = meta.height || 1920;
 
@@ -87,6 +95,7 @@ export async function processCardFrame(
   if (meanBrightness < 12) {
     return {
       candidates: [],
+      topCandidates: [],
       phash: "",
       headerText: "",
       footerText: "",
@@ -120,6 +129,13 @@ export async function processCardFrame(
         .toBuffer(),
     ]);
 
+    // Save debug crops for inspection
+    await Promise.all([
+      cardPipeline.clone().jpeg().toFile("scratch/debug-card.jpg").catch(() => {}),
+      sharp(headerBuf).toFile("scratch/debug-header.png").catch(() => {}),
+      sharp(footerBuf).toFile("scratch/debug-footer.png").catch(() => {}),
+    ]);
+
     const [hRes, fRes] = await Promise.all([
       worker.recognize(headerBuf),
       worker.recognize(footerBuf),
@@ -132,7 +148,7 @@ export async function processCardFrame(
   }
 
   // 3. Match against Turso database catalog
-  const candidates = await identifyCard(
+  const { candidates, topCandidates } = await identifyCardWithDebug(
     {
       phash,
       headerText,
@@ -143,6 +159,7 @@ export async function processCardFrame(
 
   return {
     candidates,
+    topCandidates,
     phash,
     headerText,
     footerText,

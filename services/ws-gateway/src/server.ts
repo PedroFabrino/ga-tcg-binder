@@ -13,16 +13,29 @@ server.roomManager.setMatcher(async (input) => {
 });
 
 server.roomManager.setFrameProcessor(async (buffer) => {
-  console.log(`[ws-gateway] >>> Received frame: ${buffer.length} bytes`);
+  console.log(`\n[ws-gateway] >>> Received frame: ${buffer.length} bytes`);
   const result = await processCardFrame(buffer, db);
-  console.log(`[ws-gateway] <<< Processed frame: phash=${result.phash}, header="${result.headerText}", footer="${result.footerText}", glare=${(result.glareRatio * 100).toFixed(1)}%`);
-  console.log(`[ws-gateway] Candidates found: ${result.candidates.length}`);
-  if (result.candidates.length > 0) {
-    result.candidates.forEach((c, idx) => {
-      console.log(`   #${idx + 1}: ${c.cardName} (${c.setPrefix} #${c.collectorNumber}) - ${c.confidence}% (visual=${(c.sVisual * 100).toFixed(1)}%, ocr=${c.sOcr !== null ? (c.sOcr * 100).toFixed(1) + "%" : "null"})`);
+  console.log(`[ws-gateway] <<< Processed frame: phash=${result.phash}`);
+  console.log(`[ws-gateway] Header OCR: "${result.headerText}"`);
+  console.log(`[ws-gateway] Footer OCR: "${result.footerText}"`);
+  console.log(`[ws-gateway] Glare ratio: ${(result.glareRatio * 100).toFixed(1)}%`);
+  console.log(`[ws-gateway] Confirmed candidates (>=50%): ${result.candidates.length}`);
+  if (result.topCandidates && result.topCandidates.length > 0) {
+    console.log(`[ws-gateway] Top 5 candidates evaluated:`);
+    result.topCandidates.slice(0, 5).forEach((c, idx) => {
+      console.log(`   #${idx + 1}: ${c.cardName} (${c.setPrefix} #${c.collectorNumber}) - ${c.confidence}% [visual=${(c.sVisual * 100).toFixed(1)}%, ocr=${c.sOcr !== null ? (c.sOcr * 100).toFixed(1) + "%" : "none"}]`);
     });
   }
-  return result.candidates;
+  return {
+    candidates: result.candidates,
+    debug: {
+      phash: result.phash,
+      headerText: result.headerText,
+      footerText: result.footerText,
+      glareRatio: result.glareRatio,
+      topCandidates: result.topCandidates,
+    },
+  };
 });
 
 server.start().then((actualPort) => {

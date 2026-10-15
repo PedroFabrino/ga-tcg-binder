@@ -133,13 +133,16 @@ export class SessionRoomManager {
           const clean = msg.imageBase64.replace(/^data:image\/\w+;base64,/, "");
           const buffer = Buffer.from(clean, "base64");
           this.frameProcessor(buffer)
-            .then((candidates) => {
-              const resMsg: WsServerMessage = {
+            .then((result: any) => {
+              const candidates = Array.isArray(result) ? result : result.candidates || [];
+              const debug = Array.isArray(result) ? undefined : result.debug;
+              const resMsg: any = {
                 type: "SCAN_IDENTIFY_RESPONSE",
                 sessionId: msg.sessionId,
                 timestamp: Date.now(),
                 requestId: msg.requestId,
                 candidates,
+                debug,
               };
               this.send(socket, resMsg);
             })

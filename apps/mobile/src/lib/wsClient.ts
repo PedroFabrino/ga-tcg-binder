@@ -27,6 +27,16 @@ export function resolveWsEndpoint(endpoint: string): string {
   }
   return resolved;
 }
+export interface FrameProcessResult {
+  candidates: CardMatchResult[];
+  debug?: {
+    phash: string;
+    headerText: string;
+    footerText: string;
+    glareRatio: number;
+    topCandidates?: CardMatchResult[];
+  };
+}
 
 export type WsConnectionStatus = "DISCONNECTED" | "CONNECTING" | "ACTIVE_SCANNING" | "RECONNECTING";
 
@@ -50,7 +60,7 @@ export class MobileWsClient {
   private pendingRequests = new Map<
     string,
     {
-      resolve: (res: CardMatchResult[]) => void;
+      resolve: (res: FrameProcessResult) => void;
       reject: (err: any) => void;
       timer: NodeJS.Timeout;
     }
@@ -163,20 +173,24 @@ export class MobileWsClient {
     return "http://localhost:3000";
   }
 
-  public async processFrame(imageBase64: string): Promise<CardMatchResult[]> {
+  public async processFrame(imageBase64: string): Promise<FrameProcessResult> {
     if (!this.pairingInfo) throw new Error("Scanner not paired");
 
     // Fast path: send directly over active WebSocket to ws-gateway on port 3001
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      return new Promise<CardMatchResult[]>((resolve) => {
+      return new Promise<FrameProcessResult>((resolve) => {
         const requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
         const timer = setTimeout(() => {
           this.pendingRequests.delete(requestId);
           console.warn("[MobileWsClient] Frame processing timed out after 8s");
-          resolve([]);
+          resolve({ candidates: [] });
         }, 8000);
 
-        this.pendingRequests.set(requestId, { resolve, reject: () => resolve([]), timer });
+        this.pendingRequests.set(requestId, {
+          resolve,
+          reject: () => resolve({ candidates: [] }),
+          timer,
+        });
 
         const msg: any = {
           type: "SCAN_FRAME_PROCESS_REQUEST",
@@ -189,7 +203,7 @@ export class MobileWsClient {
       });
     }
 
-    return [];
+    return { candidates: [] };
   }
 
   private async processFrameViaHttp(imageBase64: string): Promise<CardMatchResult[]> {
@@ -290,7 +304,10 @@ export class MobileWsClient {
       if (pending) {
         clearTimeout(pending.timer);
         this.pendingRequests.delete(msg.requestId);
-        pending.resolve(msg.candidates);
+        pending.resolve({
+          candidates: msg.candidates,
+          debug: (msg as any).debug,
+        });
       }
       this.callbacks.onIdentifyResponse?.(msg.requestId, msg.candidates);
     } else if (msg.type === "ERROR") {
@@ -299,7 +316,7 @@ export class MobileWsClient {
       this.pendingRequests.forEach((pending, reqId) => {
         clearTimeout(pending.timer);
         this.pendingRequests.delete(reqId);
-        pending.resolve([]);
+        pending.resolve({ candidates: [] });
       });
     }
   }

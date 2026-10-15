@@ -53,9 +53,8 @@ function ActiveScanner() {
 
       const photo = await cameraRef.current.takePictureAsync({
         base64: true,
-        quality: 0.45,
+        quality: 0.5,
         shutterSound: false,
-        skipProcessing: true,
       });
 
       if (!photo?.base64) return;
@@ -72,7 +71,25 @@ function ActiveScanner() {
 
       const ws = getActiveWsClient();
       if (ws) {
-        const matches = await ws.processFrame(photo.base64);
+        const res = await ws.processFrame(photo.base64);
+        const matches = res.candidates || [];
+        const debug = res.debug;
+
+        console.log("\n================ [SCAN DEBUG REPORT] ================");
+        console.log(`[Scan] Frame captured: base64 len = ${photo.base64.length}`);
+        console.log(`[Scan] Perceptual Hash (dHash): ${debug?.phash || "N/A"}`);
+        console.log(`[Scan] OCR Header Extracted: "${debug?.headerText || ""}"`);
+        console.log(`[Scan] OCR Footer Extracted: "${debug?.footerText || ""}"`);
+        console.log(`[Scan] Specular Glare: ${((debug?.glareRatio || 0) * 100).toFixed(1)}%`);
+        console.log(`[Scan] Confirmed Matches (>=50%): ${matches.length}`);
+        if (debug?.topCandidates && debug.topCandidates.length > 0) {
+          console.log(`[Scan] Top Candidate Rankings:`);
+          debug.topCandidates.slice(0, 5).forEach((c: any, i: number) => {
+            console.log(`   #${i + 1}: ${c.cardName} (${c.setPrefix} #${c.collectorNumber}) -> ${c.confidence}% (visual=${(c.sVisual * 100).toFixed(1)}%, ocr=${c.sOcr !== null ? (c.sOcr * 100).toFixed(1) + "%" : "null"})`);
+          });
+        }
+        console.log("=====================================================\n");
+
         if (matches && matches.length > 0) {
           const normalized = matches.map((m) => ({
             ...m,

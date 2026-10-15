@@ -33,8 +33,12 @@ function footerSignals(row: Row, footer: FooterParse) {
   return { collectorMatch, numScore: collectorMatch ? 1 : numberMatch ? 0.8 : 0 };
 }
 
-/** Stage 5: hybrid visual + OCR lookup. Returns the top 5 candidates by composite confidence. */
-export async function identifyCard(input: IdentifyInput, database: any): Promise<CardMatchResult[]> {
+export interface IdentifyResult {
+  candidates: CardMatchResult[];
+  topCandidates: CardMatchResult[];
+}
+
+export async function identifyCardWithDebug(input: IdentifyInput, database: any): Promise<IdentifyResult> {
   const rows: Row[] = await database
     .select({
       editionId: cardEditions.id,
@@ -52,10 +56,9 @@ export async function identifyCard(input: IdentifyInput, database: any): Promise
   const ocrOk = !isOcrNoise(input.headerText);
   const footer = parseFooter(input.footerText);
 
-  // Score all rows with composite similarity to prevent discarding valid OCR matches
-  return rows
+  // Score all rows with composite similarity
+  const allScored: CardMatchResult[] = rows
     .map((row) => {
-      const distance = hamming(input.phash, row.phash);
       const sVisual = visualSimilarity(input.phash, row.phash);
       const { collectorMatch, numScore } = footerSignals(row, footer);
       const nameScore = ocrOk ? trigramSimilarity(input.headerText, row.cardName) : 0;
@@ -79,7 +82,16 @@ export async function identifyCard(input: IdentifyInput, database: any): Promise
         signals: { collectorMatch, ocrFallback },
       };
     })
-    .filter((c) => c.confidence >= 50)
-    .sort((a, b) => b.confidence - a.confidence)
-    .slice(0, RESULT_COUNT);
+    .sort((a, b) => b.confidence - a.confidence);
+
+  return {
+    candidates: allScored.filter((c) => c.confidence >= 50).slice(0, RESULT_COUNT),
+    topCandidates: allScored.slice(0, RESULT_COUNT),
+  };
+}
+
+/** Stage 5: hybrid visual + OCR lookup. Returns the top 5 candidates by composite confidence. */
+export async function identifyCard(input: IdentifyInput, database: any): Promise<CardMatchResult[]> {
+  const { candidates } = await identifyCardWithDebug(input, database);
+  return candidates;
 }
