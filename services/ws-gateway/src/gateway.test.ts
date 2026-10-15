@@ -244,4 +244,62 @@ describe("WebSocket Session Gateway Integration", () => {
     clientB.close();
     scannerA.close();
   });
+
+  it("handles SCAN_IDENTIFY_REQUEST and responds with ranked candidates", async () => {
+    // Configure mock matcher on roomManager
+    server.roomManager.setMatcher(async (req) => {
+      expect(req.phash).toBe("0123456789abcdef");
+      expect(req.headerText).toBe("Rend");
+      return [
+        {
+          editionId: "ed_rend",
+          cardSlug: "rend",
+          cardName: "Rend",
+          setPrefix: "DOA",
+          collectorNumber: "010",
+          imageUrl: "https://example.com/rend.jpg",
+          confidence: 95.2,
+          sVisual: 0.94,
+          sOcr: 0.97,
+          signals: { collectorMatch: true, ocrFallback: false },
+        },
+      ];
+    });
+
+    const sessionId = "sess_identify_test";
+    const client = await createClient(port);
+
+    client.send(
+      JSON.stringify({
+        type: "SESSION_JOIN",
+        sessionId,
+        token: "tok_id",
+        role: "scanner",
+        timestamp: Date.now(),
+      })
+    );
+    await nextMessage(client);
+
+    const identifyPromise = nextMessage<any>(client);
+    client.send(
+      JSON.stringify({
+        type: "SCAN_IDENTIFY_REQUEST",
+        sessionId,
+        requestId: "req_test_1",
+        timestamp: Date.now(),
+        phash: "0123456789abcdef",
+        headerText: "Rend",
+        footerText: "DOA 010",
+      })
+    );
+
+    const res = await identifyPromise;
+    expect(res.type).toBe("SCAN_IDENTIFY_RESPONSE");
+    expect(res.requestId).toBe("req_test_1");
+    expect(res.candidates).toHaveLength(1);
+    expect(res.candidates[0].cardName).toBe("Rend");
+    expect(res.candidates[0].confidence).toBe(95.2);
+
+    client.close();
+  });
 });

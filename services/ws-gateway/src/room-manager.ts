@@ -10,6 +10,12 @@ export interface UnifiedSocket {
   close?(code?: number, reason?: string): void;
 }
 
+export type MatcherFn = (req: {
+  phash: string;
+  headerText: string;
+  footerText: string;
+}) => Promise<any[]>;
+
 interface Participant {
   socket: UnifiedSocket;
   role: SessionRole;
@@ -26,6 +32,15 @@ interface Room {
 export class SessionRoomManager {
   private rooms = new Map<string, Room>();
   private socketToRoom = new Map<UnifiedSocket, string>();
+  private matcher?: MatcherFn;
+
+  constructor(matcher?: MatcherFn) {
+    this.matcher = matcher;
+  }
+
+  public setMatcher(matcher: MatcherFn): void {
+    this.matcher = matcher;
+  }
 
   public getRoomCount(): number {
     return this.rooms.size;
@@ -80,10 +95,34 @@ export class SessionRoomManager {
         });
         break;
 
+      case "SCAN_IDENTIFY_REQUEST":
+        if (this.matcher) {
+          this.matcher({
+            phash: msg.phash,
+            headerText: msg.headerText,
+            footerText: msg.footerText,
+          })
+            .then((candidates) => {
+              const resMsg: WsServerMessage = {
+                type: "SCAN_IDENTIFY_RESPONSE",
+                sessionId: msg.sessionId,
+                timestamp: Date.now(),
+                requestId: msg.requestId,
+                candidates,
+              };
+              this.send(socket, resMsg);
+            })
+            .catch((err) => {
+              this.sendError(socket, "MATCH_ERROR", err.message || "Failed to identify card", msg.sessionId);
+            });
+        } else {
+          this.forwardToReceivers(socket, msg);
+        }
+        break;
+
       case "CARD_PREVIEW":
       case "CARD_COMMITTED":
       case "CARD_UPDATE_FINISH":
-      case "SCAN_IDENTIFY_REQUEST":
         this.forwardToReceivers(socket, msg);
         break;
 
