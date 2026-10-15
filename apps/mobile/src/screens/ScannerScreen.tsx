@@ -10,7 +10,6 @@ import { RecentScans } from "../components/scanner/RecentScans";
 import { ScannerHeader } from "../components/scanner/ScannerHeader";
 import { TargetGuideOverlay } from "../components/scanner/TargetGuideOverlay";
 import { PairingView } from "../components/pairing/PairingView";
-import { useSimulatedFeed } from "../hooks/useSimulatedFeed";
 import { useFeedback } from "../lib/feedback";
 import { useScannerStore } from "../store/scannerStore";
 import { useSessionStore } from "../store/sessionStore";
@@ -23,8 +22,6 @@ function ActiveScanner() {
   const insets = useSafeAreaInsets();
   const focused = useIsFocused();
   const feedback = useFeedback();
-  const status = useSessionStore((s) => s.status);
-  const testFeed = useScannerStore((s) => s.settings.testFeed);
   const qualityGate = useScannerStore((s) => s.settings.qualityGate);
   const metrics = useScannerStore((s) => s.metrics);
   const pending = useScannerStore((s) => s.pending);
@@ -34,28 +31,29 @@ function ActiveScanner() {
   const proposeMatches = useScannerStore((s) => s.proposeMatches);
 
   const guideWidth = Math.min(width * 0.68, (height * 0.46) / 1.4, 320);
-  const pose = useSimulatedFeed(focused && testFeed && status === "ACTIVE_SCANNING");
   const locked = !!pending || metrics?.verdict === "ready";
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [scanMessage, setScanMessage] = useState<string | null>(null);
   const cameraRef = useRef<any>(null);
   const isProcessingRef = useRef(false);
   const lastPending = useRef<number | null>(null);
   const lastCandidates = useRef<typeof candidates>(null);
   const lastCount = useRef(scannedCount);
 
-  // Single Frame Capture Trigger (ADR 0006)
+  // Single Frame Capture Trigger (Explicit user action - no flickering shutter intervals)
   const triggerScan = useCallback(async () => {
     if (isProcessingRef.current || pending || candidates || !cameraRef.current) return;
 
     try {
       isProcessingRef.current = true;
       setIsAnalyzing(true);
+      setScanMessage("Analyzing card...");
       feedback.tap();
 
       const photo = await cameraRef.current.takePictureAsync({
         base64: true,
-        quality: 0.35,
+        quality: 0.45,
         shutterSound: false,
         skipProcessing: true,
       });
@@ -81,28 +79,21 @@ function ActiveScanner() {
             element: (((m as any).element || "NORM") as any),
             imageUrl: m.imageUrl || null,
           }));
+          setScanMessage(null);
           proposeMatches(normalized);
+        } else {
+          setScanMessage("No card detected. Align card in frame and hold steady.");
+          feedback.warn();
         }
       }
     } catch (err) {
       console.warn("[ScannerScreen] Scan capture error:", err);
+      setScanMessage("Capture error. Please try again.");
     } finally {
       isProcessingRef.current = false;
       setIsAnalyzing(false);
     }
   }, [pending, candidates, feedback, pushMetrics, proposeMatches]);
-
-  // Relaxed Auto-Scan Loop (every 2.5s when steady and not already scanning)
-  useEffect(() => {
-    if (!focused || testFeed || status !== "ACTIVE_SCANNING") return;
-
-    const interval = setInterval(() => {
-      if (isProcessingRef.current || pending || candidates) return;
-      triggerScan();
-    }, 2500);
-
-    return () => clearInterval(interval);
-  }, [focused, testFeed, status, pending, candidates, triggerScan]);
 
   useEffect(() => {
     if (pending && pending.startedAt !== lastPending.current) feedback.lock();
@@ -121,13 +112,13 @@ function ActiveScanner() {
 
   return (
     <View style={styles.root}>
-      <CameraViewfinder active={focused} guideWidth={guideWidth} pose={pose} onToggle={feedback.tap} cameraRef={cameraRef}>
+      <CameraViewfinder active={focused} guideWidth={guideWidth} onToggle={feedback.tap} cameraRef={cameraRef}>
         <TargetGuideOverlay width={guideWidth} locked={locked} />
       </CameraViewfinder>
 
       <View pointerEvents="box-none" style={[styles.top, { paddingTop: insets.top + space(1) }]}>
         <ScannerHeader onTap={feedback.tap} />
-        <QualityGateHUD metrics={metrics} config={qualityGate} idleHint={testFeed ? undefined : "Align card inside frame"} />
+        <QualityGateHUD metrics={metrics} config={qualityGate} idleHint={scanMessage || "Align card inside frame & tap scan"} />
       </View>
 
       <View pointerEvents="box-none" style={styles.bottom}>
@@ -146,7 +137,7 @@ function ActiveScanner() {
               )}
             </PressableScale>
             <Text style={styles.scanHint}>
-              {isAnalyzing ? "Analyzing card..." : "Tap button or hold steady to scan"}
+              {isAnalyzing ? "Analyzing card..." : "Tap button to scan card"}
             </Text>
           </View>
         )}

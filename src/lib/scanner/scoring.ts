@@ -35,6 +35,11 @@ const BOOSTED_CAP = 99;
 /** Composite certainty in percent: 0.6*visual + 0.4*ocr, +10 on collector match; visual-only capped at 92. */
 export function compositeConfidence(i: CompositeInput): CompositeResult {
   if (!i.ocrOk || i.sOcr === null) {
+    // If OCR failed or was noise, visual match requires genuine visual similarity.
+    // Hamming distance of 10 or more (sVisual < 0.85) on 64-bit dHash is random background noise.
+    if (i.sVisual < 0.85) {
+      return { confidence: 0, ocrFallback: true };
+    }
     return { confidence: Math.min(VISUAL_ONLY_CAP, i.sVisual * 100), ocrFallback: true };
   }
   const base = 100 * (0.6 * i.sVisual + 0.4 * i.sOcr);

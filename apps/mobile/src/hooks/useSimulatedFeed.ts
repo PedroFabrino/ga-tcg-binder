@@ -96,58 +96,7 @@ function scriptFor(): Phase[] {
 
 const IDLE_POSE: SubjectPose = { card: null, edition: null, visible: false, dx: 0, dy: 220, rotate: -8, glare: 0, blur: false };
 
-/** Synthetic camera feed: walks mock cards through the quality gate so every scanner state can be seen. */
-export function useSimulatedFeed(enabled: boolean): SubjectPose {
-  const [pose, setPose] = useState<SubjectPose>(IDLE_POSE);
-  const ref = useRef({ script: scriptFor(), step: 0, stable: 0, removeLeft: 0, card: null as Card | null, edition: null as Edition | null });
-
-  useEffect(() => {
-    const store = useScannerStore;
-    if (!enabled) {
-      store.getState().pushMetrics(null);
-      setPose(IDLE_POSE);
-      return;
-    }
-
-    const nextSubject = () => {
-      const s = ref.current;
-      s.card = pick(MOCK_CARDS) ?? null;
-      s.edition = s.card ? pick(s.card.editions) ?? null : null;
-      s.script = scriptFor();
-      s.step = 0;
-      s.stable = 0;
-    };
-    nextSubject();
-
-    const id = setInterval(() => {
-      const s = ref.current;
-      const { pending, candidates, settings, proposeMatches, pushMetrics } = store.getState();
-
-      let phase: Phase;
-      if (s.removeLeft > 0) {
-        phase = "remove";
-        s.removeLeft -= 1;
-        if (s.removeLeft === 0) nextSubject();
-      } else if (s.step >= s.script.length) {
-        phase = "present";
-        if (!pending && !candidates) s.removeLeft = 6;
-      } else {
-        phase = s.script[s.step] ?? "steady";
-        s.step += 1;
-      }
-
-      const raw = rawFor(phase);
-      const { verdict, stableFrames } = evaluateFrame(raw, s.stable, settings.qualityGate);
-      s.stable = stableFrames;
-      pushMetrics({ ...raw, timestamp: Date.now(), stableFrames, verdict });
-      setPose(poseFor(phase, s.card, s.edition, raw));
-
-      const scriptDone = phase === "steady" && s.step >= s.script.length;
-      if (scriptDone && verdict === "ready" && s.card && s.edition) proposeMatches(rankFor(s.card, s.edition));
-      else if (scriptDone) s.script.push("steady");
-    }, TICK_MS);
-    return () => clearInterval(id);
-  }, [enabled]);
-
-  return pose;
+/** Neuted mock feed: live scanning uses actual device camera and WS frame processing. */
+export function useSimulatedFeed(_enabled: boolean): SubjectPose {
+  return IDLE_POSE;
 }

@@ -1,70 +1,24 @@
-import { useEffect, useRef, type ReactNode } from "react";
-import { Animated, StyleSheet, Text, View } from "react-native";
+import { type ReactNode } from "react";
+import { StyleSheet, Text, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { Camera, FlaskConical, SwitchCamera } from "lucide-react-native";
-import type { SubjectPose } from "../../hooks/useSimulatedFeed";
+import { Camera, SwitchCamera, Zap, ZapOff } from "lucide-react-native";
 import { useScannerStore } from "../../store/scannerStore";
 import { colors, radius, space, type } from "../../theme";
 import { Button, PressableScale } from "../shared/Button";
-import { CardArt } from "../shared/CardArt";
-
-function SimulatedCard({ pose, width }: { pose: SubjectPose; width: number }) {
-  const dx = useRef(new Animated.Value(pose.dx)).current;
-  const dy = useRef(new Animated.Value(pose.dy)).current;
-  const rotate = useRef(new Animated.Value(pose.rotate)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
-  const glare = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const spring = (v: Animated.Value, toValue: number) => Animated.spring(v, { toValue, useNativeDriver: true, speed: 14, bounciness: 2 });
-    Animated.parallel([
-      spring(dx, pose.dx),
-      spring(dy, pose.dy),
-      spring(rotate, pose.rotate),
-      Animated.timing(opacity, { toValue: pose.visible ? (pose.blur ? 0.75 : 1) : 0, duration: 220, useNativeDriver: true }),
-      Animated.timing(glare, { toValue: pose.glare, duration: 200, useNativeDriver: true }),
-    ]).start();
-  }, [pose, dx, dy, rotate, opacity, glare]);
-
-  const { card, edition } = pose;
-  if (!card || !edition) return null;
-  const scale = width / 200;
-  const art = (
-    <CardArt name={card.name} element={card.element} setPrefix={edition.setPrefix} collectorNumber={edition.collectorNumber} imageUrl={edition.imageUrl} size="lg" />
-  );
-
-  return (
-    <View pointerEvents="none" style={styles.center}>
-      <Animated.View
-        style={{
-          opacity,
-          transform: [{ translateX: dx }, { translateY: dy }, { rotate: rotate.interpolate({ inputRange: [-180, 180], outputRange: ["-180deg", "180deg"] }) }, { scale }],
-        }}
-      >
-        {pose.blur && <View style={styles.ghost}>{art}</View>}
-        {art}
-        <View style={styles.glareClip}>
-          <Animated.View style={[styles.glare, { opacity: glare }]} />
-        </View>
-      </Animated.View>
-    </View>
-  );
-}
 
 interface CameraViewfinderProps {
   active: boolean;
   guideWidth: number;
-  pose: SubjectPose;
+  pose?: any;
   onToggle: () => void;
   children?: ReactNode;
   cameraRef?: React.RefObject<CameraView | null>;
 }
 
-export function CameraViewfinder({ active, guideWidth, pose, onToggle, children, cameraRef }: CameraViewfinderProps) {
+export function CameraViewfinder({ active, onToggle, children, cameraRef }: CameraViewfinderProps) {
   const [permission, requestPermission] = useCameraPermissions();
   const torch = useScannerStore((s) => s.settings.torch);
   const facing = useScannerStore((s) => s.settings.facing);
-  const testFeed = useScannerStore((s) => s.settings.testFeed);
   const updateSettings = useScannerStore((s) => s.updateSettings);
 
   return (
@@ -88,7 +42,6 @@ export function CameraViewfinder({ active, guideWidth, pose, onToggle, children,
         </View>
       )}
 
-      {testFeed && <SimulatedCard pose={pose} width={guideWidth} />}
       {children}
 
       <View style={styles.floating}>
@@ -102,16 +55,19 @@ export function CameraViewfinder({ active, guideWidth, pose, onToggle, children,
         >
           <SwitchCamera size={20} color={colors.text} />
         </PressableScale>
-        <PressableScale
-          style={[styles.fab, testFeed && styles.fabOn]}
-          accessibilityLabel={testFeed ? "Turn off test feed" : "Turn on test feed"}
-          onPress={() => {
-            onToggle();
-            updateSettings({ testFeed: !testFeed });
-          }}
-        >
-          <FlaskConical size={20} color={testFeed ? colors.violetBright : colors.text} />
-        </PressableScale>
+
+        {facing === "back" && (
+          <PressableScale
+            style={[styles.fab, torch && styles.fabOn]}
+            accessibilityLabel={torch ? "Turn off torch" : "Turn on torch"}
+            onPress={() => {
+              onToggle();
+              updateSettings({ torch: !torch });
+            }}
+          >
+            {torch ? <Zap size={20} color={colors.amber} /> : <ZapOff size={20} color={colors.text} />}
+          </PressableScale>
+        )}
       </View>
     </View>
   );

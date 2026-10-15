@@ -84,6 +84,7 @@ export async function identifyCard(input: IdentifyInput, database: any): Promise
         signals: { collectorMatch, ocrFallback },
       };
     })
+    .filter((c) => c.confidence >= 60)
     .sort((a, b) => b.confidence - a.confidence)
     .slice(0, RESULT_COUNT);
 }

@@ -72,7 +72,7 @@ export const useScannerStore = create<ScannerStore>((set, get) => {
     candidates: null,
     scanned: [],
 
-    updateSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),
+    updateSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch, testFeed: false } })),
     pushMetrics: (metrics) => set({ metrics }),
 
     proposeMatches: (ranked) => {

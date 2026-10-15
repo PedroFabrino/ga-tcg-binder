@@ -31,7 +31,8 @@ export async function processCardFrame(
   imageBuffer: Buffer,
   database: any
 ): Promise<FrameProcessingResult> {
-  const meta = await sharp(imageBuffer).metadata();
+  const oriented = sharp(imageBuffer).rotate();
+  const meta = await oriented.metadata();
   const imgW = meta.width || 1080;
   const imgH = meta.height || 1920;
 
@@ -42,7 +43,8 @@ export async function processCardFrame(
   const top = Math.max(0, Math.round((imgH - guideH) / 2));
 
   // Normalize cropped card to canonical 630x880
-  const cardPipeline = sharp(imageBuffer)
+  const cardPipeline = oriented
+    .clone()
     .extract({ left, top, width: guideW, height: guideH })
     .resize(630, 880, { fit: "fill" });
 
@@ -53,11 +55,33 @@ export async function processCardFrame(
     .raw()
     .toBuffer({ resolveWithObject: true });
 
+  let sum = 0;
   let glareCount = 0;
   for (let i = 0; i < grayData.length; i++) {
-    if (grayData[i] > 250) glareCount++;
+    const val = grayData[i];
+    sum += val;
+    if (val > 250) glareCount++;
   }
+  const meanBrightness = sum / grayData.length;
   const glareRatio = glareCount / grayData.length;
+
+  let sumSq = 0;
+  for (let i = 0; i < grayData.length; i++) {
+    const diff = grayData[i] - meanBrightness;
+    sumSq += diff * diff;
+  }
+  const variance = sumSq / grayData.length;
+
+  // Reject completely dark frames (phone face down) or flat uniform surfaces (no contrast/card)
+  if (meanBrightness < 25 || variance < 80) {
+    return {
+      candidates: [],
+      phash: "",
+      headerText: "",
+      footerText: "",
+      glareRatio,
+    };
+  }
 
   const phash = dHash(grayData, grayInfo.width, grayInfo.height);
 
