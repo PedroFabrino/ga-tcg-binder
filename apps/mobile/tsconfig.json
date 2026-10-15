@@ -3,7 +3,10 @@
   "compilerOptions": {
     "strict": true,
     "noUncheckedIndexedAccess": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "paths": {
+      "@ga/contracts": ["../../packages/contracts/src/index.ts"]
+    }
   },
   "include": ["index.ts", "src/**/*.ts", "src/**/*.tsx"]
 }

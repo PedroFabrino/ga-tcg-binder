@@ -38,12 +38,30 @@ interface ScannerStore {
   reset: () => void;
 }
 
+import { getActiveWsClient } from "./sessionStore";
+
 const newId = () => `scan_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 
 export const useScannerStore = create<ScannerStore>((set, get) => {
   const emit = (match: MatchResult, finish: Finish) => {
     const card: ScannedCard = { id: newId(), match, finish, scannedAt: Date.now(), status: "sending" };
     set((s) => ({ scanned: [card, ...s.scanned] }));
+
+    const ws = getActiveWsClient();
+    if (ws) {
+      ws.sendCardCommitted({
+        editionId: match.editionId,
+        cardSlug: match.cardSlug,
+        cardName: match.cardName,
+        setPrefix: match.setPrefix,
+        collectorNumber: match.collectorNumber,
+        imageUrl: match.imageUrl ?? "",
+        foil: finish === "Foil",
+        confidence: match.confidence,
+        timestamp: card.scannedAt,
+      });
+    }
+
     setTimeout(() => set((s) => ({ scanned: s.scanned.map((c) => (c.id === card.id ? { ...c, status: "sent" } : c)) })), 450);
   };
 

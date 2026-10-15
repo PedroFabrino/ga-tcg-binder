@@ -50,7 +50,7 @@ export function PairingView() {
     setNotice(null);
     clearError();
     feedback.lock();
-    pair(payload.sessionId);
+    pair(payload);
   };
 
   const message = error ?? notice;

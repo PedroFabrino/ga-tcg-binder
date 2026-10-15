@@ -23,7 +23,12 @@ export function ManualPairModal({ visible, onClose }: { visible: boolean; onClos
   const submit = () => {
     if (code.length !== SESSION_CODE_LENGTH) return setError(`Enter all ${SESSION_CODE_LENGTH} characters of the code.`);
     onClose();
-    pair(code);
+    pair({
+      action: "pair_scanner",
+      sessionId: code,
+      wsEndpoint: "ws://localhost:3001",
+      token: code,
+    });
   };
 
   const cells = Array.from({ length: SESSION_CODE_LENGTH }, (_, i) => code[i] ?? "");

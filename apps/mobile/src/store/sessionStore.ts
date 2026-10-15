@@ -1,57 +1,95 @@
 import { create } from "zustand";
-import type { ScanSession, SessionState } from "../types/session";
+import type { ScanSession, SessionState, PairingPayload } from "../types/session";
+import { MobileWsClient } from "../lib/wsClient";
 
-/**
- * UI-only placeholder: transitions are simulated with timers so every screen can be exercised.
- * Replace `pair` / `disconnect` and the latency ticker with the real WebSocket session.
- */
 interface SessionStore {
   status: SessionState;
   session: ScanSession | null;
+  pairingPayload: PairingPayload | null;
   latencyMs: number | null;
   reconnectAttempt: number;
   error: string | null;
-  pair: (sessionId: string, desktopName?: string) => void;
+  pair: (payload: PairingPayload) => void;
   simulatePairing: () => void;
   disconnect: () => void;
   clearError: () => void;
 }
 
-let ticker: ReturnType<typeof setInterval> | null = null;
-const stopTicker = () => {
-  if (ticker) clearInterval(ticker);
-  ticker = null;
-};
+let activeWsClient: MobileWsClient | null = null;
+
+export function getActiveWsClient(): MobileWsClient | null {
+  return activeWsClient;
+}
 
 export const useSessionStore = create<SessionStore>((set, get) => {
-  const activate = (sessionId: string, desktopName: string) => {
-    set({ status: "ACTIVE_SCANNING", session: { sessionId, desktopName, pairedAt: Date.now() }, latencyMs: 24, error: null });
-    stopTicker();
-    ticker = setInterval(() => {
-      if (get().status === "ACTIVE_SCANNING") set({ latencyMs: 18 + Math.round(Math.random() * 40) });
-    }, 3000);
-  };
-
   return {
     status: "DISCONNECTED",
     session: null,
+    pairingPayload: null,
     latencyMs: null,
     reconnectAttempt: 0,
     error: null,
 
-    pair: (sessionId, desktopName = "Desktop Binder") => {
+    pair: (payload: PairingPayload) => {
       if (get().status === "CONNECTING") return;
-      set({ status: "CONNECTING", error: null });
-      setTimeout(() => {
-        if (get().status === "CONNECTING") activate(sessionId, desktopName);
-      }, 900);
+      set({ status: "CONNECTING", pairingPayload: payload, error: null });
+
+      if (activeWsClient) {
+        activeWsClient.disconnect();
+      }
+
+      activeWsClient = new MobileWsClient({
+        onStatusChange: (status, desktopName) => {
+          set((s) => ({
+            status,
+            session:
+              status === "ACTIVE_SCANNING"
+                ? {
+                    sessionId: payload.sessionId,
+                    desktopName: desktopName || "Desktop Receiver",
+                    pairedAt: s.session?.pairedAt || Date.now(),
+                  }
+                : s.session,
+            error: null,
+          }));
+        },
+        onLatencyUpdate: (ms) => set({ latencyMs: ms }),
+        onError: (err) => set({ error: err }),
+      });
+
+      activeWsClient.connect(payload);
     },
 
-    simulatePairing: () => activate(`sess_${Math.random().toString(36).slice(2, 8)}`, "Simulated Desktop"),
+    simulatePairing: () => {
+      if (activeWsClient) {
+        activeWsClient.disconnect();
+        activeWsClient = null;
+      }
+      set({
+        status: "ACTIVE_SCANNING",
+        session: {
+          sessionId: `sess_${Math.random().toString(36).slice(2, 8)}`,
+          desktopName: "Simulated Desktop",
+          pairedAt: Date.now(),
+        },
+        latencyMs: 24,
+        error: null,
+      });
+    },
 
     disconnect: () => {
-      stopTicker();
-      set({ status: "DISCONNECTED", session: null, latencyMs: null, reconnectAttempt: 0 });
+      if (activeWsClient) {
+        activeWsClient.disconnect();
+        activeWsClient = null;
+      }
+      set({
+        status: "DISCONNECTED",
+        session: null,
+        pairingPayload: null,
+        latencyMs: null,
+        reconnectAttempt: 0,
+        error: null,
+      });
     },
 
     clearError: () => set({ error: null }),
