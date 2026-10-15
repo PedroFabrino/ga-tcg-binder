@@ -6,6 +6,7 @@ export interface PairingPayload {
   sessionId: string;
   wsEndpoint: string;
   token: string;
+  webFallbackUrl?: string;
 }
 
 export interface ScanSession {

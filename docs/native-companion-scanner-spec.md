@@ -58,18 +58,18 @@ A high-performance native companion mobile application (iOS/Android) paired to t
   - `CARD_COMMITTED`: Broadcast to the session room when a card is confirmed, containing card slug, edition ID, finish, and timestamp.
   - `HEARTBEAT_PING / HEARTBEAT_PONG`: Sent every 15 seconds to keep edge WebSocket connections alive.
 
-### Native Camera & Vision Pipeline
-- Built with React Native using `react-native-vision-camera` v4 and native worklets (`react-native-worklets-core`).
-- Framing: Locked to rear wide-angle lens with continuous autofocus (`focusMode: "continuous"`).
-- Target guide: Fixed 2.5 : 3.5 aspect ratio viewport rendered on the UI thread with SVG/Skia corner markers that animate to detected quad coordinates.
-- Frame Quality Gate:
-  - Laplacian variance operator evaluated on frame luma; frames below sharpness threshold (70) are discarded.
-  - Specular glare clustering evaluated via high-luma thresholding (>250); frames with glare ratios exceeding 12% of card surface are rejected.
-  - Positional stability requirement: 4-corner Euclidean delta must remain under 8 pixels across 3 consecutive frames before triggering crop.
-- Perspective Warp: 4 detected points mapped to a normalized 630x880 pixel buffer on the native thread.
-- Native OCR: Apple Vision (iOS) and Google ML Kit (Android) execute natively on the warped buffer:
-  - Header strip (top 15%): Extracted string normalized for Card Name.
-  - Footer strip (bottom 15%): Extracted string parsed via regex for Collector Number (`\b\d{1,4}/\d{1,4}\b`) and Set Prefix (`\b[A-Z0-9]{2,6}\b`).
+### Native Camera & Vision Pipeline (Dual-Runtime Architecture - ADR 0006)
+The companion camera pipeline operates across two complementary runtime environments:
+- **Runtime Mode A (Expo Go Edge Streamer - Active Default)**:
+  - Utilizes `expo-camera` (`CameraView`) within standard Expo Go to enable immediate physical testing on user hardware without compiling custom native binaries.
+  - Viewfinder locks to rear sensor with continuous autofocus, torch toggle, and canonical 2.5 : 3.5 aspect ratio target guide.
+  - Rapid-fire card frames captured within the guide viewport are streamed over the local WebSocket connection (`SCAN_FRAME_PROCESS_REQUEST`).
+  - Edge/Gateway processes frames via `sharp` (Laplacian sharpness check, glare thresholding, perspective warp to 630x880, 64-bit dHash computation) and strip OCR (`tesseract.js` + regex), returning `SCAN_IDENTIFY_RESPONSE` in ~160–210ms.
+- **Runtime Mode B (Standalone Native Worklet - Prebuild Path)**:
+  - Built with React Native using `react-native-vision-camera` v4 and native worklets (`react-native-worklets-core`) for standalone compiled builds (`npx expo prebuild` / Gradle APK).
+  - Native OCR: Apple Vision (iOS) and Google ML Kit (Android) execute natively on the warped buffer at 30 fps:
+    - Header strip (top 15%): Extracted string normalized for Card Name.
+    - Footer strip (bottom 15%): Extracted string parsed via regex for Collector Number (`\b\d{1,4}/\d{1,4}\b`) and Set Prefix (`\b[A-Z0-9]{2,6}\b`).
 
 ### Catalog Matching Engine & Persistence
 - Server-side candidate retrieval executes against the Turso libSQL database:

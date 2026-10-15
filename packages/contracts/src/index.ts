@@ -110,6 +110,7 @@ export interface PairingQrPayload {
   sessionId: string;
   wsEndpoint: string;
   token: string;
+  webFallbackUrl?: string;
 }
 
 export type SessionConnectionStatus =
@@ -148,6 +149,12 @@ export interface WsScanIdentifyRequest extends WsMessageBase {
   footerText: string;
 }
 
+export interface WsScanFrameProcessRequest extends WsMessageBase {
+  type: "SCAN_FRAME_PROCESS_REQUEST";
+  requestId: string;
+  imageBase64: string;
+}
+
 export interface WsCardPreviewMessage extends WsMessageBase {
   type: "CARD_PREVIEW";
   tempId: string;
@@ -175,6 +182,7 @@ export type WsClientMessage =
   | WsJoinMessage
   | WsPingMessage
   | WsScanIdentifyRequest
+  | WsScanFrameProcessRequest
   | WsCardPreviewMessage
   | WsCardCommittedMessage
   | WsCardUpdateFinishMessage
@@ -238,6 +246,7 @@ export function isWsClientMessage(data: unknown): data is WsClientMessage {
       "SESSION_JOIN",
       "SESSION_PING",
       "SCAN_IDENTIFY_REQUEST",
+      "SCAN_FRAME_PROCESS_REQUEST",
       "CARD_PREVIEW",
       "CARD_COMMITTED",
       "CARD_UPDATE_FINISH",

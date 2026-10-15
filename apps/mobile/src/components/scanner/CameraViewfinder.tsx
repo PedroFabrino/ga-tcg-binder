@@ -57,9 +57,10 @@ interface CameraViewfinderProps {
   pose: SubjectPose;
   onToggle: () => void;
   children?: ReactNode;
+  cameraRef?: React.RefObject<CameraView | null>;
 }
 
-export function CameraViewfinder({ active, guideWidth, pose, onToggle, children }: CameraViewfinderProps) {
+export function CameraViewfinder({ active, guideWidth, pose, onToggle, children, cameraRef }: CameraViewfinderProps) {
   const [permission, requestPermission] = useCameraPermissions();
   const torch = useScannerStore((s) => s.settings.torch);
   const facing = useScannerStore((s) => s.settings.facing);
@@ -69,7 +70,14 @@ export function CameraViewfinder({ active, guideWidth, pose, onToggle, children 
   return (
     <View style={styles.root}>
       {permission?.granted ? (
-        <CameraView style={StyleSheet.absoluteFill} facing={facing} autofocus="off" enableTorch={torch && facing === "back"} active={active} />
+        <CameraView
+          ref={cameraRef as any}
+          style={StyleSheet.absoluteFill}
+          facing={facing}
+          autofocus="on"
+          enableTorch={torch && facing === "back"}
+          active={active}
+        />
       ) : (
         <View style={[StyleSheet.absoluteFill, styles.permission]}>
           <Camera size={28} color={colors.textDim} />

@@ -8,7 +8,13 @@ export function parsePairingPayload(raw: string): PairingPayload | null {
     if (!v || typeof v !== "object") return null;
     const p = v as Record<string, unknown>;
     if (p.action !== "pair_scanner" || typeof p.sessionId !== "string" || typeof p.wsEndpoint !== "string" || typeof p.token !== "string") return null;
-    return { action: "pair_scanner", sessionId: p.sessionId, wsEndpoint: p.wsEndpoint, token: p.token };
+    return {
+      action: "pair_scanner",
+      sessionId: p.sessionId,
+      wsEndpoint: p.wsEndpoint,
+      token: p.token,
+      webFallbackUrl: typeof p.webFallbackUrl === "string" ? p.webFallbackUrl : undefined,
+    };
   } catch {
     return null;
   }

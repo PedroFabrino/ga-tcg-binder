@@ -136,6 +136,48 @@ export class MobileWsClient {
     return true;
   }
 
+  public getHttpBaseUrl(): string {
+    if (this.pairingInfo?.webFallbackUrl) {
+      try {
+        const u = new URL(this.pairingInfo.webFallbackUrl);
+        return `${u.protocol}//${u.host}`;
+      } catch {
+        // ignore
+      }
+    }
+    if (this.pairingInfo?.wsEndpoint) {
+      const resolved = resolveWsEndpoint(this.pairingInfo.wsEndpoint);
+      return resolved
+        .replace(/^ws:\/\//i, "http://")
+        .replace(/^wss:\/\//i, "https://")
+        .replace(/:3001$/, ":3000");
+    }
+    return "http://localhost:3000";
+  }
+
+  public async processFrame(imageBase64: string): Promise<CardMatchResult[]> {
+    if (!this.pairingInfo) throw new Error("Scanner not paired");
+    const baseUrl = this.getHttpBaseUrl();
+    const endpoint = `${baseUrl}/api/scanner/process-frame`;
+
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: this.pairingInfo.token,
+        imageBase64,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    return data.candidates || [];
+  }
+
   private initiateConnection(): void {
     if (!this.pairingInfo) return;
 
