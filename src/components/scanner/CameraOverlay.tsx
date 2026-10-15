@@ -11,10 +11,11 @@ import { getDebugLogs, subscribeDebugLogs, type LogEntry } from "@/lib/scanner/d
 interface Props {
   enabled?: boolean;
   onCapture: (capture: NormalizedCapture) => void;
+  onToggleLogs?: () => void;
 }
 
 /** Stage 1/2/3 UI: rear-camera feed, 2.5:3.5 guide, live hints, auto-capture + manual shutter. */
-export function CameraOverlay({ enabled = true, onCapture }: Props) {
+export function CameraOverlay({ enabled = true, onCapture, onToggleLogs }: Props) {
   const {
     videoRef,
     metrics,
@@ -113,7 +114,11 @@ export function CameraOverlay({ enabled = true, onCapture }: Props) {
 
         {/* Small debug toggle */}
         <button
-          onClick={() => setShowLogs(!showLogs)}
+          type="button"
+          onClick={() => {
+            if (onToggleLogs) onToggleLogs();
+            else setShowLogs((s) => !s);
+          }}
           className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/50 p-2 text-white/80 backdrop-blur hover:bg-black/70 hover:text-white active:scale-95"
           title="Toggle Diagnostics"
           aria-label="Toggle Diagnostics"
