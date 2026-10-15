@@ -58,10 +58,13 @@ export async function processCardFrame(
   let guideH: number;
 
   if (cropRect && cropRect.width > 0 && cropRect.height > 0) {
-    left = Math.max(0, Math.floor(cropRect.x * imgW));
-    top = Math.max(0, Math.floor(cropRect.y * imgH));
-    guideW = Math.min(imgW - left, Math.round(cropRect.width * imgW));
-    guideH = Math.min(imgH - top, Math.round(cropRect.height * imgH));
+    // Inset slightly (3.5% horizontal, 2% vertical) to trim table/playmat borders outside card edges
+    const insetX = cropRect.width * 0.035;
+    const insetY = cropRect.height * 0.02;
+    left = Math.max(0, Math.floor((cropRect.x + insetX) * imgW));
+    top = Math.max(0, Math.floor((cropRect.y + insetY) * imgH));
+    guideW = Math.min(imgW - left, Math.round((cropRect.width - insetX * 2) * imgW));
+    guideH = Math.min(imgH - top, Math.round((cropRect.height - insetY * 2) * imgH));
   } else {
     // Default fallback: centered 2.5 : 3.5 target guide (scaled to 50% of screen height)
     guideH = Math.round(imgH * 0.50);
@@ -77,11 +80,26 @@ export async function processCardFrame(
   }
 
   // Materialize canonical 630x880 card to JPEG buffer (decouples pipeline from source orientation)
-  const cardJpegBuf = await sharp(orientedBuffer)
+  let cardJpegBuf = await sharp(orientedBuffer)
     .extract({ left, top, width: guideW, height: guideH })
     .resize(630, 880, { fit: "fill" })
     .jpeg({ quality: 80 })
     .toBuffer();
+
+  // Orientation Check: Grand Archive cards have a light/silver title banner at the top (lum ~150-220)
+  // and a jet-black border at the bottom (lum ~20-50). If the bottom is significantly brighter than the top,
+  // the phone camera captured it upside down (180 deg inverted, common when holding phone flat over cards).
+  const [topLumBuf, bottomLumBuf] = await Promise.all([
+    sharp(cardJpegBuf).extract({ left: 100, top: 15, width: 430, height: 70 }).grayscale().raw().toBuffer(),
+    sharp(cardJpegBuf).extract({ left: 100, top: 800, width: 430, height: 70 }).grayscale().raw().toBuffer(),
+  ]);
+  const avgTopLum = topLumBuf.reduce((a, b) => a + b, 0) / topLumBuf.length;
+  const avgBottomLum = bottomLumBuf.reduce((a, b) => a + b, 0) / bottomLumBuf.length;
+
+  if (avgBottomLum > avgTopLum + 20) {
+    console.log(`[frame-processor] Detected upside-down frame (top=${avgTopLum.toFixed(0)}, bottom=${avgBottomLum.toFixed(0)}), auto-rotating 180°...`);
+    cardJpegBuf = await sharp(cardJpegBuf).rotate(180).jpeg({ quality: 80 }).toBuffer();
+  }
 
   const cardImageBase64 = `data:image/jpeg;base64,${cardJpegBuf.toString("base64")}`;
 
@@ -101,7 +119,7 @@ export async function processCardFrame(
   const meanBrightness = sum / grayData.length;
   const glareRatio = glareCount / grayData.length;
 
-  // Extract header and footer strips directly from materialized 630x880 card
+  // Extract centered header and footer strips directly from materialized 630x880 card
   let headerText = "";
   let footerText = "";
   let headerImageBase64: string | undefined;
@@ -110,16 +128,16 @@ export async function processCardFrame(
   try {
     const [headerBuf, footerBuf] = await Promise.all([
       sharp(cardJpegBuf)
-        .extract({ left: 50, top: 12, width: 520, height: 75 })
-        .resize(1040, 150)
+        .extract({ left: 90, top: 12, width: 450, height: 72 })
+        .resize(1125, 180)
         .grayscale()
         .normalize()
         .sharpen()
         .png()
         .toBuffer(),
       sharp(cardJpegBuf)
-        .extract({ left: 10, top: 815, width: 600, height: 55 })
-        .resize(1200, 110)
+        .extract({ left: 25, top: 808, width: 360, height: 65 })
+        .resize(1080, 195)
         .grayscale()
         .normalize()
         .sharpen()
@@ -151,6 +169,7 @@ export async function processCardFrame(
     // Reject completely dark frames after saving debug preview
     if (meanBrightness >= 12) {
       const worker = await getWorker();
+      await worker.setParameters({ tessedit_pageseg_mode: "6" as any });
       const [hRes, fRes] = await Promise.all([
         worker.recognize(headerBuf),
         worker.recognize(footerBuf),
