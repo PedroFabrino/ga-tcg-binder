@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "GA TCG Companion",
+    "slug": "ga-tcg-companion",
+    "scheme": "gatcg",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#09090b",
+    "ios": {
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "GA TCG Companion uses the camera to scan cards and pair with your desktop."
+      }
+    },
+    "android": {
+      "permissions": ["android.permission.CAMERA", "android.permission.VIBRATE"]
+    },
+    "plugins": [
+      ["expo-camera", { "cameraPermission": "GA TCG Companion uses the camera to scan cards and pair with your desktop." }],
+      "expo-audio",
+      "expo-status-bar"
+    ]
+  }
+}
