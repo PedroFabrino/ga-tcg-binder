@@ -47,6 +47,14 @@ export class MobileWsClient {
   private reconnectAttempts = 0;
   private intentionalClose = false;
   private callbacks: WsClientCallbacks;
+  private pendingRequests = new Map<
+    string,
+    {
+      resolve: (res: CardMatchResult[]) => void;
+      reject: (err: any) => void;
+      timer: NodeJS.Timeout;
+    }
+  >();
 
   constructor(callbacks: WsClientCallbacks) {
     this.callbacks = callbacks;
@@ -157,6 +165,33 @@ export class MobileWsClient {
 
   public async processFrame(imageBase64: string): Promise<CardMatchResult[]> {
     if (!this.pairingInfo) throw new Error("Scanner not paired");
+
+    // Fast path: send directly over active WebSocket to ws-gateway on port 3001
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      return new Promise<CardMatchResult[]>((resolve, reject) => {
+        const requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+        const timer = setTimeout(() => {
+          this.pendingRequests.delete(requestId);
+          this.processFrameViaHttp(imageBase64).then(resolve).catch(reject);
+        }, 5000);
+
+        this.pendingRequests.set(requestId, { resolve, reject, timer });
+
+        const msg: any = {
+          type: "SCAN_FRAME_PROCESS_REQUEST",
+          sessionId: this.pairingInfo!.sessionId,
+          requestId,
+          imageBase64,
+          timestamp: Date.now(),
+        };
+        this.socket!.send(JSON.stringify(msg));
+      });
+    }
+
+    return this.processFrameViaHttp(imageBase64);
+  }
+
+  private async processFrameViaHttp(imageBase64: string): Promise<CardMatchResult[]> {
     const baseUrl = this.getHttpBaseUrl();
     const endpoint = `${baseUrl}/api/scanner/process-frame`;
 
@@ -164,7 +199,7 @@ export class MobileWsClient {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        token: this.pairingInfo.token,
+        token: this.pairingInfo!.token,
         imageBase64,
       }),
     });
@@ -250,6 +285,12 @@ export class MobileWsClient {
         this.callbacks.onStatusChange("ACTIVE_SCANNING", msg.pairedDevice || "Desktop Receiver");
       }
     } else if (msg.type === "SCAN_IDENTIFY_RESPONSE") {
+      const pending = this.pendingRequests.get(msg.requestId);
+      if (pending) {
+        clearTimeout(pending.timer);
+        this.pendingRequests.delete(msg.requestId);
+        pending.resolve(msg.candidates);
+      }
       this.callbacks.onIdentifyResponse?.(msg.requestId, msg.candidates);
     }
   }

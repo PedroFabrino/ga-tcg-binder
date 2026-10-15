@@ -1,9 +1,21 @@
 import { WsGatewayServer } from "./node-server";
+import { processCardFrame } from "../../../src/services/frame-processor";
+import { identifyCard } from "../../../src/services/scanner-match";
+import { db } from "../../../src/db";
 
 const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 const host = process.env.HOST || "0.0.0.0";
 
 const server = new WsGatewayServer({ port, host });
+
+server.roomManager.setMatcher(async (input) => {
+  return identifyCard(input, db);
+});
+
+server.roomManager.setFrameProcessor(async (buffer) => {
+  const result = await processCardFrame(buffer, db);
+  return result.candidates;
+});
 
 server.start().then((actualPort) => {
   console.log(`[ws-gateway] Real-Time Session Gateway listening on ws://${host}:${actualPort}`);

@@ -42,3 +42,6 @@ next-env.d.ts
 # expo
 .expo/
 
+# ocr data
+*.traineddata
+

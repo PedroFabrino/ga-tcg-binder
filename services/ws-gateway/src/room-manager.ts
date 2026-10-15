@@ -16,6 +16,8 @@ export type MatcherFn = (req: {
   footerText: string;
 }) => Promise<any[]>;
 
+export type FrameProcessorFn = (buffer: Buffer) => Promise<any[]>;
+
 interface Participant {
   socket: UnifiedSocket;
   role: SessionRole;
@@ -33,13 +35,19 @@ export class SessionRoomManager {
   private rooms = new Map<string, Room>();
   private socketToRoom = new Map<UnifiedSocket, string>();
   private matcher?: MatcherFn;
+  private frameProcessor?: FrameProcessorFn;
 
-  constructor(matcher?: MatcherFn) {
+  constructor(matcher?: MatcherFn, frameProcessor?: FrameProcessorFn) {
     this.matcher = matcher;
+    this.frameProcessor = frameProcessor;
   }
 
   public setMatcher(matcher: MatcherFn): void {
     this.matcher = matcher;
+  }
+
+  public setFrameProcessor(processor: FrameProcessorFn): void {
+    this.frameProcessor = processor;
   }
 
   public getRoomCount(): number {
@@ -117,6 +125,28 @@ export class SessionRoomManager {
             });
         } else {
           this.forwardToReceivers(socket, msg);
+        }
+        break;
+
+      case "SCAN_FRAME_PROCESS_REQUEST":
+        if (this.frameProcessor) {
+          const clean = msg.imageBase64.replace(/^data:image\/\w+;base64,/, "");
+          const buffer = Buffer.from(clean, "base64");
+          this.frameProcessor(buffer)
+            .then((candidates) => {
+              const resMsg: WsServerMessage = {
+                type: "SCAN_IDENTIFY_RESPONSE",
+                sessionId: msg.sessionId,
+                timestamp: Date.now(),
+                requestId: msg.requestId,
+                candidates,
+              };
+              this.send(socket, resMsg);
+            })
+            .catch((err) => {
+              console.warn("[room-manager] Frame processing error:", err);
+              this.sendError(socket, "PROCESS_ERROR", err.message || "Failed to process frame", msg.sessionId);
+            });
         }
         break;
 
