@@ -148,12 +148,15 @@ export class SessionRoomManager {
 
               // Broadcast live debug crops to desktop receiver dashboard
               if (debug) {
-                this.forwardToReceivers(socket, {
-                  type: "SCAN_FRAME_DEBUG",
-                  sessionId: msg.sessionId,
-                  timestamp: Date.now(),
-                  debug,
-                });
+                const room = this.rooms.get(msg.sessionId);
+                if (room) {
+                  this.broadcastToReceivers(room, {
+                    type: "SCAN_FRAME_DEBUG",
+                    sessionId: msg.sessionId,
+                    timestamp: Date.now(),
+                    debug,
+                  });
+                }
               }
             })
             .catch((err) => {

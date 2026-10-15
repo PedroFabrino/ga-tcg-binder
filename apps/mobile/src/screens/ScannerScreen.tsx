@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import {
+  ActivityIndicator,
+  Image,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { useIsFocused } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CandidateDrawer } from "../components/scanner/CandidateDrawer";
@@ -35,6 +45,8 @@ function ActiveScanner() {
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
+  const [lastDebug, setLastDebug] = useState<any>(null);
+  const [showDebugModal, setShowDebugModal] = useState(false);
   const cameraRef = useRef<any>(null);
   const isProcessingRef = useRef(false);
   const lastPending = useRef<number | null>(null);
@@ -85,6 +97,7 @@ function ActiveScanner() {
         const res = await ws.processFrame(photo.base64, cropRect);
         const matches = res.candidates || [];
         const debug = res.debug;
+        if (debug) setLastDebug(debug);
 
         console.log("\n================ [SCAN DEBUG REPORT] ================");
         console.log(`[Scan] Frame captured: base64 len = ${photo.base64.length}`);
@@ -152,18 +165,35 @@ function ActiveScanner() {
       <View pointerEvents="box-none" style={styles.bottom}>
         {!pending && !candidates && (
           <View style={styles.scanActionRow}>
-            <PressableScale
-              onPress={triggerScan}
-              disabled={isAnalyzing}
-              style={[styles.scanButton, isAnalyzing && styles.scanButtonActive]}
-              accessibilityLabel="Scan Card"
-            >
-              {isAnalyzing ? (
-                <ActivityIndicator color={colors.emeraldBright} size="small" />
+            <View style={styles.scanControls}>
+              <View style={styles.scanSpacer} />
+              <PressableScale
+                onPress={triggerScan}
+                disabled={isAnalyzing}
+                style={[styles.scanButton, isAnalyzing && styles.scanButtonActive]}
+                accessibilityLabel="Scan Card"
+              >
+                {isAnalyzing ? (
+                  <ActivityIndicator color={colors.emeraldBright} size="small" />
+                ) : (
+                  <View style={styles.scanButtonInner} />
+                )}
+              </PressableScale>
+
+              {lastDebug?.cardImageBase64 ? (
+                <PressableScale
+                  onPress={() => setShowDebugModal(true)}
+                  style={styles.debugThumbButton}
+                  accessibilityLabel="Inspect Last Normalized Frame"
+                >
+                  <Image source={{ uri: lastDebug.cardImageBase64 }} style={styles.debugThumbImage} />
+                  <Text style={styles.debugThumbText}>Crop</Text>
+                </PressableScale>
               ) : (
-                <View style={styles.scanButtonInner} />
+                <View style={styles.scanSpacer} />
               )}
-            </PressableScale>
+            </View>
+
             <Text style={[styles.scanHint, !!scanMessage && styles.scanHintNotice]}>
               {isAnalyzing ? "Analyzing card..." : scanMessage || "Tap button to scan card"}
             </Text>
@@ -174,6 +204,59 @@ function ActiveScanner() {
       </View>
 
       <CandidateDrawer onTap={feedback.tap} />
+
+      {/* Normalized Frame Inspection Modal */}
+      <Modal
+        visible={showDebugModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDebugModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Normalized Card (630x880)</Text>
+              <TouchableOpacity onPress={() => setShowDebugModal(false)} style={styles.modalCloseBtn}>
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.modalBody}>
+              {lastDebug?.cardImageBase64 && (
+                <Image
+                  source={{ uri: lastDebug.cardImageBase64 }}
+                  style={styles.modalCardImage}
+                  resizeMode="contain"
+                />
+              )}
+
+              <Text style={styles.modalSectionTitle}>Header OCR Strip (1040x150)</Text>
+              {lastDebug?.headerImageBase64 && (
+                <View style={styles.modalStripWrapper}>
+                  <Image
+                    source={{ uri: lastDebug.headerImageBase64 }}
+                    style={styles.modalStripImage}
+                    resizeMode="contain"
+                  />
+                </View>
+              )}
+              <Text style={styles.modalOcrText}>"{lastDebug?.headerText || "(none)"}"</Text>
+
+              <Text style={styles.modalSectionTitle}>Footer OCR Strip (1200x110)</Text>
+              {lastDebug?.footerImageBase64 && (
+                <View style={styles.modalStripWrapper}>
+                  <Image
+                    source={{ uri: lastDebug.footerImageBase64 }}
+                    style={styles.modalStripImage}
+                    resizeMode="contain"
+                  />
+                </View>
+              )}
+              <Text style={styles.modalOcrText}>"{lastDebug?.footerText || "(none)"}"</Text>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -189,6 +272,16 @@ const styles = StyleSheet.create({
   top: { position: "absolute", top: 0, left: 0, right: 0, paddingHorizontal: space(2), gap: space(1.5) },
   bottom: { position: "absolute", left: 0, right: 0, bottom: space(2), paddingHorizontal: space(2), gap: space(1) },
   scanActionRow: { alignItems: "center", justifyContent: "center", marginBottom: space(1.5), gap: space(1) },
+  scanControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    paddingHorizontal: space(2),
+  },
+  scanSpacer: {
+    width: 44,
+  },
   scanButton: {
     width: 64,
     height: 64,
@@ -209,6 +302,33 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     backgroundColor: colors.emerald,
   },
+  debugThumbButton: {
+    width: 44,
+    height: 60,
+    borderRadius: radius.md,
+    overflow: "hidden",
+    borderWidth: 1.5,
+    borderColor: colors.emerald,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: space(2),
+  },
+  debugThumbImage: {
+    width: "100%",
+    height: "100%",
+  },
+  debugThumbText: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "rgba(0,0,0,0.75)",
+    color: colors.emeraldBright,
+    fontSize: 9,
+    fontWeight: "700",
+    textAlign: "center",
+  },
   scanHint: {
     ...type.caption,
     color: colors.textMuted,
@@ -216,5 +336,87 @@ const styles = StyleSheet.create({
   },
   scanHintNotice: {
     color: colors.amber,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: space(3),
+  },
+  modalContent: {
+    width: "100%",
+    maxHeight: "85%",
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: "hidden",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: space(2),
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  modalTitle: {
+    ...type.body,
+    fontWeight: "700",
+    color: colors.text,
+    flex: 1,
+  },
+  modalCloseBtn: {
+    padding: space(1),
+  },
+  modalCloseText: {
+    color: colors.textMuted,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  modalBody: {
+    padding: space(2),
+    alignItems: "center",
+    gap: space(1.5),
+  },
+  modalCardImage: {
+    width: 200,
+    height: 280,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "#000",
+  },
+  modalSectionTitle: {
+    ...type.caption,
+    color: colors.textMuted,
+    fontSize: 11,
+    alignSelf: "flex-start",
+    marginTop: space(1),
+  },
+  modalStripWrapper: {
+    width: "100%",
+    height: 36,
+    backgroundColor: "#000",
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: "hidden",
+  },
+  modalStripImage: {
+    width: "100%",
+    height: "100%",
+  },
+  modalOcrText: {
+    fontFamily: "monospace",
+    color: colors.emeraldBright,
+    fontSize: 12,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    paddingHorizontal: space(1.5),
+    paddingVertical: space(0.5),
+    borderRadius: radius.sm,
+    alignSelf: "stretch",
+    textAlign: "center",
   },
 });

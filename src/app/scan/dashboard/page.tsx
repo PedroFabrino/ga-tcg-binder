@@ -16,6 +16,10 @@ import {
   ShieldCheck,
   Copy,
   SlidersHorizontal,
+  Activity,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +29,7 @@ import type {
   WsServerMessage,
   WsJoinMessage,
   WsCardUpdateFinishMessage,
+  ScanFrameDebugData,
 } from "@ga/contracts";
 
 interface ScannedSessionCard extends CommittedCardPayload {
@@ -49,6 +54,8 @@ export default function ScannerDashboardPage() {
 
   const [heroCard, setHeroCard] = useState<ScannedSessionCard | null>(null);
   const [feed, setFeed] = useState<ScannedSessionCard[]>([]);
+  const [debugFrame, setDebugFrame] = useState<ScanFrameDebugData | null>(null);
+  const [showDebugView, setShowDebugView] = useState(true);
 
   const wsRef = useRef<WebSocket | null>(null);
   const pingStartRef = useRef<number>(0);
@@ -182,6 +189,8 @@ export default function ScannerDashboardPage() {
         setFeed((prev) =>
           prev.map((c) => (c.editionId === msg.editionId ? { ...c, foil: msg.foil } : c))
         );
+      } else if (msg.type === "SCAN_FRAME_DEBUG") {
+        setDebugFrame(msg.debug);
       }
     };
 
@@ -459,6 +468,134 @@ export default function ScannerDashboardPage() {
                   Phone and computer must be on the same local Wi-Fi network.
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Real-Time Scanner Vision Inspector */}
+          {debugFrame && (
+            <div className="w-full max-w-2xl mt-8 rounded-xl border border-zinc-800 bg-zinc-900/90 p-4 shadow-2xl backdrop-blur animate-in fade-in slide-in-from-bottom-2 duration-200">
+              <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+                <div className="flex items-center gap-2.5">
+                  <div className="h-7 w-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                    <Activity className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+                      Scanner Vision Inspector
+                      <span className="text-[10px] font-normal px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        Live Normalized Feed
+                      </span>
+                    </h4>
+                    <p className="text-[11px] text-zinc-400">Exact 630x880 normalized card and OCR crops sent to recognition pipeline</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <a
+                    href="/debug/last-card.jpg"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs text-emerald-400 hover:underline flex items-center gap-1 font-mono"
+                    title="Open normalized full resolution card image"
+                  >
+                    /debug/last-card.jpg <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowDebugView(!showDebugView)}
+                    className="h-7 w-7 p-0 text-zinc-400 hover:text-white"
+                  >
+                    {showDebugView ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </Button>
+                </div>
+              </div>
+
+              {showDebugView && (
+                <div className="pt-4 grid grid-cols-1 md:grid-cols-12 gap-5">
+                  {/* Normalized Card Image Preview */}
+                  <div className="md:col-span-5 flex flex-col items-center">
+                    <div className="w-full flex items-center justify-between text-[11px] font-mono text-zinc-400 mb-1.5">
+                      <span>Normalized Card</span>
+                      <span className="text-zinc-500">630 x 880</span>
+                    </div>
+                    <div className="relative w-44 h-60 rounded-lg overflow-hidden border border-zinc-700 bg-black flex items-center justify-center shadow-inner group">
+                      {debugFrame.cardImageBase64 ? (
+                        <img
+                          src={debugFrame.cardImageBase64}
+                          alt="Normalized Card"
+                          className="w-full h-full object-contain"
+                        />
+                      ) : (
+                        <span className="text-xs text-zinc-600">No frame yet</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* OCR Strips & Diagnostics */}
+                  <div className="md:col-span-7 flex flex-col gap-3">
+                    {/* Header Strip */}
+                    <div>
+                      <div className="flex items-center justify-between text-[11px] mb-1">
+                        <span className="font-mono text-zinc-400">Header Strip (Card Title)</span>
+                        <a href="/debug/last-header.png" target="_blank" rel="noreferrer" className="text-zinc-500 hover:text-emerald-400 flex items-center gap-1">
+                          <span>1040x150</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                      <div className="h-9 w-full rounded border border-zinc-800 bg-black overflow-hidden flex items-center justify-center">
+                        {debugFrame.headerImageBase64 ? (
+                          <img src={debugFrame.headerImageBase64} alt="Header Strip" className="w-full h-full object-contain" />
+                        ) : null}
+                      </div>
+                      <div className="mt-1 px-2.5 py-1 rounded bg-zinc-950 border border-zinc-800/80 font-mono text-xs text-emerald-300 truncate">
+                        "{debugFrame.headerText || "(none detected)"}"
+                      </div>
+                    </div>
+
+                    {/* Footer Strip */}
+                    <div>
+                      <div className="flex items-center justify-between text-[11px] mb-1">
+                        <span className="font-mono text-zinc-400">Footer Strip (Set / Collector #)</span>
+                        <a href="/debug/last-footer.png" target="_blank" rel="noreferrer" className="text-zinc-500 hover:text-emerald-400 flex items-center gap-1">
+                          <span>1200x110</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                      <div className="h-8 w-full rounded border border-zinc-800 bg-black overflow-hidden flex items-center justify-center">
+                        {debugFrame.footerImageBase64 ? (
+                          <img src={debugFrame.footerImageBase64} alt="Footer Strip" className="w-full h-full object-contain" />
+                        ) : null}
+                      </div>
+                      <div className="mt-1 px-2.5 py-1 rounded bg-zinc-950 border border-zinc-800/80 font-mono text-xs text-emerald-300 truncate">
+                        "{debugFrame.footerText || "(none detected)"}"
+                      </div>
+                    </div>
+
+                    {/* Perceptual Hash & Candidate Matches */}
+                    <div className="pt-2 border-t border-zinc-800/80">
+                      <div className="flex items-center justify-between text-[11px] text-zinc-400 font-mono">
+                        <span>dHash: <span className="text-amber-300">{debugFrame.phash || "N/A"}</span></span>
+                        <span>Glare: <span className="text-zinc-300">{((debugFrame.glareRatio || 0) * 100).toFixed(1)}%</span></span>
+                      </div>
+                      {debugFrame.topCandidates && debugFrame.topCandidates.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Top Ranked Matches:</span>
+                          {debugFrame.topCandidates.slice(0, 3).map((c, i) => (
+                            <div key={i} className="flex items-center justify-between text-xs font-mono bg-zinc-950/60 px-2 py-1 rounded border border-zinc-800/40">
+                              <span className="truncate text-zinc-300">
+                                #{i + 1} {c.cardName} ({c.setPrefix} #{c.collectorNumber})
+                              </span>
+                              <span className="text-emerald-400 font-semibold ml-2">
+                                {c.confidence}%
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
