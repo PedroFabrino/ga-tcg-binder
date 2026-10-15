@@ -12,10 +12,10 @@ import {
   CheckCircle2,
   AlertTriangle,
   Loader2,
-  Check,
   Flame,
+  Gem,
 } from "lucide-react";
-import { CardArt, ElementBadge } from "@/components/common";
+import { CardArt, ElementBadge, RarityGem } from "@/components/common";
 import { CardPreviewTrigger } from "@/components/CardHoverPreview";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ToastProvider";
@@ -27,7 +27,15 @@ import type {
 
 const ELEMENTS = ["NORM", "FIRE", "WATER", "WIND", "EARTH"];
 
-type GroupMode = "none" | "element" | "deck";
+const RARITIES = [
+  { id: 1, label: "Common", color: "#94a3b8" },
+  { id: 2, label: "Uncommon", color: "#10b981" },
+  { id: 3, label: "Rare", color: "#06b6d4" },
+  { id: 4, label: "Super Rare", color: "#f59e0b" },
+  { id: 5, label: "Ultra Rare", color: "#f43f5e" },
+];
+
+type GroupMode = "none" | "element" | "deck" | "rarity";
 
 interface ShortageGroup {
   key: string;
@@ -47,6 +55,7 @@ export default function AllShortagesView({
 }) {
   const [query, setQuery] = useState("");
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
+  const [selectedRarity, setSelectedRarity] = useState<number | null>(null);
   const [groupMode, setGroupMode] = useState<GroupMode>("none");
 
   // Filtering
@@ -56,6 +65,12 @@ export default function AllShortagesView({
 
     if (selectedElement) {
       list = list.filter((c) => c.element.toUpperCase() === selectedElement.toUpperCase());
+    }
+
+    if (selectedRarity !== null) {
+      list = list.filter(
+        (c) => c.rarity === selectedRarity || c.editions.some((e) => e.rarity === selectedRarity)
+      );
     }
 
     if (query.trim()) {
@@ -77,7 +92,7 @@ export default function AllShortagesView({
     }
 
     return list;
-  }, [report?.cards, query, selectedElement]);
+  }, [report?.cards, query, selectedElement, selectedRarity]);
 
   // Grouping
   const groupedData = useMemo<ShortageGroup[]>(() => {
@@ -125,6 +140,25 @@ export default function AllShortagesView({
         title: `${data.title} (${data.cards.length} shortages)`,
         cards: data.cards,
       }));
+    }
+
+    if (groupMode === "rarity") {
+      const groups: Record<number, AggregatedShortageCard[]> = {};
+      RARITIES.forEach((r) => {
+        groups[r.id] = [];
+      });
+      filteredCards.forEach((c) => {
+        const r = c.rarity || 1;
+        if (!groups[r]) groups[r] = [];
+        groups[r].push(c);
+      });
+
+      return RARITIES.map((r) => ({
+        key: `rarity-${r.id}`,
+        title: `${r.label} (${groups[r.id]?.length || 0})`,
+        cards: groups[r.id] || [],
+        color: r.color,
+      })).filter((g) => g.cards.length > 0);
     }
 
     return [];
@@ -216,6 +250,14 @@ export default function AllShortagesView({
               <Flame className="h-3.5 w-3.5" /> By Element
             </button>
             <button
+              onClick={() => setGroupMode("rarity")}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+                groupMode === "rarity" ? "bg-white/[0.08] text-white" : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <Gem className="h-3.5 w-3.5" /> By Rarity
+            </button>
+            <button
               onClick={() => setGroupMode("deck")}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
                 groupMode === "deck" ? "bg-white/[0.08] text-white" : "text-slate-400 hover:text-slate-200"
@@ -226,38 +268,74 @@ export default function AllShortagesView({
           </div>
         </div>
 
-        {/* Element Filter Chips */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] font-medium text-slate-500 mr-1">Element:</span>
-          <button
-            onClick={() => setSelectedElement(null)}
-            className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all ${
-              selectedElement === null
-                ? "border-cyan-400/40 bg-cyan-400/15 text-cyan-200"
-                : "border-white/[0.06] text-slate-400 hover:border-white/[0.15] hover:text-slate-200"
-            }`}
-          >
-            All Elements
-          </button>
-          {ELEMENTS.map((el) => {
-            const color = ELEMENT_COLORS[el];
-            const active = selectedElement === el;
-            return (
-              <button
-                key={el}
-                onClick={() => setSelectedElement(active ? null : el)}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all ${
-                  active
-                    ? "border-white/20 bg-white/[0.1] text-white"
-                    : "border-white/[0.06] text-slate-400 hover:border-white/[0.12] hover:text-slate-200"
-                }`}
-                style={active ? { borderColor: `${color}88`, background: `${color}22`, color } : undefined}
-              >
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
-                {el.charAt(0) + el.slice(1).toLowerCase()}
-              </button>
-            );
-          })}
+        {/* Filter Chips: Element & Rarity */}
+        <div className="flex flex-col gap-2 rounded-2xl glass p-3 sm:flex-row sm:items-center sm:justify-between">
+          {/* Element Filter Chips */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-medium text-slate-500 mr-1">Element:</span>
+            <button
+              onClick={() => setSelectedElement(null)}
+              className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all ${
+                selectedElement === null
+                  ? "border-cyan-400/40 bg-cyan-400/15 text-cyan-200"
+                  : "border-white/[0.06] text-slate-400 hover:border-white/[0.15] hover:text-slate-200"
+              }`}
+            >
+              All
+            </button>
+            {ELEMENTS.map((el) => {
+              const color = ELEMENT_COLORS[el];
+              const active = selectedElement === el;
+              return (
+                <button
+                  key={el}
+                  onClick={() => setSelectedElement(active ? null : el)}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all ${
+                    active
+                      ? "border-white/20 bg-white/[0.1] text-white"
+                      : "border-white/[0.06] text-slate-400 hover:border-white/[0.12] hover:text-slate-200"
+                  }`}
+                  style={active ? { borderColor: `${color}88`, background: `${color}22`, color } : undefined}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
+                  {el.charAt(0) + el.slice(1).toLowerCase()}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Rarity Filter Chips */}
+          <div className="flex flex-wrap items-center gap-1.5 border-t border-white/[0.04] pt-2 sm:border-t-0 sm:pt-0">
+            <span className="text-[11px] font-medium text-slate-500 mr-1">Rarity:</span>
+            <button
+              onClick={() => setSelectedRarity(null)}
+              className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all ${
+                selectedRarity === null
+                  ? "border-cyan-400/40 bg-cyan-400/15 text-cyan-200"
+                  : "border-white/[0.06] text-slate-400 hover:border-white/[0.15] hover:text-slate-200"
+              }`}
+            >
+              All
+            </button>
+            {RARITIES.map((r) => {
+              const active = selectedRarity === r.id;
+              return (
+                <button
+                  key={r.id}
+                  onClick={() => setSelectedRarity(active ? null : r.id)}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all ${
+                    active
+                      ? "border-white/20 bg-white/[0.1] text-white"
+                      : "border-white/[0.06] text-slate-400 hover:border-white/[0.12] hover:text-slate-200"
+                  }`}
+                  style={active ? { borderColor: `${r.color}88`, background: `${r.color}22`, color: r.color } : undefined}
+                >
+                  <span className="h-2 w-2 rotate-45 rounded-[2px]" style={{ background: r.color }} />
+                  {r.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -280,15 +358,18 @@ export default function AllShortagesView({
           <AlertTriangle className="mx-auto mb-2 h-8 w-8 text-amber-400/80" />
           <p className="text-sm font-medium text-white">No shortage cards found</p>
           <p className="mt-1 text-xs text-slate-400">
-            {query || selectedElement ? "No cards match the active filters." : "Your decks have no shortages."}
+            {query || selectedElement || selectedRarity !== null
+              ? "No cards match the active filters."
+              : "Your decks have no shortages."}
           </p>
-          {(query || selectedElement) && (
+          {(query || selectedElement || selectedRarity !== null) && (
             <Button
               variant="outline"
               size="sm"
               onClick={() => {
                 setQuery("");
                 setSelectedElement(null);
+                setSelectedRarity(null);
               }}
               className="mt-4"
             >
@@ -408,6 +489,7 @@ function ShortageCardRow({
 
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
             <ElementBadge element={card.element} />
+            <RarityGem rarity={card.rarity} />
             <span className="truncate text-[11px] text-slate-500">{card.class}</span>
             <span className="text-[11px] text-slate-600">·</span>
             <span className="text-[11px] text-slate-400">

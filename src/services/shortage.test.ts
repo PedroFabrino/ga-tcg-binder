@@ -374,6 +374,7 @@ describe("Shortage Calculation & Friend Idle Discovery Seams", () => {
     // Peak missing: 3 - 2 = 1
     const frac = report.cards.find((c) => c.cardSlug === "fracturize");
     expect(frac).toBeDefined();
+    expect(frac?.rarity).toBe(1);
     expect(frac?.totalDemand).toBe(5);
     expect(frac?.peakDemand).toBe(3);
     expect(frac?.totalOwned).toBe(2);
@@ -381,6 +382,7 @@ describe("Shortage Calculation & Friend Idle Discovery Seams", () => {
     expect(frac?.peakMissing).toBe(1);
     expect(frac?.deckRequirements).toHaveLength(2);
     expect(frac?.editions).toHaveLength(2);
+    expect(frac?.editions[0].rarity).toBe(1);
 
     // Fireball:
     // Demand: Deck A (2), Deck B (2) -> total demand = 4, peak demand = 2
@@ -388,6 +390,7 @@ describe("Shortage Calculation & Friend Idle Discovery Seams", () => {
     // Concurrent missing = 4, Peak missing = 2
     const fire = report.cards.find((c) => c.cardSlug === "fireball");
     expect(fire).toBeDefined();
+    expect(fire?.rarity).toBe(2);
     expect(fire?.concurrentMissing).toBe(4);
     expect(fire?.peakMissing).toBe(2);
 

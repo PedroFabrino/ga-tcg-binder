@@ -298,6 +298,7 @@ export interface CardEditionSummary {
   setPrefix: string;
   setName: string;
   collectorNumber: string;
+  rarity: number;
   imageUrl: string;
 }
 
@@ -307,6 +308,7 @@ export interface AggregatedShortageCard {
   element: string;
   class: string;
   type: string;
+  rarity: number;
   imageUrl: string | null;
   editions: CardEditionSummary[];
   deckRequirements: DeckRequirement[];
@@ -405,6 +407,7 @@ export async function calculateAggregatedShortages(
         setPrefix: cardEditions.setPrefix,
         setName: cardEditions.setName,
         collectorNumber: cardEditions.collectorNumber,
+        rarity: cardEditions.rarity,
         imageUrl: cardEditions.imageUrl,
       })
       .from(cardEditions)
@@ -429,15 +432,17 @@ export async function calculateAggregatedShortages(
         setPrefix: e.setPrefix,
         setName: e.setName,
         collectorNumber: e.collectorNumber,
+        rarity: e.rarity,
         imageUrl: e.imageUrl,
       }));
 
-    // Best image
+    // Best image and rarity
     const assignedEdId = matchingDeckCards.find((c: any) => c.assignedEditionId)?.assignedEditionId;
     const matchedEd = assignedEdId
       ? editionsForSlug.find((e: any) => e.id === assignedEdId)
       : editionsForSlug[0];
     const imageUrl = matchedEd?.imageUrl || null;
+    const rarity = matchedEd?.rarity || editionsForSlug[0]?.rarity || 1;
 
     // Deck requirements (aggregate if same card in same deck across zones or list individually)
     const deckRequirements: DeckRequirement[] = matchingDeckCards.map((c: any) => ({
@@ -477,6 +482,7 @@ export async function calculateAggregatedShortages(
         element,
         class: cardClass,
         type: cardType,
+        rarity,
         imageUrl,
         editions: editionsForSlug,
         deckRequirements,
