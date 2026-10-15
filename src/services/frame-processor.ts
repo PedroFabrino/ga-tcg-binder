@@ -31,20 +31,31 @@ export async function processCardFrame(
   imageBuffer: Buffer,
   database: any
 ): Promise<FrameProcessingResult> {
-  const oriented = sharp(imageBuffer).rotate();
-  const meta = await oriented.metadata();
+  const orientedBuffer = await sharp(imageBuffer).rotate().toBuffer();
+  const meta = await sharp(orientedBuffer).metadata();
   const imgW = meta.width || 1080;
   const imgH = meta.height || 1920;
 
   // Extract centered 2.5 : 3.5 target guide area
-  const guideW = Math.min(imgW, Math.round(imgW * 0.75));
-  const guideH = Math.min(imgH, Math.round(guideW / (2.5 / 3.5)));
-  const left = Math.max(0, Math.round((imgW - guideW) / 2));
-  const top = Math.max(0, Math.round((imgH - guideH) / 2));
+  // GA TCG card aspect ratio: 2.5 / 3.5 (~0.714)
+  const cardRatio = 2.5 / 3.5;
+
+  let guideW = Math.round(imgW * 0.72);
+  let guideH = Math.round(guideW / cardRatio);
+
+  if (guideH > Math.round(imgH * 0.85)) {
+    guideH = Math.round(imgH * 0.85);
+    guideW = Math.round(guideH * cardRatio);
+  }
+
+  guideW = Math.min(guideW, imgW);
+  guideH = Math.min(guideH, imgH);
+
+  const left = Math.max(0, Math.min(Math.floor((imgW - guideW) / 2), imgW - guideW));
+  const top = Math.max(0, Math.min(Math.floor((imgH - guideH) / 2), imgH - guideH));
 
   // Normalize cropped card to canonical 630x880
-  const cardPipeline = oriented
-    .clone()
+  const cardPipeline = sharp(orientedBuffer)
     .extract({ left, top, width: guideW, height: guideH })
     .resize(630, 880, { fit: "fill" });
 

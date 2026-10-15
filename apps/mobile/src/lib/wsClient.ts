@@ -168,14 +168,15 @@ export class MobileWsClient {
 
     // Fast path: send directly over active WebSocket to ws-gateway on port 3001
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      return new Promise<CardMatchResult[]>((resolve, reject) => {
+      return new Promise<CardMatchResult[]>((resolve) => {
         const requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
         const timer = setTimeout(() => {
           this.pendingRequests.delete(requestId);
-          this.processFrameViaHttp(imageBase64).then(resolve).catch(reject);
-        }, 5000);
+          console.warn("[MobileWsClient] Frame processing timed out after 8s");
+          resolve([]);
+        }, 8000);
 
-        this.pendingRequests.set(requestId, { resolve, reject, timer });
+        this.pendingRequests.set(requestId, { resolve, reject: () => resolve([]), timer });
 
         const msg: any = {
           type: "SCAN_FRAME_PROCESS_REQUEST",
@@ -188,7 +189,7 @@ export class MobileWsClient {
       });
     }
 
-    return this.processFrameViaHttp(imageBase64);
+    return [];
   }
 
   private async processFrameViaHttp(imageBase64: string): Promise<CardMatchResult[]> {
@@ -292,6 +293,14 @@ export class MobileWsClient {
         pending.resolve(msg.candidates);
       }
       this.callbacks.onIdentifyResponse?.(msg.requestId, msg.candidates);
+    } else if (msg.type === "ERROR") {
+      console.warn(`[MobileWsClient] Server error:`, msg.message);
+      this.callbacks.onError?.(msg.message);
+      this.pendingRequests.forEach((pending, reqId) => {
+        clearTimeout(pending.timer);
+        this.pendingRequests.delete(reqId);
+        pending.resolve([]);
+      });
     }
   }
 
