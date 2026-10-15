@@ -136,8 +136,8 @@ function ActiveScanner() {
                 <View style={styles.scanButtonInner} />
               )}
             </PressableScale>
-            <Text style={styles.scanHint}>
-              {isAnalyzing ? "Analyzing card..." : "Tap button to scan card"}
+            <Text style={[styles.scanHint, !!scanMessage && styles.scanHintNotice]}>
+              {isAnalyzing ? "Analyzing card..." : scanMessage || "Tap button to scan card"}
             </Text>
           </View>
         )}
@@ -185,5 +185,8 @@ const styles = StyleSheet.create({
     ...type.caption,
     color: colors.textMuted,
     fontSize: 12,
+  },
+  scanHintNotice: {
+    color: colors.amber,
   },
 });

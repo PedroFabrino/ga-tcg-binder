@@ -13,7 +13,15 @@ server.roomManager.setMatcher(async (input) => {
 });
 
 server.roomManager.setFrameProcessor(async (buffer) => {
+  console.log(`[ws-gateway] >>> Received frame: ${buffer.length} bytes`);
   const result = await processCardFrame(buffer, db);
+  console.log(`[ws-gateway] <<< Processed frame: phash=${result.phash}, header="${result.headerText}", footer="${result.footerText}", glare=${(result.glareRatio * 100).toFixed(1)}%`);
+  console.log(`[ws-gateway] Candidates found: ${result.candidates.length}`);
+  if (result.candidates.length > 0) {
+    result.candidates.forEach((c, idx) => {
+      console.log(`   #${idx + 1}: ${c.cardName} (${c.setPrefix} #${c.collectorNumber}) - ${c.confidence}% (visual=${(c.sVisual * 100).toFixed(1)}%, ocr=${c.sOcr !== null ? (c.sOcr * 100).toFixed(1) + "%" : "null"})`);
+    });
+  }
   return result.candidates;
 });
 

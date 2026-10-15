@@ -83,8 +83,8 @@ export async function processCardFrame(
   }
   const variance = sumSq / grayData.length;
 
-  // Reject completely dark frames (phone face down) or flat uniform surfaces (no contrast/card)
-  if (meanBrightness < 25 || variance < 80) {
+  // Reject completely dark frames (phone face down / blocked camera)
+  if (meanBrightness < 12) {
     return {
       candidates: [],
       phash: "",

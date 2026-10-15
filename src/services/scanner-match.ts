@@ -11,8 +11,6 @@ export interface IdentifyInput {
   footerText: string;
 }
 
-const VISUAL_POOL = 20;
-const BOOST_RANK = 5;
 const RESULT_COUNT = 5;
 
 interface Row {
@@ -51,25 +49,22 @@ export async function identifyCard(input: IdentifyInput, database: any): Promise
     .innerJoin(cardEditions, eq(cardHashes.editionId, cardEditions.id))
     .innerJoin(cards, eq(cardEditions.cardSlug, cards.slug));
 
-  const ranked = rows
-    .map((row) => ({ row, distance: hamming(input.phash, row.phash) }))
-    .sort((a, b) => a.distance - b.distance)
-    .slice(0, VISUAL_POOL);
-
   const ocrOk = !isOcrNoise(input.headerText);
   const footer = parseFooter(input.footerText);
 
-  return ranked
-    .map(({ row }, rank) => {
+  // Score all rows with composite similarity to prevent discarding valid OCR matches
+  return rows
+    .map((row) => {
+      const distance = hamming(input.phash, row.phash);
       const sVisual = visualSimilarity(input.phash, row.phash);
       const { collectorMatch, numScore } = footerSignals(row, footer);
-      const nameScore = trigramSimilarity(input.headerText, row.cardName);
+      const nameScore = ocrOk ? trigramSimilarity(input.headerText, row.cardName) : 0;
       const sOcr = ocrOk ? (numScore === null ? nameScore : 0.5 * nameScore + 0.5 * numScore) : null;
       const { confidence, ocrFallback } = compositeConfidence({
         sVisual,
         sOcr,
         ocrOk,
-        collectorMatch: collectorMatch && rank < BOOST_RANK,
+        collectorMatch,
       });
       return {
         editionId: row.editionId,
@@ -84,7 +79,7 @@ export async function identifyCard(input: IdentifyInput, database: any): Promise
         signals: { collectorMatch, ocrFallback },
       };
     })
-    .filter((c) => c.confidence >= 60)
+    .filter((c) => c.confidence >= 50)
     .sort((a, b) => b.confidence - a.confidence)
     .slice(0, RESULT_COUNT);
 }
