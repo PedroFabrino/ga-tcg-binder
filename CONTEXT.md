@@ -84,6 +84,15 @@ _Avoid_: Video OCR, card detector
 A temporary authenticated pairing bridge allowing a mobile device camera to scan and register cards directly into a desktop session without mobile login.
 _Avoid_: Camera pairing, phone session
 
+**Companion Scanner**:
+A dedicated native mobile application that connects to an active Scanner Session to capture, process, and stream card recognitions in real time.
+_Avoid_: Mobile app, remote camera, phone client
+
+**Rapid-Fire Mode**:
+A continuous scanning state where confirmed cards are automatically committed to the collection without leaving the camera viewfinder or requiring manual taps.
+_Avoid_: Batch mode, continuous scan, auto scan
+
+
 
 
 
