@@ -23,13 +23,16 @@ export interface ScannerSessionInfo {
   expiresAt: Date;
   qrCodeDataUrl: string;
   pairingUrl: string;
+  wsEndpoint: string;
+  qrPayload: string;
   detections: ScannerCardDetection[];
 }
 
 export async function createScannerSession(
   userId: string,
   baseUrl: string,
-  database: any
+  database: any,
+  customWsEndpoint?: string
 ): Promise<ScannerSessionInfo> {
   const token = `scan_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const id = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -45,7 +48,16 @@ export async function createScannerSession(
   });
 
   const pairingUrl = `${baseUrl}/scan/${token}`;
-  const qrCodeDataUrl = await QRCode.toDataURL(pairingUrl, {
+  const wsEndpoint = customWsEndpoint || process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3001";
+  const qrPayload = JSON.stringify({
+    action: "pair_scanner",
+    sessionId: id,
+    wsEndpoint,
+    token,
+    webFallbackUrl: pairingUrl,
+  });
+
+  const qrCodeDataUrl = await QRCode.toDataURL(qrPayload, {
     width: 280,
     margin: 2,
     color: {
@@ -61,6 +73,8 @@ export async function createScannerSession(
     expiresAt,
     qrCodeDataUrl,
     pairingUrl,
+    wsEndpoint,
+    qrPayload,
     detections: [],
   };
 }
@@ -89,6 +103,8 @@ export async function getScannerSession(
     expiresAt: new Date(session.expiresAt),
     qrCodeDataUrl: "",
     pairingUrl: `/scan/${token}`,
+    wsEndpoint: process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3001",
+    qrPayload: "",
     detections,
   };
 }

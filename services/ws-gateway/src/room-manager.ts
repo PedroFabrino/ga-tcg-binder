@@ -39,9 +39,9 @@ export class SessionRoomManager {
     const room = this.rooms.get(sessionId);
     if (!room) return 0;
     let count = 0;
-    for (const p of room.participants.values()) {
+    room.participants.forEach((p) => {
       if (p.role === "scanner") count++;
-    }
+    });
     return count;
   }
 
@@ -149,12 +149,12 @@ export class SessionRoomManager {
     let scannerCount = 0;
     let latestScannerName: string | undefined;
 
-    for (const p of room.participants.values()) {
+    room.participants.forEach((p) => {
       if (p.role === "scanner") {
         scannerCount++;
         if (p.deviceName) latestScannerName = p.deviceName;
       }
-    }
+    });
 
     const statusMsg: WsServerMessage = {
       type: "SESSION_STATUS",
@@ -193,28 +193,28 @@ export class SessionRoomManager {
       this.broadcastToReceivers(room, finishMsg);
     } else if (msg.type === "CARD_PREVIEW") {
       // Forward card preview to receivers
-      for (const p of room.participants.values()) {
+      room.participants.forEach((p) => {
         if (p.role === "receiver") {
           this.send(p.socket, msg as any);
         }
-      }
+      });
     }
   }
 
   public broadcast(room: Room, msg: WsServerMessage): void {
     const json = JSON.stringify(msg);
-    for (const p of room.participants.values()) {
+    room.participants.forEach((p) => {
       p.socket.send(json);
-    }
+    });
   }
 
   public broadcastToReceivers(room: Room, msg: WsServerMessage): void {
     const json = JSON.stringify(msg);
-    for (const p of room.participants.values()) {
+    room.participants.forEach((p) => {
       if (p.role === "receiver") {
         p.socket.send(json);
       }
-    }
+    });
   }
 
   private send(socket: UnifiedSocket, msg: WsServerMessage): void {

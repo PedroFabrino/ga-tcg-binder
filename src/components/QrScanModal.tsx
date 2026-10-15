@@ -123,11 +123,19 @@ export default function QrScanModal({ onClose }: { onClose: () => void }) {
               {paired ? "Phone connected" : "Waiting for phone..."}
             </div>
             <p className="mt-3 text-center text-[11px] leading-relaxed text-slate-500">Open your phone camera and point it at the code. No sign-in needed.</p>
-            {pairingUrl && (
-              <a href={pairingUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-[11px] text-cyan-300 hover:text-cyan-200">
-                Open scanner in a new tab <ExternalLink className="h-3 w-3" />
+            <div className="mt-2 flex flex-col items-center gap-1">
+              <a
+                href="/scan/dashboard"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-400 hover:text-emerald-300 py-1 px-2.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10"
+              >
+                Open Scanner Dashboard <ExternalLink className="h-3 w-3" />
               </a>
-            )}
+              {pairingUrl && (
+                <a href={pairingUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-400">
+                  Legacy web scanner <ExternalLink className="h-2.5 w-2.5" />
+                </a>
+              )}
+            </div>
           </div>
 
           <div className="flex min-h-[18rem] flex-col">
