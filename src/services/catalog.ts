@@ -74,7 +74,16 @@ export async function searchCatalog(
   }
 
   if (filters.element && filters.element !== "ALL") {
-    conditions.push(eq(cards.element, filters.element));
+    const el = filters.element.toUpperCase().trim();
+    if (el === "EARTH" || el === "TERA") {
+      conditions.push(or(eq(cards.element, "TERA"), eq(cards.element, "EARTH")));
+    } else if (el === "LUMEN" || el === "LUXEM") {
+      conditions.push(or(eq(cards.element, "LUXEM"), eq(cards.element, "LUMEN")));
+    } else if (el === "ARCANA" || el === "ARCANE") {
+      conditions.push(or(eq(cards.element, "ARCANE"), eq(cards.element, "ARCANA")));
+    } else {
+      conditions.push(eq(cards.element, el));
+    }
   }
 
   if (filters.class && filters.class !== "ALL") {

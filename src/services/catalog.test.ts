@@ -113,6 +113,25 @@ describe("Catalog & Search Seam", () => {
     expect(fireFilter.total).toBe(1);
     expect(fireFilter.cards[0].slug).toBe("flame-burst");
 
+    // Seed card with TERA element to test alias filtering
+    await db.insert(cards).values({
+      slug: "silvie-slime",
+      name: "Silvie, Slime Sovereign",
+      element: "TERA",
+      class: "TAMER",
+      type: "CHAMPION",
+      subtypes: "[]",
+      effect: "",
+    });
+
+    const teraFilter = await searchCatalog({ element: "TERA" }, db);
+    expect(teraFilter.total).toBe(1);
+    expect(teraFilter.cards[0].slug).toBe("silvie-slime");
+
+    const earthAliasFilter = await searchCatalog({ element: "EARTH" }, db);
+    expect(earthAliasFilter.total).toBe(1);
+    expect(earthAliasFilter.cards[0].slug).toBe("silvie-slime");
+
     // 3. Filter by Class MAGE
     const mageFilter = await searchCatalog({ class: "MAGE" }, db);
     expect(mageFilter.total).toBe(2);

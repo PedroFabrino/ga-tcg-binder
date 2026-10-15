@@ -10,6 +10,7 @@ import {
   Layers,
   BookOpen,
   CheckCircle2,
+  Check,
   AlertTriangle,
   Loader2,
   Flame,
@@ -19,20 +20,36 @@ import { CardArt, ElementBadge, RarityGem } from "@/components/common";
 import { CardPreviewTrigger } from "@/components/CardHoverPreview";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ToastProvider";
-import { ELEMENT_COLORS } from "@/lib/elements";
+import { ELEMENT_COLORS, ALL_ELEMENTS, normalizeElement } from "@/lib/elements";
 import type {
   AggregatedShortageCard,
   AggregatedShortageReport,
 } from "@/services/shortage";
 
-const ELEMENTS = ["NORM", "FIRE", "WATER", "WIND", "EARTH"];
+const ELEMENTS = ALL_ELEMENTS;
+
+const ELEMENT_CONFIG: Record<string, { label: string; color: string; activeColor: string; bg: string; border: string; shadow: string }> = {
+  NORM: { label: "Norm", color: "#94a3b8", activeColor: "#f8fafc", bg: "bg-slate-200/20", border: "border-slate-200", shadow: "shadow-[0_0_12px_rgba(248,250,252,0.4)]" },
+  FIRE: { label: "Fire", color: "#f43f5e", activeColor: "#fb7185", bg: "bg-rose-500/20", border: "border-rose-400", shadow: "shadow-[0_0_12px_rgba(251,113,133,0.4)]" },
+  WATER: { label: "Water", color: "#06b6d4", activeColor: "#22d3ee", bg: "bg-cyan-500/20", border: "border-cyan-400", shadow: "shadow-[0_0_12px_rgba(34,211,238,0.4)]" },
+  WIND: { label: "Wind", color: "#10b981", activeColor: "#34d399", bg: "bg-emerald-500/20", border: "border-emerald-400", shadow: "shadow-[0_0_12px_rgba(52,211,153,0.4)]" },
+  TERA: { label: "Tera", color: "#d97706", activeColor: "#fbbf24", bg: "bg-amber-500/20", border: "border-amber-400", shadow: "shadow-[0_0_12px_rgba(251,191,36,0.4)]" },
+  CRUX: { label: "Crux", color: "#ea580c", activeColor: "#fb923c", bg: "bg-orange-500/20", border: "border-orange-400", shadow: "shadow-[0_0_12px_rgba(251,146,60,0.4)]" },
+  UMBRA: { label: "Umbra", color: "#8b5cf6", activeColor: "#a78bfa", bg: "bg-violet-500/20", border: "border-violet-400", shadow: "shadow-[0_0_12px_rgba(167,139,250,0.4)]" },
+  LUXEM: { label: "Luxem", color: "#eab308", activeColor: "#fde047", bg: "bg-yellow-500/20", border: "border-yellow-400", shadow: "shadow-[0_0_12px_rgba(253,224,71,0.4)]" },
+  EXALTED: { label: "Exalted", color: "#f59e0b", activeColor: "#fcd34d", bg: "bg-amber-500/20", border: "border-amber-400", shadow: "shadow-[0_0_12px_rgba(252,211,77,0.4)]" },
+  ASTRA: { label: "Astra", color: "#6366f1", activeColor: "#818cf8", bg: "bg-indigo-500/20", border: "border-indigo-400", shadow: "shadow-[0_0_12px_rgba(129,140,248,0.4)]" },
+  EXIA: { label: "Exia", color: "#ec4899", activeColor: "#f472b6", bg: "bg-pink-500/20", border: "border-pink-400", shadow: "shadow-[0_0_12px_rgba(244,114,182,0.4)]" },
+  ARCANE: { label: "Arcane", color: "#a855f7", activeColor: "#c084fc", bg: "bg-purple-500/20", border: "border-purple-400", shadow: "shadow-[0_0_12px_rgba(192,132,252,0.4)]" },
+  NEOS: { label: "Neos", color: "#0ea5e9", activeColor: "#38bdf8", bg: "bg-sky-500/20", border: "border-sky-400", shadow: "shadow-[0_0_12px_rgba(56,189,248,0.4)]" },
+};
 
 const RARITIES = [
-  { id: 1, label: "Common", color: "#94a3b8" },
-  { id: 2, label: "Uncommon", color: "#10b981" },
-  { id: 3, label: "Rare", color: "#06b6d4" },
-  { id: 4, label: "Super Rare", color: "#f59e0b" },
-  { id: 5, label: "Ultra Rare", color: "#f43f5e" },
+  { id: 1, label: "Common", color: "#94a3b8", activeColor: "#f8fafc", bg: "bg-slate-200/20", border: "border-slate-200", shadow: "shadow-[0_0_12px_rgba(248,250,252,0.4)]" },
+  { id: 2, label: "Uncommon", color: "#10b981", activeColor: "#34d399", bg: "bg-emerald-500/20", border: "border-emerald-400", shadow: "shadow-[0_0_12px_rgba(52,211,153,0.4)]" },
+  { id: 3, label: "Rare", color: "#06b6d4", activeColor: "#22d3ee", bg: "bg-cyan-500/20", border: "border-cyan-400", shadow: "shadow-[0_0_12px_rgba(34,211,238,0.4)]" },
+  { id: 4, label: "Super Rare", color: "#f59e0b", activeColor: "#fbbf24", bg: "bg-amber-500/20", border: "border-amber-400", shadow: "shadow-[0_0_12px_rgba(251,191,36,0.4)]" },
+  { id: 5, label: "Ultra Rare", color: "#f43f5e", activeColor: "#fb7185", bg: "bg-rose-500/20", border: "border-rose-400", shadow: "shadow-[0_0_12px_rgba(251,113,133,0.4)]" },
 ];
 
 type GroupMode = "none" | "element" | "deck" | "rarity";
@@ -54,23 +71,36 @@ export default function AllShortagesView({
   loading?: boolean;
 }) {
   const [query, setQuery] = useState("");
-  const [selectedElement, setSelectedElement] = useState<string | null>(null);
-  const [selectedRarity, setSelectedRarity] = useState<number | null>(null);
+  const [selectedElements, setSelectedElements] = useState<string[]>([]);
+  const [selectedRarities, setSelectedRarities] = useState<number[]>([]);
   const [groupMode, setGroupMode] = useState<GroupMode>("none");
+
+  const toggleElement = (el: string) => {
+    setSelectedElements((prev) =>
+      prev.includes(el) ? prev.filter((e) => e !== el) : [...prev, el]
+    );
+  };
+
+  const toggleRarity = (rarityId: number) => {
+    setSelectedRarities((prev) =>
+      prev.includes(rarityId) ? prev.filter((r) => r !== rarityId) : [...prev, rarityId]
+    );
+  };
 
   // Filtering
   const filteredCards = useMemo(() => {
     if (!report?.cards) return [];
     let list = report.cards;
 
-    if (selectedElement) {
-      list = list.filter((c) => c.element.toUpperCase() === selectedElement.toUpperCase());
+    if (selectedElements.length > 0) {
+      list = list.filter((c) => {
+        const cardEl = normalizeElement(c.element);
+        return selectedElements.some((el) => normalizeElement(el) === cardEl);
+      });
     }
 
-    if (selectedRarity !== null) {
-      list = list.filter(
-        (c) => c.rarity === selectedRarity || c.editions.some((e) => e.rarity === selectedRarity)
-      );
+    if (selectedRarities.length > 0) {
+      list = list.filter((c) => selectedRarities.includes(c.rarity || 1));
     }
 
     if (query.trim()) {
@@ -92,7 +122,7 @@ export default function AllShortagesView({
     }
 
     return list;
-  }, [report?.cards, query, selectedElement, selectedRarity]);
+  }, [report?.cards, query, selectedElements, selectedRarities]);
 
   // Grouping
   const groupedData = useMemo<ShortageGroup[]>(() => {
@@ -106,7 +136,7 @@ export default function AllShortagesView({
         groups[el] = [];
       });
       filteredCards.forEach((c) => {
-        const el = c.element.toUpperCase();
+        const el = normalizeElement(c.element);
         if (!groups[el]) groups[el] = [];
         groups[el].push(c);
       });
@@ -115,7 +145,7 @@ export default function AllShortagesView({
         .filter(([_, cards]) => cards.length > 0)
         .map(([el, cards]) => ({
           key: el,
-          title: `${el.charAt(0) + el.slice(1).toLowerCase()} Element (${cards.length})`,
+          title: `${ELEMENT_CONFIG[el]?.label || el} Element (${cards.length})`,
           cards,
           color: ELEMENT_COLORS[el],
         }));
@@ -274,31 +304,54 @@ export default function AllShortagesView({
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-[11px] font-medium text-slate-500 mr-1">Element:</span>
             <button
-              onClick={() => setSelectedElement(null)}
-              className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all ${
-                selectedElement === null
-                  ? "border-cyan-400/40 bg-cyan-400/15 text-cyan-200"
-                  : "border-white/[0.06] text-slate-400 hover:border-white/[0.15] hover:text-slate-200"
+              onClick={() => setSelectedElements([])}
+              aria-pressed={selectedElements.length === 0}
+              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all ${
+                selectedElements.length === 0
+                  ? "border-cyan-400 bg-cyan-400/20 text-cyan-200 font-semibold shadow-[0_0_10px_rgba(34,211,238,0.25)]"
+                  : "border-white/[0.08] text-slate-400 hover:border-white/[0.18] hover:text-slate-200"
               }`}
             >
+              {selectedElements.length === 0 && <Check className="h-3 w-3 shrink-0 text-cyan-300" />}
               All
             </button>
             {ELEMENTS.map((el) => {
-              const color = ELEMENT_COLORS[el];
-              const active = selectedElement === el;
+              const cfg = ELEMENT_CONFIG[el] || {
+                label: el,
+                color: ELEMENT_COLORS[el],
+                activeColor: ELEMENT_COLORS[el],
+                bg: "bg-white/10",
+                border: "border-white/30",
+                shadow: "",
+              };
+              const active = selectedElements.includes(el);
               return (
                 <button
+                  type="button"
                   key={el}
-                  onClick={() => setSelectedElement(active ? null : el)}
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all ${
+                  onClick={() => toggleElement(el)}
+                  aria-pressed={active}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-all cursor-pointer ${
                     active
-                      ? "border-white/20 bg-white/[0.1] text-white"
-                      : "border-white/[0.06] text-slate-400 hover:border-white/[0.12] hover:text-slate-200"
+                      ? `${cfg.border} ${cfg.bg} ${cfg.shadow} font-semibold ring-1 ring-white/20 text-white`
+                      : "border-white/[0.08] text-slate-400 hover:border-white/[0.18] hover:text-slate-200"
                   }`}
-                  style={active ? { borderColor: `${color}88`, background: `${color}22`, color } : undefined}
+                  style={
+                    active
+                      ? {
+                          borderColor: cfg.activeColor,
+                          backgroundColor: `${cfg.activeColor}25`,
+                          boxShadow: `0 0 10px ${cfg.activeColor}40`,
+                        }
+                      : undefined
+                  }
                 >
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
-                  {el.charAt(0) + el.slice(1).toLowerCase()}
+                  {active ? (
+                    <Check className="h-3 w-3 shrink-0" style={{ color: cfg.activeColor }} />
+                  ) : (
+                    <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: cfg.color }} />
+                  )}
+                  <span style={active ? { color: cfg.activeColor } : undefined}>{cfg.label}</span>
                 </button>
               );
             })}
@@ -308,30 +361,50 @@ export default function AllShortagesView({
           <div className="flex flex-wrap items-center gap-1.5 border-t border-white/[0.04] pt-2 sm:border-t-0 sm:pt-0">
             <span className="text-[11px] font-medium text-slate-500 mr-1">Rarity:</span>
             <button
-              onClick={() => setSelectedRarity(null)}
-              className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all ${
-                selectedRarity === null
-                  ? "border-cyan-400/40 bg-cyan-400/15 text-cyan-200"
-                  : "border-white/[0.06] text-slate-400 hover:border-white/[0.15] hover:text-slate-200"
+              type="button"
+              onClick={() => setSelectedRarities([])}
+              aria-pressed={selectedRarities.length === 0}
+              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all cursor-pointer ${
+                selectedRarities.length === 0
+                  ? "border-cyan-400 bg-cyan-400/20 text-cyan-200 font-semibold shadow-[0_0_10px_rgba(34,211,238,0.25)] ring-1 ring-cyan-400/30"
+                  : "border-white/[0.08] text-slate-400 hover:border-white/[0.18] hover:text-slate-200"
               }`}
             >
+              {selectedRarities.length === 0 && <Check className="h-3 w-3 shrink-0 text-cyan-300" />}
               All
             </button>
             {RARITIES.map((r) => {
-              const active = selectedRarity === r.id;
+              const active = selectedRarities.includes(r.id);
               return (
                 <button
+                  type="button"
                   key={r.id}
-                  onClick={() => setSelectedRarity(active ? null : r.id)}
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all ${
+                  onClick={() => toggleRarity(r.id)}
+                  aria-pressed={active}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-all cursor-pointer ${
                     active
-                      ? "border-white/20 bg-white/[0.1] text-white"
-                      : "border-white/[0.06] text-slate-400 hover:border-white/[0.12] hover:text-slate-200"
+                      ? `${r.border} ${r.bg} ${r.shadow} font-semibold ring-1 ring-white/20 text-white`
+                      : "border-white/[0.08] text-slate-400 hover:border-white/[0.18] hover:text-slate-200"
                   }`}
-                  style={active ? { borderColor: `${r.color}88`, background: `${r.color}22`, color: r.color } : undefined}
+                  style={
+                    active
+                      ? {
+                          borderColor: r.activeColor,
+                          backgroundColor: `${r.activeColor}25`,
+                          boxShadow: `0 0 10px ${r.activeColor}40`,
+                        }
+                      : undefined
+                  }
                 >
-                  <span className="h-2 w-2 rotate-45 rounded-[2px]" style={{ background: r.color }} />
-                  {r.label}
+                  {active ? (
+                    <Check className="h-3 w-3 shrink-0" style={{ color: r.activeColor }} />
+                  ) : (
+                    <span
+                      className="h-2 w-2 rotate-45 rounded-[2px] shrink-0"
+                      style={{ background: r.color }}
+                    />
+                  )}
+                  <span style={active ? { color: r.activeColor } : undefined}>{r.label}</span>
                 </button>
               );
             })}
@@ -358,18 +431,18 @@ export default function AllShortagesView({
           <AlertTriangle className="mx-auto mb-2 h-8 w-8 text-amber-400/80" />
           <p className="text-sm font-medium text-white">No shortage cards found</p>
           <p className="mt-1 text-xs text-slate-400">
-            {query || selectedElement || selectedRarity !== null
+            {query || selectedElements.length > 0 || selectedRarities.length > 0
               ? "No cards match the active filters."
               : "Your decks have no shortages."}
           </p>
-          {(query || selectedElement || selectedRarity !== null) && (
+          {(query || selectedElements.length > 0 || selectedRarities.length > 0) && (
             <Button
               variant="outline"
               size="sm"
               onClick={() => {
                 setQuery("");
-                setSelectedElement(null);
-                setSelectedRarity(null);
+                setSelectedElements([]);
+                setSelectedRarities([]);
               }}
               className="mt-4"
             >

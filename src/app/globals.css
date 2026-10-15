@@ -15,7 +15,18 @@
   --el-fire: #f43f5e;
   --el-water: #06b6d4;
   --el-wind: #10b981;
-  --el-earth: #f59e0b;
+  --el-tera: #d97706;
+  --el-earth: #d97706;
+  --el-crux: #ea580c;
+  --el-umbra: #8b5cf6;
+  --el-luxem: #eab308;
+  --el-lumen: #eab308;
+  --el-exalted: #f59e0b;
+  --el-astra: #6366f1;
+  --el-exia: #ec4899;
+  --el-arcane: #a855f7;
+  --el-arcana: #a855f7;
+  --el-neos: #0ea5e9;
 
   --gold: #c8a951;
   --gold-bright: #e8c967;
@@ -95,7 +106,15 @@ body {
 .el-fire { --el: var(--el-fire); }
 .el-water { --el: var(--el-water); }
 .el-wind { --el: var(--el-wind); }
-.el-earth { --el: var(--el-earth); }
+.el-tera, .el-earth { --el: var(--el-tera); }
+.el-crux { --el: var(--el-crux); }
+.el-umbra { --el: var(--el-umbra); }
+.el-luxem, .el-lumen { --el: var(--el-luxem); }
+.el-exalted { --el: var(--el-exalted); }
+.el-astra { --el: var(--el-astra); }
+.el-exia { --el: var(--el-exia); }
+.el-arcane, .el-arcana { --el: var(--el-arcane); }
+.el-neos { --el: var(--el-neos); }
 
 .el-glow {
   box-shadow: 0 0 20px -4px var(--el, transparent);

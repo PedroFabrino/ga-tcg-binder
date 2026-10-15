@@ -7,11 +7,11 @@ import { PageHeader } from "@/components/common";
 import { SkeletonGrid, EmptyState } from "@/components/Skeletons";
 import { useToast } from "@/components/ToastProvider";
 import CatalogCard, { type CatalogCardData, type Edition } from "@/components/catalog/CatalogCard";
-import { getElementColor } from "@/lib/elements";
+import { ALL_ELEMENTS, ELEMENT_LABELS, getElementColor } from "@/lib/elements";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 
-const ELEMENTS = ["NORM", "FIRE", "WATER", "WIND", "EARTH"];
+const ELEMENTS = ALL_ELEMENTS;
 const CLASSES = ["WARRIOR", "MAGE", "TANK", "CLERIC", "ASSASSIN", "RANGER", "TAMER"];
 const SETS = ["DOA", "FTC", "ALC", "MRC", "P24", "P23"];
 
@@ -129,7 +129,9 @@ export default function CatalogPage() {
         <p className="label-caps mb-2">Element</p>
         <div className="flex flex-wrap gap-1.5">
           {ELEMENTS.map((e) => (
-            <Chip key={e} active={element === e} onClick={() => setElement(element === e ? null : e)} color={getElementColor(e)}>{e}</Chip>
+            <Chip key={e} active={element === e} onClick={() => setElement(element === e ? null : e)} color={getElementColor(e)}>
+              {ELEMENT_LABELS[e] || e}
+            </Chip>
           ))}
         </div>
       </div>
