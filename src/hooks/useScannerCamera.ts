@@ -8,9 +8,9 @@ import {
   type Rect,
   type ScanFrameMetrics,
 } from "@/lib/scanner/contracts";
-import { detectCardQuad, loadOpenCv } from "@/lib/scanner/detector";
+import { detectCardQuad } from "@/lib/scanner/detector";
 import { evaluateFrame, glareRatio, laplacianVariance } from "@/lib/scanner/quality-gate";
-import { guideRect, normalizeCapture, type NormalizedCapture } from "@/lib/scanner/warp";
+import { guideRect, normalizeCapture, rectToQuad, type NormalizedCapture } from "@/lib/scanner/warp";
 import { logScanner } from "@/lib/scanner/debug-client";
 
 interface Options {
@@ -31,7 +31,7 @@ export function useScannerCamera({ config = DEFAULT_QUALITY_GATE, enabled = true
   const [metrics, setMetrics] = useState<ScanFrameMetrics | null>(null);
   const [error, setError] = useState("");
   const [cameraReady, setCameraReady] = useState(false);
-  const [cvReady, setCvReady] = useState(false);
+  const [cvReady, setCvReady] = useState(true); // Pure TS scanner is ready immediately
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [cameraStage, setCameraStage] = useState<string>("idle");
 
@@ -210,11 +210,16 @@ export function useScannerCamera({ config = DEFAULT_QUALITY_GATE, enabled = true
         logScanner("video_play_warn", `video.play() rejected: ${playErr.name} - ${playErr.message}`, {}, "warn");
       });
 
-      // Wait up to 3 seconds for dimensions to be non-zero
-      let waitTime = 0;
-      while (v.videoWidth === 0 && waitTime < 3000) {
-        await new Promise((r) => setTimeout(r, 100));
-        waitTime += 100;
+      // Wait for video metadata/dimensions
+      if (v.videoWidth === 0) {
+        await new Promise<void>((resolve) => {
+          const onMeta = () => {
+            v.removeEventListener("loadedmetadata", onMeta);
+            resolve();
+          };
+          v.addEventListener("loadedmetadata", onMeta);
+          setTimeout(resolve, 1500);
+        });
       }
 
       logScanner("video_ready", `Video stream running (${successfulAttempt})`, {
@@ -247,7 +252,7 @@ export function useScannerCamera({ config = DEFAULT_QUALITY_GATE, enabled = true
     return () => {
       cancelled = true;
       if (streamRef.current) {
-        logScanner("unmount", "Cleaning up media stream tracks on unmount");
+        logScanner("cleanup", "Cleaning up media stream tracks on unmount");
         streamRef.current.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
       }
@@ -256,47 +261,27 @@ export function useScannerCamera({ config = DEFAULT_QUALITY_GATE, enabled = true
     };
   }, [enabled, requestCamera]);
 
-  // Load OpenCV in background with logging
+  // Ensure stream stays attached to video element if element mounted late
   useEffect(() => {
-    if (!enabled) return;
-    let cancelled = false;
+    const v = videoRef.current;
+    const s = streamRef.current;
+    if (cameraReady && v && s && v.srcObject !== s) {
+      v.srcObject = s;
+      v.play().catch(() => {});
+    }
+  }, [cameraReady]);
 
-    logScanner("opencv_init", "Requesting OpenCV background load");
-    loadOpenCv()
-      .then((cv) => {
-        if (!cancelled) {
-          logScanner("opencv_ready", "OpenCV loaded successfully and verified", {
-            hasMat: Boolean(cv?.Mat),
-          });
-          setCvReady(true);
-        }
-      })
-      .catch((e: Error) => {
-        logScanner("opencv_error", `OpenCV load failed: ${e.message}`, { error: e }, "warn");
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [enabled]);
-
-  // Analysis loop - gentle ~10 FPS with GPU downscale
+  // Pure-TS real-time frame analysis loop (~10 FPS)
   useEffect(() => {
-    if (!enabled || !cvReady || !cameraReady) return;
+    if (!enabled || !cameraReady) return;
     let stop = false;
     let timer: ReturnType<typeof setTimeout>;
     let busy = false;
 
-    logScanner("analysis_loop", "Starting computer vision analysis loop");
+    logScanner("analysis_loop", "Starting computer vision analysis loop (pure TS)");
 
     const work = document.createElement("canvas");
     const wctx = work.getContext("2d", { willReadFrequently: true })!;
-
-    const cv = window.cv;
-    if (!cv) {
-      logScanner("analysis_loop_error", "window.cv is missing in analysis loop", {}, "error");
-      return;
-    }
 
     const tick = () => {
       if (stop) return;
@@ -321,14 +306,41 @@ export function useScannerCamera({ config = DEFAULT_QUALITY_GATE, enabled = true
           wctx.drawImage(v, 0, 0, aw, ah);
           const imgData = wctx.getImageData(0, 0, aw, ah);
 
-          const det = detectCardQuad(cv, imgData, guide, scale);
-          const s = det.scale;
-          const q = det.quad?.map((p) => ({ x: p.x * s, y: p.y * s })) as Quad | undefined;
-          const sharpness = det.quad && q ? laplacianVariance(det.gray, det.width, det.height) : 0;
-          const glare = q ? glareRatio(det.gray, det.width, det.height, q, config.glareLuminance) : 0;
+          // Fast pure-TS grayscale conversion (1ms)
+          const data = imgData.data;
+          const gray = new Uint8ClampedArray(aw * ah);
+          for (let i = 0, j = 0; i < data.length; i += 4, j++) {
+            gray[j] = (data[i] * 77 + data[i + 1] * 150 + data[i + 2] * 29) >> 8;
+          }
+
+          // Compute guide bounds in analysis space
+          const scaledGuide = {
+            x: guide.x * scale,
+            y: guide.y * scale,
+            width: guide.width * scale,
+            height: guide.height * scale,
+          };
+          const scaledQuad = rectToQuad(scaledGuide);
+
+          // Pure-TS metrics calculation
+          const sharpness = laplacianVariance(gray, aw, ah);
+          const glare = glareRatio(gray, aw, ah, scaledQuad, config.glareLuminance);
+
+          // Optional: if OpenCV happens to be loaded already, refine quad contour
+          let detectedQuad: Quad | null = null;
+          if (typeof window !== "undefined" && window.cv?.Mat) {
+            try {
+              const det = detectCardQuad(window.cv, imgData, guide, scale);
+              if (det.quad) {
+                detectedQuad = det.quad.map((p) => ({ x: p.x * det.scale, y: p.y * det.scale })) as Quad;
+              }
+            } catch {
+              // Ignore; fallback to guide rect
+            }
+          }
 
           const next = evaluateFrame(
-            { guide, quad: det.quad, sharpness, glare, timestamp: Date.now() },
+            { guide, quad: detectedQuad, sharpness, glare, timestamp: Date.now() },
             metricsRef.current,
             config
           );
@@ -360,13 +372,13 @@ export function useScannerCamera({ config = DEFAULT_QUALITY_GATE, enabled = true
       timer = setTimeout(tick, 100);
     };
 
-    timer = setTimeout(tick, 200);
+    timer = setTimeout(tick, 150);
 
     return () => {
       stop = true;
       clearTimeout(timer);
     };
-  }, [enabled, cvReady, cameraReady, config, capture]);
+  }, [enabled, cameraReady, config, capture]);
 
   return {
     videoRef,

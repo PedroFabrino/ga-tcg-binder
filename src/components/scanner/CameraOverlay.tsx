@@ -100,15 +100,11 @@ export function CameraOverlay({ enabled = true, onCapture }: Props) {
       </div>
 
       {/* Top status bar */}
-      <div className="absolute inset-x-0 top-3 px-4 flex items-center justify-between text-sm font-medium text-white drop-shadow">
+      <div className="absolute inset-x-0 top-3 z-10 px-4 flex items-center justify-between text-sm font-medium text-white drop-shadow">
         <div className="flex-1 text-center">
           {!cameraReady ? (
             <span className="inline-flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" /> Starting camera ({cameraStage})…
-            </span>
-          ) : !cvReady ? (
-            <span className="inline-flex items-center gap-2 text-slate-300">
-              <Loader2 className="h-4 w-4 animate-spin text-amber-400" /> Preparing card detector…
             </span>
           ) : (
             metrics?.hint ?? "Align the card inside the guide"
@@ -118,7 +114,7 @@ export function CameraOverlay({ enabled = true, onCapture }: Props) {
         {/* Small debug toggle */}
         <button
           onClick={() => setShowLogs(!showLogs)}
-          className="rounded p-1 text-white/60 hover:text-white"
+          className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/50 p-2 text-white/80 backdrop-blur hover:bg-black/70 hover:text-white active:scale-95"
           title="Toggle Diagnostics"
           aria-label="Toggle Diagnostics"
         >
