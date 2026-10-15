@@ -1,15 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Layers, Sparkles, Gem, TrendingUp, Upload, LayoutGrid, Table2 } from "lucide-react";
+import { Layers, Sparkles, Gem, TrendingUp, Upload, LayoutGrid, Table2, Plus, SearchX } from "lucide-react";
 import { PageHeader, Tabs } from "@/components/common";
 import { SkeletonRow, EmptyState } from "@/components/Skeletons";
 import { useToast } from "@/components/ToastProvider";
 import CollectionTable from "@/components/collection/CollectionTable";
 import BinderView from "@/components/collection/BinderView";
-import QuickAddBar from "@/components/collection/QuickAddBar";
+import CollectionSearchBar from "@/components/collection/CollectionSearchBar";
+import QuickAddModal from "@/components/collection/QuickAddModal";
 import BulkImportModal from "@/components/collection/BulkImportModal";
+import { filterCollectionItems } from "@/components/collection/filter";
 import type { CollectionItem } from "@/components/collection/types";
 import { Button } from "@/components/ui/button";
 
@@ -24,7 +26,7 @@ const TABS: { id: View; label: string; icon: any }[] = [
 ];
 
 const EMPTY_COPY: Record<View, { title: string; description: string }> = {
-  ALL: { title: "Your binder is empty", description: "Use the quick-add bar above, paste a list with the bulk importer, or scan cards with your phone." },
+  ALL: { title: "Your binder is empty", description: "Use the Add Card button above, paste a list with the bulk importer, or scan cards with your phone." },
   STAPLES: { title: "No multi-deck staples yet", description: "Cards used in two or more of your active decks will appear here." },
   LOW_POP: { title: "No collector gems yet", description: "Printings at or below your low-population threshold will be highlighted here." },
   IDLE: { title: "No idle copies", description: "Copies not needed by any active deck show up here, ready to trade or lend." },
@@ -36,9 +38,11 @@ export default function CollectionPage() {
   const [activeTab, setActiveTab] = useState<View>("ALL");
   const [mode, setMode] = useState<"table" | "binder">("table");
   const [items, setItems] = useState<CollectionItem[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   useEffect(() => {
     const v = new URLSearchParams(window.location.search).get("view") as View | null;
@@ -109,7 +113,13 @@ export default function CollectionPage() {
     }
   };
 
+  const filteredItems = useMemo(() => {
+    return filterCollectionItems(items, searchQuery);
+  }, [items, searchQuery]);
+
   const totalCopies = items.reduce((s, i) => s + i.quantity, 0);
+  const filteredCopies = filteredItems.reduce((s, i) => s + i.quantity, 0);
+  const isFiltered = searchQuery.trim().length > 0;
 
   return (
     <div className="space-y-6 pb-12">
@@ -119,9 +129,21 @@ export default function CollectionPage() {
         description="Every physical printing you own, with exact circulation, foil finish, deck usage and sharing rules."
         actions={
           <>
-            <span className="rounded-full border border-white/[0.08] px-3 py-1.5 font-mono text-xs text-slate-300">
-              {totalCopies.toLocaleString()} copies
+            <span
+              className="rounded-full border border-white/[0.08] px-3 py-1.5 font-mono text-xs text-slate-300"
+              title={isFiltered ? `Filtered from ${totalCopies.toLocaleString()} total copies across ${items.length} printings` : undefined}
+            >
+              {isFiltered ? (
+                <>
+                  <span className="font-semibold text-cyan-300">{filteredCopies.toLocaleString()}</span> / {totalCopies.toLocaleString()} copies ({filteredItems.length} card{filteredItems.length === 1 ? "" : "s"})
+                </>
+              ) : (
+                `${totalCopies.toLocaleString()} copies`
+              )}
             </span>
+            <Button onClick={() => setShowAddModal(true)} variant="default">
+              <Plus className="h-4 w-4" /> Add Card
+            </Button>
             <Button onClick={() => setShowBulk(true)} variant="outline">
               <Upload className="h-4 w-4" /> Bulk Import
             </Button>
@@ -129,10 +151,14 @@ export default function CollectionPage() {
         }
       />
 
-      <QuickAddBar onAdd={handleQuickAdd}/>
+      <CollectionSearchBar
+        value={searchQuery}
+        onChange={setSearchQuery}
+        placeholder="Search collection by card name, set, or collector number..."
+      />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab}/>
+        <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
         <div className="inline-flex self-start rounded-xl border border-white/[0.06] bg-white/[0.02] p-1" role="group" aria-label="View mode">
           {[
             { id: "table" as const, label: "Pro Table", icon: Table2 },
@@ -154,18 +180,32 @@ export default function CollectionPage() {
         <EmptyState icon={Layers} title="We couldn't load your binder" description="Check your connection and try again." action={<Button variant="outline" onClick={() => fetchCollection()}>Retry</Button>} />
       ) : loading ? (
         <div className="divide-y divide-white/[0.04] rounded-2xl glass">
-          {Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i}/>)}
+          {Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}
         </div>
       ) : items.length === 0 ? (
-        <EmptyState icon={Layers} {...EMPTY_COPY[activeTab]}/>
+        <EmptyState icon={Layers} {...EMPTY_COPY[activeTab]} />
+      ) : filteredItems.length === 0 ? (
+        <EmptyState
+          icon={SearchX}
+          title={`No cards match "${searchQuery}"`}
+          description={`None of the cards in your ${TABS.find((t) => t.id === activeTab)?.label || "selected"} view match this search.`}
+          action={<Button variant="outline" onClick={() => setSearchQuery("")}>Clear Search</Button>}
+        />
       ) : (
-        <div key={`${mode}-${activeTab}`} className="animate-fade-in">
+        <div key={`${mode}-${activeTab}-${searchQuery}`} className="animate-fade-in">
           {mode === "table" ? (
-            <CollectionTable items={items} onQuantity={handleQuantity} onToggleDedicated={handleToggleDedicated}/>
+            <CollectionTable items={filteredItems} onQuantity={handleQuantity} onToggleDedicated={handleToggleDedicated} />
           ) : (
-            <BinderView items={items} onQuantity={handleQuantity} onToggleDedicated={handleToggleDedicated}/>
+            <BinderView items={filteredItems} onQuantity={handleQuantity} onToggleDedicated={handleToggleDedicated} />
           )}
         </div>
+      )}
+
+      {showAddModal && (
+        <QuickAddModal
+          onClose={() => setShowAddModal(false)}
+          onAdd={handleQuickAdd}
+        />
       )}
 
       {showBulk && (
