@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@ga/contracts':
+        specifier: workspace:*
+        version: link:packages/contracts
       '@libsql/client':
         specifier: ^0.14.0
         version: 0.14.0
@@ -108,6 +111,8 @@ importers:
       vitest:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@20.19.43)
+
+  packages/contracts: {}
 
 packages:
 
