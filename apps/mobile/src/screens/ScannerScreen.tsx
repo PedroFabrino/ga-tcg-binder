@@ -71,7 +71,18 @@ function ActiveScanner() {
 
       const ws = getActiveWsClient();
       if (ws) {
-        const res = await ws.processFrame(photo.base64);
+        const guideHeight = (guideWidth * 3.5) / 2.5;
+        const guideLeft = (width - guideWidth) / 2;
+        const guideTop = (height - guideHeight) / 2;
+
+        const cropRect = {
+          x: Math.max(0, guideLeft / width),
+          y: Math.max(0, guideTop / height),
+          width: Math.min(1, guideWidth / width),
+          height: Math.min(1, guideHeight / height),
+        };
+
+        const res = await ws.processFrame(photo.base64, cropRect);
         const matches = res.candidates || [];
         const debug = res.debug;
 

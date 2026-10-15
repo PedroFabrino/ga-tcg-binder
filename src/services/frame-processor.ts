@@ -21,6 +21,9 @@ export interface FrameProcessingResult {
   headerText: string;
   footerText: string;
   glareRatio: number;
+  cardImageBase64?: string;
+  headerImageBase64?: string;
+  footerImageBase64?: string;
 }
 
 /**
@@ -30,7 +33,8 @@ export interface FrameProcessingResult {
  */
 export async function processCardFrame(
   imageBuffer: Buffer,
-  database: any
+  database: any,
+  cropRect?: { x: number; y: number; width: number; height: number }
 ): Promise<FrameProcessingResult> {
   let orientedBuffer = await sharp(imageBuffer).rotate().toBuffer();
   let meta = await sharp(orientedBuffer).metadata();
@@ -48,19 +52,29 @@ export async function processCardFrame(
   // GA TCG card aspect ratio: 2.5 / 3.5 (~0.714)
   const cardRatio = 2.5 / 3.5;
 
-  let guideW = Math.round(imgW * 0.72);
-  let guideH = Math.round(guideW / cardRatio);
+  let left: number;
+  let top: number;
+  let guideW: number;
+  let guideH: number;
 
-  if (guideH > Math.round(imgH * 0.85)) {
-    guideH = Math.round(imgH * 0.85);
+  if (cropRect && cropRect.width > 0 && cropRect.height > 0) {
+    left = Math.max(0, Math.floor(cropRect.x * imgW));
+    top = Math.max(0, Math.floor(cropRect.y * imgH));
+    guideW = Math.min(imgW - left, Math.round(cropRect.width * imgW));
+    guideH = Math.min(imgH - top, Math.round(cropRect.height * imgH));
+  } else {
+    // Default fallback: centered 2.5 : 3.5 target guide (scaled to 50% of screen height)
+    guideH = Math.round(imgH * 0.50);
     guideW = Math.round(guideH * cardRatio);
+    if (guideW > Math.round(imgW * 0.75)) {
+      guideW = Math.round(imgW * 0.75);
+      guideH = Math.round(guideW / cardRatio);
+    }
+    guideW = Math.min(guideW, imgW);
+    guideH = Math.min(guideH, imgH);
+    left = Math.max(0, Math.floor((imgW - guideW) / 2));
+    top = Math.max(0, Math.floor((imgH - guideH) / 2));
   }
-
-  guideW = Math.min(guideW, imgW);
-  guideH = Math.min(guideH, imgH);
-
-  const left = Math.max(0, Math.min(Math.floor((imgW - guideW) / 2), imgW - guideW));
-  const top = Math.max(0, Math.min(Math.floor((imgH - guideH) / 2), imgH - guideH));
 
   // Normalize cropped card to canonical 630x880
   const cardPipeline = sharp(orientedBuffer)
@@ -105,35 +119,58 @@ export async function processCardFrame(
 
   const phash = dHash(grayData, grayInfo.width, grayInfo.height);
 
-  // 2. Crop header strip (top 15% title area) and footer strip (bottom 15% collector info)
+  // 2. Crop header strip (title area) and footer strip (collector info) with 2x resolution and contrast enhancement
   let headerText = "";
   let footerText = "";
+  let cardImageBase64: string | undefined;
+  let headerImageBase64: string | undefined;
+  let footerImageBase64: string | undefined;
 
   try {
     const worker = await getWorker();
 
-    const [headerBuf, footerBuf] = await Promise.all([
+    const [cardJpegBuf, headerBuf, footerBuf] = await Promise.all([
+      cardPipeline.clone().jpeg({ quality: 75 }).toBuffer(),
       cardPipeline
         .clone()
-        .extract({ left: 30, top: 20, width: 570, height: 100 })
+        .extract({ left: 50, top: 12, width: 520, height: 75 })
+        .resize(1040, 150)
         .grayscale()
         .normalize()
+        .sharpen()
         .png()
         .toBuffer(),
       cardPipeline
         .clone()
-        .extract({ left: 20, top: 770, width: 590, height: 95 })
+        .extract({ left: 10, top: 815, width: 600, height: 55 })
+        .resize(1200, 110)
         .grayscale()
         .normalize()
+        .sharpen()
         .png()
         .toBuffer(),
     ]);
 
-    // Save debug crops for inspection
+    cardImageBase64 = `data:image/jpeg;base64,${cardJpegBuf.toString("base64")}`;
+    headerImageBase64 = `data:image/png;base64,${headerBuf.toString("base64")}`;
+    footerImageBase64 = `data:image/png;base64,${footerBuf.toString("base64")}`;
+
+    // Save debug crops for live static inspection at /debug/last-card.jpg, etc.
+    const fs = await import("fs");
+    const path = await import("path");
+    const publicDebugDir = path.resolve(process.cwd(), "public/debug");
+    const scratchDir = path.resolve(process.cwd(), "scratch");
+
+    if (!fs.existsSync(publicDebugDir)) fs.mkdirSync(publicDebugDir, { recursive: true });
+    if (!fs.existsSync(scratchDir)) fs.mkdirSync(scratchDir, { recursive: true });
+
     await Promise.all([
-      cardPipeline.clone().jpeg().toFile("scratch/debug-card.jpg").catch(() => {}),
-      sharp(headerBuf).toFile("scratch/debug-header.png").catch(() => {}),
-      sharp(footerBuf).toFile("scratch/debug-footer.png").catch(() => {}),
+      fs.promises.writeFile(path.join(publicDebugDir, "last-card.jpg"), cardJpegBuf).catch(() => {}),
+      fs.promises.writeFile(path.join(publicDebugDir, "last-header.png"), headerBuf).catch(() => {}),
+      fs.promises.writeFile(path.join(publicDebugDir, "last-footer.png"), footerBuf).catch(() => {}),
+      fs.promises.writeFile(path.join(scratchDir, "debug-card.jpg"), cardJpegBuf).catch(() => {}),
+      fs.promises.writeFile(path.join(scratchDir, "debug-header.png"), headerBuf).catch(() => {}),
+      fs.promises.writeFile(path.join(scratchDir, "debug-footer.png"), footerBuf).catch(() => {}),
     ]);
 
     const [hRes, fRes] = await Promise.all([
@@ -164,5 +201,8 @@ export async function processCardFrame(
     headerText,
     footerText,
     glareRatio,
+    cardImageBase64,
+    headerImageBase64,
+    footerImageBase64,
   };
 }

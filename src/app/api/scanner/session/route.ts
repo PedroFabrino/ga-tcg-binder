@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     const userId = body.userId || DEFAULT_USER_ID;
 
     // Determine host base URL
-    const origin = req.headers.get("origin") || req.nextUrl.origin || "http://localhost:3000";
+    const origin = req.headers.get("origin") || req.nextUrl.origin || "http://localhost:3002";
     const session = await createScannerSession(userId, origin, db);
 
     return NextResponse.json(session);

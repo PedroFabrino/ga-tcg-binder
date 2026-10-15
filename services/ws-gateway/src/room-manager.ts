@@ -16,7 +16,7 @@ export type MatcherFn = (req: {
   footerText: string;
 }) => Promise<any[]>;
 
-export type FrameProcessorFn = (buffer: Buffer) => Promise<any[]>;
+export type FrameProcessorFn = (buffer: Buffer, cropRect?: any) => Promise<any>;
 
 interface Participant {
   socket: UnifiedSocket;
@@ -132,7 +132,7 @@ export class SessionRoomManager {
         if (this.frameProcessor) {
           const clean = msg.imageBase64.replace(/^data:image\/\w+;base64,/, "");
           const buffer = Buffer.from(clean, "base64");
-          this.frameProcessor(buffer)
+          this.frameProcessor(buffer, msg.cropRect)
             .then((result: any) => {
               const candidates = Array.isArray(result) ? result : result.candidates || [];
               const debug = Array.isArray(result) ? undefined : result.debug;
@@ -145,6 +145,16 @@ export class SessionRoomManager {
                 debug,
               };
               this.send(socket, resMsg);
+
+              // Broadcast live debug crops to desktop receiver dashboard
+              if (debug) {
+                this.forwardToReceivers(socket, {
+                  type: "SCAN_FRAME_DEBUG",
+                  sessionId: msg.sessionId,
+                  timestamp: Date.now(),
+                  debug,
+                });
+              }
             })
             .catch((err) => {
               console.warn("[room-manager] Frame processing error:", err);

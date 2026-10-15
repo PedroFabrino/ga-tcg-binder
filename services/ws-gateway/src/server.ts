@@ -12,9 +12,9 @@ server.roomManager.setMatcher(async (input) => {
   return identifyCard(input, db);
 });
 
-server.roomManager.setFrameProcessor(async (buffer) => {
-  console.log(`\n[ws-gateway] >>> Received frame: ${buffer.length} bytes`);
-  const result = await processCardFrame(buffer, db);
+server.roomManager.setFrameProcessor(async (buffer, cropRect) => {
+  console.log(`\n[ws-gateway] >>> Received frame: ${buffer.length} bytes, cropRect:`, cropRect);
+  const result = await processCardFrame(buffer, db, cropRect);
   console.log(`[ws-gateway] <<< Processed frame: phash=${result.phash}`);
   console.log(`[ws-gateway] Header OCR: "${result.headerText}"`);
   console.log(`[ws-gateway] Footer OCR: "${result.footerText}"`);
@@ -34,6 +34,9 @@ server.roomManager.setFrameProcessor(async (buffer) => {
       footerText: result.footerText,
       glareRatio: result.glareRatio,
       topCandidates: result.topCandidates,
+      cardImageBase64: result.cardImageBase64,
+      headerImageBase64: result.headerImageBase64,
+      footerImageBase64: result.footerImageBase64,
     },
   };
 });

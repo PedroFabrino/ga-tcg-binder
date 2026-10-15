@@ -35,6 +35,9 @@ export interface FrameProcessResult {
     footerText: string;
     glareRatio: number;
     topCandidates?: CardMatchResult[];
+    cardImageBase64?: string;
+    headerImageBase64?: string;
+    footerImageBase64?: string;
   };
 }
 
@@ -168,12 +171,15 @@ export class MobileWsClient {
       return resolved
         .replace(/^ws:\/\//i, "http://")
         .replace(/^wss:\/\//i, "https://")
-        .replace(/:3001$/, ":3000");
+        .replace(/:3001$/, ":3002");
     }
-    return "http://localhost:3000";
+    return "http://localhost:3002";
   }
 
-  public async processFrame(imageBase64: string): Promise<FrameProcessResult> {
+  public async processFrame(
+    imageBase64: string,
+    cropRect?: { x: number; y: number; width: number; height: number }
+  ): Promise<FrameProcessResult> {
     if (!this.pairingInfo) throw new Error("Scanner not paired");
 
     // Fast path: send directly over active WebSocket to ws-gateway on port 3001
@@ -197,6 +203,7 @@ export class MobileWsClient {
           sessionId: this.pairingInfo!.sessionId,
           requestId,
           imageBase64,
+          cropRect,
           timestamp: Date.now(),
         };
         this.socket!.send(JSON.stringify(msg));

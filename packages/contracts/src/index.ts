@@ -153,6 +153,7 @@ export interface WsScanFrameProcessRequest extends WsMessageBase {
   type: "SCAN_FRAME_PROCESS_REQUEST";
   requestId: string;
   imageBase64: string;
+  cropRect?: Rect;
 }
 
 export interface WsCardPreviewMessage extends WsMessageBase {
@@ -199,10 +200,27 @@ export interface WsPongMessage extends WsMessageBase {
   type: "SESSION_PONG";
 }
 
+export interface ScanFrameDebugData {
+  phash: string;
+  headerText: string;
+  footerText: string;
+  glareRatio: number;
+  topCandidates?: CardMatchResult[];
+  cardImageBase64?: string;
+  headerImageBase64?: string;
+  footerImageBase64?: string;
+}
+
 export interface WsScanIdentifyResponse extends WsMessageBase {
   type: "SCAN_IDENTIFY_RESPONSE";
   requestId: string;
   candidates: CardMatchResult[];
+  debug?: ScanFrameDebugData;
+}
+
+export interface WsScanFrameDebugMessage extends WsMessageBase {
+  type: "SCAN_FRAME_DEBUG";
+  debug: ScanFrameDebugData;
 }
 
 export interface WsBroadcastCommittedMessage extends WsMessageBase {
@@ -228,6 +246,7 @@ export type WsServerMessage =
   | WsStatusMessage
   | WsPongMessage
   | WsScanIdentifyResponse
+  | WsScanFrameDebugMessage
   | WsBroadcastCommittedMessage
   | WsBroadcastFinishUpdateMessage
   | WsErrorMessage;
