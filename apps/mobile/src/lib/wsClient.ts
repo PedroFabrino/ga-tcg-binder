@@ -4,6 +4,7 @@
  * reconnection, ping-pong heartbeats, and card streaming payloads.
  */
 
+import { Platform } from "react-native";
 import type {
   PairingQrPayload,
   WsJoinMessage,
@@ -15,6 +16,17 @@ import type {
   CommittedCardPayload,
   CardMatchResult,
 } from "@ga/contracts";
+
+export function resolveWsEndpoint(endpoint: string): string {
+  if (!endpoint) return endpoint;
+  let resolved = endpoint.trim();
+  if (Platform.OS === "android") {
+    if (resolved.includes("localhost") || resolved.includes("127.0.0.1")) {
+      resolved = resolved.replace("localhost", "10.0.2.2").replace("127.0.0.1", "10.0.2.2");
+    }
+  }
+  return resolved;
+}
 
 export type WsConnectionStatus = "DISCONNECTED" | "CONNECTING" | "ACTIVE_SCANNING" | "RECONNECTING";
 
@@ -131,10 +143,14 @@ export class MobileWsClient {
     this.status = this.reconnectAttempts > 0 ? "RECONNECTING" : "CONNECTING";
     this.callbacks.onStatusChange(this.status);
 
+    const targetUrl = resolveWsEndpoint(this.pairingInfo.wsEndpoint);
+    console.log(`[MobileWsClient] Connecting to: ${targetUrl} (raw: ${this.pairingInfo.wsEndpoint})`);
+
     try {
-      this.socket = new WebSocket(this.pairingInfo.wsEndpoint);
+      this.socket = new WebSocket(targetUrl);
 
       this.socket.onopen = () => {
+        console.log(`[MobileWsClient] Connected to gateway at ${targetUrl}`);
         this.reconnectAttempts = 0;
         this.status = "ACTIVE_SCANNING";
 
@@ -161,19 +177,22 @@ export class MobileWsClient {
         }
       };
 
-      this.socket.onclose = () => {
+      this.socket.onclose = (event) => {
+        console.log(`[MobileWsClient] Socket closed (code: ${event.code}, reason: ${event.reason || "normal"})`);
         if (!this.intentionalClose) {
           this.scheduleReconnect();
         }
       };
 
       this.socket.onerror = (e) => {
-        this.callbacks.onError?.("WebSocket connection failed");
+        console.warn(`[MobileWsClient] Socket error for ${targetUrl}:`, e);
+        this.callbacks.onError?.(`Failed to connect to ${targetUrl}`);
         if (!this.intentionalClose) {
           this.scheduleReconnect();
         }
       };
     } catch (err: any) {
+      console.error(`[MobileWsClient] Exception initiating connection:`, err);
       this.scheduleReconnect();
     }
   }

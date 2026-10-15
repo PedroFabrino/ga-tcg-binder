@@ -243,11 +243,21 @@ export default function ScannerDashboardPage() {
     }
   };
 
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedWs, setCopiedWs] = useState(false);
+
   const copySessionId = () => {
     if (!sessionInfo?.id) return;
     navigator.clipboard.writeText(sessionInfo.id);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
+
+  const copyWsEndpoint = () => {
+    if (!sessionInfo?.wsEndpoint) return;
+    navigator.clipboard.writeText(sessionInfo.wsEndpoint);
+    setCopiedWs(true);
+    setTimeout(() => setCopiedWs(false), 2000);
   };
 
   return (
@@ -402,23 +412,52 @@ export default function ScannerDashboardPage() {
                 )}
               </div>
 
-              <div className="mt-6">
+              <div className="mt-6 text-center">
                 <h3 className="text-lg font-semibold text-white">Scan with Mobile Companion</h3>
                 <p className="text-sm text-zinc-400 mt-1">
                   Point your phone camera to pair. Card recognitions will stream to this screen in real time.
                 </p>
               </div>
 
-              <div className="mt-4 flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={copySessionId}
-                  className="border-zinc-800 text-zinc-400 hover:text-white text-xs"
-                >
-                  {copied ? <Check className="w-3 h-3 mr-1 text-emerald-400" /> : <Copy className="w-3 h-3 mr-1" />}
-                  Copy Session ID
-                </Button>
+              {/* Pairing Details Callout */}
+              <div className="mt-5 w-full bg-zinc-900/80 border border-zinc-800 rounded-xl p-3.5 space-y-2.5 text-left text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-400 font-medium">Session Code:</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-base font-bold text-emerald-400 tracking-wider">
+                      {sessionInfo?.id || "..."}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={copySessionId}
+                      className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors"
+                      title="Copy Session Code"
+                    >
+                      {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-zinc-800/60">
+                  <span className="text-zinc-400 font-medium">Gateway:</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-zinc-300 text-[11px] truncate max-w-[190px]">
+                      {sessionInfo?.wsEndpoint || "..."}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={copyWsEndpoint}
+                      className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors"
+                      title="Copy Gateway Endpoint"
+                    >
+                      {copiedWs ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-zinc-800/60 text-[11px] text-zinc-500 text-center">
+                  Phone and computer must be on the same local Wi-Fi network.
+                </div>
               </div>
             </div>
           )}

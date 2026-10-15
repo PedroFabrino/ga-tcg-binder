@@ -31,7 +31,6 @@ export const useSessionStore = create<SessionStore>((set, get) => {
     error: null,
 
     pair: (payload: PairingPayload) => {
-      if (get().status === "CONNECTING") return;
       set({ status: "CONNECTING", pairingPayload: payload, error: null });
 
       if (activeWsClient) {

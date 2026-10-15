@@ -9,6 +9,7 @@ import { Button, PressableScale } from "../shared/Button";
 export function ManualPairModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const pair = useSessionStore((s) => s.pair);
   const [code, setCode] = useState("");
+  const [gatewayHost, setGatewayHost] = useState("192.168.0.201:3001");
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<TextInput>(null);
 
@@ -22,11 +23,14 @@ export function ManualPairModal({ visible, onClose }: { visible: boolean; onClos
 
   const submit = () => {
     if (code.length !== SESSION_CODE_LENGTH) return setError(`Enter all ${SESSION_CODE_LENGTH} characters of the code.`);
+    let host = gatewayHost.trim();
+    if (!host) host = "192.168.0.201:3001";
+    const endpoint = host.startsWith("ws://") || host.startsWith("wss://") ? host : `ws://${host}`;
     onClose();
     pair({
       action: "pair_scanner",
       sessionId: code,
-      wsEndpoint: "ws://localhost:3001",
+      wsEndpoint: endpoint,
       token: code,
     });
   };
@@ -69,6 +73,19 @@ export function ManualPairModal({ visible, onClose }: { visible: boolean; onClos
             onSubmitEditing={submit}
           />
 
+          <View style={styles.gatewaySection}>
+            <Text style={styles.gatewayLabel}>Desktop Gateway Server (Host:Port):</Text>
+            <TextInput
+              value={gatewayHost}
+              onChangeText={setGatewayHost}
+              placeholder="192.168.0.201:3001"
+              placeholderTextColor={colors.textDim}
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={styles.gatewayInput}
+            />
+          </View>
+
           <View style={styles.errorSlot}>{error && <Text style={styles.error}>{error}</Text>}</View>
           <Button label="Connect" onPress={submit} disabled={code.length !== SESSION_CODE_LENGTH} />
         </View>
@@ -110,4 +127,24 @@ const styles = StyleSheet.create({
   hiddenInput: { position: "absolute", opacity: 0, height: 1, width: 1 },
   errorSlot: { minHeight: space(5), justifyContent: "center" },
   error: { ...type.body, color: colors.red },
+  gatewaySection: {
+    marginTop: space(3),
+    marginBottom: space(1),
+  },
+  gatewayLabel: {
+    ...type.caption,
+    color: colors.textMuted,
+    marginBottom: space(1),
+  },
+  gatewayInput: {
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: space(2),
+    paddingVertical: space(1.5),
+    color: colors.text,
+    fontSize: 13,
+    ...type.mono,
+  },
 });

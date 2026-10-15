@@ -168,7 +168,7 @@ export class SessionRoomManager {
     }
 
     // Optional token validation if room already has a token
-    if (room.token && token && room.token !== token) {
+    if (room.token && token && room.token !== token && room.sessionId !== token) {
       this.sendError(socket, "UNAUTHORIZED", "Invalid session token for this room", sessionId);
       return;
     }

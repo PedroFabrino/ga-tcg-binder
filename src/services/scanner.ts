@@ -1,7 +1,33 @@
 import QRCode from "qrcode";
+import os from "os";
 import { eq, and, gt, sql } from "drizzle-orm";
 import { scannerSessions, cards, cardEditions, collectionItems } from "../db/schema";
 import { addOrUpdateCollectionItem } from "./collection";
+
+export function getLocalNetworkIp(): string {
+  try {
+    const nets = os.networkInterfaces();
+    for (const name of Object.keys(nets)) {
+      for (const net of nets[name] || []) {
+        if (net.family === "IPv4" && !net.internal) {
+          if (net.address.startsWith("192.168.") || net.address.startsWith("10.")) {
+            return net.address;
+          }
+        }
+      }
+    }
+    for (const name of Object.keys(nets)) {
+      for (const net of nets[name] || []) {
+        if (net.family === "IPv4" && !net.internal) {
+          return net.address;
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return "localhost";
+}
 
 export interface ScannerCardDetection {
   rawText: string;
@@ -28,14 +54,23 @@ export interface ScannerSessionInfo {
   detections: ScannerCardDetection[];
 }
 
+export function generateSessionCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let res = "";
+  for (let i = 0; i < 6; i++) {
+    res += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return res;
+}
+
 export async function createScannerSession(
   userId: string,
   baseUrl: string,
   database: any,
   customWsEndpoint?: string
 ): Promise<ScannerSessionInfo> {
-  const token = `scan_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-  const id = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const id = generateSessionCode();
+  const token = id;
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
   await database.insert(scannerSessions).values({
@@ -47,8 +82,18 @@ export async function createScannerSession(
     scannedPayload: "[]",
   });
 
-  const pairingUrl = `${baseUrl}/scan/${token}`;
-  const wsEndpoint = customWsEndpoint || process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3001";
+  const lanIp = getLocalNetworkIp();
+  let effectiveBaseUrl = baseUrl;
+  if (effectiveBaseUrl.includes("localhost") || effectiveBaseUrl.includes("127.0.0.1")) {
+    effectiveBaseUrl = effectiveBaseUrl.replace("localhost", lanIp).replace("127.0.0.1", lanIp);
+  }
+  const pairingUrl = `${effectiveBaseUrl}/scan/${token}`;
+
+  let wsEndpoint = customWsEndpoint || process.env.NEXT_PUBLIC_WS_URL;
+  if (!wsEndpoint) {
+    wsEndpoint = `ws://${lanIp}:3001`;
+  }
+
   const qrPayload = JSON.stringify({
     action: "pair_scanner",
     sessionId: id,
