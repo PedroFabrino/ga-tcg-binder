@@ -92,6 +92,19 @@ _Avoid_: Mobile app, remote camera, phone client
 A continuous scanning state where confirmed cards are automatically committed to the collection without leaving the camera viewfinder or requiring manual taps.
 _Avoid_: Batch mode, continuous scan, auto scan
 
+**Marketplace Listing**:
+A physical card instance listed by a Collector on an external sales platform (such as MyP Cards), kept strictly decoupled from their internal Binder Collection.
+_Avoid_: Inventory item, shop stock, sale row
+
+**Marketplace Sync**:
+The on-demand or periodic crawler pipeline that extracts a Collector's public Marketplace Listings and resolves them against the Card Catalog.
+_Avoid_: Store scraper, listing importer
+
+**Shortage Offset**:
+A Marketplace Listing owned by the Collector that matches an active Deck Shortage, identifying physical copies that could be withdrawn from sale to satisfy a deck.
+_Avoid_: Sale conflict, deck reserve
+
+
 
 
 

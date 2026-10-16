@@ -115,6 +115,7 @@ CREATE TABLE `users` (
 	`image` text,
 	`friend_code` text NOT NULL,
 	`low_pop_threshold` integer DEFAULT 1000 NOT NULL,
+	`myp_username` text,
 	`created_at` integer DEFAULT (strftime('%s', 'now'))
 );
 --> statement-breakpoint
@@ -122,3 +123,24 @@ CREATE UNIQUE INDEX `users_email_unique` ON `users` (`email`);--> statement-brea
 CREATE UNIQUE INDEX `users_friend_code_unique` ON `users` (`friend_code`);
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS `card_hashes` (`edition_id` text PRIMARY KEY NOT NULL, `phash` text NOT NULL, `updated_at` integer DEFAULT (strftime('%s', 'now')), FOREIGN KEY (`edition_id`) REFERENCES `card_editions`(`id`) ON UPDATE no action ON DELETE cascade);
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `myp_cards` (
+	`id` text PRIMARY KEY NOT NULL,
+	`user_id` text NOT NULL,
+	`card_slug` text,
+	`edition_id` text,
+	`raw_name` text NOT NULL,
+	`card_name` text NOT NULL,
+	`set_prefix` text NOT NULL,
+	`quantity` integer DEFAULT 1 NOT NULL,
+	`price` text DEFAULT 'R$ 0,00' NOT NULL,
+	`quality` text DEFAULT 'NM' NOT NULL,
+	`is_foil` integer DEFAULT false NOT NULL,
+	`myp_item_id` text,
+	`myp_product_url` text,
+	`updated_at` integer DEFAULT (strftime('%s', 'now')),
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`card_slug`) REFERENCES `cards`(`slug`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`edition_id`) REFERENCES `card_editions`(`id`) ON UPDATE no action ON DELETE set null
+);
+

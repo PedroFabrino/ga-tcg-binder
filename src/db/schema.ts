@@ -11,6 +11,7 @@ export const users = sqliteTable("users", {
   image: text("image"),
   friendCode: text("friend_code").unique().notNull(),
   lowPopThreshold: integer("low_pop_threshold").notNull().default(1000),
+  mypUsername: text("myp_username"),
   createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
 
@@ -137,3 +138,24 @@ export const metaArchetypes = sqliteTable("meta_archetypes", {
   sourceUrl: text("source_url"),
   updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
+
+// ---------------------------------------------------------------------------
+// Marketplace Listings (MyPCards Integration)
+// ---------------------------------------------------------------------------
+export const mypCards = sqliteTable("myp_cards", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  cardSlug: text("card_slug").references(() => cards.slug, { onDelete: "set null" }),
+  editionId: text("edition_id").references(() => cardEditions.id, { onDelete: "set null" }),
+  rawName: text("raw_name").notNull(),
+  cardName: text("card_name").notNull(),
+  setPrefix: text("set_prefix").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  price: text("price").notNull().default("R$ 0,00"),
+  quality: text("quality").notNull().default("NM"),
+  isFoil: integer("is_foil", { mode: "boolean" }).notNull().default(false),
+  mypItemId: text("myp_item_id"),
+  mypProductUrl: text("myp_product_url"),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+});
+

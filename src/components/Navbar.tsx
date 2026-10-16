@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import {
-  BookOpen, Layers, Sparkles, Trophy, Users, QrCode, Settings as SettingsIcon,
+  BookOpen, Layers, Sparkles, Trophy, Users, Store, QrCode, Settings as SettingsIcon,
   LogIn, LogOut, Menu, Search, Command, ChevronDown, Copy, Home,
 } from "lucide-react";
 import QrScanModal from "./QrScanModal";
@@ -21,6 +21,7 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/s
 const NAV_ITEMS = [
   { href: "/collection", label: "Collection", icon: Layers },
   { href: "/decks", label: "Decks", icon: BookOpen },
+  { href: "/marketplace", label: "Marketplace", icon: Store },
   { href: "/catalog", label: "Catalog", icon: Sparkles },
   { href: "/meta", label: "Meta", icon: Trophy },
   { href: "/friends", label: "Friends", icon: Users },

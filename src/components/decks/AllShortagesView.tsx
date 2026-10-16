@@ -15,6 +15,7 @@ import {
   Loader2,
   Flame,
   Gem,
+  Store,
 } from "lucide-react";
 import { CardArt, ElementBadge, RarityGem } from "@/components/common";
 import { CardPreviewTrigger } from "@/components/CardHoverPreview";
@@ -568,6 +569,16 @@ function ShortageCardRow({
             <span className="text-[11px] text-slate-400">
               Owned: <span className="font-mono font-medium text-slate-200">{card.totalOwned}</span>
             </span>
+            {card.mypAvailableCopies && card.mypAvailableCopies > 0 ? (
+              <a
+                href="/marketplace"
+                className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-400/15 px-2 py-0.5 text-[10px] font-semibold text-amber-200 hover:bg-amber-400/25 transition-colors"
+                title="You have copies listed on MyP Cards that can cover this shortage"
+              >
+                <Store className="h-2.5 w-2.5 text-amber-300" />
+                {card.mypAvailableCopies} in MyP
+              </a>
+            ) : null}
           </div>
 
           {/* Decks needing this card */}

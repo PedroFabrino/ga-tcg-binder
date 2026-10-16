@@ -7,6 +7,7 @@ import {
   deckCards,
   friendLinks,
   users,
+  mypCards,
 } from "../db/schema";
 import { db } from "../db";
 import { DEFAULT_USER_ID } from "./seed";
@@ -319,6 +320,7 @@ export interface AggregatedShortageCard {
   sharedOwned: number;
   peakMissing: number;
   concurrentMissing: number;
+  mypAvailableCopies?: number;
 }
 
 export interface AggregatedShortageReport {
@@ -395,6 +397,20 @@ export async function calculateAggregatedShortages(
     .from(collectionItems)
     .innerJoin(cardEditions, eq(collectionItems.editionId, cardEditions.id))
     .where(eq(collectionItems.userId, effectiveUserId));
+
+  // 3b. Fetch user MyP Marketplace listings (if available)
+  let userMypInventory: any[] = [];
+  try {
+    userMypInventory = await database
+      .select({
+        cardSlug: mypCards.cardSlug,
+        quantity: mypCards.quantity,
+      })
+      .from(mypCards)
+      .where(eq(mypCards.userId, effectiveUserId));
+  } catch {
+    // Graceful fallback if myp_cards table is not yet migrated
+  }
 
   // 4. Unique card slugs needed across all decks
   const uniqueSlugs: string[] = Array.from(new Set(allDeckCards.map((c: any) => String(c.cardSlug))));
@@ -474,6 +490,10 @@ export async function calculateAggregatedShortages(
     const concurrentMissing = Math.max(0, totalDemand - totalOwned);
     const peakMissing = Math.max(0, peakDemand - totalOwned);
 
+    const mypAvailableCopies = userMypInventory
+      .filter((m: any) => m.cardSlug === slug)
+      .reduce((sum: number, m: any) => sum + Number(m.quantity || 0), 0);
+
     // Only include cards with a shortage
     if (concurrentMissing > 0 || peakMissing > 0) {
       shortageCards.push({
@@ -493,6 +513,7 @@ export async function calculateAggregatedShortages(
         sharedOwned,
         peakMissing,
         concurrentMissing,
+        mypAvailableCopies,
       });
     }
   }
