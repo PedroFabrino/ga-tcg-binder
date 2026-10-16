@@ -17,6 +17,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { FEATURES } from "@/lib/features";
 
 const NAV_ITEMS = [
   { href: "/collection", label: "Collection", icon: Layers },
@@ -45,7 +46,9 @@ export default function Navbar() {
         setShowCmdk(true);
       }
     };
-    const openScanner = () => setShowQrModal(true);
+    const openScanner = () => {
+      if (FEATURES.scanner) setShowQrModal(true);
+    };
     const openSettings = () => setShowSettingsModal(true);
     const openLogin = () => setShowLoginModal(true);
     window.addEventListener("keydown", onKey);
@@ -128,10 +131,12 @@ export default function Navbar() {
               </kbd>
             </button>
 
-            <Button onClick={() => setShowQrModal(true)} variant="accent" size="sm" aria-label="Scan cards with phone">
-              <QrCode className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Scan with Phone</span>
-            </Button>
+            {FEATURES.scanner && (
+              <Button onClick={() => setShowQrModal(true)} variant="accent" size="sm" aria-label="Scan cards with phone">
+                <QrCode className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Scan with Phone</span>
+              </Button>
+            )}
 
             {session?.user ? (
               <DropdownMenu>
@@ -229,7 +234,7 @@ export default function Navbar() {
         </div>
       </header>
 
-      {showQrModal && <QrScanModal onClose={() => setShowQrModal(false)} />}
+      {showQrModal && FEATURES.scanner && <QrScanModal onClose={() => setShowQrModal(false)} />}
       {showSettingsModal && <SettingsModal onClose={() => setShowSettingsModal(false)} />}
       {showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} />}
       {showCmdk && <CommandPalette onClose={() => setShowCmdk(false)} />}

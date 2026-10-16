@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { submitScannerDetections } from "@/services/scanner";
 import { db } from "@/db";
+import { FEATURES } from "@/lib/features";
 
 export async function POST(req: NextRequest) {
+  if (!FEATURES.scanner) {
+    return NextResponse.json({ error: "Scanner feature is disabled" }, { status: 404 });
+  }
   try {
     const body = await req.json();
     const token = body.token;

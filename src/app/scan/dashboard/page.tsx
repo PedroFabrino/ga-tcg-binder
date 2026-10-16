@@ -23,7 +23,9 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { notFound } from "next/navigation";
 import { useToast } from "@/components/ToastProvider";
+import { FEATURES } from "@/lib/features";
 import type {
   CommittedCardPayload,
   WsServerMessage,
@@ -37,6 +39,9 @@ interface ScannedSessionCard extends CommittedCardPayload {
 }
 
 export default function ScannerDashboardPage() {
+  if (!FEATURES.scanner) {
+    notFound();
+  }
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [sessionInfo, setSessionInfo] = useState<{

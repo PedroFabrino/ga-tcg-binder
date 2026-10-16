@@ -6,6 +6,8 @@ import {
   CARD_H,
   CARD_ASPECT,
   DEFAULT_QUALITY_GATE,
+  DEFAULT_FEATURE_FLAGS,
+  parseFeatureFlag,
   type WsJoinMessage,
   type WsScanIdentifyResponse,
 } from "./index";
@@ -58,4 +60,31 @@ describe("@ga/contracts", () => {
     expect(isWsServerMessage(validResponse)).toBe(true);
     expect(isWsServerMessage({ type: "INVALID" })).toBe(false);
   });
+
+  describe("FeatureFlags", () => {
+    it("has scanner flag disabled by default", () => {
+      expect(DEFAULT_FEATURE_FLAGS.scanner).toBe(false);
+    });
+
+    it("parses boolean and string feature flags correctly", () => {
+      expect(parseFeatureFlag(true)).toBe(true);
+      expect(parseFeatureFlag(false)).toBe(false);
+      expect(parseFeatureFlag("true")).toBe(true);
+      expect(parseFeatureFlag("TRUE")).toBe(true);
+      expect(parseFeatureFlag("1")).toBe(true);
+      expect(parseFeatureFlag("yes")).toBe(true);
+      expect(parseFeatureFlag("on")).toBe(true);
+
+      expect(parseFeatureFlag("false")).toBe(false);
+      expect(parseFeatureFlag("0")).toBe(false);
+      expect(parseFeatureFlag("no")).toBe(false);
+      expect(parseFeatureFlag("off")).toBe(false);
+      expect(parseFeatureFlag(undefined)).toBe(false);
+      expect(parseFeatureFlag(null)).toBe(false);
+      expect(parseFeatureFlag("")).toBe(false);
+      expect(parseFeatureFlag("random", false)).toBe(false);
+      expect(parseFeatureFlag("random", true)).toBe(true);
+    });
+  });
 });
+

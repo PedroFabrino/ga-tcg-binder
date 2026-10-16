@@ -5,6 +5,7 @@ import { QrCode, Check, Loader2, ExternalLink, Smartphone, Wifi } from "lucide-r
 import { Modal } from "@/components/common";
 import { useToast } from "@/components/ToastProvider";
 import { Button } from "@/components/ui/button";
+import { FEATURES } from "@/lib/features";
 
 interface Detection {
   rawText: string;
@@ -19,6 +20,7 @@ interface Detection {
 }
 
 export default function QrScanModal({ onClose }: { onClose: () => void }) {
+  if (!FEATURES.scanner) return null;
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);

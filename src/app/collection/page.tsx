@@ -14,6 +14,7 @@ import BulkImportModal from "@/components/collection/BulkImportModal";
 import { filterCollectionItems } from "@/components/collection/filter";
 import type { CollectionItem } from "@/components/collection/types";
 import { Button } from "@/components/ui/button";
+import { FEATURES } from "@/lib/features";
 
 type View = "ALL" | "STAPLES" | "LOW_POP" | "IDLE";
 const VIEWS: View[] = ["ALL", "STAPLES", "LOW_POP", "IDLE"];
@@ -26,7 +27,12 @@ const TABS: { id: View; label: string; icon: any }[] = [
 ];
 
 const EMPTY_COPY: Record<View, { title: string; description: string }> = {
-  ALL: { title: "Your binder is empty", description: "Use the Add Card button above, paste a list with the bulk importer, or scan cards with your phone." },
+  ALL: {
+    title: "Your binder is empty",
+    description: FEATURES.scanner
+      ? "Use the Add Card button above, paste a list with the bulk importer, or scan cards with your phone."
+      : "Use the Add Card button above, or paste a list with the bulk importer.",
+  },
   STAPLES: { title: "No multi-deck staples yet", description: "Cards used in two or more of your active decks will appear here." },
   LOW_POP: { title: "No collector gems yet", description: "Printings at or below your low-population threshold will be highlighted here." },
   IDLE: { title: "No idle copies", description: "Copies not needed by any active deck show up here, ready to trade or lend." },

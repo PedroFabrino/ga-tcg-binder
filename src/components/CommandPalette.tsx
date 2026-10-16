@@ -17,6 +17,7 @@ import {
   CornerDownLeft,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { FEATURES } from "@/lib/features";
 
 interface CommandItem {
   label: string;
@@ -40,7 +41,9 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
     { label: "Card Catalog", icon: Sparkles, action: () => router.push("/catalog"), group: "Navigation", keywords: "search cards" },
     { label: "Tournament Meta Explorer", icon: Trophy, action: () => router.push("/meta"), group: "Navigation", keywords: "archetypes grandarchivestats" },
     { label: "Playgroup Friends", icon: Users, action: () => router.push("/friends"), group: "Navigation", keywords: "friend code idle" },
-    { label: "Scan with Phone", icon: QrCode, action: () => { window.dispatchEvent(new CustomEvent("open-scanner")); }, group: "Actions" },
+    ...(FEATURES.scanner
+      ? [{ label: "Scan with Phone", icon: QrCode, action: () => { window.dispatchEvent(new CustomEvent("open-scanner")); }, group: "Actions" }]
+      : []),
     { label: "Open Settings", icon: SettingsIcon, action: () => { window.dispatchEvent(new CustomEvent("open-settings")); }, group: "Actions" },
     { label: "Sign In", icon: LogIn, action: () => router.push("/login"), group: "Actions" },
   ];

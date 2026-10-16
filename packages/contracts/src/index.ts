@@ -289,3 +289,30 @@ export function isWsServerMessage(data: unknown): data is WsServerMessage {
     ].includes(msg.type)
   );
 }
+
+// ---------------------------------------------------------------------------
+// Feature Flags
+// ---------------------------------------------------------------------------
+
+export interface FeatureFlags {
+  scanner: boolean;
+}
+
+export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
+  scanner: false,
+};
+
+/**
+ * Safely parse a boolean feature flag from environment variables or strings.
+ * Defaults to `false` unless explicitly truthy ("true", "1", "yes", "on").
+ */
+export function parseFeatureFlag(val: unknown, defaultValue = false): boolean {
+  if (typeof val === "boolean") return val;
+  if (typeof val === "string") {
+    const lower = val.trim().toLowerCase();
+    if (lower === "true" || lower === "1" || lower === "yes" || lower === "on") return true;
+    if (lower === "false" || lower === "0" || lower === "no" || lower === "off") return false;
+  }
+  return defaultValue;
+}
+

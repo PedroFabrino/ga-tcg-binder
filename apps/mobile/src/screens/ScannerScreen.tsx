@@ -26,6 +26,7 @@ import { useSessionStore } from "../store/sessionStore";
 import { getActiveWsClient } from "../store/sessionStore";
 import { colors, radius, space, type } from "../theme";
 import { PressableScale } from "../components/shared/Button";
+import { FEATURES } from "../config/features";
 
 function ActiveScanner() {
   const { width, height } = useWindowDimensions();
@@ -262,6 +263,7 @@ function ActiveScanner() {
 }
 
 export function ScannerScreen() {
+  if (!FEATURES.scanner) return null;
   const status = useSessionStore((s) => s.status);
   if (status === "DISCONNECTED" || status === "CONNECTING") return <PairingView />;
   return <ActiveScanner />;

@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { queueIdentifiedCard, updateQueuedCard } from "@/services/scanner-queue";
+import { FEATURES } from "@/lib/features";
 
 const fail = (e: any) => NextResponse.json({ error: e.message }, { status: 400 });
 
 /** Add an identified card to the paired session queue. */
 export async function POST(req: NextRequest) {
+  if (!FEATURES.scanner) {
+    return NextResponse.json({ error: "Scanner feature is disabled" }, { status: 404 });
+  }
   try {
     const { token, editionId, foil = false, confidence } = await req.json();
     if (!token || !editionId || typeof confidence !== "number") {
@@ -20,6 +24,9 @@ export async function POST(req: NextRequest) {
 
 /** Change variant of, or undo, a queued card by its timestamp key. */
 export async function PATCH(req: NextRequest) {
+  if (!FEATURES.scanner) {
+    return NextResponse.json({ error: "Scanner feature is disabled" }, { status: 404 });
+  }
   try {
     const { token, timestamp, foil, remove } = await req.json();
     if (!token || typeof timestamp !== "number") {

@@ -25,7 +25,9 @@ export function BottomTabBar({ state, navigation }: BottomTabBarProps) {
     <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, space(1)) }]}>
       {state.routes.map((route, index) => {
         const name = route.name as TabName;
-        const { icon: Icon, live } = TABS[name];
+        const tabInfo = TABS[name];
+        if (!tabInfo) return null;
+        const { icon: Icon, live } = tabInfo;
         const focused = state.index === index;
         const accent = live ? colors.emeraldBright : colors.violetBright;
         const tint = focused ? accent : live ? colors.textMuted : colors.textDim;

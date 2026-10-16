@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { getScannerSession } from "@/services/scanner";
 import { processCardFrame } from "@/services/frame-processor";
+import { FEATURES } from "@/lib/features";
 
 export const maxDuration = 30; // Max allowed duration on Vercel/Node
 
 export async function POST(req: NextRequest) {
+  if (!FEATURES.scanner) {
+    return NextResponse.json({ error: "Scanner feature is disabled" }, { status: 404 });
+  }
   try {
     const { token, imageBase64 } = await req.json();
 

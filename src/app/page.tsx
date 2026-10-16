@@ -6,6 +6,7 @@ import {
   Layers, Sparkles, BookOpen, Trophy, Users, QrCode, Gem, ArrowRight, TrendingUp, Package, Swords, AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { FEATURES } from "@/lib/features";
 
 interface Stats {
   totalCards: number;
@@ -72,7 +73,9 @@ export default function HomePage() {
     { href: "/catalog", title: "Card Catalog", desc: "Every printing, rarity and circulation count across DOA, FTC, ALC, MRC and promos.", icon: Sparkles, el: "el-water" },
     { href: "/meta", title: "Meta Explorer", desc: "Tiered tournament archetypes with one-click gap analysis against your binder.", icon: Trophy, el: "el-earth" },
     { href: "/friends", title: "Playgroup Friends", desc: "Link friend codes and discover idle copies you can borrow before events.", icon: Users, el: "el-wind" },
-    { action: "open-scanner", title: "Mobile Scan", desc: "Pair your phone camera and stream card scans straight into your binder.", icon: QrCode, el: "el-fire" },
+    ...(FEATURES.scanner
+      ? [{ action: "open-scanner", title: "Mobile Scan", desc: "Pair your phone camera and stream card scans straight into your binder.", icon: QrCode, el: "el-fire" }]
+      : []),
   ];
 
   return (

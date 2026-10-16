@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, notFound } from "next/navigation";
 import { Check, Copy, Loader2, Terminal, X, Zap } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { CameraOverlay } from "@/components/scanner/CameraOverlay";
@@ -11,6 +11,7 @@ import type { CardMatchResult, CardVariant } from "@/lib/scanner/contracts";
 import { extractFeatures } from "@/lib/scanner/extract";
 import type { NormalizedCapture } from "@/lib/scanner/warp";
 import { getDebugLogs, logScanner, subscribeDebugLogs, type LogEntry } from "@/lib/scanner/debug-client";
+import { FEATURES } from "@/lib/features";
 
 const RAPID_THRESHOLD = 90;
 const AUTO_COOLDOWN_MS = 2500;
@@ -24,6 +25,9 @@ async function postJson(url: string, method: string, body: unknown) {
 
 /** Mobile paired scanner: no login, results sync to the desktop session via the token. */
 export default function MobileScanPage() {
+  if (!FEATURES.scanner) {
+    notFound();
+  }
   const token = (useParams()?.token as string) || "";
   const [rapid, setRapid] = useState(true);
   const [busy, setBusy] = useState(false);

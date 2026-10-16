@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { getScannerSession } from "@/services/scanner";
 import { identifyCard } from "@/services/scanner-match";
+import { FEATURES } from "@/lib/features";
 
 /** Stage 5 endpoint. Authorised by the paired scanner token (no login on the phone). */
 export async function POST(req: NextRequest) {
+  if (!FEATURES.scanner) {
+    return NextResponse.json({ error: "Scanner feature is disabled" }, { status: 404 });
+  }
   try {
     const { token, phash, headerText = "", footerText = "" } = await req.json();
     if (!token || typeof phash !== "string" || !/^[0-9a-f]{16}$/.test(phash)) {
