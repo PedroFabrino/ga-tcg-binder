@@ -15,6 +15,8 @@ import {
   CheckCircle2,
   Edit3,
   Loader2,
+  Minus,
+  Plus,
 } from "lucide-react";
 import {
   PageHeader,
@@ -46,6 +48,7 @@ export default function MarketplacePage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [claimingId, setClaimingId] = useState<string | null>(null);
+  const [claimQuantities, setClaimQuantities] = useState<Record<string, number>>({});
 
   // Username onboarding / editing state
   const [usernameInput, setUsernameInput] = useState("");
@@ -115,7 +118,20 @@ export default function MarketplacePage() {
     }
   };
 
-  const handleClaimCard = async (card: MarketplaceCardItem, qty: number = 1) => {
+  const getClaimQuantity = (card: MarketplaceCardItem) => {
+    return claimQuantities[card.id] ?? 1;
+  };
+
+  const setClaimQuantity = (cardId: string, max: number, qty: number) => {
+    const clamped = Math.max(1, Math.min(max, qty));
+    setClaimQuantities((prev) => ({
+      ...prev,
+      [cardId]: clamped,
+    }));
+  };
+
+  const handleClaimCard = async (card: MarketplaceCardItem, qty?: number) => {
+    const claimQty = qty ?? getClaimQuantity(card);
     setClaimingId(card.id);
     try {
       const res = await fetch("/api/marketplace", {
@@ -125,13 +141,20 @@ export default function MarketplacePage() {
           action: "claim",
           userId: session?.user?.id,
           mypCardId: card.id,
-          quantity: qty,
+          quantity: claimQty,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Claim failed");
 
       setReport(data.report);
+      // Reset modified quantity for this card
+      setClaimQuantities((prev) => {
+        const next = { ...prev };
+        delete next[card.id];
+        return next;
+      });
+
       showToast(
         `Added ${data.claimedQuantity}x ${card.cardName} to your Binder! Opening MyP listing to delist...`,
         "success"
@@ -694,7 +717,7 @@ export default function MarketplacePage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {card.mypProductUrl && (
                     <Button
                       asChild
@@ -715,24 +738,89 @@ export default function MarketplacePage() {
                   )}
 
                   {card.editionId && (
-                    <Button
-                      size="sm"
-                      disabled={claimingId === card.id}
-                      onClick={() => handleClaimCard(card, 1)}
-                      className={`h-8 text-xs font-semibold ${
-                        card.isShortageOffset
-                          ? "bg-amber-400 text-slate-950 hover:bg-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.3)]"
-                          : "bg-white/[0.08] text-white hover:bg-white/[0.15]"
-                      }`}
-                      title="Move 1 copy to your Binder and open the MyP listing in a new tab to delist"
-                    >
-                      {claimingId === card.id ? (
-                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <ArrowDownToLine className="mr-1.5 h-3.5 w-3.5" />
+                    <div className="flex items-center gap-1.5">
+                      {card.quantity > 1 && (
+                        <div
+                          className="inline-flex items-center rounded-lg border border-white/[0.1] bg-black/40 h-8 px-1"
+                          role="group"
+                          aria-label={`Claim quantity for ${card.cardName}`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setClaimQuantity(card.id, card.quantity, getClaimQuantity(card) - 1)
+                            }
+                            disabled={claimingId === card.id || getClaimQuantity(card) <= 1}
+                            className="p-1 text-slate-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                            title="Decrease quantity"
+                          >
+                            <Minus className="h-3 w-3" />
+                          </button>
+                          <input
+                            type="number"
+                            min={1}
+                            max={card.quantity}
+                            value={getClaimQuantity(card)}
+                            disabled={claimingId === card.id}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10);
+                              if (!isNaN(val)) {
+                                setClaimQuantity(card.id, card.quantity, val);
+                              }
+                            }}
+                            className="w-8 bg-transparent text-center font-mono text-xs font-semibold text-white outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            title="Quantity to claim"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setClaimQuantity(card.id, card.quantity, getClaimQuantity(card) + 1)
+                            }
+                            disabled={claimingId === card.id || getClaimQuantity(card) >= card.quantity}
+                            className="p-1 text-slate-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                            title="Increase quantity"
+                          >
+                            <Plus className="h-3 w-3" />
+                          </button>
+                          {card.quantity > 2 && getClaimQuantity(card) < card.quantity && (
+                            <button
+                              type="button"
+                              onClick={() => setClaimQuantity(card.id, card.quantity, card.quantity)}
+                              disabled={claimingId === card.id}
+                              className="ml-0.5 rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold text-cyan-300 hover:bg-cyan-500/20 transition-colors"
+                              title={`Set max quantity (${card.quantity})`}
+                            >
+                              ALL
+                            </button>
+                          )}
+                        </div>
                       )}
-                      {card.isShortageOffset ? "Claim for Deck" : "Move to Binder"}
-                    </Button>
+
+                      <Button
+                        size="sm"
+                        disabled={claimingId === card.id}
+                        onClick={() => handleClaimCard(card)}
+                        className={`h-8 text-xs font-semibold ${
+                          card.isShortageOffset
+                            ? "bg-amber-400 text-slate-950 hover:bg-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.3)]"
+                            : "bg-white/[0.08] text-white hover:bg-white/[0.15]"
+                        }`}
+                        title={`Move ${getClaimQuantity(card)} copy(ies) to your Binder and open the MyP listing in a new tab to delist`}
+                      >
+                        {claimingId === card.id ? (
+                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <ArrowDownToLine className="mr-1.5 h-3.5 w-3.5" />
+                        )}
+                        {card.isShortageOffset
+                          ? getClaimQuantity(card) > 1
+                            ? `Claim ${getClaimQuantity(card)} for Deck`
+                            : "Claim for Deck"
+                          : getClaimQuantity(card) > 1
+                          ? `Move ${getClaimQuantity(card)} to Binder`
+                          : "Move to Binder"}
+                      </Button>
+                    </div>
                   )}
                 </div>
               </div>
