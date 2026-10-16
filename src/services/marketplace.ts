@@ -412,26 +412,42 @@ export async function syncUserMarketplace(
   };
 }
 
-export async function getUserMarketplaceReport(
+async function resolveEffectiveUser(
   userId: string,
-  database: any = db
-): Promise<MarketplaceReport> {
-  let effectiveUserId = userId;
+  database: any
+): Promise<{ effectiveUserId: string; mypUsername: string | null }> {
   const userRows = await database
     .select()
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
 
-  let mypUsername: string | null = userRows[0]?.mypUsername || null;
-
-  if (userRows.length === 0) {
-    const anyUser = await database.select().from(users).limit(1);
-    if (anyUser.length > 0) {
-      effectiveUserId = anyUser[0].id;
-      mypUsername = anyUser[0].mypUsername || null;
-    }
+  if (userRows.length > 0) {
+    return {
+      effectiveUserId: userRows[0].id,
+      mypUsername: userRows[0].mypUsername || null,
+    };
   }
+
+  const anyUser = await database.select().from(users).limit(1);
+  if (anyUser.length > 0) {
+    return {
+      effectiveUserId: anyUser[0].id,
+      mypUsername: anyUser[0].mypUsername || null,
+    };
+  }
+
+  return { effectiveUserId: userId, mypUsername: null };
+}
+
+export async function getUserMarketplaceReport(
+  userId: string,
+  database: any = db
+): Promise<MarketplaceReport> {
+  const { effectiveUserId, mypUsername } = await resolveEffectiveUser(
+    userId,
+    database
+  );
 
   const listings = await database
     .select({
@@ -480,7 +496,7 @@ export async function getUserMarketplaceReport(
       .where(inArray(deckCards.deckId, deckIds));
   }
 
-  // Fetch user binder inventory
+  // Fetch user binder copies
   const binderItems = await database
     .select({
       cardSlug: cardEditions.cardSlug,
@@ -502,6 +518,7 @@ export async function getUserMarketplaceReport(
   let totalValueBrl = 0;
   let shortageOffsetCount = 0;
   let shortageOffsetCopies = 0;
+  const remainingMissingBySlug = new Map<string, number>();
 
   const enrichedCards: MarketplaceCardItem[] = listings.map((row: any) => {
     const qty = Number(row.quantity) || 1;
@@ -525,9 +542,17 @@ export async function getUserMarketplaceReport(
     const concurrentMissing = Math.max(0, totalDeckDemand - totalBinderOwned);
     const isShortageOffset = concurrentMissing > 0;
 
-    if (isShortageOffset) {
+    if (isShortageOffset && row.cardSlug) {
       shortageOffsetCount++;
-      shortageOffsetCopies += Math.min(qty, concurrentMissing);
+      const remainingForSlug = remainingMissingBySlug.has(row.cardSlug)
+        ? remainingMissingBySlug.get(row.cardSlug)!
+        : concurrentMissing;
+      const offsetByThisListing = Math.min(qty, remainingForSlug);
+      shortageOffsetCopies += offsetByThisListing;
+      remainingMissingBySlug.set(
+        row.cardSlug,
+        Math.max(0, remainingForSlug - offsetByThisListing)
+      );
     }
 
     return {
@@ -589,7 +614,7 @@ export async function claimMarketplaceCardForBinder(
   editionId: string | null;
   mypProductUrl: string | null;
 }> {
-  let effectiveUserId = userId;
+  const { effectiveUserId } = await resolveEffectiveUser(userId, database);
   const rows = await database
     .select()
     .from(mypCards)
@@ -601,7 +626,9 @@ export async function claimMarketplaceCardForBinder(
   }
 
   const listing = rows[0];
-  effectiveUserId = listing.userId;
+  if (listing.userId !== effectiveUserId) {
+    throw new Error("Unauthorized to claim this marketplace listing.");
+  }
 
   let editionId = listing.editionId;
   if (!editionId && listing.cardSlug) {
@@ -620,7 +647,7 @@ export async function claimMarketplaceCardForBinder(
   const claimQty = Math.min(Math.max(1, quantityToClaim), Number(listing.quantity) || 1);
   const foilFlag = Boolean(listing.isFoil);
 
-  // 1. Upsert into collection_items (Binder)
+  // 1. Check existing collection_items (Binder) row
   const existingBinder = await database
     .select()
     .from(collectionItems)
@@ -633,38 +660,42 @@ export async function claimMarketplaceCardForBinder(
     )
     .limit(1);
 
-  if (existingBinder.length > 0) {
-    const newQty = Number(existingBinder[0].quantity) + claimQty;
-    await database
-      .update(collectionItems)
-      .set({
-        quantity: newQty,
-        updatedAt: sql`(strftime('%s', 'now'))`,
-      })
-      .where(eq(collectionItems.id, existingBinder[0].id));
-  } else {
-    await database.insert(collectionItems).values({
-      id: `ci-myp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      userId: effectiveUserId,
-      editionId,
-      foil: foilFlag,
-      quantity: claimQty,
-      isDedicated: false,
-    });
-  }
+  const binderWriteQuery =
+    existingBinder.length > 0
+      ? database
+          .update(collectionItems)
+          .set({
+            quantity: Number(existingBinder[0].quantity) + claimQty,
+            updatedAt: sql`(strftime('%s', 'now'))`,
+          })
+          .where(eq(collectionItems.id, existingBinder[0].id))
+      : database.insert(collectionItems).values({
+          id: `ci-myp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          userId: effectiveUserId,
+          editionId,
+          foil: foilFlag,
+          quantity: claimQty,
+          isDedicated: false,
+        });
 
   // 2. Decrement or delete from myp_cards
   const remaining = Number(listing.quantity) - claimQty;
-  if (remaining <= 0) {
-    await database.delete(mypCards).where(eq(mypCards.id, listing.id));
+  const mypWriteQuery =
+    remaining <= 0
+      ? database.delete(mypCards).where(eq(mypCards.id, listing.id))
+      : database
+          .update(mypCards)
+          .set({
+            quantity: remaining,
+            updatedAt: sql`(strftime('%s', 'now'))`,
+          })
+          .where(eq(mypCards.id, listing.id));
+
+  if (typeof database.batch === "function") {
+    await database.batch([binderWriteQuery, mypWriteQuery]);
   } else {
-    await database
-      .update(mypCards)
-      .set({
-        quantity: remaining,
-        updatedAt: sql`(strftime('%s', 'now'))`,
-      })
-      .where(eq(mypCards.id, listing.id));
+    await binderWriteQuery;
+    await mypWriteQuery;
   }
 
   return {

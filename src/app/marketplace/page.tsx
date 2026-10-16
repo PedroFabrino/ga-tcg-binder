@@ -90,11 +90,10 @@ export default function MarketplacePage() {
 
     setSyncing(true);
     try {
-      const res = await fetch("/api/marketplace", {
+      const res = await fetch("/api/marketplace/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "sync",
           userId: session?.user?.id,
           username: targetUsername,
         }),
@@ -200,7 +199,7 @@ export default function MarketplacePage() {
   return (
     <div className="pb-14 space-y-6">
       <PageHeader
-        eyebrow="Marketplace Inventory"
+        eyebrow="Marketplace Listings"
         title="MyP Cards Store"
         description="Maintain a separate snapshot of your MyP Cards listings, detect active deck shortages sitting in your store, and claim copies directly into your binder."
         actions={
@@ -336,7 +335,7 @@ export default function MarketplacePage() {
             <div className="mt-1 font-mono text-2xl font-bold text-white">
               {summary.totalListings}
             </div>
-            <p className="mt-0.5 text-[11px] text-slate-500">Active rows on MyP</p>
+            <p className="mt-0.5 text-[11px] text-slate-500">Active listings on MyP</p>
           </div>
 
           <div className="rounded-2xl glass p-4">
@@ -537,7 +536,7 @@ export default function MarketplacePage() {
       {loading ? (
         <div className="flex flex-col items-center justify-center rounded-2xl glass py-16">
           <Loader2 className="h-7 w-7 animate-spin text-cyan-400 mb-3" />
-          <p className="text-sm text-slate-400">Loading your MyP Marketplace inventory...</p>
+          <p className="text-sm text-slate-400">Loading your MyP Marketplace listings...</p>
         </div>
       ) : !report || report.cards.length === 0 ? (
         <div className="rounded-2xl glass p-12 text-center">
@@ -661,7 +660,7 @@ export default function MarketplacePage() {
                           href={`/decks/${d.deckId}`}
                           className="inline-flex items-center rounded-md border border-amber-400/25 bg-amber-400/10 px-2 py-0.5 text-[10px] font-medium text-amber-100 hover:border-amber-300"
                         >
-                          {d.deckName} <span className="ml-1 font-mono text-amber-300">x{d.quantity}</span>
+                          Needed in {d.deckName} <span className="ml-1 font-mono text-amber-300">x{d.quantity}</span>
                         </a>
                       ))}
                     </div>

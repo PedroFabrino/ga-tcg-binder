@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     await ensureDefaultUserAndSeed();
     const session = await auth();
     const url = new URL(req.url);
-    const userId = url.searchParams.get("userId") || session?.user?.id || DEFAULT_USER_ID;
+    const userId = session?.user?.id || url.searchParams.get("userId") || DEFAULT_USER_ID;
 
     const report = await getUserMarketplaceReport(userId, db);
     return NextResponse.json(report);
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     await ensureDefaultUserAndSeed();
     const session = await auth();
     const body = await req.json();
-    const userId = body.userId || session?.user?.id || DEFAULT_USER_ID;
+    const userId = session?.user?.id || body.userId || DEFAULT_USER_ID;
     const action = body.action || "sync";
 
     if (action === "sync") {

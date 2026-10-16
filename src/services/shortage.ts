@@ -399,9 +399,9 @@ export async function calculateAggregatedShortages(
     .where(eq(collectionItems.userId, effectiveUserId));
 
   // 3b. Fetch user MyP Marketplace listings (if available)
-  let userMypInventory: any[] = [];
+  let userMypListings: any[] = [];
   try {
-    userMypInventory = await database
+    userMypListings = await database
       .select({
         cardSlug: mypCards.cardSlug,
         quantity: mypCards.quantity,
@@ -490,7 +490,7 @@ export async function calculateAggregatedShortages(
     const concurrentMissing = Math.max(0, totalDemand - totalOwned);
     const peakMissing = Math.max(0, peakDemand - totalOwned);
 
-    const mypAvailableCopies = userMypInventory
+    const mypAvailableCopies = userMypListings
       .filter((m: any) => m.cardSlug === slug)
       .reduce((sum: number, m: any) => sum + Number(m.quantity || 0), 0);
 
