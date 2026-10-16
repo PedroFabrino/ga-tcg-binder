@@ -48,5 +48,6 @@ next-env.d.ts
 # temporary test artifacts
 scratch/
 public/debug/
+graphify-out/
 
 

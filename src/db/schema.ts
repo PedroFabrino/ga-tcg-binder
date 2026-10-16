@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
@@ -153,6 +153,25 @@ export const mypCards = sqliteTable("myp_cards", {
   quantity: integer("quantity").notNull().default(1),
   price: text("price").notNull().default("R$ 0,00"),
   quality: text("quality").notNull().default("NM"),
+  isFoil: integer("is_foil", { mode: "boolean" }).notNull().default(false),
+  mypItemId: text("myp_item_id"),
+  mypProductUrl: text("myp_product_url"),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+});
+
+// ---------------------------------------------------------------------------
+// Global Marketplace In-Stock Snapshot (MyPCards Grand Archive Catalog)
+// ---------------------------------------------------------------------------
+export const mypMarketCards = sqliteTable("myp_market_cards", {
+  id: text("id").primaryKey(),
+  cardSlug: text("card_slug").references(() => cards.slug, { onDelete: "set null" }),
+  editionId: text("edition_id").references(() => cardEditions.id, { onDelete: "set null" }),
+  rawName: text("raw_name").notNull(),
+  cardName: text("card_name").notNull(),
+  setPrefix: text("set_prefix").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  price: text("price").notNull().default("R$ 0,00"),
+  priceNumeric: real("price_numeric").notNull().default(0),
   isFoil: integer("is_foil", { mode: "boolean" }).notNull().default(false),
   mypItemId: text("myp_item_id"),
   mypProductUrl: text("myp_product_url"),

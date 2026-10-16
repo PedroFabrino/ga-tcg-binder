@@ -157,6 +157,24 @@ CREATE TABLE IF NOT EXISTS \`myp_cards\` (
 	FOREIGN KEY (\`card_slug\`) REFERENCES \`cards\`(\`slug\`) ON UPDATE no action ON DELETE set null,
 	FOREIGN KEY (\`edition_id\`) REFERENCES \`card_editions\`(\`id\`) ON UPDATE no action ON DELETE set null
 );
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS \`myp_market_cards\` (
+	\`id\` text PRIMARY KEY NOT NULL,
+	\`card_slug\` text,
+	\`edition_id\` text,
+	\`raw_name\` text NOT NULL,
+	\`card_name\` text NOT NULL,
+	\`set_prefix\` text NOT NULL,
+	\`quantity\` integer DEFAULT 1 NOT NULL,
+	\`price\` text DEFAULT 'R$ 0,00' NOT NULL,
+	\`price_numeric\` real DEFAULT 0 NOT NULL,
+	\`is_foil\` integer DEFAULT false NOT NULL,
+	\`myp_item_id\` text,
+	\`myp_product_url\` text,
+	\`updated_at\` integer DEFAULT (strftime('%s', 'now')),
+	FOREIGN KEY (\`card_slug\`) REFERENCES \`cards\`(\`slug\`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (\`edition_id\`) REFERENCES \`card_editions\`(\`id\`) ON UPDATE no action ON DELETE set null
+);
 `;
 
 export async function runMigrations(customClient = client) {

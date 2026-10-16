@@ -16,6 +16,7 @@ import {
   Flame,
   Gem,
   Store,
+  ExternalLink,
 } from "lucide-react";
 import { CardArt, ElementBadge, RarityGem } from "@/components/common";
 import { CardPreviewTrigger } from "@/components/CardHoverPreview";
@@ -571,12 +572,24 @@ function ShortageCardRow({
             </span>
             {card.mypAvailableCopies && card.mypAvailableCopies > 0 ? (
               <a
-                href="/marketplace"
+                href="/collection?view=MYP_STORE"
                 className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-400/15 px-2 py-0.5 text-[10px] font-semibold text-amber-200 hover:bg-amber-400/25 transition-colors"
-                title="You have copies listed on MyP Cards that can cover this shortage"
+                title="You have copies listed in your MyP Store that can cover this shortage"
               >
                 <Store className="h-2.5 w-2.5 text-amber-300" />
-                {card.mypAvailableCopies} in MyP
+                {card.mypAvailableCopies} in MyP Store
+              </a>
+            ) : null}
+            {card.marketAvailableCopies && card.marketAvailableCopies > 0 ? (
+              <a
+                href={card.marketProductUrl || `/marketplace?query=${encodeURIComponent(card.cardName)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-full border border-cyan-400/40 bg-cyan-400/15 px-2 py-0.5 text-[10px] font-semibold text-cyan-200 hover:bg-cyan-400/25 transition-colors"
+                title={`Buy on MyP Cards starting from ${card.marketLowestPriceStr || "R$ --"}`}
+              >
+                <ExternalLink className="h-2.5 w-2.5 text-cyan-300" />
+                Buy on MyP · {card.marketLowestPriceStr || "Market"} ({card.marketAvailableCopies} avail)
               </a>
             ) : null}
           </div>

@@ -8,9 +8,11 @@ import {
   friendLinks,
   users,
   mypCards,
+  mypMarketCards,
 } from "../db/schema";
 import { db } from "../db";
 import { DEFAULT_USER_ID } from "./seed";
+import { parseBrlPrice } from "./marketplace";
 
 export interface FriendIdleCard {
   friendId: string;
@@ -32,6 +34,11 @@ export interface CardShortageDetail {
   dedicatedCopiesOwned: number;
   sharedCopiesOwned: number;
   friendsWithIdle: FriendIdleCard[];
+  mypAvailableCopies?: number;
+  marketAvailableCopies?: number;
+  marketLowestPriceBrl?: number;
+  marketLowestPriceStr?: string;
+  marketProductUrl?: string | null;
 }
 
 export interface DeckShortageReport {
@@ -170,6 +177,41 @@ export async function calculateDeckShortage(
       .where(inArray(decks.userId, friendIds));
   }
 
+  // 5b. Fetch user personal MyP store and global market listings
+  let userMypListings: any[] = [];
+  try {
+    userMypListings = await database
+      .select({
+        cardSlug: mypCards.cardSlug,
+        editionId: mypCards.editionId,
+        setPrefix: mypCards.setPrefix,
+        mypItemId: mypCards.mypItemId,
+        quantity: mypCards.quantity,
+      })
+      .from(mypCards)
+      .where(eq(mypCards.userId, effectiveUserId));
+  } catch {
+    // Graceful fallback
+  }
+
+  let marketListings: any[] = [];
+  try {
+    marketListings = await database
+      .select({
+        cardSlug: mypMarketCards.cardSlug,
+        editionId: mypMarketCards.editionId,
+        setPrefix: mypMarketCards.setPrefix,
+        mypItemId: mypMarketCards.mypItemId,
+        quantity: mypMarketCards.quantity,
+        price: mypMarketCards.price,
+        priceNumeric: mypMarketCards.priceNumeric,
+        mypProductUrl: mypMarketCards.mypProductUrl,
+      })
+      .from(mypMarketCards);
+  } catch {
+    // Graceful fallback
+  }
+
   // 6. Aggregate shortage per card in target deck
   const items: CardShortageDetail[] = [];
   let totalCardsRequired = 0;
@@ -262,6 +304,45 @@ export async function calculateDeckShortage(
       }
     }
 
+    // Personal MyP store copies
+    const mypAvailableCopies = userMypListings
+      .filter((m: any) => m.cardSlug === slug)
+      .reduce((sum: number, m: any) => sum + Number(m.quantity || 0), 0);
+
+    // Global Market availability (net external stock)
+    const matchingMarketRows = marketListings.filter((m: any) => m.cardSlug === slug);
+    let marketAvailableCopies = 0;
+    let lowestPriceBrl = Infinity;
+    let lowestPriceStr: string | undefined;
+    let marketProductUrl: string | null = null;
+
+    for (const mRow of matchingMarketRows) {
+      let personalStoreQty = 0;
+      for (const userMyp of userMypListings) {
+        if (mRow.mypItemId && userMyp.mypItemId && mRow.mypItemId === userMyp.mypItemId) {
+          personalStoreQty += Number(userMyp.quantity) || 0;
+        } else if (mRow.editionId && userMyp.editionId && mRow.editionId === userMyp.editionId) {
+          personalStoreQty += Number(userMyp.quantity) || 0;
+        } else if (
+          mRow.cardSlug === userMyp.cardSlug &&
+          mRow.setPrefix.toUpperCase() === (userMyp.setPrefix || "").toUpperCase()
+        ) {
+          personalStoreQty += Number(userMyp.quantity) || 0;
+        }
+      }
+
+      const netExternal = Math.max(0, Number(mRow.quantity) - personalStoreQty);
+      if (netExternal > 0) {
+        marketAvailableCopies += netExternal;
+        const priceNum = Number(mRow.priceNumeric) || parseBrlPrice(mRow.price);
+        if (priceNum < lowestPriceBrl) {
+          lowestPriceBrl = priceNum;
+          lowestPriceStr = mRow.price;
+          marketProductUrl = mRow.mypProductUrl;
+        }
+      }
+    }
+
     items.push({
       cardSlug: slug,
       cardName,
@@ -275,6 +356,11 @@ export async function calculateDeckShortage(
       dedicatedCopiesOwned: dedicatedOwned,
       sharedCopiesOwned: sharedOwned,
       friendsWithIdle,
+      mypAvailableCopies: mypAvailableCopies > 0 ? mypAvailableCopies : undefined,
+      marketAvailableCopies: marketAvailableCopies > 0 ? marketAvailableCopies : undefined,
+      marketLowestPriceBrl: lowestPriceBrl === Infinity ? undefined : lowestPriceBrl,
+      marketLowestPriceStr: lowestPriceStr,
+      marketProductUrl,
     });
   }
 
@@ -321,6 +407,10 @@ export interface AggregatedShortageCard {
   peakMissing: number;
   concurrentMissing: number;
   mypAvailableCopies?: number;
+  marketAvailableCopies?: number;
+  marketLowestPriceBrl?: number;
+  marketLowestPriceStr?: string;
+  marketProductUrl?: string | null;
 }
 
 export interface AggregatedShortageReport {
@@ -404,12 +494,33 @@ export async function calculateAggregatedShortages(
     userMypListings = await database
       .select({
         cardSlug: mypCards.cardSlug,
+        editionId: mypCards.editionId,
+        setPrefix: mypCards.setPrefix,
+        mypItemId: mypCards.mypItemId,
         quantity: mypCards.quantity,
       })
       .from(mypCards)
       .where(eq(mypCards.userId, effectiveUserId));
   } catch {
     // Graceful fallback if myp_cards table is not yet migrated
+  }
+
+  let marketListings: any[] = [];
+  try {
+    marketListings = await database
+      .select({
+        cardSlug: mypMarketCards.cardSlug,
+        editionId: mypMarketCards.editionId,
+        setPrefix: mypMarketCards.setPrefix,
+        mypItemId: mypMarketCards.mypItemId,
+        quantity: mypMarketCards.quantity,
+        price: mypMarketCards.price,
+        priceNumeric: mypMarketCards.priceNumeric,
+        mypProductUrl: mypMarketCards.mypProductUrl,
+      })
+      .from(mypMarketCards);
+  } catch {
+    // Graceful fallback
   }
 
   // 4. Unique card slugs needed across all decks
@@ -494,6 +605,40 @@ export async function calculateAggregatedShortages(
       .filter((m: any) => m.cardSlug === slug)
       .reduce((sum: number, m: any) => sum + Number(m.quantity || 0), 0);
 
+    // Global Market availability (net external stock)
+    const matchingMarketRows = marketListings.filter((m: any) => m.cardSlug === slug);
+    let marketAvailableCopies = 0;
+    let lowestPriceBrl = Infinity;
+    let lowestPriceStr: string | undefined;
+    let marketProductUrl: string | null = null;
+
+    for (const mRow of matchingMarketRows) {
+      let personalStoreQty = 0;
+      for (const userMyp of userMypListings) {
+        if (mRow.mypItemId && userMyp.mypItemId && mRow.mypItemId === userMyp.mypItemId) {
+          personalStoreQty += Number(userMyp.quantity) || 0;
+        } else if (mRow.editionId && userMyp.editionId && mRow.editionId === userMyp.editionId) {
+          personalStoreQty += Number(userMyp.quantity) || 0;
+        } else if (
+          mRow.cardSlug === userMyp.cardSlug &&
+          mRow.setPrefix.toUpperCase() === (userMyp.setPrefix || "").toUpperCase()
+        ) {
+          personalStoreQty += Number(userMyp.quantity) || 0;
+        }
+      }
+
+      const netExternal = Math.max(0, Number(mRow.quantity) - personalStoreQty);
+      if (netExternal > 0) {
+        marketAvailableCopies += netExternal;
+        const priceNum = Number(mRow.priceNumeric) || parseBrlPrice(mRow.price);
+        if (priceNum < lowestPriceBrl) {
+          lowestPriceBrl = priceNum;
+          lowestPriceStr = mRow.price;
+          marketProductUrl = mRow.mypProductUrl;
+        }
+      }
+    }
+
     // Only include cards with a shortage
     if (concurrentMissing > 0 || peakMissing > 0) {
       shortageCards.push({
@@ -513,7 +658,11 @@ export async function calculateAggregatedShortages(
         sharedOwned,
         peakMissing,
         concurrentMissing,
-        mypAvailableCopies,
+        mypAvailableCopies: mypAvailableCopies > 0 ? mypAvailableCopies : undefined,
+        marketAvailableCopies: marketAvailableCopies > 0 ? marketAvailableCopies : undefined,
+        marketLowestPriceBrl: lowestPriceBrl === Infinity ? undefined : lowestPriceBrl,
+        marketLowestPriceStr: lowestPriceStr,
+        marketProductUrl,
       });
     }
   }

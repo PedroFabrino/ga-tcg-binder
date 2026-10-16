@@ -1,13 +1,15 @@
 import { describe, it, expect } from "vitest";
 import { createTestDb } from "../db/test-utils";
-import { cards, cardEditions, users, decks, deckCards, collectionItems, mypCards } from "../db/schema";
+import { cards, cardEditions, users, decks, deckCards, collectionItems, mypCards, mypMarketCards } from "../db/schema";
 import {
   parseMypHtml,
   syncUserMarketplace,
   getUserMarketplaceReport,
   claimMarketplaceCardForBinder,
+  syncGlobalMarketplace,
+  getGlobalMarketReport,
 } from "./marketplace";
-import { calculateAggregatedShortages } from "./shortage";
+import { calculateAggregatedShortages, calculateDeckShortage } from "./shortage";
 
 const SAMPLE_MYP_HTML_PAGE_1 = `
 <div class="card" data-ga-item-id="grandarchive_ptm_086p1">
@@ -272,4 +274,259 @@ describe("Marketplace (MyPCards) Sync, Shortage Offset & Claim Seam", () => {
     expect(updatedHymn?.quantity).toBe(1);
     expect(updatedHymn?.concurrentMissing).toBe(2); // Was 3, now 2 missing!
   });
+
+  it("syncs global market catalog, subtracts personal store stock, classifies Hard vs Shared shortages, and enriches deck shortages", async () => {
+    const { db } = await createTestDb();
+
+    // 1. Seed user and catalog
+    await db.insert(users).values({
+      id: "user-buyer",
+      name: "Buyer",
+      friendCode: "BUY-01",
+      mypUsername: "BuyerStore",
+    });
+
+    await db.insert(cards).values([
+      {
+        slug: "dungeon-guide",
+        name: "Dungeon Guide",
+        element: "NORM",
+        class: "WARRIOR",
+        type: "ALLY",
+      },
+      {
+        slug: "fire-ball",
+        name: "Fire Ball",
+        element: "FIRE",
+        class: "MAGE",
+        type: "ACTION",
+      },
+      {
+        slug: "spirit-blade",
+        name: "Spirit Blade",
+        element: "WATER",
+        class: "WARRIOR",
+        type: "ITEM",
+      },
+      {
+        slug: "unrelated-card",
+        name: "Unrelated Card",
+        element: "WIND",
+        class: "RANGER",
+        type: "ACTION",
+      },
+    ]);
+
+    await db.insert(cardEditions).values([
+      {
+        id: "ed-dg-alc",
+        cardSlug: "dungeon-guide",
+        setPrefix: "ALC",
+        setName: "Alchemical",
+        collectorNumber: "010",
+        rarity: 2,
+        imageUrl: "https://api.gatcg.com/dg.jpg",
+      },
+      {
+        id: "ed-fb-alc",
+        cardSlug: "fire-ball",
+        setPrefix: "ALC",
+        setName: "Alchemical",
+        collectorNumber: "020",
+        rarity: 1,
+        imageUrl: "https://api.gatcg.com/fb.jpg",
+      },
+      {
+        id: "ed-sb-alc",
+        cardSlug: "spirit-blade",
+        setPrefix: "ALC",
+        setName: "Alchemical",
+        collectorNumber: "030",
+        rarity: 3,
+        imageUrl: "https://api.gatcg.com/sb.jpg",
+      },
+      {
+        id: "ed-unrelated",
+        cardSlug: "unrelated-card",
+        setPrefix: "ALC",
+        setName: "Alchemical",
+        collectorNumber: "099",
+        rarity: 1,
+        imageUrl: "https://api.gatcg.com/unrelated.jpg",
+      },
+    ]);
+
+    // 2. Setup Decks:
+    // Deck 1 needs 4x Dungeon Guide and 2x Fire Ball
+    // Deck 2 needs 2x Fire Ball
+    // User owns:
+    // - 2x Dungeon Guide in binder -> peakMissing = 4 - 2 = 2 (HARD SHORTAGE!)
+    // - 2x Fire Ball in binder -> Deck 1 needs 2, Deck 2 needs 2. peakDemand = 2, totalDemand = 4.
+    //   peakMissing = 2 - 2 = 0, concurrentMissing = 4 - 2 = 2 (SHARED SHORTAGE!)
+    // Deck 1 also needs 1x Spirit Blade (0 owned in binder).
+    // But user has 1x Spirit Blade listed in their OWN myp_cards!
+    // On the market, there is 1x Spirit Blade available.
+    // Self-collision: netExternalStock = 1 - 1 = 0! (Only the user's copy is on MyP!)
+    await db.insert(decks).values([
+      { id: "deck-a", userId: "user-buyer", name: "Warrior Beatdown" },
+      { id: "deck-b", userId: "user-buyer", name: "Mage Burn" },
+    ]);
+
+    await db.insert(deckCards).values([
+      { id: "dc-dg", deckId: "deck-a", cardSlug: "dungeon-guide", zone: "main", quantity: 4 },
+      { id: "dc-fb-a", deckId: "deck-a", cardSlug: "fire-ball", zone: "main", quantity: 2 },
+      { id: "dc-sb", deckId: "deck-a", cardSlug: "spirit-blade", zone: "main", quantity: 1 },
+      { id: "dc-fb-b", deckId: "deck-b", cardSlug: "fire-ball", zone: "main", quantity: 2 },
+    ]);
+
+    // Binder items
+    await db.insert(collectionItems).values([
+      { id: "ci-dg", userId: "user-buyer", editionId: "ed-dg-alc", quantity: 2, isDedicated: false },
+      { id: "ci-fb", userId: "user-buyer", editionId: "ed-fb-alc", quantity: 2, isDedicated: false },
+    ]);
+
+    // Personal store listing (myp_cards): user is selling 1x Spirit Blade
+    await db.insert(mypCards).values({
+      id: "myp-sb-self",
+      userId: "user-buyer",
+      cardSlug: "spirit-blade",
+      editionId: "ed-sb-alc",
+      rawName: "Spirit Blade",
+      cardName: "Spirit Blade",
+      setPrefix: "ALC",
+      quantity: 1,
+      price: "R$ 20,00",
+      mypItemId: "grandarchive_alc_030",
+    });
+
+    // 3. Mock global catalog HTML pages
+    const GLOBAL_PAGE_1_HTML = `
+    <div class="summary"><strong>60</strong> itens encontrados.</div>
+    <div class="card" data-ga-item-id="grandarchive_alc_010">
+      <a class="card-img-link" href="/grandarchive/produto/101/dungeon-guide"></a>
+      <div class="card-name"><h3>Dungeon Guide</h3></div>
+      <span class="card-edicao">ALC</span>
+      <span class="quantidade-num">6</span>
+      <span class="card-preco moeda">R$ 5,00</span>
+    </div>
+    <div class="card" data-ga-item-id="grandarchive_alc_020">
+      <a class="card-img-link" href="/grandarchive/produto/102/fire-ball"></a>
+      <div class="card-name"><h3>Fire Ball</h3></div>
+      <span class="card-edicao">ALC</span>
+      <span class="quantidade-num">3</span>
+      <span class="card-preco moeda">R$ 1,50</span>
+    </div>
+    `;
+
+    const GLOBAL_PAGE_2_JSON = JSON.stringify({
+      success: true,
+      html: `
+      <div class="card" data-ga-item-id="grandarchive_alc_030">
+        <a class="card-img-link" href="/grandarchive/produto/103/spirit-blade"></a>
+        <div class="card-name"><h3>Spirit Blade</h3></div>
+        <span class="card-edicao">ALC</span>
+        <span class="quantidade-num">1</span>
+        <span class="card-preco moeda">R$ 20,00</span>
+      </div>
+      <div class="card" data-ga-item-id="grandarchive_alc_099">
+        <a class="card-img-link" href="/grandarchive/produto/104/unrelated-card"></a>
+        <div class="card-name"><h3>Unrelated Card</h3></div>
+        <span class="card-edicao">ALC</span>
+        <span class="quantidade-num">10</span>
+        <span class="card-preco moeda">R$ 0,50</span>
+      </div>
+      `,
+    });
+
+    const mockFetch = (async (url: string) => {
+      if (url.includes("/produto/load-more")) {
+        return {
+          ok: true,
+          json: async () => JSON.parse(GLOBAL_PAGE_2_JSON),
+          text: async () => GLOBAL_PAGE_2_JSON,
+        };
+      }
+      return {
+        ok: true,
+        text: async () => GLOBAL_PAGE_1_HTML,
+      };
+    }) as unknown as typeof fetch;
+
+    // Run global market sync
+    const syncResult = await syncGlobalMarketplace(db, mockFetch);
+    expect(syncResult.totalSynced).toBe(4);
+    expect(syncResult.matchedCount).toBe(4);
+
+    const savedMarketRows = await db.select().from(mypMarketCards);
+    expect(savedMarketRows).toHaveLength(4);
+
+    // 4. Test Global Market Report
+    const marketReport = await getGlobalMarketReport("user-buyer", db);
+    expect(marketReport.summary.totalListings).toBe(4);
+    expect(marketReport.summary.totalMarketCopies).toBe(20); // 6 + 3 + 1 + 10
+    expect(marketReport.summary.hardShortagesCount).toBe(1); // Dungeon Guide
+    expect(marketReport.summary.sharedShortagesCount).toBe(1); // Fire Ball
+
+    // Check Dungeon Guide (HARD SHORTAGE)
+    const dgItem = marketReport.cards.find((c) => c.cardSlug === "dungeon-guide");
+    expect(dgItem).toBeDefined();
+    expect(dgItem?.shortageTier).toBe("HARD");
+    expect(dgItem?.peakMissing).toBe(2);
+    expect(dgItem?.concurrentMissing).toBe(2);
+    expect(dgItem?.isBuyableShortage).toBe(true);
+    expect(dgItem?.netExternalStock).toBe(6);
+    expect(dgItem?.personalStoreQuantity).toBe(0);
+
+    // Check Fire Ball (SHARED SHORTAGE)
+    const fbItem = marketReport.cards.find((c) => c.cardSlug === "fire-ball");
+    expect(fbItem).toBeDefined();
+    expect(fbItem?.shortageTier).toBe("SHARED");
+    expect(fbItem?.peakMissing).toBe(0);
+    expect(fbItem?.concurrentMissing).toBe(2);
+    expect(fbItem?.isBuyableShortage).toBe(true);
+    expect(fbItem?.netExternalStock).toBe(3);
+
+    // Check Spirit Blade (SELF COLLISION: total market = 1, personal store = 1 -> net external = 0)
+    const sbItem = marketReport.cards.find((c) => c.cardSlug === "spirit-blade");
+    expect(sbItem).toBeDefined();
+    expect(sbItem?.shortageTier).toBe("HARD");
+    expect(sbItem?.personalStoreQuantity).toBe(1);
+    expect(sbItem?.netExternalStock).toBe(0);
+    expect(sbItem?.isBuyableShortage).toBe(false); // Can't buy from others, only your own listing exists!
+
+    // Check Sorting: Hard shortages first, Shared shortages second, Unrelated last
+    expect(marketReport.cards[0].cardSlug).toBe("dungeon-guide");
+    expect(marketReport.cards[1].cardSlug).toBe("spirit-blade"); // Hard shortage, though not buyable from others
+    expect(marketReport.cards[2].cardSlug).toBe("fire-ball"); // Shared shortage
+    expect(marketReport.cards[3].cardSlug).toBe("unrelated-card"); // No shortage
+
+    // 5. Test Deck Shortages Integration (Aggregated Shortages & Single Deck Shortage)
+    const aggregatedReport = await calculateAggregatedShortages("user-buyer", db);
+    const dgShortage = aggregatedReport.cards.find((c) => c.cardSlug === "dungeon-guide");
+    expect(dgShortage).toBeDefined();
+    expect(dgShortage?.marketAvailableCopies).toBe(6);
+    expect(dgShortage?.marketLowestPriceBrl).toBe(5.0);
+    expect(dgShortage?.marketLowestPriceStr).toBe("R$ 5,00");
+    expect(dgShortage?.marketProductUrl).toBe("https://mypcards.com/grandarchive/produto/101/dungeon-guide");
+
+    // Single deck shortage test
+    const singleDeckReport = await calculateDeckShortage("deck-a", "user-buyer", db);
+    const dgSingleItem = singleDeckReport.items.find((i) => i.cardSlug === "dungeon-guide");
+    expect(dgSingleItem).toBeDefined();
+    expect(dgSingleItem?.marketAvailableCopies).toBe(6);
+    expect(dgSingleItem?.marketLowestPriceBrl).toBe(5.0);
+    expect(dgSingleItem?.marketLowestPriceStr).toBe("R$ 5,00");
+
+    // 6. Test Error Resilience: If network fails during crawl, existing records are preserved
+    const failingFetch = (async () => {
+      throw new Error("Cloudflare 500 Network Down");
+    }) as unknown as typeof fetch;
+
+    await expect(syncGlobalMarketplace(db, failingFetch)).rejects.toThrow();
+
+    // Verify records were NOT wiped
+    const preservedMarketRows = await db.select().from(mypMarketCards);
+    expect(preservedMarketRows).toHaveLength(4);
+  });
 });
+

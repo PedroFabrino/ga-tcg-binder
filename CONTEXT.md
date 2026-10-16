@@ -32,6 +32,14 @@ _Avoid_: Locked card, exclusive card
 The quantity deficit when the number of copies required by one or more Decks exceeds available Owned Copies.
 _Avoid_: Missing card, out of stock
 
+**Hard Shortage**:
+A high-priority single-deck Shortage where the Collector does not own enough copies in their Binder to sleeve even one individual Deck (`peakMissing > 0`).
+_Avoid_: Peak deficit, unplayable gap
+
+**Shared Shortage**:
+A secondary multi-deck Shortage where every individual Deck has enough copies if shared, but total concurrent demand across multiple Decks exceeds Owned Copies (`concurrentMissing > 0` with `peakMissing = 0`).
+_Avoid_: Contention deficit, swap shortage
+
 **Population**:
 The total number of circulating copies produced for a given Printing as recorded by the publisher API.
 _Avoid_: Print run, supply count
@@ -49,8 +57,20 @@ A specific verified tournament-winning or high-cut decklist adopted as the repre
 _Avoid_: Default list, netdeck template, sample deck
 
 **Meta Sync**:
-The periodic or on-demand automated ingestion process that crawls tournament data sources to synchronize Meta Archetypes, Meta Tiers, and Canonical Decklists.
+The periodic or on-demand automated ingestion process that crawls tournament data sources to synchronize Meta Archetypes, Meta Tiers, Canonical Decklists, and Meta Staples.
 _Avoid_: Deck scraper, meta pull, bot refresh
+
+**Meta Staple**:
+A format-wide competitive Card with high tournament inclusion across Divine Relics, Material Decks, Elemental Main Decks, or Sideboards, tracked with its recommended competitive playset quantity.
+_Avoid_: Personal staple, format staple, popular card
+
+**Staple Deficit**:
+A state where a Collector holds fewer copies of a Meta Staple in their active Binder than its recommended playset quantity, flagging any copies listed in their personal Store Listings to be claimed back into the Binder.
+_Avoid_: Staple shortage, missing staple
+
+**Archetype Completion**:
+The percentage of a Meta Archetype's core playable Canonical Decklist (Material Deck and Main Deck) satisfied by the Collector's combined physical holdings across their active Binder and personal Store Listings.
+_Avoid_: Deck match score, buildability rate
 
 **Card Catalog**:
 The canonical reference repository of Cards and Printings synchronized from the official game API.
@@ -92,20 +112,26 @@ _Avoid_: Mobile app, remote camera, phone client
 A continuous scanning state where confirmed cards are automatically committed to the collection without leaving the camera viewfinder or requiring manual taps.
 _Avoid_: Batch mode, continuous scan, auto scan
 
-**Marketplace Listing**:
-A physical card instance listed by a Collector on an external sales platform (such as MyP Cards), kept strictly decoupled from their internal Binder Collection.
+**Store Listing**:
+A physical card instance listed by the Collector in their own external store (such as their personal MyP Cards profile), tracked inside their Collection view but kept isolated from active Binder copies until claimed.
 _Avoid_: Inventory item, shop stock, sale row
 
-**Marketplace Sync**:
-The on-demand or periodic crawler pipeline that extracts a Collector's public Marketplace Listings and resolves them against the Card Catalog.
+**Store Sync**:
+The on-demand crawler pipeline that extracts a Collector's personal Store Listings and resolves them against the Card Catalog.
 _Avoid_: Store scraper, listing importer
 
 **Shortage Offset**:
-A Marketplace Listing owned by the Collector that matches an active Deck Shortage, identifying physical copies that could be withdrawn from sale to satisfy a deck.
+A Store Listing owned by the Collector that matches an active Deck Shortage, identifying physical copies the Collector already owns on sale that could be withdrawn and claimed into their Binder.
 _Avoid_: Sale conflict, deck reserve
 
+**Market Listing**:
+An aggregated public product entry on the global external marketplace (such as MyP Cards) with active stock for sale, tracking total available quantity and lowest asking price across all sellers.
+_Avoid_: Global item, shop product
 
+**Market Sync**:
+The on-demand or scheduled crawler pipeline that snapshots all active Market Listings for Grand Archive and resolves them against the Card Catalog.
+_Avoid_: Global scraper, price pull
 
-
-
-
+**Buyable Shortage**:
+An active Deck Shortage (either a hard single-deck deficit or a multi-deck sharing contention) that matches at least one active Market Listing available for purchase.
+_Avoid_: Purchasable missing card, market match

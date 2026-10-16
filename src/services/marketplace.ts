@@ -8,7 +8,9 @@ import {
   decks,
   deckCards,
   mypCards,
+  mypMarketCards,
 } from "../db/schema";
+import { DEFAULT_USER_ID } from "./seed";
 
 export interface ParsedMypItem {
   rawName: string;
@@ -703,5 +705,486 @@ export async function claimMarketplaceCardForBinder(
     claimedQuantity: claimQty,
     editionId,
     mypProductUrl: listing.mypProductUrl || null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Global Marketplace In-Stock Scanner & Reporting
+// ---------------------------------------------------------------------------
+
+export type ShortageTier = "HARD" | "SHARED" | "NONE";
+
+export interface GlobalMarketplaceCardItem {
+  id: string;
+  cardSlug: string | null;
+  editionId: string | null;
+  rawName: string;
+  cardName: string;
+  setPrefix: string;
+  element: string;
+  class: string;
+  type: string;
+  rarity: number;
+  imageUrl: string | null;
+  quantity: number;
+  personalStoreQuantity: number;
+  netExternalStock: number;
+  price: string;
+  priceNumeric: number;
+  isFoil: boolean;
+  mypItemId: string | null;
+  mypProductUrl: string | null;
+  deckNeeds: MarketplaceDeckNeed[];
+  peakMissing: number;
+  concurrentMissing: number;
+  shortageTier: ShortageTier;
+  isBuyableShortage: boolean;
+}
+
+export interface GlobalMarketSummary {
+  totalListings: number;
+  totalMarketCopies: number;
+  hardShortagesCount: number;
+  sharedShortagesCount: number;
+  lastSyncedAt: number | null;
+}
+
+export interface GlobalMarketReport {
+  summary: GlobalMarketSummary;
+  cards: GlobalMarketplaceCardItem[];
+}
+
+export async function syncGlobalMarketplace(
+  database: any = db,
+  customFetch?: typeof fetch
+): Promise<{
+  totalSynced: number;
+  matchedCount: number;
+  unmatchedCount: number;
+}> {
+  // 1. Fetch Page 1 of Grand Archive in-stock catalog
+  const page1Url = "https://mypcards.com/grandarchive?ProdutoSearch%5BexibirSomenteVenda%5D=1";
+  const p1Html = await fetchMypText(page1Url, customFetch);
+  const parsedItems: ParsedMypItem[] = [...parseMypHtml(p1Html)];
+
+  // Determine total item count to calculate required pages
+  let totalItems = 1626;
+  const countMatch =
+    p1Html.match(/class=["']summary["'][^>]*><strong>(\d+)<\/strong>\s*itens/i) ||
+    p1Html.match(/ProdutoScrollInfinito\([^,]+,[^,]+,\s*(\d+)\s*,\s*30\)/i);
+  if (countMatch) {
+    totalItems = parseInt(countMatch[1], 10) || totalItems;
+  }
+  const maxPages = Math.min(75, Math.ceil(totalItems / 30));
+
+  // 2. Fetch subsequent pages in concurrent batches of 4
+  const batchSize = 4;
+  for (let p = 2; p <= maxPages; p += batchSize) {
+    const pageNumbers: number[] = [];
+    for (let i = 0; i < batchSize && p + i <= maxPages; i++) {
+      pageNumbers.push(p + i);
+    }
+
+    const batchResults = await Promise.all(
+      pageNumbers.map(async (page) => {
+        const moreUrl = `https://mypcards.com/produto/load-more?marca=grandarchive&ProdutoSearch%5BexibirSomenteVenda%5D=1&page=${page}`;
+        try {
+          const moreText = await fetchMypText(moreUrl, customFetch);
+          let htmlChunk = moreText;
+          try {
+            const json = JSON.parse(moreText);
+            if (json && json.success && json.html) {
+              htmlChunk = json.html;
+            }
+          } catch {
+            // Not JSON; parse raw text
+          }
+          return parseMypHtml(htmlChunk);
+        } catch {
+          return [];
+        }
+      })
+    );
+
+    for (const items of batchResults) {
+      parsedItems.push(...items);
+    }
+
+    // Polite delay between batches when fetching live network
+    if (!customFetch && p + batchSize <= maxPages) {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
+
+  if (parsedItems.length === 0) {
+    throw new Error("No items could be parsed from MyP Cards global catalog.");
+  }
+
+  // 3. Resolve parsed items against local Catalog
+  const allCatalogCards = await database
+    .select({
+      slug: cards.slug,
+      name: cards.name,
+    })
+    .from(cards);
+
+  const allCatalogEditions = await database
+    .select({
+      id: cardEditions.id,
+      cardSlug: cardEditions.cardSlug,
+      setPrefix: cardEditions.setPrefix,
+      collectorNumber: cardEditions.collectorNumber,
+    })
+    .from(cardEditions);
+
+  const cardByLowerName = new Map<string, { slug: string; name: string }>();
+  const cardByAlphaNum = new Map<string, { slug: string; name: string }>();
+  for (const c of allCatalogCards) {
+    const lower = c.name.toLowerCase().trim();
+    cardByLowerName.set(lower, c);
+    cardByAlphaNum.set(lower.replace(/[^a-z0-9]/g, ""), c);
+  }
+
+  let matchedCount = 0;
+  let unmatchedCount = 0;
+
+  // Atomically replace myp_market_cards rows
+  await database.delete(mypMarketCards);
+
+  const rowsToInsert: any[] = [];
+  const batchTimestamp = Date.now();
+
+  for (let idx = 0; idx < parsedItems.length; idx++) {
+    const item = parsedItems[idx];
+    const lowerClean = item.cleanName.toLowerCase().trim();
+
+    let matchedCard = cardByLowerName.get(lowerClean);
+
+    // Fallback 1: Double-faced card split on `//`
+    if (!matchedCard && lowerClean.includes("//")) {
+      const frontFace = lowerClean.split("//")[0].trim();
+      matchedCard = cardByLowerName.get(frontFace);
+    }
+
+    // Parse mypItemId (e.g. "grandarchive_ptm_086p1")
+    let parsedSet = item.setPrefix.toUpperCase().split(" ")[0];
+    let parsedNum: string | null = null;
+    if (item.mypItemId) {
+      const m = item.mypItemId.match(/^grandarchive_([a-z0-9]+)_([0-9]+)/i);
+      if (m) {
+        parsedSet = m[1].toUpperCase();
+        parsedNum = m[2];
+      }
+    }
+
+    // Fallback 2: Match by set_prefix + collector_number from mypItemId
+    if (!matchedCard && parsedSet && parsedNum) {
+      const edByNum = allCatalogEditions.find(
+        (e: any) =>
+          e.setPrefix.toUpperCase() === parsedSet &&
+          e.collectorNumber.padStart(3, "0") === parsedNum!.padStart(3, "0")
+      );
+      if (edByNum) {
+        matchedCard = allCatalogCards.find((c: any) => c.slug === edByNum.cardSlug);
+      }
+    }
+
+    // Fallback 3: Alphanumeric normalized match
+    if (!matchedCard) {
+      const alpha = lowerClean.split("//")[0].replace(/[^a-z0-9]/g, "");
+      matchedCard = cardByAlphaNum.get(alpha);
+    }
+
+    let editionId: string | null = null;
+    if (matchedCard) {
+      matchedCount++;
+      const edsForSlug = allCatalogEditions.filter(
+        (e: any) => e.cardSlug === matchedCard!.slug
+      );
+      const exactEd =
+        edsForSlug.find(
+          (e: any) => e.setPrefix.toUpperCase() === item.setPrefix.toUpperCase()
+        ) ||
+        edsForSlug.find((e: any) => e.setPrefix.toUpperCase() === parsedSet) ||
+        edsForSlug[0];
+      editionId = exactEd?.id || null;
+    } else {
+      unmatchedCount++;
+    }
+
+    rowsToInsert.push({
+      id: item.mypItemId ? `mkt-${item.mypItemId}` : `mkt-${idx}-${batchTimestamp}`,
+      cardSlug: matchedCard?.slug || null,
+      editionId,
+      rawName: item.rawName,
+      cardName: matchedCard?.name || item.cleanName,
+      setPrefix: item.setPrefix,
+      quantity: item.quantity,
+      price: item.price,
+      priceNumeric: parseBrlPrice(item.price),
+      isFoil: item.isFoil,
+      mypItemId: item.mypItemId,
+      mypProductUrl: item.mypProductUrl,
+    });
+  }
+
+  const chunkSize = 50;
+  for (let i = 0; i < rowsToInsert.length; i += chunkSize) {
+    await database.insert(mypMarketCards).values(rowsToInsert.slice(i, i + chunkSize));
+  }
+
+  return {
+    totalSynced: parsedItems.length,
+    matchedCount,
+    unmatchedCount,
+  };
+}
+
+export async function getGlobalMarketReport(
+  userId?: string,
+  database: any = db
+): Promise<GlobalMarketReport> {
+  const { effectiveUserId } = await resolveEffectiveUser(
+    userId || DEFAULT_USER_ID,
+    database
+  );
+
+  const marketRows = await database
+    .select({
+      id: mypMarketCards.id,
+      cardSlug: mypMarketCards.cardSlug,
+      editionId: mypMarketCards.editionId,
+      rawName: mypMarketCards.rawName,
+      cardName: mypMarketCards.cardName,
+      setPrefix: mypMarketCards.setPrefix,
+      quantity: mypMarketCards.quantity,
+      price: mypMarketCards.price,
+      priceNumeric: mypMarketCards.priceNumeric,
+      isFoil: mypMarketCards.isFoil,
+      mypItemId: mypMarketCards.mypItemId,
+      mypProductUrl: mypMarketCards.mypProductUrl,
+      updatedAt: mypMarketCards.updatedAt,
+      element: cards.element,
+      class: cards.class,
+      type: cards.type,
+      rarity: cardEditions.rarity,
+      imageUrl: cardEditions.imageUrl,
+    })
+    .from(mypMarketCards)
+    .leftJoin(cards, eq(mypMarketCards.cardSlug, cards.slug))
+    .leftJoin(cardEditions, eq(mypMarketCards.editionId, cardEditions.id));
+
+  // User decks & deck requirements
+  const userDecks = await database
+    .select()
+    .from(decks)
+    .where(eq(decks.userId, effectiveUserId));
+  const deckIds = userDecks.map((d: any) => d.id);
+
+  let allDeckCards: any[] = [];
+  if (deckIds.length > 0) {
+    allDeckCards = await database
+      .select({
+        deckId: deckCards.deckId,
+        deckName: decks.name,
+        cardSlug: deckCards.cardSlug,
+        quantity: deckCards.quantity,
+        zone: deckCards.zone,
+      })
+      .from(deckCards)
+      .innerJoin(decks, eq(deckCards.deckId, decks.id))
+      .where(inArray(deckCards.deckId, deckIds));
+  }
+
+  // User binder owned copies
+  const binderItems = await database
+    .select({
+      cardSlug: cardEditions.cardSlug,
+      quantity: collectionItems.quantity,
+    })
+    .from(collectionItems)
+    .innerJoin(cardEditions, eq(collectionItems.editionId, cardEditions.id))
+    .where(eq(collectionItems.userId, effectiveUserId));
+
+  const binderOwnedBySlug = new Map<string, number>();
+  for (const item of binderItems) {
+    binderOwnedBySlug.set(
+      item.cardSlug,
+      (binderOwnedBySlug.get(item.cardSlug) || 0) + Number(item.quantity)
+    );
+  }
+
+  // User personal myp_cards (Store Listings)
+  const userMypRows = await database
+    .select({
+      id: mypCards.id,
+      cardSlug: mypCards.cardSlug,
+      editionId: mypCards.editionId,
+      setPrefix: mypCards.setPrefix,
+      mypItemId: mypCards.mypItemId,
+      quantity: mypCards.quantity,
+    })
+    .from(mypCards)
+    .where(eq(mypCards.userId, effectiveUserId));
+
+  // Pre-calculate demand and shortages per cardSlug
+  const demandBySlug = new Map<
+    string,
+    {
+      deckNeeds: MarketplaceDeckNeed[];
+      totalDemand: number;
+      peakDemand: number;
+      concurrentMissing: number;
+      peakMissing: number;
+    }
+  >();
+
+  const uniqueDeckSlugs = Array.from(
+    new Set(allDeckCards.map((d: any) => d.cardSlug as string))
+  );
+  for (const slug of uniqueDeckSlugs) {
+    const matchingReqs = allDeckCards.filter((d: any) => d.cardSlug === slug);
+    const deckNeeds: MarketplaceDeckNeed[] = matchingReqs.map((dc: any) => ({
+      deckId: dc.deckId,
+      deckName: dc.deckName,
+      quantity: Number(dc.quantity),
+      zone: dc.zone,
+    }));
+    const totalDemand = deckNeeds.reduce((s, d) => s + d.quantity, 0);
+
+    const demandByDeckId: Record<string, number> = {};
+    for (const req of deckNeeds) {
+      demandByDeckId[req.deckId] = (demandByDeckId[req.deckId] || 0) + req.quantity;
+    }
+    const peakDemand = Object.values(demandByDeckId).reduce((max, q) => Math.max(max, q), 0);
+    const owned = binderOwnedBySlug.get(slug) || 0;
+    const concurrentMissing = Math.max(0, totalDemand - owned);
+    const peakMissing = Math.max(0, peakDemand - owned);
+
+    demandBySlug.set(slug, {
+      deckNeeds,
+      totalDemand,
+      peakDemand,
+      concurrentMissing,
+      peakMissing,
+    });
+  }
+
+  let totalMarketCopies = 0;
+  let hardShortagesCount = 0;
+  let sharedShortagesCount = 0;
+  let latestUpdatedAt: number | null = null;
+
+  const enrichedCards: GlobalMarketplaceCardItem[] = marketRows.map((row: any) => {
+    const qty = Number(row.quantity) || 1;
+    totalMarketCopies += qty;
+
+    const rowUpdatedAtMs =
+      row.updatedAt instanceof Date
+        ? row.updatedAt.getTime()
+        : row.updatedAt
+        ? Number(row.updatedAt) * 1000
+        : null;
+    if (rowUpdatedAtMs && (!latestUpdatedAt || rowUpdatedAtMs > latestUpdatedAt)) {
+      latestUpdatedAt = rowUpdatedAtMs;
+    }
+
+    // Match personal Store Listings for this item
+    let personalStoreQuantity = 0;
+    for (const myp of userMypRows) {
+      let isMatch = false;
+      if (row.mypItemId && myp.mypItemId && row.mypItemId === myp.mypItemId) {
+        isMatch = true;
+      } else if (row.editionId && myp.editionId && row.editionId === myp.editionId) {
+        isMatch = true;
+      } else if (
+        row.cardSlug &&
+        myp.cardSlug &&
+        row.cardSlug === myp.cardSlug &&
+        row.setPrefix.toUpperCase() === myp.setPrefix.toUpperCase()
+      ) {
+        isMatch = true;
+      }
+      if (isMatch) {
+        personalStoreQuantity += Number(myp.quantity) || 0;
+      }
+    }
+
+    const netExternalStock = Math.max(0, qty - personalStoreQuantity);
+
+    const slugDemand = row.cardSlug ? demandBySlug.get(row.cardSlug) : null;
+    const deckNeeds = slugDemand?.deckNeeds || [];
+    const peakMissing = slugDemand?.peakMissing || 0;
+    const concurrentMissing = slugDemand?.concurrentMissing || 0;
+
+    let shortageTier: ShortageTier = "NONE";
+    if (peakMissing > 0) {
+      shortageTier = "HARD";
+    } else if (concurrentMissing > 0) {
+      shortageTier = "SHARED";
+    }
+
+    const isBuyableShortage = shortageTier !== "NONE" && netExternalStock > 0;
+
+    if (shortageTier === "HARD" && netExternalStock > 0) {
+      hardShortagesCount++;
+    } else if (shortageTier === "SHARED" && netExternalStock > 0) {
+      sharedShortagesCount++;
+    }
+
+    return {
+      id: row.id,
+      cardSlug: row.cardSlug || null,
+      editionId: row.editionId || null,
+      rawName: row.rawName,
+      cardName: row.cardName,
+      setPrefix: row.setPrefix,
+      element: row.element || "NORM",
+      class: row.class || "ALL",
+      type: row.type || "ACTION",
+      rarity: row.rarity || 1,
+      imageUrl: row.imageUrl || null,
+      quantity: qty,
+      personalStoreQuantity,
+      netExternalStock,
+      price: row.price,
+      priceNumeric: Number(row.priceNumeric) || parseBrlPrice(row.price),
+      isFoil: Boolean(row.isFoil),
+      mypItemId: row.mypItemId || null,
+      mypProductUrl: row.mypProductUrl || null,
+      deckNeeds,
+      peakMissing,
+      concurrentMissing,
+      shortageTier,
+      isBuyableShortage,
+    };
+  });
+
+  // Sort: HARD shortages first, SHARED shortages second, Buyable before non-buyable, then by priceNumeric ascending
+  enrichedCards.sort((a, b) => {
+    const tierWeight = (t: ShortageTier, buyable: boolean) => {
+      if (t === "HARD" && buyable) return 4;
+      if (t === "HARD") return 3;
+      if (t === "SHARED" && buyable) return 2;
+      if (t === "SHARED") return 1;
+      return 0;
+    };
+    const diffTier =
+      tierWeight(b.shortageTier, b.isBuyableShortage) -
+      tierWeight(a.shortageTier, a.isBuyableShortage);
+    if (diffTier !== 0) return diffTier;
+
+    return a.priceNumeric - b.priceNumeric;
+  });
+
+  return {
+    summary: {
+      totalListings: enrichedCards.length,
+      totalMarketCopies,
+      hardShortagesCount,
+      sharedShortagesCount,
+      lastSyncedAt: latestUpdatedAt,
+    },
+    cards: enrichedCards,
   };
 }

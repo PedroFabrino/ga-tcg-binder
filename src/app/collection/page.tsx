@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Layers, Sparkles, Gem, TrendingUp, Upload, LayoutGrid, Table2, Plus, SearchX } from "lucide-react";
+import { Layers, Sparkles, Gem, TrendingUp, Upload, LayoutGrid, Table2, Plus, SearchX, Store } from "lucide-react";
 import { PageHeader, Tabs } from "@/components/common";
 import { SkeletonRow, EmptyState } from "@/components/Skeletons";
 import { useToast } from "@/components/ToastProvider";
@@ -11,19 +11,21 @@ import BinderView from "@/components/collection/BinderView";
 import CollectionSearchBar from "@/components/collection/CollectionSearchBar";
 import QuickAddModal from "@/components/collection/QuickAddModal";
 import BulkImportModal from "@/components/collection/BulkImportModal";
+import MypStoreView from "@/components/collection/MypStoreView";
 import { filterCollectionItems } from "@/components/collection/filter";
 import type { CollectionItem } from "@/components/collection/types";
 import { Button } from "@/components/ui/button";
 import { FEATURES } from "@/lib/features";
 
-type View = "ALL" | "STAPLES" | "LOW_POP" | "IDLE";
-const VIEWS: View[] = ["ALL", "STAPLES", "LOW_POP", "IDLE"];
+type View = "ALL" | "STAPLES" | "LOW_POP" | "IDLE" | "MYP_STORE";
+const VIEWS: View[] = ["ALL", "STAPLES", "LOW_POP", "IDLE", "MYP_STORE"];
 
 const TABS: { id: View; label: string; icon: any }[] = [
   { id: "ALL", label: "All Cards", icon: Layers },
   { id: "STAPLES", label: "Staples", icon: TrendingUp },
   { id: "LOW_POP", label: "Low Pop", icon: Gem },
   { id: "IDLE", label: "Idle / Trade", icon: Sparkles },
+  { id: "MYP_STORE", label: "MyP Store", icon: Store },
 ];
 
 const EMPTY_COPY: Record<View, { title: string; description: string }> = {
@@ -36,6 +38,10 @@ const EMPTY_COPY: Record<View, { title: string; description: string }> = {
   STAPLES: { title: "No multi-deck staples yet", description: "Cards used in two or more of your active decks will appear here." },
   LOW_POP: { title: "No collector gems yet", description: "Printings at or below your low-population threshold will be highlighted here." },
   IDLE: { title: "No idle copies", description: "Copies not needed by any active deck show up here, ready to trade or lend." },
+  MYP_STORE: {
+    title: "No MyP Store listings synced",
+    description: "Connect your MyP username and sync your cards to manage store stock and claim copies into your binder.",
+  },
 };
 
 export default function CollectionPage() {
@@ -157,32 +163,38 @@ export default function CollectionPage() {
         }
       />
 
-      <CollectionSearchBar
-        value={searchQuery}
-        onChange={setSearchQuery}
-        placeholder="Search collection by card name, set, or collector number..."
-      />
+      {activeTab !== "MYP_STORE" && (
+        <CollectionSearchBar
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="Search collection by card name, set, or collector number..."
+        />
+      )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
-        <div className="inline-flex self-start rounded-xl border border-white/[0.06] bg-white/[0.02] p-1" role="group" aria-label="View mode">
-          {[
-            { id: "table" as const, label: "Pro Table", icon: Table2 },
-            { id: "binder" as const, label: "9-Pocket", icon: LayoutGrid },
-          ].map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => setMode(id)}
-              aria-pressed={mode === id}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${mode === id ? "bg-white/[0.08] text-white" : "text-slate-400 hover:text-slate-200"}`}
-            >
-              <Icon className="h-3.5 w-3.5" /> {label}
-            </button>
-          ))}
-        </div>
+        {activeTab !== "MYP_STORE" && (
+          <div className="inline-flex self-start rounded-xl border border-white/[0.06] bg-white/[0.02] p-1" role="group" aria-label="View mode">
+            {[
+              { id: "table" as const, label: "Pro Table", icon: Table2 },
+              { id: "binder" as const, label: "9-Pocket", icon: LayoutGrid },
+            ].map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setMode(id)}
+                aria-pressed={mode === id}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${mode === id ? "bg-white/[0.08] text-white" : "text-slate-400 hover:text-slate-200"}`}
+              >
+                <Icon className="h-3.5 w-3.5" /> {label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {error && !loading ? (
+      {activeTab === "MYP_STORE" ? (
+        <MypStoreView />
+      ) : error && !loading ? (
         <EmptyState icon={Layers} title="We couldn't load your binder" description="Check your connection and try again." action={<Button variant="outline" onClick={() => fetchCollection()}>Retry</Button>} />
       ) : loading ? (
         <div className="divide-y divide-white/[0.04] rounded-2xl glass">

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Check, Users, Plus, Loader2, MessageSquare, Lock } from "lucide-react";
+import { AlertTriangle, Check, Users, Plus, Loader2, MessageSquare, Lock, Store, ExternalLink } from "lucide-react";
 import { useToast } from "@/components/ToastProvider";
 import { CardPreviewTrigger } from "@/components/CardHoverPreview";
 
@@ -17,6 +17,11 @@ export interface ShortageItem {
   dedicatedCopiesOwned: number;
   sharedCopiesOwned: number;
   friendsWithIdle: { friendId: string; friendName: string; friendCode: string; idleQuantity: number }[];
+  mypAvailableCopies?: number;
+  marketAvailableCopies?: number;
+  marketLowestPriceBrl?: number;
+  marketLowestPriceStr?: string;
+  marketProductUrl?: string | null;
 }
 
 export interface ShortageReport {
@@ -143,6 +148,32 @@ export default function ShortageTable({
                       <Lock className="h-2.5 w-2.5" /> {item.dedicatedCopiesOwned} dedicated · {item.sharedCopiesOwned} shared
                     </div>
                   )}
+                  {short && item.mypAvailableCopies && item.mypAvailableCopies > 0 ? (
+                    <div className="mt-1.5 flex items-center gap-1.5">
+                      <a
+                        href="/collection?view=MYP_STORE"
+                        className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-400/15 px-2 py-0.5 text-[10px] font-semibold text-amber-200 hover:bg-amber-400/25 transition-colors"
+                        title="You have copies listed in your MyP Store that can cover this shortage"
+                      >
+                        <Store className="h-2.5 w-2.5 text-amber-300" />
+                        {item.mypAvailableCopies} in your MyP Store
+                      </a>
+                    </div>
+                  ) : null}
+                  {short && item.marketAvailableCopies && item.marketAvailableCopies > 0 ? (
+                    <div className="mt-1.5 flex items-center gap-1.5">
+                      <a
+                        href={item.marketProductUrl || `/marketplace?query=${encodeURIComponent(item.cardName)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 rounded-full border border-cyan-400/40 bg-cyan-400/15 px-2 py-0.5 text-[10px] font-semibold text-cyan-200 hover:bg-cyan-400/25 transition-colors"
+                        title={`Buy on MyP Cards starting from ${item.marketLowestPriceStr || "R$ --"}`}
+                      >
+                        <ExternalLink className="h-2.5 w-2.5 text-cyan-300" />
+                        Buy on MyP · {item.marketLowestPriceStr || "Market"} ({item.marketAvailableCopies} avail)
+                      </a>
+                    </div>
+                  ) : null}
                   {short && (item.friendsWithIdle?.length ?? 0) > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {item.friendsWithIdle?.map((f) => (
