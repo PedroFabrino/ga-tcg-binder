@@ -27,19 +27,11 @@ import { CardPreviewTrigger } from "@/components/CardHoverPreview";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ToastProvider";
 import { ALL_ELEMENTS, ELEMENT_COLORS, ELEMENT_LABELS, normalizeElement } from "@/lib/elements";
+import { RARITIES } from "@/lib/rarities";
 import type {
   GlobalMarketplaceCardItem,
   GlobalMarketReport,
 } from "@/services/marketplace";
-
-const RARITIES = [
-  { id: 1, label: "Common", color: "#94a3b8", activeColor: "#f8fafc" },
-  { id: 2, label: "Uncommon", color: "#10b981", activeColor: "#34d399" },
-  { id: 3, label: "Rare", color: "#06b6d4", activeColor: "#22d3ee" },
-  { id: 4, label: "Super Rare", color: "#f59e0b", activeColor: "#fbbf24" },
-  { id: 5, label: "Ultra Rare", color: "#f43f5e", activeColor: "#fb7185" },
-  { id: 7, label: "Collector", color: "#e8c967", activeColor: "#fde047" },
-];
 
 type ShortageFilter = "ALL_SHORTAGES" | "HARD_ONLY" | "SHARED_ONLY" | "ALL_MARKET";
 
@@ -125,11 +117,11 @@ export default function MarketplacePage() {
     let list = report.cards;
 
     if (shortageFilter === "ALL_SHORTAGES") {
-      list = list.filter((c) => c.shortageTier !== "NONE");
+      list = list.filter((c) => c.shortageTier !== "NONE" && c.netExternalStock > 0);
     } else if (shortageFilter === "HARD_ONLY") {
-      list = list.filter((c) => c.shortageTier === "HARD");
+      list = list.filter((c) => c.shortageTier === "HARD" && c.netExternalStock > 0);
     } else if (shortageFilter === "SHARED_ONLY") {
-      list = list.filter((c) => c.shortageTier === "SHARED");
+      list = list.filter((c) => c.shortageTier === "SHARED" && c.netExternalStock > 0);
     }
 
     if (selectedElements.length > 0) {
@@ -210,7 +202,7 @@ export default function MarketplacePage() {
               {summary.hardShortagesCount}
             </div>
             <p className="mt-0.5 text-[11px] text-slate-400">
-              Unplayable single-deck gaps available
+              Single-deck shortages available on market
             </p>
           </div>
 
@@ -228,7 +220,7 @@ export default function MarketplacePage() {
             }`}
           >
             <div className="flex items-center justify-between">
-              <div className="label-caps text-amber-300 font-bold">Shared Contention</div>
+              <div className="label-caps text-amber-300 font-bold">Shared Shortages</div>
               <Sparkles className="h-4 w-4 text-amber-400" />
             </div>
             <div className="mt-1 font-mono text-2xl font-bold text-amber-300">
@@ -277,7 +269,7 @@ export default function MarketplacePage() {
             {[
               { id: "ALL_SHORTAGES" as const, label: "All Deck Shortages (🔴 + 🟡)", count: (summary?.hardShortagesCount || 0) + (summary?.sharedShortagesCount || 0) },
               { id: "HARD_ONLY" as const, label: "Hard Shortages (🔴)", count: summary?.hardShortagesCount || 0 },
-              { id: "SHARED_ONLY" as const, label: "Shared Upgrades (🟡)", count: summary?.sharedShortagesCount || 0 },
+              { id: "SHARED_ONLY" as const, label: "Shared Shortages (🟡)", count: summary?.sharedShortagesCount || 0 },
               { id: "ALL_MARKET" as const, label: "All MyP Listings (🌐)", count: summary?.totalListings || 0 },
             ].map((tab) => {
               const active = shortageFilter === tab.id;
@@ -466,8 +458,10 @@ export default function MarketplacePage() {
       ) : (
         <div className="divide-y divide-white/[0.05] rounded-2xl glass overflow-hidden">
           {filteredCards.map((card) => {
-            const isHard = card.shortageTier === "HARD";
-            const isShared = card.shortageTier === "SHARED";
+            const isBuyable = card.netExternalStock > 0;
+            const isHard = card.shortageTier === "HARD" && isBuyable;
+            const isShared = card.shortageTier === "SHARED" && isBuyable;
+            const isSelfCollision = card.personalStoreQuantity > 0 && card.netExternalStock === 0;
 
             return (
               <div
@@ -538,7 +532,7 @@ export default function MarketplacePage() {
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                         <span className="inline-flex items-center gap-1 rounded-md border border-rose-400/40 bg-rose-500/15 px-2 py-0.5 text-[11px] font-semibold text-rose-200">
                           <AlertTriangle className="h-3 w-3 text-rose-300" />
-                          Hard Shortage: Need {card.peakMissing} for {card.deckNeeds[0]?.deckName || "Deck"}
+                          Hard Shortage: Need {card.peakMissing} for {card.peakDeckName || card.deckNeeds[0]?.deckName || "Deck"}
                         </span>
                         {card.deckNeeds.map((d, idx) => (
                           <a
@@ -566,6 +560,19 @@ export default function MarketplacePage() {
                           </a>
                         ))}
                       </div>
+                    ) : isSelfCollision && card.shortageTier !== "NONE" ? (
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        <span className="inline-flex items-center gap-1 rounded-md border border-amber-400/40 bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-200">
+                          <Store className="h-3 w-3 text-amber-300" />
+                          Store Offset: All {card.personalStoreQuantity} listed copies are in your MyP Store
+                        </span>
+                        <a
+                          href="/collection?view=MYP_STORE"
+                          className="inline-flex items-center rounded-md border border-amber-400/25 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-200 hover:border-amber-400 hover:bg-amber-400/20"
+                        >
+                          Claim to Binder
+                        </a>
+                      </div>
                     ) : card.deckNeeds.length > 0 ? (
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                         <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400">
@@ -583,7 +590,7 @@ export default function MarketplacePage() {
                     ) : null}
 
                     {/* Self-listing collision badge */}
-                    {card.personalStoreQuantity > 0 && (
+                    {card.personalStoreQuantity > 0 && !isSelfCollision && (
                       <div className="mt-1 flex items-center gap-1.5">
                         <a
                           href="/collection?view=MYP_STORE"
@@ -593,11 +600,6 @@ export default function MarketplacePage() {
                           <Store className="h-2.5 w-2.5 text-amber-400" />
                           You have {card.personalStoreQuantity} listed in your MyP Store
                         </a>
-                        {card.netExternalStock === 0 && (
-                          <span className="text-[10px] text-amber-300/80 font-medium">
-                            (All copies on MyP are yours)
-                          </span>
-                        )}
                       </div>
                     )}
                   </div>
@@ -624,27 +626,41 @@ export default function MarketplacePage() {
                   </div>
 
                   {card.mypProductUrl && (
-                    <Button
-                      asChild
-                      size="sm"
-                      className={`h-9 font-semibold text-xs ${
-                        isHard
-                          ? "bg-rose-500 text-white hover:bg-rose-400 shadow-[0_0_15px_-3px_rgba(244,63,94,0.4)]"
-                          : isShared
-                          ? "bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-[0_0_15px_-3px_rgba(251,191,36,0.3)]"
-                          : "bg-cyan-500 text-slate-950 hover:bg-cyan-400"
-                      }`}
-                    >
-                      <a
-                        href={card.mypProductUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title="Open product on MyP Cards to buy"
+                    isSelfCollision ? (
+                      <Button
+                        asChild
+                        variant="outline"
+                        size="sm"
+                        className="h-9 border-amber-400/40 text-amber-200 hover:bg-amber-400/10 text-xs font-semibold"
                       >
-                        <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-                        Buy on MyP
-                      </a>
-                    </Button>
+                        <a href="/collection?view=MYP_STORE" title="Manage your listings in your MyP Store">
+                          <Store className="mr-1.5 h-3.5 w-3.5 text-amber-400" />
+                          In Your Store
+                        </a>
+                      </Button>
+                    ) : (
+                      <Button
+                        asChild
+                        size="sm"
+                        className={`h-9 font-semibold text-xs ${
+                          isHard
+                            ? "bg-rose-500 text-white hover:bg-rose-400 shadow-[0_0_15px_-3px_rgba(244,63,94,0.4)]"
+                            : isShared
+                            ? "bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-[0_0_15px_-3px_rgba(251,191,36,0.3)]"
+                            : "bg-cyan-500 text-slate-950 hover:bg-cyan-400"
+                        }`}
+                      >
+                        <a
+                          href={card.mypProductUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Open product on MyP Cards to buy"
+                        >
+                          <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                          Buy on MyP
+                        </a>
+                      </Button>
+                    )
                   )}
                 </div>
               </div>

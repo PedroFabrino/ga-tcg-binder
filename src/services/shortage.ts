@@ -12,7 +12,15 @@ import {
 } from "../db/schema";
 import { db } from "../db";
 import { DEFAULT_USER_ID } from "./seed";
-import { parseBrlPrice } from "./marketplace";
+import { parseBrlPrice, calculateNetMarketStock } from "./marketplace";
+
+export interface MarketShortageAvailability {
+  mypAvailableCopies?: number;
+  marketAvailableCopies?: number;
+  marketLowestPriceBrl?: number;
+  marketLowestPriceStr?: string;
+  marketProductUrl?: string | null;
+}
 
 export interface FriendIdleCard {
   friendId: string;
@@ -21,7 +29,7 @@ export interface FriendIdleCard {
   idleQuantity: number;
 }
 
-export interface CardShortageDetail {
+export interface CardShortageDetail extends MarketShortageAvailability {
   cardSlug: string;
   cardName: string;
   zone: string;
@@ -34,11 +42,6 @@ export interface CardShortageDetail {
   dedicatedCopiesOwned: number;
   sharedCopiesOwned: number;
   friendsWithIdle: FriendIdleCard[];
-  mypAvailableCopies?: number;
-  marketAvailableCopies?: number;
-  marketLowestPriceBrl?: number;
-  marketLowestPriceStr?: string;
-  marketProductUrl?: string | null;
 }
 
 export interface DeckShortageReport {
@@ -317,23 +320,9 @@ export async function calculateDeckShortage(
     let marketProductUrl: string | null = null;
 
     for (const mRow of matchingMarketRows) {
-      let personalStoreQty = 0;
-      for (const userMyp of userMypListings) {
-        if (mRow.mypItemId && userMyp.mypItemId && mRow.mypItemId === userMyp.mypItemId) {
-          personalStoreQty += Number(userMyp.quantity) || 0;
-        } else if (mRow.editionId && userMyp.editionId && mRow.editionId === userMyp.editionId) {
-          personalStoreQty += Number(userMyp.quantity) || 0;
-        } else if (
-          mRow.cardSlug === userMyp.cardSlug &&
-          mRow.setPrefix.toUpperCase() === (userMyp.setPrefix || "").toUpperCase()
-        ) {
-          personalStoreQty += Number(userMyp.quantity) || 0;
-        }
-      }
-
-      const netExternal = Math.max(0, Number(mRow.quantity) - personalStoreQty);
-      if (netExternal > 0) {
-        marketAvailableCopies += netExternal;
+      const { netExternalStock } = calculateNetMarketStock(mRow, userMypListings);
+      if (netExternalStock > 0) {
+        marketAvailableCopies += netExternalStock;
         const priceNum = Number(mRow.priceNumeric) || parseBrlPrice(mRow.price);
         if (priceNum < lowestPriceBrl) {
           lowestPriceBrl = priceNum;
@@ -389,7 +378,7 @@ export interface CardEditionSummary {
   imageUrl: string;
 }
 
-export interface AggregatedShortageCard {
+export interface AggregatedShortageCard extends MarketShortageAvailability {
   cardSlug: string;
   cardName: string;
   element: string;
@@ -406,11 +395,6 @@ export interface AggregatedShortageCard {
   sharedOwned: number;
   peakMissing: number;
   concurrentMissing: number;
-  mypAvailableCopies?: number;
-  marketAvailableCopies?: number;
-  marketLowestPriceBrl?: number;
-  marketLowestPriceStr?: string;
-  marketProductUrl?: string | null;
 }
 
 export interface AggregatedShortageReport {
@@ -613,23 +597,9 @@ export async function calculateAggregatedShortages(
     let marketProductUrl: string | null = null;
 
     for (const mRow of matchingMarketRows) {
-      let personalStoreQty = 0;
-      for (const userMyp of userMypListings) {
-        if (mRow.mypItemId && userMyp.mypItemId && mRow.mypItemId === userMyp.mypItemId) {
-          personalStoreQty += Number(userMyp.quantity) || 0;
-        } else if (mRow.editionId && userMyp.editionId && mRow.editionId === userMyp.editionId) {
-          personalStoreQty += Number(userMyp.quantity) || 0;
-        } else if (
-          mRow.cardSlug === userMyp.cardSlug &&
-          mRow.setPrefix.toUpperCase() === (userMyp.setPrefix || "").toUpperCase()
-        ) {
-          personalStoreQty += Number(userMyp.quantity) || 0;
-        }
-      }
-
-      const netExternal = Math.max(0, Number(mRow.quantity) - personalStoreQty);
-      if (netExternal > 0) {
-        marketAvailableCopies += netExternal;
+      const { netExternalStock } = calculateNetMarketStock(mRow, userMypListings);
+      if (netExternalStock > 0) {
+        marketAvailableCopies += netExternalStock;
         const priceNum = Number(mRow.priceNumeric) || parseBrlPrice(mRow.price);
         if (priceNum < lowestPriceBrl) {
           lowestPriceBrl = priceNum;

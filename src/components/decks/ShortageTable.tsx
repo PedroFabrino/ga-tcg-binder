@@ -3,8 +3,9 @@
 import { AlertTriangle, Check, Users, Plus, Loader2, MessageSquare, Lock, Store, ExternalLink } from "lucide-react";
 import { useToast } from "@/components/ToastProvider";
 import { CardPreviewTrigger } from "@/components/CardHoverPreview";
+import type { MarketShortageAvailability } from "@/services/shortage";
 
-export interface ShortageItem {
+export interface ShortageItem extends MarketShortageAvailability {
   cardSlug: string;
   cardName: string;
   zone: string;
@@ -17,11 +18,6 @@ export interface ShortageItem {
   dedicatedCopiesOwned: number;
   sharedCopiesOwned: number;
   friendsWithIdle: { friendId: string; friendName: string; friendCode: string; idleQuantity: number }[];
-  mypAvailableCopies?: number;
-  marketAvailableCopies?: number;
-  marketLowestPriceBrl?: number;
-  marketLowestPriceStr?: string;
-  marketProductUrl?: string | null;
 }
 
 export interface ShortageReport {

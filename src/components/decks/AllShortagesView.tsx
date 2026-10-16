@@ -23,6 +23,7 @@ import { CardPreviewTrigger } from "@/components/CardHoverPreview";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ToastProvider";
 import { ELEMENT_COLORS, ALL_ELEMENTS, normalizeElement } from "@/lib/elements";
+import { RARITIES } from "@/lib/rarities";
 import type {
   AggregatedShortageCard,
   AggregatedShortageReport,
@@ -45,14 +46,6 @@ const ELEMENT_CONFIG: Record<string, { label: string; color: string; activeColor
   ARCANE: { label: "Arcane", color: "#a855f7", activeColor: "#c084fc", bg: "bg-purple-500/20", border: "border-purple-400", shadow: "shadow-[0_0_12px_rgba(192,132,252,0.4)]" },
   NEOS: { label: "Neos", color: "#0ea5e9", activeColor: "#38bdf8", bg: "bg-sky-500/20", border: "border-sky-400", shadow: "shadow-[0_0_12px_rgba(56,189,248,0.4)]" },
 };
-
-const RARITIES = [
-  { id: 1, label: "Common", color: "#94a3b8", activeColor: "#f8fafc", bg: "bg-slate-200/20", border: "border-slate-200", shadow: "shadow-[0_0_12px_rgba(248,250,252,0.4)]" },
-  { id: 2, label: "Uncommon", color: "#10b981", activeColor: "#34d399", bg: "bg-emerald-500/20", border: "border-emerald-400", shadow: "shadow-[0_0_12px_rgba(52,211,153,0.4)]" },
-  { id: 3, label: "Rare", color: "#06b6d4", activeColor: "#22d3ee", bg: "bg-cyan-500/20", border: "border-cyan-400", shadow: "shadow-[0_0_12px_rgba(34,211,238,0.4)]" },
-  { id: 4, label: "Super Rare", color: "#f59e0b", activeColor: "#fbbf24", bg: "bg-amber-500/20", border: "border-amber-400", shadow: "shadow-[0_0_12px_rgba(251,191,36,0.4)]" },
-  { id: 5, label: "Ultra Rare", color: "#f43f5e", activeColor: "#fb7185", bg: "bg-rose-500/20", border: "border-rose-400", shadow: "shadow-[0_0_12px_rgba(251,113,133,0.4)]" },
-];
 
 type GroupMode = "none" | "element" | "deck" | "rarity";
 

@@ -221,6 +221,164 @@ async function fetchMypText(url: string, customFetch?: typeof fetch): Promise<st
   return stdout;
 }
 
+// ---------------------------------------------------------------------------
+// Shared Catalog Resolution & Listing Matching Helpers
+// ---------------------------------------------------------------------------
+
+export interface CatalogResolutionData {
+  allCatalogCards: { slug: string; name: string }[];
+  allCatalogEditions: { id: string; cardSlug: string; setPrefix: string; collectorNumber: string }[];
+  cardByLowerName: Map<string, { slug: string; name: string }>;
+  cardByAlphaNum: Map<string, { slug: string; name: string }>;
+}
+
+export async function loadCatalogResolutionData(database: any): Promise<CatalogResolutionData> {
+  const allCatalogCards = await database
+    .select({
+      slug: cards.slug,
+      name: cards.name,
+    })
+    .from(cards);
+
+  const allCatalogEditions = await database
+    .select({
+      id: cardEditions.id,
+      cardSlug: cardEditions.cardSlug,
+      setPrefix: cardEditions.setPrefix,
+      collectorNumber: cardEditions.collectorNumber,
+    })
+    .from(cardEditions);
+
+  const cardByLowerName = new Map<string, { slug: string; name: string }>();
+  const cardByAlphaNum = new Map<string, { slug: string; name: string }>();
+  for (const c of allCatalogCards) {
+    const lower = c.name.toLowerCase().trim();
+    cardByLowerName.set(lower, c);
+    cardByAlphaNum.set(lower.replace(/[^a-z0-9]/g, ""), c);
+  }
+
+  return { allCatalogCards, allCatalogEditions, cardByLowerName, cardByAlphaNum };
+}
+
+export function resolveMypItem(
+  item: ParsedMypItem,
+  catalog: CatalogResolutionData
+): { matchedCard: { slug: string; name: string } | null; editionId: string | null } {
+  const lowerClean = item.cleanName.toLowerCase().trim();
+
+  let matchedCard = catalog.cardByLowerName.get(lowerClean) || null;
+
+  // Fallback 1: Double-faced card split on `//`
+  if (!matchedCard && lowerClean.includes("//")) {
+    const frontFace = lowerClean.split("//")[0].trim();
+    matchedCard = catalog.cardByLowerName.get(frontFace) || null;
+  }
+
+  // Parse mypItemId (e.g. "grandarchive_ptm_086p1")
+  let parsedSet = item.setPrefix.toUpperCase().split(" ")[0];
+  let parsedNum: string | null = null;
+  if (item.mypItemId) {
+    const m = item.mypItemId.match(/^grandarchive_([a-z0-9]+)_([0-9]+)/i);
+    if (m) {
+      parsedSet = m[1].toUpperCase();
+      parsedNum = m[2];
+    }
+  }
+
+  // Fallback 2: Match by set_prefix + collector_number from mypItemId
+  if (!matchedCard && parsedSet && parsedNum) {
+    const edByNum = catalog.allCatalogEditions.find(
+      (e: any) =>
+        e.setPrefix.toUpperCase() === parsedSet &&
+        e.collectorNumber.padStart(3, "0") === parsedNum!.padStart(3, "0")
+    );
+    if (edByNum) {
+      matchedCard = catalog.allCatalogCards.find((c: any) => c.slug === edByNum.cardSlug) || null;
+    }
+  }
+
+  // Fallback 3: Alphanumeric normalized match
+  if (!matchedCard) {
+    const alpha = lowerClean.split("//")[0].replace(/[^a-z0-9]/g, "");
+    matchedCard = catalog.cardByAlphaNum.get(alpha) || null;
+  }
+
+  let editionId: string | null = null;
+  if (matchedCard) {
+    const edsForSlug = catalog.allCatalogEditions.filter(
+      (e: any) => e.cardSlug === matchedCard!.slug
+    );
+    const exactEd =
+      edsForSlug.find(
+        (e: any) => e.setPrefix.toUpperCase() === item.setPrefix.toUpperCase()
+      ) ||
+      edsForSlug.find((e: any) => e.setPrefix.toUpperCase() === parsedSet) ||
+      edsForSlug[0];
+    editionId = exactEd?.id || null;
+  }
+
+  return { matchedCard, editionId };
+}
+
+export interface MarketItemLike {
+  mypItemId?: string | null;
+  editionId?: string | null;
+  cardSlug?: string | null;
+  setPrefix?: string | null;
+  isFoil?: boolean | null;
+  quantity: number | string;
+}
+
+export function isSameMyPListing(
+  itemA: MarketItemLike,
+  itemB: MarketItemLike
+): boolean {
+  // If both have mypItemId, that is the authoritative identifier on MyP Cards
+  if (itemA.mypItemId && itemB.mypItemId) {
+    return itemA.mypItemId === itemB.mypItemId;
+  }
+
+  // When matching across edition or setPrefix, finishes must match (non-foil vs foil)
+  const foilMatch = Boolean(itemA.isFoil) === Boolean(itemB.isFoil);
+  if (!foilMatch) {
+    return false;
+  }
+
+  // Match by editionId if present on both
+  if (itemA.editionId && itemB.editionId) {
+    return itemA.editionId === itemB.editionId;
+  }
+
+  // Fallback: match by cardSlug and setPrefix
+  if (
+    itemA.cardSlug &&
+    itemB.cardSlug &&
+    itemA.cardSlug === itemB.cardSlug &&
+    itemA.setPrefix &&
+    itemB.setPrefix &&
+    itemA.setPrefix.toUpperCase() === itemB.setPrefix.toUpperCase()
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+export function calculateNetMarketStock(
+  marketItem: MarketItemLike,
+  userStoreItems: MarketItemLike[]
+): { personalStoreQuantity: number; netExternalStock: number } {
+  let personalStoreQuantity = 0;
+  for (const userItem of userStoreItems) {
+    if (isSameMyPListing(marketItem, userItem)) {
+      personalStoreQuantity += Number(userItem.quantity) || 0;
+    }
+  }
+  const globalQty = Number(marketItem.quantity) || 0;
+  const netExternalStock = Math.max(0, globalQty - personalStoreQuantity);
+  return { personalStoreQuantity, netExternalStock };
+}
+
 export async function syncUserMarketplace(
   userId: string,
   mypUsernameInput: string,
@@ -293,29 +451,7 @@ export async function syncUserMarketplace(
   }
 
   // 3. Resolve against local Catalog
-  const allCatalogCards = await database
-    .select({
-      slug: cards.slug,
-      name: cards.name,
-    })
-    .from(cards);
-
-  const allCatalogEditions = await database
-    .select({
-      id: cardEditions.id,
-      cardSlug: cardEditions.cardSlug,
-      setPrefix: cardEditions.setPrefix,
-      collectorNumber: cardEditions.collectorNumber,
-    })
-    .from(cardEditions);
-
-  const cardByLowerName = new Map<string, { slug: string; name: string }>();
-  const cardByAlphaNum = new Map<string, { slug: string; name: string }>();
-  for (const c of allCatalogCards) {
-    const lower = c.name.toLowerCase().trim();
-    cardByLowerName.set(lower, c);
-    cardByAlphaNum.set(lower.replace(/[^a-z0-9]/g, ""), c);
-  }
+  const catalog = await loadCatalogResolutionData(database);
 
   let matchedCount = 0;
   let unmatchedCount = 0;
@@ -328,58 +464,9 @@ export async function syncUserMarketplace(
 
   for (let idx = 0; idx < parsedItems.length; idx++) {
     const item = parsedItems[idx];
-    const lowerClean = item.cleanName.toLowerCase().trim();
-
-    let matchedCard = cardByLowerName.get(lowerClean);
-
-    // Fallback 1: Double-faced card split on `//`
-    if (!matchedCard && lowerClean.includes("//")) {
-      const frontFace = lowerClean.split("//")[0].trim();
-      matchedCard = cardByLowerName.get(frontFace);
-    }
-
-    // Parse mypItemId (e.g. "grandarchive_ptm_086p1")
-    let parsedSet = item.setPrefix.toUpperCase().split(" ")[0];
-    let parsedNum: string | null = null;
-    if (item.mypItemId) {
-      const m = item.mypItemId.match(/^grandarchive_([a-z0-9]+)_([0-9]+)/i);
-      if (m) {
-        parsedSet = m[1].toUpperCase();
-        parsedNum = m[2];
-      }
-    }
-
-    // Fallback 2: Match by set_prefix + collector_number from mypItemId
-    if (!matchedCard && parsedSet && parsedNum) {
-      const edByNum = allCatalogEditions.find(
-        (e: any) =>
-          e.setPrefix.toUpperCase() === parsedSet &&
-          e.collectorNumber.padStart(3, "0") === parsedNum!.padStart(3, "0")
-      );
-      if (edByNum) {
-        matchedCard = allCatalogCards.find((c: any) => c.slug === edByNum.cardSlug);
-      }
-    }
-
-    // Fallback 3: Alphanumeric normalized match
-    if (!matchedCard) {
-      const alpha = lowerClean.split("//")[0].replace(/[^a-z0-9]/g, "");
-      matchedCard = cardByAlphaNum.get(alpha);
-    }
-
-    let editionId: string | null = null;
+    const { matchedCard, editionId } = resolveMypItem(item, catalog);
     if (matchedCard) {
       matchedCount++;
-      const edsForSlug = allCatalogEditions.filter(
-        (e: any) => e.cardSlug === matchedCard!.slug
-      );
-      const exactEd =
-        edsForSlug.find(
-          (e: any) => e.setPrefix.toUpperCase() === item.setPrefix.toUpperCase()
-        ) ||
-        edsForSlug.find((e: any) => e.setPrefix.toUpperCase() === parsedSet) ||
-        edsForSlug[0];
-      editionId = exactEd?.id || null;
     } else {
       unmatchedCount++;
     }
@@ -739,6 +826,7 @@ export interface GlobalMarketplaceCardItem {
   concurrentMissing: number;
   shortageTier: ShortageTier;
   isBuyableShortage: boolean;
+  peakDeckName?: string | null;
 }
 
 export interface GlobalMarketSummary {
@@ -821,29 +909,7 @@ export async function syncGlobalMarketplace(
   }
 
   // 3. Resolve parsed items against local Catalog
-  const allCatalogCards = await database
-    .select({
-      slug: cards.slug,
-      name: cards.name,
-    })
-    .from(cards);
-
-  const allCatalogEditions = await database
-    .select({
-      id: cardEditions.id,
-      cardSlug: cardEditions.cardSlug,
-      setPrefix: cardEditions.setPrefix,
-      collectorNumber: cardEditions.collectorNumber,
-    })
-    .from(cardEditions);
-
-  const cardByLowerName = new Map<string, { slug: string; name: string }>();
-  const cardByAlphaNum = new Map<string, { slug: string; name: string }>();
-  for (const c of allCatalogCards) {
-    const lower = c.name.toLowerCase().trim();
-    cardByLowerName.set(lower, c);
-    cardByAlphaNum.set(lower.replace(/[^a-z0-9]/g, ""), c);
-  }
+  const catalog = await loadCatalogResolutionData(database);
 
   let matchedCount = 0;
   let unmatchedCount = 0;
@@ -856,58 +922,9 @@ export async function syncGlobalMarketplace(
 
   for (let idx = 0; idx < parsedItems.length; idx++) {
     const item = parsedItems[idx];
-    const lowerClean = item.cleanName.toLowerCase().trim();
-
-    let matchedCard = cardByLowerName.get(lowerClean);
-
-    // Fallback 1: Double-faced card split on `//`
-    if (!matchedCard && lowerClean.includes("//")) {
-      const frontFace = lowerClean.split("//")[0].trim();
-      matchedCard = cardByLowerName.get(frontFace);
-    }
-
-    // Parse mypItemId (e.g. "grandarchive_ptm_086p1")
-    let parsedSet = item.setPrefix.toUpperCase().split(" ")[0];
-    let parsedNum: string | null = null;
-    if (item.mypItemId) {
-      const m = item.mypItemId.match(/^grandarchive_([a-z0-9]+)_([0-9]+)/i);
-      if (m) {
-        parsedSet = m[1].toUpperCase();
-        parsedNum = m[2];
-      }
-    }
-
-    // Fallback 2: Match by set_prefix + collector_number from mypItemId
-    if (!matchedCard && parsedSet && parsedNum) {
-      const edByNum = allCatalogEditions.find(
-        (e: any) =>
-          e.setPrefix.toUpperCase() === parsedSet &&
-          e.collectorNumber.padStart(3, "0") === parsedNum!.padStart(3, "0")
-      );
-      if (edByNum) {
-        matchedCard = allCatalogCards.find((c: any) => c.slug === edByNum.cardSlug);
-      }
-    }
-
-    // Fallback 3: Alphanumeric normalized match
-    if (!matchedCard) {
-      const alpha = lowerClean.split("//")[0].replace(/[^a-z0-9]/g, "");
-      matchedCard = cardByAlphaNum.get(alpha);
-    }
-
-    let editionId: string | null = null;
+    const { matchedCard, editionId } = resolveMypItem(item, catalog);
     if (matchedCard) {
       matchedCount++;
-      const edsForSlug = allCatalogEditions.filter(
-        (e: any) => e.cardSlug === matchedCard!.slug
-      );
-      const exactEd =
-        edsForSlug.find(
-          (e: any) => e.setPrefix.toUpperCase() === item.setPrefix.toUpperCase()
-        ) ||
-        edsForSlug.find((e: any) => e.setPrefix.toUpperCase() === parsedSet) ||
-        edsForSlug[0];
-      editionId = exactEd?.id || null;
     } else {
       unmatchedCount++;
     }
@@ -1036,6 +1053,7 @@ export async function getGlobalMarketReport(
       peakDemand: number;
       concurrentMissing: number;
       peakMissing: number;
+      peakShortageDeckName: string | null;
     }
   >();
 
@@ -1052,14 +1070,26 @@ export async function getGlobalMarketReport(
     }));
     const totalDemand = deckNeeds.reduce((s, d) => s + d.quantity, 0);
 
-    const demandByDeckId: Record<string, number> = {};
+    const demandByDeckId: Record<string, { deckName: string; quantity: number }> = {};
     for (const req of deckNeeds) {
-      demandByDeckId[req.deckId] = (demandByDeckId[req.deckId] || 0) + req.quantity;
+      if (!demandByDeckId[req.deckId]) {
+        demandByDeckId[req.deckId] = { deckName: req.deckName, quantity: 0 };
+      }
+      demandByDeckId[req.deckId].quantity += req.quantity;
     }
-    const peakDemand = Object.values(demandByDeckId).reduce((max, q) => Math.max(max, q), 0);
+    const peakDemand = Object.values(demandByDeckId).reduce((max, d) => Math.max(max, d.quantity), 0);
     const owned = binderOwnedBySlug.get(slug) || 0;
     const concurrentMissing = Math.max(0, totalDemand - owned);
     const peakMissing = Math.max(0, peakDemand - owned);
+
+    // Identify the specific deck whose requirement causes peakMissing
+    let peakShortageDeckName: string | null = null;
+    if (peakMissing > 0) {
+      const causingDeck =
+        Object.values(demandByDeckId).find((d) => d.quantity === peakDemand && d.quantity > owned) ||
+        Object.values(demandByDeckId).find((d) => d.quantity > owned);
+      peakShortageDeckName = causingDeck?.deckName || deckNeeds[0]?.deckName || null;
+    }
 
     demandBySlug.set(slug, {
       deckNeeds,
@@ -1067,6 +1097,7 @@ export async function getGlobalMarketReport(
       peakDemand,
       concurrentMissing,
       peakMissing,
+      peakShortageDeckName,
     });
   }
 
@@ -1089,33 +1120,17 @@ export async function getGlobalMarketReport(
       latestUpdatedAt = rowUpdatedAtMs;
     }
 
-    // Match personal Store Listings for this item
-    let personalStoreQuantity = 0;
-    for (const myp of userMypRows) {
-      let isMatch = false;
-      if (row.mypItemId && myp.mypItemId && row.mypItemId === myp.mypItemId) {
-        isMatch = true;
-      } else if (row.editionId && myp.editionId && row.editionId === myp.editionId) {
-        isMatch = true;
-      } else if (
-        row.cardSlug &&
-        myp.cardSlug &&
-        row.cardSlug === myp.cardSlug &&
-        row.setPrefix.toUpperCase() === myp.setPrefix.toUpperCase()
-      ) {
-        isMatch = true;
-      }
-      if (isMatch) {
-        personalStoreQuantity += Number(myp.quantity) || 0;
-      }
-    }
-
-    const netExternalStock = Math.max(0, qty - personalStoreQuantity);
+    // Match personal Store Listings using shared helper
+    const { personalStoreQuantity, netExternalStock } = calculateNetMarketStock(
+      row,
+      userMypRows
+    );
 
     const slugDemand = row.cardSlug ? demandBySlug.get(row.cardSlug) : null;
     const deckNeeds = slugDemand?.deckNeeds || [];
     const peakMissing = slugDemand?.peakMissing || 0;
     const concurrentMissing = slugDemand?.concurrentMissing || 0;
+    const peakDeckName = slugDemand?.peakShortageDeckName || null;
 
     let shortageTier: ShortageTier = "NONE";
     if (peakMissing > 0) {
@@ -1157,6 +1172,7 @@ export async function getGlobalMarketReport(
       concurrentMissing,
       shortageTier,
       isBuyableShortage,
+      peakDeckName,
     };
   });
 

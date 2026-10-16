@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { runMigrations } from "@/db/init";
 import { ensureDefaultUserAndSeed } from "@/services/seed";
 import { auth } from "@/auth";
-import { syncGlobalMarketplace } from "@/services/marketplace";
+import { syncGlobalMarketplace, getGlobalMarketReport } from "@/services/marketplace";
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,17 +16,19 @@ export async function POST(req: NextRequest) {
     const isCronAuthorized =
       cronSecret && authHeader === `Bearer ${cronSecret}`;
 
-    if (!isCronAuthorized) {
-      const session = await auth();
-      if (!session?.user) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
+    const session = await auth();
+    if (!isCronAuthorized && !session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const userId = session?.user?.id;
     const stats = await syncGlobalMarketplace(db);
+    const report = await getGlobalMarketReport(userId, db);
+
     return NextResponse.json({
       success: true,
       stats,
+      report,
       syncedAt: new Date().toISOString(),
     });
   } catch (error: any) {

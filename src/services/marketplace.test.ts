@@ -8,6 +8,7 @@ import {
   claimMarketplaceCardForBinder,
   syncGlobalMarketplace,
   getGlobalMarketReport,
+  calculateNetMarketStock,
 } from "./marketplace";
 import { calculateAggregatedShortages, calculateDeckShortage } from "./shortage";
 
@@ -476,6 +477,7 @@ describe("Marketplace (MyPCards) Sync, Shortage Offset & Claim Seam", () => {
     expect(dgItem?.isBuyableShortage).toBe(true);
     expect(dgItem?.netExternalStock).toBe(6);
     expect(dgItem?.personalStoreQuantity).toBe(0);
+    expect(dgItem?.peakDeckName).toBe("Warrior Beatdown");
 
     // Check Fire Ball (SHARED SHORTAGE)
     const fbItem = marketReport.cards.find((c) => c.cardSlug === "fire-ball");
@@ -527,6 +529,69 @@ describe("Marketplace (MyPCards) Sync, Shortage Offset & Claim Seam", () => {
     // Verify records were NOT wiped
     const preservedMarketRows = await db.select().from(mypMarketCards);
     expect(preservedMarketRows).toHaveLength(4);
+  });
+
+  it("correctly handles foil vs non-foil collision matching and distinct mypItemIds", () => {
+    // 1. Distinct mypItemIds on same edition must NOT collide
+    const foilListing = {
+      mypItemId: "item_alc_010_foil",
+      editionId: "ed-alc-010",
+      isFoil: true,
+      quantity: 1,
+    };
+    const nonFoilUserStore = [
+      {
+        mypItemId: "item_alc_010_reg",
+        editionId: "ed-alc-010",
+        isFoil: false,
+        quantity: 1,
+      },
+    ];
+
+    const result1 = calculateNetMarketStock(foilListing, nonFoilUserStore);
+    expect(result1.personalStoreQuantity).toBe(0);
+    expect(result1.netExternalStock).toBe(1);
+
+    // 2. Identical mypItemId must collide
+    const sameMypUserStore = [
+      {
+        mypItemId: "item_alc_010_foil",
+        editionId: "ed-alc-010",
+        isFoil: true,
+        quantity: 1,
+      },
+    ];
+    const result2 = calculateNetMarketStock(foilListing, sameMypUserStore);
+    expect(result2.personalStoreQuantity).toBe(1);
+    expect(result2.netExternalStock).toBe(0);
+
+    // 3. Fallback matching without mypItemId requires matching foil finish
+    const noIdListing = {
+      editionId: "ed-alc-010",
+      isFoil: true,
+      quantity: 2,
+    };
+    const noIdDifferentFoil = [
+      {
+        editionId: "ed-alc-010",
+        isFoil: false,
+        quantity: 1,
+      },
+    ];
+    const result3 = calculateNetMarketStock(noIdListing, noIdDifferentFoil);
+    expect(result3.personalStoreQuantity).toBe(0);
+    expect(result3.netExternalStock).toBe(2);
+
+    const noIdSameFoil = [
+      {
+        editionId: "ed-alc-010",
+        isFoil: true,
+        quantity: 1,
+      },
+    ];
+    const result4 = calculateNetMarketStock(noIdListing, noIdSameFoil);
+    expect(result4.personalStoreQuantity).toBe(1);
+    expect(result4.netExternalStock).toBe(1);
   });
 });
 

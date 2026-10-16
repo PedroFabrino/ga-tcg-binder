@@ -26,16 +26,8 @@ import { CardPreviewTrigger } from "@/components/CardHoverPreview";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ToastProvider";
 import { ALL_ELEMENTS, ELEMENT_COLORS, ELEMENT_LABELS, normalizeElement } from "@/lib/elements";
+import { RARITIES } from "@/lib/rarities";
 import type { MarketplaceCardItem, MarketplaceReport } from "@/services/marketplace";
-
-const RARITIES = [
-  { id: 1, label: "Common", color: "#94a3b8", activeColor: "#f8fafc" },
-  { id: 2, label: "Uncommon", color: "#10b981", activeColor: "#34d399" },
-  { id: 3, label: "Rare", color: "#06b6d4", activeColor: "#22d3ee" },
-  { id: 4, label: "Super Rare", color: "#f59e0b", activeColor: "#fbbf24" },
-  { id: 5, label: "Ultra Rare", color: "#f43f5e", activeColor: "#fb7185" },
-  { id: 7, label: "Collector", color: "#e8c967", activeColor: "#fde047" },
-];
 
 export default function MypStoreView() {
   const { data: session } = useSession();
