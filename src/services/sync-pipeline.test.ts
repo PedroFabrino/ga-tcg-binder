@@ -25,7 +25,9 @@ describe("Unified Sequential Sync Pipeline Seam", () => {
         };
       }
       if (url.includes("exibirSomenteCompra")) {
-        executionLog.push("user-watchlist");
+        if (!url.includes("load-more")) {
+          executionLog.push("user-watchlist");
+        }
         return {
           ok: true,
           text: async () => ``,

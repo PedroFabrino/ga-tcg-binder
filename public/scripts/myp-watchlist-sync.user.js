@@ -55,6 +55,16 @@
     return null;
   }
 
+  function escapeHtml(str) {
+    if (!str) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
   // 3. Render On-Page Transparent Confirmation Modal
   const backdrop = document.createElement("div");
   backdrop.id = "ga-sync-modal-backdrop";
@@ -93,8 +103,8 @@
         <div style="max-height: 120px; overflow-y: auto; background: #1e293b; border-radius: 8px; padding: 8px; font-size: 12px;">
           ${pendingAdds.map((item) => `
             <div style="padding: 4px 0; border-bottom: 1px solid #334155; display: flex; justify-content: space-between;">
-              <span><strong>${item.cardName}</strong> (${item.editionSlug} #${item.collectorNumber})</span>
-              <span style="color: #94a3b8;">${item.targetQuantity}x @ R$ ${(item.targetPriceBrl || 1).toFixed(2).replace(".", ",")}</span>
+              <span><strong>${escapeHtml(item.cardName)}</strong> (${escapeHtml(item.editionSlug)} #${escapeHtml(item.collectorNumber)})</span>
+              <span style="color: #94a3b8;">${Number(item.targetQuantity) || 1}x @ R$ ${(Number(item.targetPriceBrl) || 1).toFixed(2).replace(".", ",")}</span>
             </div>
           `).join("")}
         </div>
@@ -109,8 +119,8 @@
         <div style="max-height: 120px; overflow-y: auto; background: #1e293b; border-radius: 8px; padding: 8px; font-size: 12px;">
           ${pendingUpdates.map((item) => `
             <div style="padding: 4px 0; border-bottom: 1px solid #334155; display: flex; justify-content: space-between;">
-              <span><strong>${item.cardName}</strong> (${item.editionSlug})</span>
-              <span style="color: #94a3b8;">Nova Qtd: ${item.targetQuantity}x</span>
+              <span><strong>${escapeHtml(item.cardName)}</strong> (${escapeHtml(item.editionSlug)})</span>
+              <span style="color: #94a3b8;">Nova Qtd: ${Number(item.targetQuantity) || 1}x</span>
             </div>
           `).join("")}
         </div>
@@ -125,7 +135,7 @@
         <div style="max-height: 120px; overflow-y: auto; background: #1e293b; border-radius: 8px; padding: 8px; font-size: 12px;">
           ${pendingRemoves.map((item) => `
             <div style="padding: 4px 0; border-bottom: 1px solid #334155; display: flex; justify-content: space-between;">
-              <span><strong>${item.cardName}</strong> (${item.editionSlug})</span>
+              <span><strong>${escapeHtml(item.cardName)}</strong> (${escapeHtml(item.editionSlug)})</span>
               <span style="color: #94a3b8;">Comprada no Binder</span>
             </div>
           `).join("")}
@@ -195,7 +205,7 @@
 
         try {
           if (csrf && item.mypItemId) {
-            await fetch("/usuario/salvar-item", {
+            const resp = await fetch("/usuario/salvar-item", {
               method: "POST",
               headers: {
                 "Content-Type": "application/x-www-form-urlencoded",
@@ -212,11 +222,12 @@
                 foil: "0",
               }),
             });
+            if (resp.ok) {
+              confirmedAddIds.push(item.id);
+            }
           }
-          confirmedAddIds.push(item.id);
         } catch (e) {
           console.warn("[GA Watchlist Bridge] Item add warning:", e);
-          confirmedAddIds.push(item.id);
         }
       }
 
@@ -228,7 +239,7 @@
 
         try {
           if (csrf && item.mypItemId) {
-            await fetch("/usuario/salvar-item", {
+            const resp = await fetch("/usuario/salvar-item", {
               method: "POST",
               headers: {
                 "Content-Type": "application/x-www-form-urlencoded",
@@ -241,10 +252,12 @@
                 quantidade: String(item.targetQuantity || 1),
               }),
             });
+            if (resp.ok) {
+              confirmedUpdateIds.push(item.id);
+            }
           }
-          confirmedUpdateIds.push(item.id);
         } catch (e) {
-          confirmedUpdateIds.push(item.id);
+          console.warn("[GA Watchlist Bridge] Item update warning:", e);
         }
       }
 
@@ -256,7 +269,7 @@
 
         try {
           if (csrf && item.mypItemId) {
-            await fetch("/usuario/remover-item", {
+            const resp = await fetch("/usuario/remover-item", {
               method: "POST",
               headers: {
                 "Content-Type": "application/x-www-form-urlencoded",
@@ -268,10 +281,12 @@
                 tipo: "C",
               }),
             });
+            if (resp.ok) {
+              confirmedRemoveIds.push(item.id);
+            }
           }
-          confirmedRemoveIds.push(item.id);
         } catch (e) {
-          confirmedRemoveIds.push(item.id);
+          console.warn("[GA Watchlist Bridge] Item remove warning:", e);
         }
       }
 

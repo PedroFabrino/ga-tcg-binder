@@ -132,7 +132,11 @@ export async function reconcileFilledShortage(
         .where(eq(mypWatchlist.id, r.id));
     } else if (r.status === "pending_add" || r.status === "ignored") {
       await database
-        .delete(mypWatchlist)
+        .update(mypWatchlist)
+        .set({
+          status: "removed",
+          updatedAt: sql`(strftime('%s', 'now'))`,
+        })
         .where(eq(mypWatchlist.id, r.id));
     }
   }

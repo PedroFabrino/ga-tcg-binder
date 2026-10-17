@@ -174,7 +174,7 @@ export async function executeAutomatedWatchlistSync(
 
       if (item.status === "pending_add") {
         if (item.mypItemId) {
-          await transport.request({
+          const res = await transport.request({
             method: "POST",
             url: "https://mypcards.com/usuario/salvar-item",
             session: sessionId,
@@ -192,20 +192,22 @@ export async function executeAutomatedWatchlistSync(
               "Content-Type": "application/x-www-form-urlencoded",
             },
           });
+
+          if (res?.status === 200) {
+            await database
+              .update(mypWatchlist)
+              .set({
+                status: "watching",
+                updatedAt: sql`(strftime('%s', 'now'))`,
+              })
+              .where(eq(mypWatchlist.id, item.id));
+
+            addsExecuted++;
+          }
         }
-
-        await database
-          .update(mypWatchlist)
-          .set({
-            status: "watching",
-            updatedAt: sql`(strftime('%s', 'now'))`,
-          })
-          .where(eq(mypWatchlist.id, item.id));
-
-        addsExecuted++;
       } else if (item.status === "pending_update") {
         if (item.mypItemId) {
-          await transport.request({
+          const res = await transport.request({
             method: "POST",
             url: "https://mypcards.com/usuario/salvar-item",
             session: sessionId,
@@ -219,20 +221,22 @@ export async function executeAutomatedWatchlistSync(
               "Content-Type": "application/x-www-form-urlencoded",
             },
           });
+
+          if (res?.status === 200) {
+            await database
+              .update(mypWatchlist)
+              .set({
+                status: "watching",
+                updatedAt: sql`(strftime('%s', 'now'))`,
+              })
+              .where(eq(mypWatchlist.id, item.id));
+
+            updatesExecuted++;
+          }
         }
-
-        await database
-          .update(mypWatchlist)
-          .set({
-            status: "watching",
-            updatedAt: sql`(strftime('%s', 'now'))`,
-          })
-          .where(eq(mypWatchlist.id, item.id));
-
-        updatesExecuted++;
       } else if (item.status === "pending_remove") {
         if (item.mypItemId) {
-          await transport.request({
+          const res = await transport.request({
             method: "POST",
             url: "https://mypcards.com/usuario/remover-item",
             session: sessionId,
@@ -245,13 +249,19 @@ export async function executeAutomatedWatchlistSync(
               "Content-Type": "application/x-www-form-urlencoded",
             },
           });
+
+          if (res?.status === 200) {
+            await database
+              .update(mypWatchlist)
+              .set({
+                status: "removed",
+                updatedAt: sql`(strftime('%s', 'now'))`,
+              })
+              .where(eq(mypWatchlist.id, item.id));
+
+            removesExecuted++;
+          }
         }
-
-        await database
-          .delete(mypWatchlist)
-          .where(eq(mypWatchlist.id, item.id));
-
-        removesExecuted++;
       }
     }
 

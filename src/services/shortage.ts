@@ -23,6 +23,7 @@ import {
 import {
   computeQuotaForCard,
   getEffectiveQuotaPolicy,
+  summarizeWatchlistRows,
   type WatchlistQuotaPolicy,
 } from "./watchlist";
 
@@ -519,18 +520,7 @@ export async function calculateAggregatedShortages(
     .where(eq(decks.userId, effectiveUserId));
 
   if (!userDecks || userDecks.length === 0) {
-    let pendingAdds = 0;
-    let pendingUpdates = 0;
-    let pendingRemoves = 0;
-    let watchingCount = 0;
-    let ignoredCount = 0;
-    for (const w of userWatchlistRows) {
-      if (w.status === "pending_add") pendingAdds++;
-      else if (w.status === "pending_update") pendingUpdates++;
-      else if (w.status === "pending_remove") pendingRemoves++;
-      else if (w.status === "watching") watchingCount++;
-      else if (w.status === "ignored") ignoredCount++;
-    }
+    const counts = summarizeWatchlistRows(userWatchlistRows);
 
     return {
       summary: {
@@ -539,11 +529,7 @@ export async function calculateAggregatedShortages(
         uniqueShortageCards: 0,
         deckCount: 0,
         activePolicy,
-        pendingAdds,
-        pendingUpdates,
-        pendingRemoves,
-        watchingCount,
-        ignoredCount,
+        ...counts,
         hasSavedMypCredentials: Boolean(user?.mypPasswordEncrypted),
         mypUsername: user?.mypUsername || null,
       },
@@ -806,18 +792,7 @@ export async function calculateAggregatedShortages(
   const totalShortageCopies = shortageCards.reduce((sum, c) => sum + c.concurrentMissing, 0);
   const totalPeakShortageCopies = shortageCards.reduce((sum, c) => sum + c.peakMissing, 0);
 
-  let pendingAdds = 0;
-  let pendingUpdates = 0;
-  let pendingRemoves = 0;
-  let watchingCount = 0;
-  let ignoredCount = 0;
-  for (const w of userWatchlistRows) {
-    if (w.status === "pending_add") pendingAdds++;
-    else if (w.status === "pending_update") pendingUpdates++;
-    else if (w.status === "pending_remove") pendingRemoves++;
-    else if (w.status === "watching") watchingCount++;
-    else if (w.status === "ignored") ignoredCount++;
-  }
+  const counts = summarizeWatchlistRows(userWatchlistRows);
 
   return {
     summary: {
@@ -826,11 +801,7 @@ export async function calculateAggregatedShortages(
       uniqueShortageCards: shortageCards.length,
       deckCount: userDecks.length,
       activePolicy,
-      pendingAdds,
-      pendingUpdates,
-      pendingRemoves,
-      watchingCount,
-      ignoredCount,
+      ...counts,
       hasSavedMypCredentials: Boolean(user?.mypPasswordEncrypted),
       mypUsername: user?.mypUsername || null,
     },

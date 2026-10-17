@@ -209,9 +209,10 @@ describe("Watchlist Ledger & Quota Reconciliation (src/services/watchlist.ts)", 
       const totalDemand = 5;
       const peakDemand = 3;
 
-      expect(computeQuotaForCard(totalDemand, peakDemand, "hard")).toBe(5);
-      expect(computeQuotaForCard(totalDemand, peakDemand, "shared")).toBe(3);
-      expect(computeQuotaForCard(totalDemand, peakDemand, "staples")).toBe(4);
+      expect(computeQuotaForCard(totalDemand, peakDemand, "hard")).toBe(3);
+      expect(computeQuotaForCard(totalDemand, peakDemand, "shared")).toBe(5);
+      expect(computeQuotaForCard(totalDemand, peakDemand, "staples")).toBe(5);
+      expect(computeQuotaForCard(2, 2, "staples")).toBe(4);
     });
   });
 

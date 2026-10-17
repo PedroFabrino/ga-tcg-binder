@@ -33,22 +33,54 @@ export function isCollectorPrinting(candidate: StandardPlayablePrintingCandidate
 }
 
 /**
- * Computes required quota for a card under the specified policy.
+ * Computes required quota for a card given active policies and demands.
+ * - Hard Shortage (Compra Necessária): single-deck peak demand (`peakDemand`) to ensure at least 1 deck is playable.
+ * - Shared Shortage (Revezamento entre Decks): concurrent demand across all decks (`totalDemand`).
+ * - Staples Policy: staple recommended copies (e.g. from meta_staples or playset cap).
  */
 export function computeQuotaForCard(
   totalDemand: number,
   peakDemand: number,
-  policy: WatchlistQuotaPolicy
+  policy: WatchlistQuotaPolicy,
+  stapleRecommendedCopies = 0
 ): number {
   switch (policy) {
-    case "shared":
-      return peakDemand;
-    case "staples":
-      return Math.min(totalDemand, 4);
     case "hard":
-    default:
+      return peakDemand;
+    case "shared":
       return totalDemand;
+    case "staples":
+      return Math.max(totalDemand, Math.min(stapleRecommendedCopies || 4, 4));
+    default:
+      return peakDemand;
   }
+}
+
+/**
+ * Computes combined quota when multiple boolean policy flags are enabled.
+ */
+export function computeCombinedQuota(options: {
+  totalDemand: number;
+  peakDemand: number;
+  policyHard: boolean;
+  policyShared: boolean;
+  policyStaples: boolean;
+  stapleCopies?: number;
+}): number {
+  const quotas: number[] = [];
+  if (options.policyHard) {
+    quotas.push(options.peakDemand);
+  }
+  if (options.policyShared) {
+    quotas.push(options.totalDemand);
+  }
+  if (options.policyStaples) {
+    quotas.push(Math.max(options.totalDemand, Math.min(options.stapleCopies || 4, 4)));
+  }
+  if (quotas.length === 0) {
+    return options.peakDemand; // default to Hard
+  }
+  return Math.max(...quotas);
 }
 
 /**
@@ -62,4 +94,39 @@ export function getEffectiveQuotaPolicy(user?: {
   if (user?.watchlistPolicyShared) return "shared";
   if (user?.watchlistPolicyStaples) return "staples";
   return "hard";
+}
+
+export interface WatchlistStatusCounts {
+  pendingAdds: number;
+  pendingUpdates: number;
+  pendingRemoves: number;
+  watchingCount: number;
+  ignoredCount: number;
+}
+
+/**
+ * Counts watchlist items by status. Single shared helper eliminating Fowler smell across 4 files.
+ */
+export function summarizeWatchlistRows(rows: { status: string }[]): WatchlistStatusCounts {
+  let pendingAdds = 0;
+  let pendingUpdates = 0;
+  let pendingRemoves = 0;
+  let watchingCount = 0;
+  let ignoredCount = 0;
+
+  for (const r of rows) {
+    if (r.status === "pending_add") pendingAdds++;
+    else if (r.status === "pending_update") pendingUpdates++;
+    else if (r.status === "pending_remove") pendingRemoves++;
+    else if (r.status === "watching") watchingCount++;
+    else if (r.status === "ignored") ignoredCount++;
+  }
+
+  return {
+    pendingAdds,
+    pendingUpdates,
+    pendingRemoves,
+    watchingCount,
+    ignoredCount,
+  };
 }

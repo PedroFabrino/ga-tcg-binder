@@ -104,7 +104,7 @@ describe("Stage 2d/2e Automated Watchlist Mutation Runner (src/services/watchlis
     expect(addRow.status).toBe("watching");
 
     const removeRow = (await testDb.select().from(mypWatchlist).where(eq(mypWatchlist.id, "wl-remove-1")))[0];
-    expect(removeRow).toBeUndefined(); // Deleted
+    expect(removeRow.status).toBe("removed");
   });
 
   it("always destroys session even if login or mutation fails", async () => {

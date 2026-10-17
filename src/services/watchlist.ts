@@ -10,6 +10,7 @@ import {
   deckCards,
   mypMarketCards,
   mypWatchlist,
+  metaStaples,
   type WatchlistStatus,
 } from "../db/schema";
 import { type ParsedMypItem } from "./marketplace";
@@ -19,9 +20,11 @@ import {
   isStandardPlayablePrinting,
   isCollectorPrinting,
   computeQuotaForCard,
+  computeCombinedQuota,
   getEffectiveQuotaPolicy,
+  summarizeWatchlistRows,
 } from "./watchlist-policy";
-import { fetchPublicQueroList } from "./watchlist-remote";
+import { fetchPublicQueroList, discoverMypProductPrintings } from "./watchlist-remote";
 import { reconcileShortagePrinting, reconcileFilledShortage } from "./watchlist-state";
 
 export {
@@ -30,8 +33,11 @@ export {
   isStandardPlayablePrinting,
   isCollectorPrinting,
   computeQuotaForCard,
+  computeCombinedQuota,
   getEffectiveQuotaPolicy,
+  summarizeWatchlistRows,
   fetchPublicQueroList,
+  discoverMypProductPrintings,
 };
 
 export interface ReconcileWatchlistOptions {
@@ -146,8 +152,11 @@ export async function reconcileUserWatchlist(
     existingRowMap.set(key, row);
   }
 
-  // 5. Aggregate demands across decks per cardSlug
-  const uniqueSlugs = Array.from(new Set(allDeckCards.map((c: any) => String(c.cardSlug))));
+  // 5. Aggregate demands across decks per cardSlug, unioned with existing watchlist rows
+  // so cards removed from all decks are transitioned to pending_remove
+  const deckSlugs = allDeckCards.map((c: any) => String(c.cardSlug));
+  const watchlistSlugs = existingWatchlistRows.map((r: any) => String(r.cardSlug));
+  const uniqueSlugs = Array.from(new Set([...deckSlugs, ...watchlistSlugs]));
 
   // Fetch all editions and circulations for these unique slugs
   let allCatalogEditions: any[] = [];
@@ -181,12 +190,32 @@ export async function reconcileUserWatchlist(
     }
   }
 
+  // Also fetch staple recommendations if staples policy is active
+  const stapleMap = new Map<string, number>();
+  if (user.watchlistPolicyStaples && uniqueSlugs.length > 0) {
+    try {
+      const staplesList = await database
+        .select({
+          cardSlug: metaStaples.cardSlug,
+          recommendedCopies: metaStaples.recommendedCopies,
+        })
+        .from(metaStaples)
+        .where(inArray(metaStaples.cardSlug, uniqueSlugs));
+      for (const s of staplesList) {
+        stapleMap.set(s.cardSlug, s.recommendedCopies);
+      }
+    } catch {
+      // Fallback
+    }
+  }
+
   const activeShortageCards: ReconciledShortageSummary[] = [];
   const filledShortageCards: string[] = [];
 
   for (const slug of uniqueSlugs) {
     const matchingDeckCards = allDeckCards.filter((c: any) => c.cardSlug === slug);
-    const cardName = matchingDeckCards[0]?.name || slug;
+    const existingRowsForSlug = existingWatchlistRows.filter((r: any) => r.cardSlug === slug);
+    const cardName = matchingDeckCards[0]?.name || existingRowsForSlug[0]?.cardName || slug;
 
     const totalDemand = matchingDeckCards.reduce((sum: number, c: any) => sum + c.quantity, 0);
 
@@ -196,7 +225,15 @@ export async function reconcileUserWatchlist(
     }
     const peakDemand = Object.values(demandByDeck).reduce((max: number, q: number) => Math.max(max, q), 0);
 
-    const quota = computeQuotaForCard(totalDemand, peakDemand, policy);
+    const stapleCopies = stapleMap.get(slug) || 0;
+    const quota = computeCombinedQuota({
+      totalDemand,
+      peakDemand,
+      policyHard: Boolean(user.watchlistPolicyHard),
+      policyShared: Boolean(user.watchlistPolicyShared),
+      policyStaples: Boolean(user.watchlistPolicyStaples),
+      stapleCopies,
+    });
 
     const ownedCopies = userInventory
       .filter((inv: any) => inv.cardSlug === slug)
@@ -236,17 +273,20 @@ export async function reconcileUserWatchlist(
 
       // Check for 0-stock discovery if any printing lacks MyP info
       let discoveredItems: ParsedMypItem[] = [];
-      if (options.discoverPrintings) {
-        const needsDiscovery = Array.from(uniquePrintings.values()).some((ed) => {
-          return !marketCards.some(
-            (m) =>
-              m.cardSlug === slug &&
-              m.setPrefix.toUpperCase() === ed.setPrefix.toUpperCase() &&
-              !m.isFoil
-          );
-        });
-        if (needsDiscovery) {
-          discoveredItems = await options.discoverPrintings(cardName);
+      const discoveryFn = options.discoverPrintings || discoverMypProductPrintings;
+      const needsDiscovery = Array.from(uniquePrintings.values()).some((ed) => {
+        return !marketCards.some(
+          (m) =>
+            m.cardSlug === slug &&
+            m.setPrefix.toUpperCase() === ed.setPrefix.toUpperCase() &&
+            !m.isFoil
+        );
+      });
+      if (needsDiscovery) {
+        try {
+          discoveredItems = await discoveryFn(cardName);
+        } catch {
+          // Graceful fallback
         }
       }
 
@@ -314,29 +354,13 @@ export async function reconcileUserWatchlist(
     .from(mypWatchlist)
     .where(eq(mypWatchlist.userId, userId));
 
-  let pendingAdds = 0;
-  let pendingUpdates = 0;
-  let pendingRemoves = 0;
-  let watchingCount = 0;
-  let ignoredCount = 0;
-
-  for (const r of finalRows) {
-    if (r.status === "pending_add") pendingAdds++;
-    else if (r.status === "pending_update") pendingUpdates++;
-    else if (r.status === "pending_remove") pendingRemoves++;
-    else if (r.status === "watching") watchingCount++;
-    else if (r.status === "ignored") ignoredCount++;
-  }
+  const summaryCounts = summarizeWatchlistRows(finalRows);
 
   return {
     userId,
     activeShortageCards,
     filledShortageCards,
-    pendingAdds,
-    pendingUpdates,
-    pendingRemoves,
-    watchingCount,
-    ignoredCount,
+    ...summaryCounts,
   };
 }
 

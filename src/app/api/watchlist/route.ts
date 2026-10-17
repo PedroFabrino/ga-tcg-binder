@@ -8,6 +8,7 @@ import {
   getEffectiveQuotaPolicy,
   reconcileUserWatchlist,
   reEnableWatchlistEntry,
+  summarizeWatchlistRows,
 } from "@/services/watchlist";
 import { executeAutomatedWatchlistSync } from "@/services/watchlist-sync-runner";
 
@@ -15,37 +16,20 @@ export async function GET(req: NextRequest) {
   try {
     await ensureDefaultUserAndSeed();
     const session = await auth();
-    const url = new URL(req.url);
-    const userId = url.searchParams.get("userId") || session?.user?.id || DEFAULT_USER_ID;
+    // Prioritize authenticated session user to prevent IDOR
+    const userId = session?.user?.id || DEFAULT_USER_ID;
 
     const user = await db.select().from(users).where(eq(users.id, userId)).get();
     const items = await db.select().from(mypWatchlist).where(eq(mypWatchlist.userId, userId));
 
     const activePolicy = getEffectiveQuotaPolicy(user);
-
-    let pendingAdds = 0;
-    let pendingUpdates = 0;
-    let pendingRemoves = 0;
-    let watchingCount = 0;
-    let ignoredCount = 0;
-
-    for (const item of items) {
-      if (item.status === "pending_add") pendingAdds++;
-      else if (item.status === "pending_update") pendingUpdates++;
-      else if (item.status === "pending_remove") pendingRemoves++;
-      else if (item.status === "watching") watchingCount++;
-      else if (item.status === "ignored") ignoredCount++;
-    }
+    const summaryCounts = summarizeWatchlistRows(items);
 
     return NextResponse.json({
       items,
       summary: {
         activePolicy,
-        pendingAdds,
-        pendingUpdates,
-        pendingRemoves,
-        watchingCount,
-        ignoredCount,
+        ...summaryCounts,
         hasSavedMypCredentials: Boolean(user?.mypPasswordEncrypted),
         mypUsername: user?.mypUsername || null,
       },
@@ -60,7 +44,7 @@ export async function POST(req: NextRequest) {
     await ensureDefaultUserAndSeed();
     const session = await auth();
     const body = await req.json();
-    const userId = body.userId || session?.user?.id || DEFAULT_USER_ID;
+    const userId = session?.user?.id || DEFAULT_USER_ID;
     const action = body.action;
 
     if (action === "re_enable" && body.watchlistId) {
@@ -68,20 +52,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    if (action === "set_policy" && body.policy) {
+    if (action === "set_policy") {
       const updateData: any = {};
-      if (body.policy === "shared") {
-        updateData.watchlistPolicyHard = false;
-        updateData.watchlistPolicyShared = true;
-        updateData.watchlistPolicyStaples = false;
-      } else if (body.policy === "staples") {
-        updateData.watchlistPolicyHard = false;
-        updateData.watchlistPolicyShared = false;
-        updateData.watchlistPolicyStaples = true;
-      } else {
-        updateData.watchlistPolicyHard = true;
-        updateData.watchlistPolicyShared = false;
-        updateData.watchlistPolicyStaples = false;
+      if (body.policyHard !== undefined) updateData.watchlistPolicyHard = Boolean(body.policyHard);
+      if (body.policyShared !== undefined) updateData.watchlistPolicyShared = Boolean(body.policyShared);
+      if (body.policyStaples !== undefined) updateData.watchlistPolicyStaples = Boolean(body.policyStaples);
+
+      if (body.policy) {
+        if (body.policy === "shared") {
+          updateData.watchlistPolicyHard = false;
+          updateData.watchlistPolicyShared = true;
+          updateData.watchlistPolicyStaples = false;
+        } else if (body.policy === "staples") {
+          updateData.watchlistPolicyHard = false;
+          updateData.watchlistPolicyShared = false;
+          updateData.watchlistPolicyStaples = true;
+        } else {
+          updateData.watchlistPolicyHard = true;
+          updateData.watchlistPolicyShared = false;
+          updateData.watchlistPolicyStaples = false;
+        }
       }
 
       await db.update(users).set(updateData).where(eq(users.id, userId));

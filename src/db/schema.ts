@@ -17,6 +17,8 @@ export const users = sqliteTable("users", {
   watchlistPolicyStaples: integer("watchlist_policy_staples", { mode: "boolean" }).notNull().default(false),
   mypLogin: text("myp_login"),
   mypPasswordEncrypted: text("myp_password_encrypted"),
+  mypAutoWatchlistEnabled: integer("myp_auto_watchlist_enabled", { mode: "boolean" }).notNull().default(false),
+  watchlistSyncToken: text("watchlist_sync_token"),
   createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
 
@@ -217,6 +219,7 @@ export type WatchlistStatus =
   | "pending_add"
   | "pending_update"
   | "pending_remove"
+  | "removed"
   | "ignored";
 
 export const mypWatchlist = sqliteTable("myp_watchlist", {
@@ -228,9 +231,13 @@ export const mypWatchlist = sqliteTable("myp_watchlist", {
   collectorNumber: text("collector_number").notNull(),
   mypItemId: text("myp_item_id"),
   mypProductUrl: text("myp_product_url"),
+  mypWishlistItemId: text("myp_wishlist_item_id"),
   targetQuantity: integer("target_quantity").notNull().default(1),
+  syncedQuantity: integer("synced_quantity"),
   targetPriceBrl: real("target_price_brl").notNull().default(1.00),
-  status: text("status").notNull().default("pending_add"), // 'watching' | 'pending_add' | 'pending_update' | 'pending_remove' | 'ignored'
+  targetPriceStr: text("target_price_str"),
+  isCollectorPrinting: integer("is_collector_printing", { mode: "boolean" }).notNull().default(false),
+  status: text("status").notNull().default("pending_add"), // 'watching' | 'pending_add' | 'pending_update' | 'pending_remove' | 'removed' | 'ignored'
   lastError: text("last_error"),
   updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 }, (table) => ({

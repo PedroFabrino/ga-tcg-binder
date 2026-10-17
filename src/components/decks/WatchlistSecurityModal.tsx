@@ -1,16 +1,26 @@
 "use client";
 
-import { useState } from "react";
-import { ShieldCheck, ExternalLink, Code, CheckCircle, AlertCircle, ChevronDown, ChevronRight, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ShieldCheck, ExternalLink, Code, ChevronDown, ChevronRight } from "lucide-react";
 import { Modal } from "@/components/common";
 import { Button } from "@/components/ui/button";
+
+export interface WatchlistSecurityItem {
+  id: string;
+  cardName: string;
+  editionSlug: string;
+  collectorNumber?: string;
+  targetQuantity?: number;
+  targetPriceBrl?: number;
+  mypItemId?: string | null;
+}
 
 interface WatchlistSecurityModalProps {
   onClose: () => void;
   userId: string;
-  pendingAdds: any[];
-  pendingUpdates: any[];
-  pendingRemoves: any[];
+  pendingAdds: WatchlistSecurityItem[];
+  pendingUpdates: WatchlistSecurityItem[];
+  pendingRemoves: WatchlistSecurityItem[];
 }
 
 export default function WatchlistSecurityModal({
@@ -21,11 +31,27 @@ export default function WatchlistSecurityModal({
   pendingRemoves,
 }: WatchlistSecurityModalProps) {
   const [showCode, setShowCode] = useState(false);
+  const [consentGiven, setConsentGiven] = useState(false);
+  const [scriptSource, setScriptSource] = useState<string>("");
+  const [loadingScript, setLoadingScript] = useState(false);
 
   const scriptGithubUrl =
     "https://github.com/PedroFabrino/ga-tcg-binder/blob/main/public/scripts/myp-watchlist-sync.user.js";
 
+  useEffect(() => {
+    if (showCode && !scriptSource) {
+      setLoadingScript(true);
+      fetch("/scripts/myp-watchlist-sync.user.js")
+        .then((res) => res.text())
+        .then((text) => setScriptSource(text))
+        .catch(() => setScriptSource("// Failed to load local script preview. Please review on GitHub."))
+        .finally(() => setLoadingScript(false));
+    }
+  }, [showCode, scriptSource]);
+
   const handleLaunchSync = () => {
+    if (!consentGiven) return;
+
     const payload = {
       appUrl: window.location.origin,
       userId,
@@ -33,23 +59,23 @@ export default function WatchlistSecurityModal({
         id: item.id,
         cardName: item.cardName,
         editionSlug: item.editionSlug,
-        collectorNumber: item.collectorNumber,
-        targetQuantity: item.targetQuantity,
-        targetPriceBrl: item.targetPriceBrl,
-        mypItemId: item.mypItemId,
+        collectorNumber: item.collectorNumber || "",
+        targetQuantity: item.targetQuantity || 1,
+        targetPriceBrl: item.targetPriceBrl || 1.0,
+        mypItemId: item.mypItemId || null,
       })),
       pendingUpdates: pendingUpdates.map((item) => ({
         id: item.id,
         cardName: item.cardName,
         editionSlug: item.editionSlug,
-        targetQuantity: item.targetQuantity,
-        mypItemId: item.mypItemId,
+        targetQuantity: item.targetQuantity || 1,
+        mypItemId: item.mypItemId || null,
       })),
       pendingRemoves: pendingRemoves.map((item) => ({
         id: item.id,
         cardName: item.cardName,
         editionSlug: item.editionSlug,
-        mypItemId: item.mypItemId,
+        mypItemId: item.mypItemId || null,
       })),
     };
 
@@ -87,7 +113,7 @@ export default function WatchlistSecurityModal({
               onClick={handleLaunchSync}
               size="sm"
               className="bg-blue-600 hover:bg-blue-500 text-white font-medium shadow-md shadow-blue-500/20"
-              disabled={totalMutations === 0}
+              disabled={totalMutations === 0 || !consentGiven}
             >
               Iniciar Sincronização no MyP Cards
             </Button>
@@ -134,29 +160,28 @@ export default function WatchlistSecurityModal({
           >
             <span className="flex items-center gap-1.5">
               <Code className="h-4 w-4 text-blue-400" />
-              Como funciona o script (Auditoria de Código)
+              Como funciona o script (Auditoria de Código Unminified)
             </span>
             {showCode ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           </button>
           {showCode && (
-            <div className="p-3 border-t border-white/[0.06] bg-slate-950 font-mono text-[11px] text-slate-400 leading-relaxed max-h-48 overflow-y-auto">
-              <p className="text-slate-300 mb-2">// 1. Lê a hashtag com a lista de cards necessários</p>
-              <p className="text-slate-300 mb-2">// 2. Exibe confirmação visual na página do MyP Cards</p>
-              <p className="text-slate-300 mb-2">// 3. Envia requisições espaçadas (350ms) usando seu CSRF token local</p>
-              <p className="text-slate-300">// 4. Notifica o binder de que as alterações foram concluídas</p>
-              <div className="mt-3 pt-2 border-t border-slate-800">
-                <a
-                  href={scriptGithubUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-400 underline hover:text-blue-300"
-                >
-                  Ver arquivo unminified completo em public/scripts/myp-watchlist-sync.user.js
-                </a>
-              </div>
+            <div className="p-3 border-t border-white/[0.06] bg-slate-950 font-mono text-[11px] text-slate-400 leading-relaxed max-h-56 overflow-y-auto whitespace-pre">
+              {loadingScript ? "Carregando código do script..." : scriptSource}
             </div>
           )}
         </div>
+
+        <label className="flex items-start gap-2.5 p-2 rounded-lg border border-white/[0.06] bg-slate-900/40 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={consentGiven}
+            onChange={(e) => setConsentGiven(e.target.checked)}
+            className="mt-0.5 rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500"
+          />
+          <span className="text-xs text-slate-300 leading-snug">
+            Compreendo que esta sincronização opera através da extensão Tampermonkey na minha aba ativa do MyP Cards sob minha própria autorização.
+          </span>
+        </label>
       </div>
     </Modal>
   );

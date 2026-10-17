@@ -20,8 +20,8 @@ export async function GET(req: NextRequest) {
   try {
     await ensureDefaultUserAndSeed();
     const session = await auth();
-    const url = new URL(req.url);
-    const userId = url.searchParams.get("userId") || session?.user?.id || DEFAULT_USER_ID;
+    // Prioritize authenticated session user, allow DEFAULT_USER_ID fallback in single-user dev mode
+    const userId = session?.user?.id || DEFAULT_USER_ID;
 
     const user = await db.select().from(users).where(eq(users.id, userId)).get();
     return NextResponse.json({ user: sanitizeUser(user) });
@@ -35,7 +35,8 @@ export async function POST(req: NextRequest) {
     await ensureDefaultUserAndSeed();
     const session = await auth();
     const body = await req.json();
-    const userId = body.userId || session?.user?.id || DEFAULT_USER_ID;
+    // Prioritize authenticated session user to prevent IDOR
+    const userId = session?.user?.id || DEFAULT_USER_ID;
     const lowPopThreshold = body.lowPopThreshold !== undefined ? parseInt(body.lowPopThreshold, 10) : undefined;
     const name = body.name?.trim();
     const mypUsername = body.mypUsername !== undefined ? body.mypUsername?.trim() || null : undefined;

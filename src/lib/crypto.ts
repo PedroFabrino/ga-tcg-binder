@@ -10,9 +10,15 @@ const INFO = "aes-256-gcm-key";
  * Derives a 32-byte AES-256 key from AUTH_SECRET via HKDF-SHA256.
  */
 function deriveKey(): Buffer {
-  const secret = process.env.AUTH_SECRET || "ga-tcg-binder-fallback-local-secret-32b";
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("AUTH_SECRET environment variable is strictly required in production");
+    }
+  }
+  const effectiveSecret = secret || "ga-tcg-binder-dev-test-secret-do-not-use-in-prod";
   return Buffer.from(
-    crypto.hkdfSync("sha256", secret, SALT, INFO, 32)
+    crypto.hkdfSync("sha256", effectiveSecret, SALT, INFO, 32)
   );
 }
 

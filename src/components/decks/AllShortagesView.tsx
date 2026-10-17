@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
 import {
   Search,
   X,
@@ -70,6 +71,7 @@ export default function AllShortagesView({
   onRefresh: () => void;
   loading?: boolean;
 }) {
+  const { data: session } = useSession();
   const { showToast } = useToast();
   const [query, setQuery] = useState("");
   const [selectedElements, setSelectedElements] = useState<string[]>([]);
@@ -341,9 +343,9 @@ export default function AllShortagesView({
                     ? "bg-rose-500/20 text-rose-300 border border-rose-500/30 font-semibold"
                     : "text-slate-400 hover:text-white"
                 }`}
-                title="Hard Shortage: sleeve all user decks concurrently"
+                title="Hard Shortage (Compra Necessária): Peak demand in any single deck (ensure at least 1 deck is playable)"
               >
-                Hard (All Decks)
+                Hard (Peak Deck)
               </button>
               <button
                 type="button"
@@ -354,9 +356,9 @@ export default function AllShortagesView({
                     ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold"
                     : "text-slate-400 hover:text-white"
                 }`}
-                title="Shared Shortage: maximum needed by any single deck"
+                title="Shared Shortage (Revezamento entre Decks): Concurrent demand across all decks"
               >
-                Shared (Peak Deck)
+                Shared (All Decks)
               </button>
               <button
                 type="button"
@@ -367,9 +369,9 @@ export default function AllShortagesView({
                     ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-semibold"
                     : "text-slate-400 hover:text-white"
                 }`}
-                title="Staples Policy: cap at playset of 4 across decks"
+                title="Staples Policy: Meta staples recommendations & playset cap"
               >
-                Staples (Cap 4)
+                Staples
               </button>
             </div>
           </div>
@@ -731,7 +733,7 @@ export default function AllShortagesView({
       {showSecurityModal && (
         <WatchlistSecurityModal
           onClose={() => setShowSecurityModal(false)}
-          userId={report?.summary?.mypUsername || "default"}
+          userId={session?.user?.id || "user_default"}
           pendingAdds={pendingAdds}
           pendingUpdates={pendingUpdates}
           pendingRemoves={pendingRemoves}

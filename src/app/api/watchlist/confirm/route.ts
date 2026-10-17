@@ -5,6 +5,19 @@ import { inArray, eq, and, sql } from "drizzle-orm";
 import { DEFAULT_USER_ID, ensureDefaultUserAndSeed } from "@/services/seed";
 import { auth } from "@/auth";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: corsHeaders,
+  });
+}
+
 export async function POST(req: NextRequest) {
   try {
     await ensureDefaultUserAndSeed();
@@ -52,7 +65,11 @@ export async function POST(req: NextRequest) {
 
     if (confirmedRemoveIds.length > 0) {
       await db
-        .delete(mypWatchlist)
+        .update(mypWatchlist)
+        .set({
+          status: "removed",
+          updatedAt: sql`(strftime('%s', 'now'))`,
+        })
         .where(
           and(
             eq(mypWatchlist.userId, userId),
@@ -62,11 +79,17 @@ export async function POST(req: NextRequest) {
       updatedCount += confirmedRemoveIds.length;
     }
 
-    return NextResponse.json({
-      success: true,
-      updatedCount,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        updatedCount,
+      },
+      { headers: corsHeaders }
+    );
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message },
+      { status: 500, headers: corsHeaders }
+    );
   }
 }
