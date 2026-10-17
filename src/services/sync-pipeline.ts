@@ -1,7 +1,11 @@
 import { db } from "../db";
 import { users, cards } from "../db/schema";
 import { syncMetaStaples } from "./meta-staples";
-import { syncUserMarketplace, syncGlobalMarketplace } from "./marketplace";
+import {
+  syncUserMarketplace,
+  syncGlobalMarketplace,
+  enrichMarketplaceTcgPrices,
+} from "./marketplace";
 import { syncMetaArchetypes } from "./meta";
 import { eq, isNotNull } from "drizzle-orm";
 
@@ -144,6 +148,33 @@ export async function runFullSyncPipeline(
       stage: "Stage 2b: Global MyP Market Sync",
       status: "failed",
       durationMs: Date.now() - stage2bStart,
+      error: err.message,
+    });
+  }
+
+  // Stage 2c: Deck Shortages TCG Player Price Enrichment
+  const stage2cStart = Date.now();
+  try {
+    const res = await enrichMarketplaceTcgPrices(
+      {
+        onlyShortages: true,
+        userId: options.targetUserId,
+        limit: 30,
+      },
+      database,
+      options.customFetch
+    );
+    stages.push({
+      stage: "Stage 2c: Deck Shortages TCG Price Enrichment",
+      status: "success",
+      durationMs: Date.now() - stage2cStart,
+      details: res,
+    });
+  } catch (err: any) {
+    stages.push({
+      stage: "Stage 2c: Deck Shortages TCG Price Enrichment",
+      status: "failed",
+      durationMs: Date.now() - stage2cStart,
       error: err.message,
     });
   }

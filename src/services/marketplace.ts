@@ -1197,12 +1197,13 @@ export async function enrichMarketplaceTcgPrices(
   options: {
     cardIds?: string[];
     onlyShortages?: boolean;
+    userId?: string;
     limit?: number;
   } = {},
   database: any = db,
   customFetch?: typeof fetch
 ): Promise<{ enrichedCount: number; failedCount: number }> {
-  const limit = options.limit || 25;
+  const limit = options.limit || 30;
 
   let candidateRows: { id: string; mypProductUrl: string | null }[] = [];
 
@@ -1220,8 +1221,41 @@ export async function enrichMarketplaceTcgPrices(
         )
       )
       .limit(limit);
+  } else if (options.onlyShortages) {
+    // Find all card slugs required across user's decks
+    let userDecksQuery = database.select({ id: decks.id }).from(decks);
+    if (options.userId) {
+      userDecksQuery = userDecksQuery.where(eq(decks.userId, options.userId));
+    }
+    const userDecksList = await userDecksQuery;
+    const deckIds = userDecksList.map((d: any) => d.id);
+
+    if (deckIds.length > 0) {
+      const neededCards = await database
+        .select({ cardSlug: deckCards.cardSlug })
+        .from(deckCards)
+        .where(inArray(deckCards.deckId, deckIds));
+      const neededSlugs = Array.from(new Set(neededCards.map((nc: any) => nc.cardSlug)));
+
+      if (neededSlugs.length > 0) {
+        candidateRows = await database
+          .select({
+            id: mypMarketCards.id,
+            mypProductUrl: mypMarketCards.mypProductUrl,
+          })
+          .from(mypMarketCards)
+          .where(
+            and(
+              isNotNull(mypMarketCards.mypProductUrl),
+              isNull(mypMarketCards.tcgPriceNumeric),
+              inArray(mypMarketCards.cardSlug, neededSlugs)
+            )
+          )
+          .limit(limit);
+      }
+    }
   } else {
-    // By default, prioritize cards that have a product URL and lack a tcgPriceNumeric
+    // General fallback: prioritize cards that have a product URL and lack a tcgPriceNumeric
     candidateRows = await database
       .select({
         id: mypMarketCards.id,
