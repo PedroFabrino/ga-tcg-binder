@@ -304,6 +304,30 @@ async function fetchMypText(url: string, customFetch?: typeof fetch): Promise<st
     return JSON.stringify(json);
   }
 
+  // 1. If FlareSolverr proxy is configured (e.g. in GitHub Actions runner), query it
+  const flareUrl = process.env.FLARESOLVERR_URL;
+  if (flareUrl) {
+    try {
+      const solverRes = await fetch(`${flareUrl.replace(/\/$/, "")}/v1`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cmd: "request.get",
+          url,
+          maxTimeout: 60000,
+        }),
+      });
+      if (solverRes.ok) {
+        const solverJson = await solverRes.json();
+        if (solverJson?.solution?.response) {
+          return solverJson.solution.response;
+        }
+      }
+    } catch {
+      // Fallback to normal fetch/curl
+    }
+  }
+
   // Try native fetch first; if Cloudflare blocks Undici TLS (403), use system curl
   try {
     const res = await fetch(url, {
