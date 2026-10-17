@@ -1,4 +1,4 @@
-import { eq, and, inArray, sql, isNull, isNotNull } from "drizzle-orm";
+import { eq, and, or, inArray, sql, isNull, isNotNull } from "drizzle-orm";
 import { db } from "../db";
 import {
   users,
@@ -23,6 +23,8 @@ export interface ParsedMypItem {
   isFoil: boolean;
   mypItemId: string | null;
   mypProductUrl: string | null;
+  vendorName?: string | null;
+  vendorUrl?: string | null;
 }
 
 export interface MarketplaceDeckNeed {
@@ -137,6 +139,119 @@ export function extractTcgPlayerPrice(html: string): {
   };
 }
 
+export interface ExtractedProductOffer {
+  vendorName: string;
+  vendorUrl: string;
+  priceBrl: number;
+}
+
+export interface ExtractedProductDetails {
+  tcgPrice: string | null;
+  tcgPriceNumeric: number | null;
+  lowestVendorName: string | null;
+  lowestVendorUrl: string | null;
+  lowestVendorPrice: number | null;
+  offers: ExtractedProductOffer[];
+}
+
+export function extractProductPageDetails(html: string): ExtractedProductDetails {
+  if (!html) {
+    return {
+      tcgPrice: null,
+      tcgPriceNumeric: null,
+      lowestVendorName: null,
+      lowestVendorUrl: null,
+      lowestVendorPrice: null,
+      offers: [],
+    };
+  }
+
+  const tcgExtracted = extractTcgPlayerPrice(html);
+  const offers: ExtractedProductOffer[] = [];
+  const excludedSlugs = new Set([
+    "carrinho",
+    "login",
+    "cadastre-se",
+    "ajuda",
+    "termos",
+    "contato",
+    "grandarchive",
+    "produto",
+    "market",
+    "usuarios",
+    "buscar",
+    "notificacoes",
+    "perfil",
+    "conta",
+  ]);
+
+  // Strategy 1: Table rows (typical for MyP Cards marketplace offers)
+  const rowMatches = html.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
+  for (const row of rowMatches) {
+    if (!row.includes("R$")) continue;
+
+    const sellerMatch =
+      row.match(/<a[^>]+href=["']\/([a-zA-Z0-9_.-]+)(?:\/grandarchive)?["'][^>]*class=["'][^"']*(?:vendedor|loja|seller|user|nome-vendedor)[^"']*["'][^>]*>([\s\S]*?)<\/a>/i) ||
+      row.match(/<(?:td|div|span)[^>]*class=["'][^"']*(?:vendedor|loja|seller|nome-vendedor)[^"']*[^>]*>[\s\S]*?<a[^>]+href=["']\/([a-zA-Z0-9_.-]+)["'][^>]*>([\s\S]*?)<\/a>/i) ||
+      row.match(/<a[^>]+href=["']\/([a-zA-Z0-9_.-]+)["'][^>]*title=["'](?:Vendedor|Loja|Seller):\s*([^"']+)["'][^>]*>/i) ||
+      row.match(/<a[^>]+href=["']\/([a-zA-Z0-9_.-]+)["'][^>]*>([^<]+)<\/a>/i);
+
+    if (sellerMatch) {
+      const slug = sellerMatch[1].trim();
+      if (!excludedSlugs.has(slug.toLowerCase())) {
+        const rawName = sellerMatch[2] ? decodeHtmlEntities(sellerMatch[2]).trim() : slug;
+        const name = rawName || slug;
+        const priceMatch = row.match(/R\$\s*[\d.,]+/i);
+        const priceBrl = priceMatch ? parseBrlPrice(priceMatch[0]) : 0;
+        if (priceBrl > 0) {
+          offers.push({
+            vendorName: name,
+            vendorUrl: `https://mypcards.com/${slug}/grandarchive`,
+            priceBrl,
+          });
+        }
+      }
+    }
+  }
+
+  // Strategy 2: If no table rows matched, inspect card/list items
+  if (offers.length === 0) {
+    const itemMatches =
+      html.match(/<(?:div|li)[^>]*class=["'][^"']*(?:item-oferta|oferta|vendedor-item|card-item)[^"']*["'][^>]*>[\s\S]*?<\/(?:div|li)>/gi) || [];
+    for (const item of itemMatches) {
+      const sellerMatch =
+        item.match(/<a[^>]+href=["']\/([a-zA-Z0-9_.-]+)(?:\/grandarchive)?["'][^>]*class=["'][^"']*(?:vendedor|loja|seller|user)[^"']*["'][^>]*>([\s\S]*?)<\/a>/i) ||
+        item.match(/<a[^>]+href=["']\/([a-zA-Z0-9_.-]+)["'][^>]*>([\s\S]*?)<\/a>/i);
+      const priceMatch = item.match(/R\$\s*[\d.,]+/i);
+
+      if (sellerMatch && priceMatch) {
+        const slug = sellerMatch[1].trim();
+        if (!excludedSlugs.has(slug.toLowerCase())) {
+          const rawName = sellerMatch[2] ? decodeHtmlEntities(sellerMatch[2]).trim() : slug;
+          offers.push({
+            vendorName: rawName || slug,
+            vendorUrl: `https://mypcards.com/${slug}/grandarchive`,
+            priceBrl: parseBrlPrice(priceMatch[0]),
+          });
+        }
+      }
+    }
+  }
+
+  // Sort offers by price ascending
+  offers.sort((a, b) => a.priceBrl - b.priceBrl);
+  const lowest = offers[0] || null;
+
+  return {
+    tcgPrice: tcgExtracted?.tcgPrice || null,
+    tcgPriceNumeric: tcgExtracted?.tcgPriceNumeric || null,
+    lowestVendorName: lowest?.vendorName || null,
+    lowestVendorUrl: lowest?.vendorUrl || null,
+    lowestVendorPrice: lowest?.priceBrl || null,
+    offers,
+  };
+}
+
 export function evaluatePriceFairness(
   priceNumeric: number,
   tcgPriceNumeric?: number | null,
@@ -203,7 +318,10 @@ export function evaluatePriceFairness(
   };
 }
 
-export function parseMypHtml(html: string): ParsedMypItem[] {
+export function parseMypHtml(
+  html: string,
+  options?: { defaultVendorName?: string; defaultVendorUrl?: string }
+): ParsedMypItem[] {
   const results: ParsedMypItem[] = [];
   const cardIndices: number[] = [];
   let pos = 0;
@@ -212,6 +330,23 @@ export function parseMypHtml(html: string): ParsedMypItem[] {
     cardIndices.push(pos);
     pos += 10;
   }
+
+  const excludedVendorSlugs = new Set([
+    "carrinho",
+    "login",
+    "cadastre-se",
+    "ajuda",
+    "termos",
+    "contato",
+    "grandarchive",
+    "produto",
+    "market",
+    "usuarios",
+    "buscar",
+    "notificacoes",
+    "perfil",
+    "conta",
+  ]);
 
   for (let i = 0; i < cardIndices.length; i++) {
     const start = cardIndices[i];
@@ -246,6 +381,25 @@ export function parseMypHtml(html: string): ParsedMypItem[] {
     const itemIdMatch = chunk.match(/data-ga-item-id="([^"]+)"/i);
     const mypItemId = itemIdMatch ? itemIdMatch[1].trim() : null;
 
+    // Vendor extraction from card chunk (if present on the catalog/store page)
+    let vendorName: string | null = options?.defaultVendorName || null;
+    let vendorUrl: string | null = options?.defaultVendorUrl || null;
+
+    const vendorLinkMatch =
+      chunk.match(/<a[^>]+href=["']\/([a-zA-Z0-9_.-]+)(?:\/grandarchive)?["'][^>]*class=["'][^"']*(?:vendedor|loja|seller|user|nome-vendedor)[^"']*["'][^>]*>([\s\S]*?)<\/a>/i) ||
+      chunk.match(/<(?:div|span|p|td)[^>]*class=["'][^"']*(?:card-vendedor|card-loja|vendedor|loja)[^"']*[^>]*>[\s\S]*?<a[^>]+href=["']\/([a-zA-Z0-9_.-]+)["'][^>]*>([\s\S]*?)<\/a>/i) ||
+      chunk.match(/data-vendedor=["']([^"']+)["']/i) ||
+      chunk.match(/data-seller=["']([^"']+)["']/i);
+
+    if (vendorLinkMatch) {
+      const slug = decodeHtmlEntities(vendorLinkMatch[1]).trim();
+      if (!excludedVendorSlugs.has(slug.toLowerCase())) {
+        const rawVendorName = vendorLinkMatch[2] ? decodeHtmlEntities(vendorLinkMatch[2]).trim() : slug;
+        vendorName = rawVendorName || slug;
+        vendorUrl = `https://mypcards.com/${slug}/grandarchive`;
+      }
+    }
+
     const lowerRaw = rawName.toLowerCase();
     const isFoil =
       lowerRaw.includes("foil") ||
@@ -262,6 +416,8 @@ export function parseMypHtml(html: string): ParsedMypItem[] {
       isFoil,
       mypItemId,
       mypProductUrl,
+      vendorName,
+      vendorUrl,
     });
   }
 
@@ -562,7 +718,11 @@ export async function syncUserMarketplace(
   // 1. Fetch Page 1 specifically for Grand Archive store
   const page1Url = `https://mypcards.com/${encodeURIComponent(username)}/grandarchive`;
   const p1Html = await fetchMypText(page1Url, customFetch);
-  const parsedItems: ParsedMypItem[] = [...parseMypHtml(p1Html)];
+  const defaultVendor = {
+    defaultVendorName: username,
+    defaultVendorUrl: page1Url,
+  };
+  const parsedItems: ParsedMypItem[] = [...parseMypHtml(p1Html, defaultVendor)];
 
   // 2. Fetch subsequent pages via /usuario/load-more?nick=...&marca=grandarchive
   let page = 2;
@@ -575,7 +735,7 @@ export async function syncUserMarketplace(
       const moreText = await fetchMypText(moreUrl, customFetch);
       const json = JSON.parse(moreText);
       if (!json || !json.success || !json.html) break;
-      const pageItems = parseMypHtml(json.html);
+      const pageItems = parseMypHtml(json.html, defaultVendor);
       if (pageItems.length === 0) break;
       parsedItems.push(...pageItems);
       page++;
@@ -1112,8 +1272,9 @@ export async function syncGlobalMarketplace(
   let matchedCount = 0;
   let unmatchedCount = 0;
 
-  // Atomically replace myp_market_cards rows, preserving existing cached TCGPlayer prices
+  // Atomically replace myp_market_cards rows, preserving existing cached TCGPlayer prices and vendor details
   const existingTcgMap = new Map<string, { tcgPrice: string; tcgPriceNumeric: number }>();
+  const existingVendorMap = new Map<string, { vendorName: string; vendorUrl: string | null }>();
   try {
     const existingRows = await database
       .select({
@@ -1121,6 +1282,8 @@ export async function syncGlobalMarketplace(
         mypProductUrl: mypMarketCards.mypProductUrl,
         tcgPrice: mypMarketCards.tcgPrice,
         tcgPriceNumeric: mypMarketCards.tcgPriceNumeric,
+        vendorName: mypMarketCards.vendorName,
+        vendorUrl: mypMarketCards.vendorUrl,
       })
       .from(mypMarketCards);
 
@@ -1139,9 +1302,23 @@ export async function syncGlobalMarketplace(
           });
         }
       }
+      if (r.vendorName) {
+        if (r.mypProductUrl) {
+          existingVendorMap.set(r.mypProductUrl, {
+            vendorName: r.vendorName,
+            vendorUrl: r.vendorUrl || null,
+          });
+        }
+        if (r.mypItemId) {
+          existingVendorMap.set(r.mypItemId, {
+            vendorName: r.vendorName,
+            vendorUrl: r.vendorUrl || null,
+          });
+        }
+      }
     }
   } catch {
-    // If table didn't have tcg columns yet, safe ignore
+    // If table didn't have tcg/vendor columns yet, safe ignore
   }
 
   await database.delete(mypMarketCards);
@@ -1163,6 +1340,11 @@ export async function syncGlobalMarketplace(
       (item.mypItemId && existingTcgMap.get(item.mypItemId)) ||
       null;
 
+    const cachedVendor =
+      (item.mypProductUrl && existingVendorMap.get(item.mypProductUrl)) ||
+      (item.mypItemId && existingVendorMap.get(item.mypItemId)) ||
+      null;
+
     rowsToInsert.push({
       id: item.mypItemId ? `mkt-${item.mypItemId}` : `mkt-${idx}-${batchTimestamp}`,
       cardSlug: matchedCard?.slug || null,
@@ -1175,6 +1357,8 @@ export async function syncGlobalMarketplace(
       priceNumeric: parseBrlPrice(item.price),
       tcgPrice: cachedTcg?.tcgPrice || null,
       tcgPriceNumeric: cachedTcg?.tcgPriceNumeric || null,
+      vendorName: item.vendorName || cachedVendor?.vendorName || null,
+      vendorUrl: item.vendorUrl || cachedVendor?.vendorUrl || null,
       isFoil: item.isFoil,
       mypItemId: item.mypItemId,
       mypProductUrl: item.mypProductUrl,
@@ -1235,7 +1419,9 @@ export async function enrichMarketplaceTcgPrices(
         .select({ cardSlug: deckCards.cardSlug })
         .from(deckCards)
         .where(inArray(deckCards.deckId, deckIds));
-      const neededSlugs = Array.from(new Set(neededCards.map((nc: any) => nc.cardSlug)));
+      const neededSlugs: string[] = Array.from(
+        new Set(neededCards.map((nc: any) => String(nc.cardSlug)))
+      );
 
       if (neededSlugs.length > 0) {
         candidateRows = await database
@@ -1247,7 +1433,10 @@ export async function enrichMarketplaceTcgPrices(
           .where(
             and(
               isNotNull(mypMarketCards.mypProductUrl),
-              isNull(mypMarketCards.tcgPriceNumeric),
+              or(
+                isNull(mypMarketCards.tcgPriceNumeric),
+                isNull(mypMarketCards.vendorName)
+              ),
               inArray(mypMarketCards.cardSlug, neededSlugs)
             )
           )
@@ -1255,7 +1444,7 @@ export async function enrichMarketplaceTcgPrices(
       }
     }
   } else {
-    // General fallback: prioritize cards that have a product URL and lack a tcgPriceNumeric
+    // General fallback: prioritize cards that have a product URL and lack a tcgPriceNumeric or vendorName
     candidateRows = await database
       .select({
         id: mypMarketCards.id,
@@ -1265,7 +1454,10 @@ export async function enrichMarketplaceTcgPrices(
       .where(
         and(
           isNotNull(mypMarketCards.mypProductUrl),
-          isNull(mypMarketCards.tcgPriceNumeric)
+          or(
+            isNull(mypMarketCards.tcgPriceNumeric),
+            isNull(mypMarketCards.vendorName)
+          )
         )
       )
       .limit(limit);
@@ -1282,15 +1474,22 @@ export async function enrichMarketplaceTcgPrices(
         if (!row.mypProductUrl) return;
         try {
           const html = await fetchMypText(row.mypProductUrl, customFetch);
-          const extracted = extractTcgPlayerPrice(html);
-          if (extracted) {
+          const details = extractProductPageDetails(html);
+          if (details.tcgPriceNumeric !== null || details.lowestVendorName !== null) {
+            const updates: any = {
+              updatedAt: sql`(strftime('%s', 'now'))`,
+            };
+            if (details.tcgPrice) {
+              updates.tcgPrice = details.tcgPrice;
+              updates.tcgPriceNumeric = details.tcgPriceNumeric;
+            }
+            if (details.lowestVendorName) {
+              updates.vendorName = details.lowestVendorName;
+              updates.vendorUrl = details.lowestVendorUrl;
+            }
             await database
               .update(mypMarketCards)
-              .set({
-                tcgPrice: extracted.tcgPrice,
-                tcgPriceNumeric: extracted.tcgPriceNumeric,
-                updatedAt: sql`(strftime('%s', 'now'))`,
-              })
+              .set(updates)
               .where(eq(mypMarketCards.id, row.id));
             enrichedCount++;
           } else {

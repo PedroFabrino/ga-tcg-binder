@@ -10,6 +10,7 @@ import {
   getGlobalMarketReport,
   calculateNetMarketStock,
   extractTcgPlayerPrice,
+  extractProductPageDetails,
   evaluatePriceFairness,
   enrichMarketplaceTcgPrices,
 } from "./marketplace";
@@ -938,6 +939,94 @@ describe("Marketplace (MyPCards) Sync, Shortage Offset & Claim Seam", () => {
       const enrichedRows = await db.select().from(mypMarketCards).all();
       expect(enrichedRows[0].tcgPrice).toBe("R$ 150,00");
       expect(enrichedRows[0].tcgPriceNumeric).toBe(150.0);
+    });
+
+    it("extracts TCG price and lowest vendor details from product page HTML", () => {
+      const sampleProductHtml = `
+        <div class="resumo-preco resumo-preco--tcg">
+          <span class="moeda">R$ 12,50</span>
+        </div>
+        <table class="tabela-vendedores">
+          <thead>
+            <tr><th>Vendedor</th><th>Qualidade</th><th>Preço</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><a href="/alpha-cards" class="nome-vendedor">Alpha Cards</a></td>
+              <td>NM</td>
+              <td class="preco">R$ 15,00</td>
+            </tr>
+            <tr>
+              <td><a href="/best-deals-store" class="nome-vendedor">Best Deals</a></td>
+              <td>NM</td>
+              <td class="preco">R$ 10,00</td>
+            </tr>
+            <tr>
+              <td><a href="/omega-vault" class="nome-vendedor">Omega Vault</a></td>
+              <td>SP</td>
+              <td class="preco">R$ 18,50</td>
+            </tr>
+          </tbody>
+        </table>
+      `;
+
+      const details = extractProductPageDetails(sampleProductHtml);
+      expect(details.tcgPrice).toBe("R$ 12,50");
+      expect(details.tcgPriceNumeric).toBe(12.5);
+      expect(details.lowestVendorName).toBe("Best Deals");
+      expect(details.lowestVendorUrl).toBe("https://mypcards.com/best-deals-store/grandarchive");
+      expect(details.lowestVendorPrice).toBe(10.0);
+      expect(details.offers).toHaveLength(3);
+    });
+
+    it("enriches both TCG price and vendor details in enrichMarketplaceTcgPrices", async () => {
+      const { db } = await createTestDb();
+
+      await db.insert(mypMarketCards).values({
+        id: "mkt-vendor-test",
+        rawName: "Arcane Sight",
+        cardName: "Arcane Sight",
+        setPrefix: "DOA",
+        quantity: 1,
+        price: "R$ 20,00",
+        priceNumeric: 20.0,
+        mypProductUrl: "https://mypcards.com/grandarchive/produto/555/arcane-sight",
+        tcgPrice: null,
+        tcgPriceNumeric: null,
+        vendorName: null,
+        vendorUrl: null,
+      });
+
+      const mockFetch = async () =>
+        ({
+          ok: true,
+          text: async () => `
+            <div class="resumo-preco resumo-preco--tcg">
+              <span class="moeda">R$ 8,00</span>
+            </div>
+            <table>
+              <tr>
+                <td><a href="/top-seller" class="vendedor">Top Seller Brasil</a></td>
+                <td>R$ 19,00</td>
+              </tr>
+            </table>
+          `,
+        } as any);
+
+      const result = await enrichMarketplaceTcgPrices(
+        { cardIds: ["mkt-vendor-test"] },
+        db,
+        mockFetch
+      );
+
+      expect(result.enrichedCount).toBe(1);
+
+      const enrichedRows = await db.select().from(mypMarketCards).all();
+      const updated = enrichedRows.find((r) => r.id === "mkt-vendor-test");
+      expect(updated?.tcgPrice).toBe("R$ 8,00");
+      expect(updated?.tcgPriceNumeric).toBe(8.0);
+      expect(updated?.vendorName).toBe("Top Seller Brasil");
+      expect(updated?.vendorUrl).toBe("https://mypcards.com/top-seller/grandarchive");
     });
   });
 });

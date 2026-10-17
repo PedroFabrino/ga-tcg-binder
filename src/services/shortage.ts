@@ -28,6 +28,8 @@ export interface MarketShortageAvailability {
   marketTcgPrice?: string | null;
   marketTcgPriceNumeric?: number | null;
   marketPriceFairness?: PriceFairnessEvaluation | null;
+  marketVendorName?: string | null;
+  marketVendorUrl?: string | null;
 }
 
 export interface FriendIdleCard {
@@ -219,6 +221,8 @@ export async function calculateDeckShortage(
         tcgPrice: mypMarketCards.tcgPrice,
         tcgPriceNumeric: mypMarketCards.tcgPriceNumeric,
         mypProductUrl: mypMarketCards.mypProductUrl,
+        vendorName: mypMarketCards.vendorName,
+        vendorUrl: mypMarketCards.vendorUrl,
       })
       .from(mypMarketCards);
   } catch {
@@ -330,6 +334,8 @@ export async function calculateDeckShortage(
     let lowestPriceTcgStr: string | null = null;
     let lowestPriceTcgNum: number | null = null;
     let marketProductUrl: string | null = null;
+    let marketVendorName: string | null = null;
+    let marketVendorUrl: string | null = null;
 
     for (const mRow of matchingMarketRows) {
       const { netExternalStock } = calculateNetMarketStock(mRow, userMypListings);
@@ -345,6 +351,8 @@ export async function calculateDeckShortage(
             mRow.tcgPriceNumeric !== null && mRow.tcgPriceNumeric !== undefined
               ? Number(mRow.tcgPriceNumeric)
               : null;
+          marketVendorName = mRow.vendorName || null;
+          marketVendorUrl = mRow.vendorUrl || null;
         }
       }
     }
@@ -375,6 +383,8 @@ export async function calculateDeckShortage(
       marketTcgPrice: lowestPriceTcgStr,
       marketTcgPriceNumeric: lowestPriceTcgNum,
       marketPriceFairness,
+      marketVendorName,
+      marketVendorUrl,
     });
   }
 
@@ -528,6 +538,8 @@ export async function calculateAggregatedShortages(
         tcgPrice: mypMarketCards.tcgPrice,
         tcgPriceNumeric: mypMarketCards.tcgPriceNumeric,
         mypProductUrl: mypMarketCards.mypProductUrl,
+        vendorName: mypMarketCards.vendorName,
+        vendorUrl: mypMarketCards.vendorUrl,
       })
       .from(mypMarketCards);
   } catch {
@@ -624,6 +636,8 @@ export async function calculateAggregatedShortages(
     let lowestPriceTcgStr: string | null = null;
     let lowestPriceTcgNum: number | null = null;
     let marketProductUrl: string | null = null;
+    let marketVendorName: string | null = null;
+    let marketVendorUrl: string | null = null;
 
     for (const mRow of matchingMarketRows) {
       const { netExternalStock } = calculateNetMarketStock(mRow, userMypListings);
@@ -639,6 +653,8 @@ export async function calculateAggregatedShortages(
             mRow.tcgPriceNumeric !== null && mRow.tcgPriceNumeric !== undefined
               ? Number(mRow.tcgPriceNumeric)
               : null;
+          marketVendorName = mRow.vendorName || null;
+          marketVendorUrl = mRow.vendorUrl || null;
         }
       }
     }
@@ -675,6 +691,8 @@ export async function calculateAggregatedShortages(
         marketTcgPrice: lowestPriceTcgStr,
         marketTcgPriceNumeric: lowestPriceTcgNum,
         marketPriceFairness,
+        marketVendorName,
+        marketVendorUrl,
       });
     }
   }

@@ -179,6 +179,8 @@ CREATE TABLE IF NOT EXISTS `myp_market_cards` (
 	`is_foil` integer DEFAULT false NOT NULL,
 	`myp_item_id` text,
 	`myp_product_url` text,
+	`vendor_name` text,
+	`vendor_url` text,
 	`updated_at` integer DEFAULT (strftime('%s', 'now')),
 	FOREIGN KEY (`card_slug`) REFERENCES `cards`(`slug`) ON UPDATE no action ON DELETE set null,
 	FOREIGN KEY (`edition_id`) REFERENCES `card_editions`(`id`) ON UPDATE no action ON DELETE set null

@@ -199,6 +199,8 @@ export const mypMarketCards = sqliteTable("myp_market_cards", {
   isFoil: integer("is_foil", { mode: "boolean" }).notNull().default(false),
   mypItemId: text("myp_item_id"),
   mypProductUrl: text("myp_product_url"),
+  vendorName: text("vendor_name"),
+  vendorUrl: text("vendor_url"),
   updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
 

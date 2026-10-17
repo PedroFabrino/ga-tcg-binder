@@ -458,5 +458,103 @@ describe("Shortage Calculation & Friend Idle Discovery Seams", () => {
     expect(item?.marketPriceFairness?.tier).toBe("HEAVILY_OVERPRICED");
     expect(item?.marketPriceFairness?.ratio).toBeCloseTo(2.67, 1);
   });
+
+  it("attaches vendor name and store url to deck shortage items and aggregated shortages", async () => {
+    const { db } = await createTestDb();
+
+    await db.insert(users).values({
+      id: "u-vendor-group",
+      name: "Vendor Group User",
+      friendCode: "GA-VEND1",
+    });
+
+    await db.insert(cards).values([
+      {
+        slug: "card-a",
+        name: "Card Alpha",
+        element: "FIRE",
+        class: "WARRIOR",
+        type: "ACTION",
+        subtypes: "[]",
+      },
+      {
+        slug: "card-b",
+        name: "Card Beta",
+        element: "WATER",
+        class: "MAGE",
+        type: "ACTION",
+        subtypes: "[]",
+      },
+    ]);
+
+    await db.insert(decks).values({
+      id: "d-vendor",
+      userId: "u-vendor-group",
+      name: "Combo Deck",
+      champion: "Arthur",
+    });
+
+    await db.insert(deckCards).values([
+      {
+        id: "dc-va",
+        deckId: "d-vendor",
+        cardSlug: "card-a",
+        zone: "main",
+        quantity: 2,
+      },
+      {
+        id: "dc-vb",
+        deckId: "d-vendor",
+        cardSlug: "card-b",
+        zone: "main",
+        quantity: 1,
+      },
+    ]);
+
+    await db.insert(mypMarketCards).values([
+      {
+        id: "mkt-a1",
+        cardSlug: "card-a",
+        rawName: "Card Alpha",
+        cardName: "Card Alpha",
+        setPrefix: "DOA",
+        quantity: 2,
+        price: "R$ 10,00",
+        priceNumeric: 10.0,
+        vendorName: "MegaVendor TCG",
+        vendorUrl: "https://mypcards.com/megavendor/grandarchive",
+        mypProductUrl: "https://mypcards.com/produto/101",
+      },
+      {
+        id: "mkt-b1",
+        cardSlug: "card-b",
+        rawName: "Card Beta",
+        cardName: "Card Beta",
+        setPrefix: "DOA",
+        quantity: 1,
+        price: "R$ 15,00",
+        priceNumeric: 15.0,
+        vendorName: "MegaVendor TCG",
+        vendorUrl: "https://mypcards.com/megavendor/grandarchive",
+        mypProductUrl: "https://mypcards.com/produto/102",
+      },
+    ]);
+
+    const deckReport = await calculateDeckShortage("d-vendor", "u-vendor-group", db);
+    const itemA = deckReport.items.find((i) => i.cardSlug === "card-a");
+    const itemB = deckReport.items.find((i) => i.cardSlug === "card-b");
+
+    expect(itemA?.marketVendorName).toBe("MegaVendor TCG");
+    expect(itemA?.marketVendorUrl).toBe("https://mypcards.com/megavendor/grandarchive");
+    expect(itemB?.marketVendorName).toBe("MegaVendor TCG");
+
+    const aggReport = await calculateAggregatedShortages("u-vendor-group", db);
+    const aggA = aggReport.cards.find((c) => c.cardSlug === "card-a");
+    const aggB = aggReport.cards.find((c) => c.cardSlug === "card-b");
+
+    expect(aggA?.marketVendorName).toBe("MegaVendor TCG");
+    expect(aggA?.marketVendorUrl).toBe("https://mypcards.com/megavendor/grandarchive");
+    expect(aggB?.marketVendorName).toBe("MegaVendor TCG");
+  });
 });
 

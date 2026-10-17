@@ -47,13 +47,15 @@ const ELEMENT_CONFIG: Record<string, { label: string; color: string; activeColor
   NEOS: { label: "Neos", color: "#0ea5e9", activeColor: "#38bdf8", bg: "bg-sky-500/20", border: "border-sky-400", shadow: "shadow-[0_0_12px_rgba(56,189,248,0.4)]" },
 };
 
-type GroupMode = "none" | "element" | "deck" | "rarity";
+type GroupMode = "none" | "element" | "deck" | "rarity" | "vendor";
 
 interface ShortageGroup {
   key: string;
   title: string;
   cards: AggregatedShortageCard[];
   color?: string;
+  vendorUrl?: string | null;
+  totalCostBrl?: number;
 }
 
 export default function AllShortagesView({
@@ -186,6 +188,56 @@ export default function AllShortagesView({
       })).filter((g) => g.cards.length > 0);
     }
 
+    if (groupMode === "vendor") {
+      const vendorMap: Record<
+        string,
+        {
+          title: string;
+          cards: AggregatedShortageCard[];
+          vendorUrl: string | null;
+          totalCostBrl: number;
+        }
+      > = {};
+
+      filteredCards.forEach((c) => {
+        const vendorKey = c.marketVendorName ? `vendor-${c.marketVendorName}` : "unlisted";
+        const vendorTitle = c.marketVendorName ? `Vendor: ${c.marketVendorName}` : "Other / Unlisted Vendors";
+        const vendorUrl = c.marketVendorUrl || null;
+
+        if (!vendorMap[vendorKey]) {
+          vendorMap[vendorKey] = {
+            title: vendorTitle,
+            cards: [],
+            vendorUrl,
+            totalCostBrl: 0,
+          };
+        }
+
+        vendorMap[vendorKey].cards.push(c);
+        const cardPrice = c.marketLowestPriceBrl || 0;
+        const qtyNeeded = c.concurrentMissing || 1;
+        vendorMap[vendorKey].totalCostBrl += cardPrice * qtyNeeded;
+      });
+
+      return Object.entries(vendorMap)
+        .sort(([keyA, dataA], [keyB, dataB]) => {
+          if (keyA === "unlisted") return 1;
+          if (keyB === "unlisted") return -1;
+          if (dataB.cards.length !== dataA.cards.length) {
+            return dataB.cards.length - dataA.cards.length;
+          }
+          return dataB.totalCostBrl - dataA.totalCostBrl;
+        })
+        .map(([key, data]) => ({
+          key,
+          title: `${data.title} (${data.cards.length} shortage card${data.cards.length > 1 ? "s" : ""})`,
+          cards: data.cards,
+          vendorUrl: data.vendorUrl,
+          totalCostBrl: data.totalCostBrl,
+          color: key === "unlisted" ? "#94a3b8" : "#38bdf8",
+        }));
+    }
+
     return [];
   }, [filteredCards, groupMode]);
 
@@ -289,6 +341,14 @@ export default function AllShortagesView({
               }`}
             >
               <BookOpen className="h-3.5 w-3.5" /> By Deck
+            </button>
+            <button
+              onClick={() => setGroupMode("vendor")}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+                groupMode === "vendor" ? "bg-white/[0.08] text-white" : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <Store className="h-3.5 w-3.5" /> By Vendor
             </button>
           </div>
         </div>
@@ -450,10 +510,29 @@ export default function AllShortagesView({
           {groupedData.map((group) => (
             <div key={group.key} className="space-y-3">
               {groupMode !== "none" && (
-                <div className="flex items-center gap-2 border-b border-white/[0.06] pb-2">
-                  <h3 className="text-sm font-semibold text-white" style={group.color ? { color: group.color } : undefined}>
-                    {group.title}
-                  </h3>
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.06] pb-2">
+                  <div className="flex items-center gap-2.5">
+                    <h3 className="text-sm font-semibold text-white" style={group.color ? { color: group.color } : undefined}>
+                      {group.title}
+                    </h3>
+                    {group.totalCostBrl !== undefined && group.totalCostBrl > 0 && (
+                      <span className="rounded-full bg-emerald-500/10 border border-emerald-400/20 px-2 py-0.5 font-mono text-[11px] font-semibold text-emerald-300">
+                        Total ~R$ {group.totalCostBrl.toFixed(2).replace(".", ",")}
+                      </span>
+                    )}
+                  </div>
+                  {group.vendorUrl && (
+                    <a
+                      href={group.vendorUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-2.5 py-1 text-xs font-medium text-cyan-300 transition-colors hover:bg-cyan-500/20 hover:text-cyan-200"
+                    >
+                      <Store className="h-3.5 w-3.5" />
+                      <span>Visit Store</span>
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
                 </div>
               )}
 
@@ -603,6 +682,18 @@ function ShortageCardRow({
                 )}
               </a>
             ) : null}
+            {card.marketVendorName && (
+              <a
+                href={card.marketVendorUrl || `https://mypcards.com/${encodeURIComponent(card.marketVendorName)}/grandarchive`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-full border border-sky-400/30 bg-sky-400/10 px-2 py-0.5 text-[10px] font-medium text-sky-200 hover:bg-sky-400/20 transition-colors"
+                title={`Offered on MyP Cards by vendor ${card.marketVendorName}`}
+              >
+                <Store className="h-2.5 w-2.5 text-sky-300" />
+                Vendor: <strong className="font-semibold text-white">{card.marketVendorName}</strong>
+              </a>
+            )}
           </div>
 
           {/* Decks needing this card */}
