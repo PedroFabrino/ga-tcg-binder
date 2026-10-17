@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         Grand Archive TCG - MyP Watchlist Auto-Sync & Fulfillment Bridge
 // @namespace    https://github.com/PedroFabrino/ga-tcg-binder
-// @version      1.1.0
+// @version      1.2.0
 // @description  Auditable bridge for Grand Archive TCG: syncs deck shortages with your MyPCards.com Quero list, and provides an on-page fulfillment pick list & buyer pack assistant for pending orders on /vendas.
 // @author       Grand Archive TCG Collector
 // @match        https://mypcards.com/*
+// @match        https://www.mypcards.com/*
 // @grant        none
 // ==/UserScript==
 
@@ -12,7 +13,21 @@
   "use strict";
 
   const HASH_PREFIX = "#ga_watchlist_sync=";
+  const APP_URL_PREFIX = "#ga_app_url=";
+  const DEFAULT_APP_URL = "https://ga-tcg-binder-7dnicdb0m-fabrinos-projects.vercel.app";
   const rawHash = window.location.hash || "";
+
+  if (rawHash.startsWith(APP_URL_PREFIX)) {
+    try {
+      const passedUrl = decodeURIComponent(rawHash.slice(APP_URL_PREFIX.length));
+      if (passedUrl.startsWith("http")) {
+        localStorage.setItem("ga_app_url", passedUrl);
+      }
+      history.replaceState(null, document.title, window.location.pathname + window.location.search);
+    } catch (e) {
+      // ignore
+    }
+  }
 
   if (rawHash.startsWith(HASH_PREFIX)) {
     initWatchlistSync(rawHash);
@@ -315,7 +330,10 @@
   // =========================================================================
 
   function initVendasFulfillment() {
-    const table = document.querySelector("table.table-vendas, table.table");
+    const tables = Array.from(document.querySelectorAll("table"));
+    const table =
+      tables.find((t) => t.querySelector('a[href*="/pedido/"]') || /aguard\.?\s*envio|separa/i.test(t.textContent || "")) ||
+      document.querySelector("table.table-vendas, table.table, table");
     if (!table) return;
 
     // Inject Floating Controls Bar
@@ -371,7 +389,7 @@
     table.parentNode.insertBefore(controlBar, table);
 
     // Inject checkboxes into rows
-    const rows = table.querySelectorAll("tbody tr");
+    const rows = table.querySelectorAll("tbody tr, tr");
     let totalEligible = 0;
 
     rows.forEach((tr) => {
@@ -640,7 +658,7 @@
     }
 
     progressLabel.innerText = "Enriquecendo catálogo e elementos no Grand Archive Binder...";
-    const appUrl = localStorage.getItem("ga_app_url") || "http://localhost:3000";
+    const appUrl = localStorage.getItem("ga_app_url") || DEFAULT_APP_URL;
 
     try {
       const enrichResp = await fetch(`${appUrl}/api/marketplace/fulfillment`, {

@@ -22,9 +22,28 @@ export default function FulfillmentView({ mypUsername }: FulfillmentViewProps = 
   const [activeTab, setActiveTab] = useState<"pick" | "buyer">("pick");
 
   const cleanUser = mypUsername?.trim();
-  const vendasUrl = cleanUser
+  const baseVendasUrl = cleanUser
     ? `https://mypcards.com/${encodeURIComponent(cleanUser)}/vendas`
     : "https://mypcards.com/Fabrino/vendas";
+
+  const handleOpenVendas = () => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const targetUrl = origin
+      ? `${baseVendasUrl}#ga_app_url=${encodeURIComponent(origin)}`
+      : baseVendasUrl;
+    window.open(targetUrl, "_blank");
+  };
+
+  const handleCopyUserscript = async () => {
+    try {
+      const res = await fetch("/scripts/myp-watchlist-sync.user.js");
+      const code = await res.text();
+      await navigator.clipboard.writeText(code);
+      showToast(t("securityModal.copiedToast"));
+    } catch (e) {
+      console.error("Failed to copy userscript:", e);
+    }
+  };
 
   const loadBatch = useCallback(() => {
     // 1. Check URL hash
@@ -89,14 +108,22 @@ export default function FulfillmentView({ mypUsername }: FulfillmentViewProps = 
         <p className="mt-2 max-w-md text-sm text-slate-400">
           {t("fulfillment.emptyStateDesc")}
         </p>
-        <div className="mt-6">
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           <Button
             variant="outline"
-            onClick={() => window.open(vendasUrl, "_blank")}
+            onClick={handleOpenVendas}
             className="gap-2"
           >
             {t("fulfillment.openMypVendasBtn")}
             <ExternalLink className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={handleCopyUserscript}
+            className="gap-2"
+          >
+            <Copy className="h-4 w-4" />
+            {t("securityModal.copyScriptBtn")}
           </Button>
         </div>
       </div>
