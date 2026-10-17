@@ -316,3 +316,9 @@ export function parseFeatureFlag(val: unknown, defaultValue = false): boolean {
   return defaultValue;
 }
 
+// ---------------------------------------------------------------------------
+// Internationalization (i18n)
+// ---------------------------------------------------------------------------
+export * from "./i18n";
+
+

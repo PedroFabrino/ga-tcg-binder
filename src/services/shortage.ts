@@ -1,44 +1,21 @@
-import { eq, and, inArray, sql } from "drizzle-orm";
 import {
-  cards,
-  cardEditions,
-  collectionItems,
-  decks,
-  deckCards,
-  friendLinks,
-  users,
-  mypCards,
-  mypMarketCards,
-  mypWatchlist,
-  type WatchlistStatus,
-} from "../db/schema";
-import { db } from "../db";
+  loadDeckShortageData,
+  loadAggregatedShortageData,
+} from "@/db/repositories/shortage-repository";
 import { DEFAULT_USER_ID } from "./seed";
 import {
-  parseBrlPrice,
-  calculateNetMarketStock,
-  evaluatePriceFairness,
-  type PriceFairnessEvaluation,
-} from "./marketplace";
-import {
-  computeQuotaForCard,
+  computeCombinedQuota,
   getEffectiveQuotaPolicy,
   summarizeWatchlistRows,
   type WatchlistQuotaPolicy,
-} from "./watchlist";
+} from "./watchlist-policy";
+import {
+  resolveMarketAvailability,
+  type MarketShortageAvailability,
+} from "./shortage-market";
+import type { WatchlistStatus } from "../db/schema";
 
-export interface MarketShortageAvailability {
-  mypAvailableCopies?: number;
-  marketAvailableCopies?: number;
-  marketLowestPriceBrl?: number;
-  marketLowestPriceStr?: string;
-  marketProductUrl?: string | null;
-  marketTcgPrice?: string | null;
-  marketTcgPriceNumeric?: number | null;
-  marketPriceFairness?: PriceFairnessEvaluation | null;
-  marketVendorName?: string | null;
-  marketVendorUrl?: string | null;
-}
+export type { MarketShortageAvailability };
 
 export interface FriendIdleCard {
   friendId: string;
@@ -73,255 +50,81 @@ export interface DeckShortageReport {
 export async function calculateDeckShortage(
   deckId: string,
   userId?: string,
-  database: any = db
+  database?: unknown
 ): Promise<DeckShortageReport> {
-  // 1. Fetch current deck
-  const deck = await database
-    .select()
-    .from(decks)
-    .where(eq(decks.id, deckId))
-    .get();
+  const effectiveUserId = !userId || userId === DEFAULT_USER_ID ? DEFAULT_USER_ID : userId;
 
-  if (!deck) {
-    throw new Error(`Deck not found with id ${deckId}`);
-  }
+  const {
+    deck,
+    targetDeckCards,
+    otherDeckCards,
+    userInventory,
+    friends,
+    friendsInventory,
+    friendDecks,
+    userMypListings,
+    marketListings,
+    editionsInDeck,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- repositories accept in-memory test database or singleton db
+  } = await loadDeckShortageData(deckId, effectiveUserId, database as any);
 
-  // If userId is unspecified or default, use the deck owner's ID
-  const effectiveUserId = !userId || userId === DEFAULT_USER_ID ? deck.userId : userId;
-
-  // 2. Fetch cards in this deck
-  const targetDeckCards = await database
-    .select({
-      id: deckCards.id,
-      deckId: deckCards.deckId,
-      cardSlug: deckCards.cardSlug,
-      zone: deckCards.zone,
-      quantity: deckCards.quantity,
-      assignedEditionId: deckCards.assignedEditionId,
-      name: cards.name,
-    })
-    .from(deckCards)
-    .leftJoin(cards, eq(deckCards.cardSlug, cards.slug))
-    .where(eq(deckCards.deckId, deckId));
-
-  // 3. Fetch all other decks owned by user (to check contention and dedicated allocations)
-  const allUserDecks = await database
-    .select()
-    .from(decks)
-    .where(eq(decks.userId, effectiveUserId));
-
-  const otherDeckIds = allUserDecks
-    .filter((d: any) => d.id !== deckId)
-    .map((d: any) => d.id);
-
-  let otherDeckCards: any[] = [];
-  if (otherDeckIds.length > 0) {
-    otherDeckCards = await database
-      .select({
-        deckId: deckCards.deckId,
-        cardSlug: deckCards.cardSlug,
-        quantity: deckCards.quantity,
-        assignedEditionId: deckCards.assignedEditionId,
-        deckName: decks.name,
-      })
-      .from(deckCards)
-      .leftJoin(decks, eq(deckCards.deckId, decks.id))
-      .where(inArray(deckCards.deckId, otherDeckIds));
-  }
-
-  // 4. Fetch user's collection items with edition info
-  const userInventory = await database
-    .select({
-      id: collectionItems.id,
-      editionId: collectionItems.editionId,
-      cardSlug: cardEditions.cardSlug,
-      foil: collectionItems.foil,
-      quantity: collectionItems.quantity,
-      isDedicated: collectionItems.isDedicated,
-    })
-    .from(collectionItems)
-    .innerJoin(cardEditions, eq(collectionItems.editionId, cardEditions.id))
-    .where(eq(collectionItems.userId, effectiveUserId));
-
-  // 5. Fetch accepted friends
-  const friendLinks1 = await database
-    .select({
-      friendId: friendLinks.userId2,
-    })
-    .from(friendLinks)
-    .where(and(eq(friendLinks.userId1, effectiveUserId), eq(friendLinks.status, "accepted")));
-
-  const friendLinks2 = await database
-    .select({
-      friendId: friendLinks.userId1,
-    })
-    .from(friendLinks)
-    .where(and(eq(friendLinks.userId2, effectiveUserId), eq(friendLinks.status, "accepted")));
-
-  const friendIds = Array.from(
-    new Set([...friendLinks1.map((f: any) => f.friendId), ...friendLinks2.map((f: any) => f.friendId)])
-  );
-
-  let friendUsers: any[] = [];
-  let friendCollection: any[] = [];
-  let friendDecks: any[] = [];
-
-  if (friendIds.length > 0) {
-    friendUsers = await database
-      .select()
-      .from(users)
-      .where(inArray(users.id, friendIds));
-
-    friendCollection = await database
-      .select({
-        id: collectionItems.id,
-        userId: collectionItems.userId,
-        editionId: collectionItems.editionId,
-        cardSlug: cardEditions.cardSlug,
-        quantity: collectionItems.quantity,
-        isDedicated: collectionItems.isDedicated,
-      })
-      .from(collectionItems)
-      .innerJoin(cardEditions, eq(collectionItems.editionId, cardEditions.id))
-      .where(inArray(collectionItems.userId, friendIds));
-
-    // Friend decks and assignments to compute idle availability
-    friendDecks = await database
-      .select({
-        deckId: deckCards.deckId,
-        userId: decks.userId,
-        cardSlug: deckCards.cardSlug,
-        quantity: deckCards.quantity,
-      })
-      .from(deckCards)
-      .innerJoin(decks, eq(deckCards.deckId, decks.id))
-      .where(inArray(decks.userId, friendIds));
-  }
-
-  // 5b. Fetch user personal MyP store and global market listings
-  let userMypListings: any[] = [];
-  try {
-    userMypListings = await database
-      .select({
-        cardSlug: mypCards.cardSlug,
-        editionId: mypCards.editionId,
-        setPrefix: mypCards.setPrefix,
-        mypItemId: mypCards.mypItemId,
-        quantity: mypCards.quantity,
-      })
-      .from(mypCards)
-      .where(eq(mypCards.userId, effectiveUserId));
-  } catch {
-    // Graceful fallback
-  }
-
-  let marketListings: any[] = [];
-  try {
-    marketListings = await database
-      .select({
-        cardSlug: mypMarketCards.cardSlug,
-        editionId: mypMarketCards.editionId,
-        setPrefix: mypMarketCards.setPrefix,
-        mypItemId: mypMarketCards.mypItemId,
-        quantity: mypMarketCards.quantity,
-        price: mypMarketCards.price,
-        priceNumeric: mypMarketCards.priceNumeric,
-        tcgPrice: mypMarketCards.tcgPrice,
-        tcgPriceNumeric: mypMarketCards.tcgPriceNumeric,
-        mypProductUrl: mypMarketCards.mypProductUrl,
-        vendorName: mypMarketCards.vendorName,
-        vendorUrl: mypMarketCards.vendorUrl,
-      })
-      .from(mypMarketCards);
-  } catch {
-    // Graceful fallback
-  }
-
-  // 6. Aggregate shortage per card in target deck
-  const items: CardShortageDetail[] = [];
   let totalCardsRequired = 0;
   let totalCardsMissing = 0;
-
-  const targetSlugs: string[] = Array.from(new Set(targetDeckCards.map((c: any) => c.cardSlug as string)));
-  let targetEditions: any[] = [];
-  if (targetSlugs.length > 0) {
-    targetEditions = await database
-      .select({
-        id: cardEditions.id,
-        cardSlug: cardEditions.cardSlug,
-        imageUrl: cardEditions.imageUrl,
-      })
-      .from(cardEditions)
-      .where(inArray(cardEditions.cardSlug, targetSlugs));
-  }
+  const items: CardShortageDetail[] = [];
 
   for (const dc of targetDeckCards) {
     const slug = dc.cardSlug;
-    const cardName = dc.name || slug;
+    const cardName = dc.cardName || slug;
     const required = dc.quantity;
     totalCardsRequired += required;
 
-    const matchingEd = dc.assignedEditionId
-      ? targetEditions.find((e: any) => e.id === dc.assignedEditionId)
-      : targetEditions.find((e: any) => e.cardSlug === slug);
-    const imageUrl = matchingEd?.imageUrl || null;
+    const assignedEdition = editionsInDeck.find((e) => e.cardSlug === slug);
+    const imageUrl = assignedEdition?.imageUrl || null;
 
-    // Copies owned by user for this card slug
-    const ownedForSlug = userInventory.filter((inv: any) => inv.cardSlug === slug);
-    const dedicatedOwned = ownedForSlug
-      .filter((inv: any) => inv.isDedicated)
-      .reduce((sum: number, inv: any) => sum + inv.quantity, 0);
-    const sharedOwned = ownedForSlug
-      .filter((inv: any) => !inv.isDedicated)
-      .reduce((sum: number, inv: any) => sum + inv.quantity, 0);
+    const ownedForCard = userInventory.filter((inv) => inv.cardSlug === slug);
+    const dedicatedOwned = ownedForCard
+      .filter((inv) => inv.isDedicated)
+      .reduce((sum, inv) => sum + inv.quantity, 0);
+    const sharedOwned = ownedForCard
+      .filter((inv) => !inv.isDedicated)
+      .reduce((sum, inv) => sum + inv.quantity, 0);
     const totalOwned = dedicatedOwned + sharedOwned;
 
-    // Check copies dedicated to OTHER decks
-    // If a dedicated copy is assigned to another deck, it cannot be used by this deck
     const dedicatedToOtherDecks = otherDeckCards
-      .filter((od: any) => od.cardSlug === slug && od.assignedEditionId)
-      .reduce((sum: number, od: any) => sum + od.quantity, 0);
+      .filter((od) => od.cardSlug === slug && od.assignedEditionId)
+      .reduce((sum, od) => sum + od.quantity, 0);
 
-    // Available copies for this deck = totalOwned - dedicatedToOtherDecks
     const available = Math.max(0, totalOwned - dedicatedToOtherDecks);
     const missing = Math.max(0, required - available);
     totalCardsMissing += missing;
 
-    // Check multi-deck contention
-    // Contention occurs if total demand across ALL user decks exceeds total owned copies
     const otherDemandForSlug = otherDeckCards
-      .filter((od: any) => od.cardSlug === slug)
-      .reduce((sum: number, od: any) => sum + od.quantity, 0);
+      .filter((od) => od.cardSlug === slug)
+      .reduce((sum, od) => sum + od.quantity, 0);
     const totalSystemDemand = required + otherDemandForSlug;
     const isContended = totalSystemDemand > totalOwned && otherDemandForSlug > 0;
 
     const contendingDeckNames = otherDeckCards
-      .filter((od: any) => od.cardSlug === slug && od.deckName)
-      .map((od: any) => od.deckName as string)
+      .filter((od) => od.cardSlug === slug && od.deckName)
+      .map((od) => od.deckName)
       .filter((name, idx, arr) => arr.indexOf(name) === idx);
 
-    // Friend idle search if missing > 0
     const friendsWithIdle: FriendIdleCard[] = [];
-    if (missing > 0 && friendIds.length > 0) {
-      for (const friendId of friendIds) {
-        const friend = friendUsers.find((u: any) => u.id === friendId);
-        if (!friend) continue;
+    if (missing > 0 && friends.length > 0) {
+      for (const friend of friends) {
+        const friendOwned = friendsInventory
+          .filter((fi) => fi.userId === friend.id && fi.cardSlug === slug && !fi.isDedicated)
+          .reduce((sum, fi) => sum + fi.quantity, 0);
 
-        // Friend owned non-dedicated copies of this slug
-        const friendOwned = friendCollection
-          .filter((fc: any) => fc.userId === friendId && fc.cardSlug === slug && !fc.isDedicated)
-          .reduce((sum: number, fc: any) => sum + fc.quantity, 0);
-
-        // Friend used copies in their active decks
         const friendUsedInDecks = friendDecks
-          .filter((fd: any) => fd.userId === friendId && fd.cardSlug === slug)
-          .reduce((sum: number, fd: any) => Math.max(sum, fd.quantity), 0); // Shared max across friend decks
+          .filter((fd) => fd.userId === friend.id && fd.cardSlug === slug)
+          .reduce((sum, fd) => Math.max(sum, fd.quantity), 0);
 
         const friendIdle = Math.max(0, friendOwned - friendUsedInDecks);
         if (friendIdle > 0) {
           friendsWithIdle.push({
-            friendId,
-            friendName: friend.name || "Playgroup Friend",
+            friendId: friend.id,
+            friendName: friend.name || "Friend",
             friendCode: friend.friendCode,
             idleQuantity: friendIdle,
           });
@@ -329,46 +132,7 @@ export async function calculateDeckShortage(
       }
     }
 
-    // Personal MyP store copies
-    const mypAvailableCopies = userMypListings
-      .filter((m: any) => m.cardSlug === slug)
-      .reduce((sum: number, m: any) => sum + Number(m.quantity || 0), 0);
-
-    // Global Market availability (net external stock)
-    const matchingMarketRows = marketListings.filter((m: any) => m.cardSlug === slug);
-    let marketAvailableCopies = 0;
-    let lowestPriceBrl = Infinity;
-    let lowestPriceStr: string | undefined;
-    let lowestPriceTcgStr: string | null = null;
-    let lowestPriceTcgNum: number | null = null;
-    let marketProductUrl: string | null = null;
-    let marketVendorName: string | null = null;
-    let marketVendorUrl: string | null = null;
-
-    for (const mRow of matchingMarketRows) {
-      const { netExternalStock } = calculateNetMarketStock(mRow, userMypListings);
-      if (netExternalStock > 0) {
-        marketAvailableCopies += netExternalStock;
-        const priceNum = Number(mRow.priceNumeric) || parseBrlPrice(mRow.price);
-        if (priceNum < lowestPriceBrl) {
-          lowestPriceBrl = priceNum;
-          lowestPriceStr = mRow.price;
-          marketProductUrl = mRow.mypProductUrl;
-          lowestPriceTcgStr = mRow.tcgPrice || null;
-          lowestPriceTcgNum =
-            mRow.tcgPriceNumeric !== null && mRow.tcgPriceNumeric !== undefined
-              ? Number(mRow.tcgPriceNumeric)
-              : null;
-          marketVendorName = mRow.vendorName || null;
-          marketVendorUrl = mRow.vendorUrl || null;
-        }
-      }
-    }
-
-    const marketPriceFairness =
-      lowestPriceBrl !== Infinity
-        ? evaluatePriceFairness(lowestPriceBrl, lowestPriceTcgNum, lowestPriceTcgStr)
-        : null;
+    const marketInfo = resolveMarketAvailability(slug, marketListings, userMypListings);
 
     items.push({
       cardSlug: slug,
@@ -383,16 +147,7 @@ export async function calculateDeckShortage(
       dedicatedCopiesOwned: dedicatedOwned,
       sharedCopiesOwned: sharedOwned,
       friendsWithIdle,
-      mypAvailableCopies: mypAvailableCopies > 0 ? mypAvailableCopies : undefined,
-      marketAvailableCopies: marketAvailableCopies > 0 ? marketAvailableCopies : undefined,
-      marketLowestPriceBrl: lowestPriceBrl === Infinity ? undefined : lowestPriceBrl,
-      marketLowestPriceStr: lowestPriceStr,
-      marketProductUrl,
-      marketTcgPrice: lowestPriceTcgStr,
-      marketTcgPriceNumeric: lowestPriceTcgNum,
-      marketPriceFairness,
-      marketVendorName,
-      marketVendorUrl,
+      ...marketInfo,
     });
   }
 
@@ -448,9 +203,9 @@ export interface AggregatedShortageCard extends MarketShortageAvailability {
   sharedOwned: number;
   peakMissing: number;
   concurrentMissing: number;
-  quota?: number;
-  missing?: number;
-  watchlistItems?: WatchlistSummaryItem[];
+  quota: number;
+  missing: number;
+  watchlistItems: WatchlistSummaryItem[];
 }
 
 export interface AggregatedShortageReport {
@@ -459,69 +214,43 @@ export interface AggregatedShortageReport {
     totalPeakShortageCopies: number;
     uniqueShortageCards: number;
     deckCount: number;
-    activePolicy?: WatchlistQuotaPolicy;
-    pendingAdds?: number;
-    pendingUpdates?: number;
-    pendingRemoves?: number;
-    watchingCount?: number;
-    ignoredCount?: number;
-    hasSavedMypCredentials?: boolean;
-    mypUsername?: string | null;
+    activePolicy: WatchlistQuotaPolicy;
+    pendingAdds: number;
+    pendingUpdates: number;
+    pendingRemoves: number;
+    watchingCount: number;
+    ignoredCount: number;
+    hasSavedMypCredentials: boolean;
+    mypUsername: string | null;
+    watchlistSyncToken?: string | null;
   };
   cards: AggregatedShortageCard[];
 }
 
 export async function calculateAggregatedShortages(
   userId?: string,
-  database: any = db
+  database?: unknown
 ): Promise<AggregatedShortageReport> {
   const effectiveUserId = userId || DEFAULT_USER_ID;
 
-  // 0. Fetch user settings for quota policy and credentials
-  let user: any = null;
-  try {
-    user = await database
-      .select({
-        id: users.id,
-        mypUsername: users.mypUsername,
-        watchlistPolicyHard: users.watchlistPolicyHard,
-        watchlistPolicyShared: users.watchlistPolicyShared,
-        watchlistPolicyStaples: users.watchlistPolicyStaples,
-        mypPasswordEncrypted: users.mypPasswordEncrypted,
-      })
-      .from(users)
-      .where(eq(users.id, effectiveUserId))
-      .get();
-  } catch {
-    // Fallback if columns not available
-  }
+  const {
+    user,
+    userDecks,
+    allDeckCards,
+    userInventory,
+    userMypListings,
+    marketListings,
+    allEditions,
+    uniqueSlugs,
+    userWatchlistRows,
+    stapleMap,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- repositories accept in-memory test database or singleton db
+  } = await loadAggregatedShortageData(effectiveUserId, database as any);
 
   const activePolicy: WatchlistQuotaPolicy = getEffectiveQuotaPolicy(user);
 
-  let userWatchlistRows: any[] = [];
-  try {
-    userWatchlistRows = await database
-      .select()
-      .from(mypWatchlist)
-      .where(eq(mypWatchlist.userId, effectiveUserId));
-  } catch {
-    // Fallback
-  }
-
-  // 1. Fetch all decks for user
-  const userDecks = await database
-    .select({
-      id: decks.id,
-      name: decks.name,
-      champion: decks.champion,
-      format: decks.format,
-    })
-    .from(decks)
-    .where(eq(decks.userId, effectiveUserId));
-
   if (!userDecks || userDecks.length === 0) {
     const counts = summarizeWatchlistRows(userWatchlistRows);
-
     return {
       summary: {
         totalShortageCopies: 0,
@@ -532,109 +261,16 @@ export async function calculateAggregatedShortages(
         ...counts,
         hasSavedMypCredentials: Boolean(user?.mypPasswordEncrypted),
         mypUsername: user?.mypUsername || null,
+        watchlistSyncToken: user?.watchlistSyncToken || null,
       },
       cards: [],
     };
   }
 
-  const deckIds = userDecks.map((d: any) => d.id);
-
-  // 2. Fetch all cards across all user decks
-  const allDeckCards = await database
-    .select({
-      id: deckCards.id,
-      deckId: deckCards.deckId,
-      cardSlug: deckCards.cardSlug,
-      zone: deckCards.zone,
-      quantity: deckCards.quantity,
-      assignedEditionId: deckCards.assignedEditionId,
-      deckName: decks.name,
-      cardName: cards.name,
-      element: cards.element,
-      class: cards.class,
-      type: cards.type,
-    })
-    .from(deckCards)
-    .innerJoin(decks, eq(deckCards.deckId, decks.id))
-    .leftJoin(cards, eq(deckCards.cardSlug, cards.slug))
-    .where(inArray(deckCards.deckId, deckIds));
-
-  // 3. Fetch user collection items
-  const userInventory = await database
-    .select({
-      id: collectionItems.id,
-      editionId: collectionItems.editionId,
-      cardSlug: cardEditions.cardSlug,
-      foil: collectionItems.foil,
-      quantity: collectionItems.quantity,
-      isDedicated: collectionItems.isDedicated,
-    })
-    .from(collectionItems)
-    .innerJoin(cardEditions, eq(collectionItems.editionId, cardEditions.id))
-    .where(eq(collectionItems.userId, effectiveUserId));
-
-  // 3b. Fetch user MyP Marketplace listings (if available)
-  let userMypListings: any[] = [];
-  try {
-    userMypListings = await database
-      .select({
-        cardSlug: mypCards.cardSlug,
-        editionId: mypCards.editionId,
-        setPrefix: mypCards.setPrefix,
-        mypItemId: mypCards.mypItemId,
-        quantity: mypCards.quantity,
-      })
-      .from(mypCards)
-      .where(eq(mypCards.userId, effectiveUserId));
-  } catch {
-    // Graceful fallback if myp_cards table is not yet migrated
-  }
-
-  let marketListings: any[] = [];
-  try {
-    marketListings = await database
-      .select({
-        cardSlug: mypMarketCards.cardSlug,
-        editionId: mypMarketCards.editionId,
-        setPrefix: mypMarketCards.setPrefix,
-        mypItemId: mypMarketCards.mypItemId,
-        quantity: mypMarketCards.quantity,
-        price: mypMarketCards.price,
-        priceNumeric: mypMarketCards.priceNumeric,
-        tcgPrice: mypMarketCards.tcgPrice,
-        tcgPriceNumeric: mypMarketCards.tcgPriceNumeric,
-        mypProductUrl: mypMarketCards.mypProductUrl,
-        vendorName: mypMarketCards.vendorName,
-        vendorUrl: mypMarketCards.vendorUrl,
-      })
-      .from(mypMarketCards);
-  } catch {
-    // Graceful fallback
-  }
-
-  // 4. Unique card slugs needed across all decks
-  const uniqueSlugs: string[] = Array.from(new Set(allDeckCards.map((c: any) => String(c.cardSlug))));
-  let allEditions: any[] = [];
-  if (uniqueSlugs.length > 0) {
-    allEditions = await database
-      .select({
-        id: cardEditions.id,
-        cardSlug: cardEditions.cardSlug,
-        setPrefix: cardEditions.setPrefix,
-        setName: cardEditions.setName,
-        collectorNumber: cardEditions.collectorNumber,
-        rarity: cardEditions.rarity,
-        imageUrl: cardEditions.imageUrl,
-      })
-      .from(cardEditions)
-      .where(inArray(cardEditions.cardSlug, uniqueSlugs));
-  }
-
-  // 5. Aggregate by card slug
   const shortageCards: AggregatedShortageCard[] = [];
 
   for (const slug of uniqueSlugs) {
-    const matchingDeckCards = allDeckCards.filter((c: any) => c.cardSlug === slug);
+    const matchingDeckCards = allDeckCards.filter((c) => c.cardSlug === slug);
     const firstMatch = matchingDeckCards[0];
     const cardName = firstMatch?.cardName || slug;
     const element = firstMatch?.element || "NORM";
@@ -642,8 +278,8 @@ export async function calculateAggregatedShortages(
     const cardType = firstMatch?.type || "ACTION";
 
     const editionsForSlug = allEditions
-      .filter((e: any) => e.cardSlug === slug)
-      .map((e: any) => ({
+      .filter((e) => e.cardSlug === slug)
+      .map((e) => ({
         id: e.id,
         setPrefix: e.setPrefix,
         setName: e.setName,
@@ -652,98 +288,60 @@ export async function calculateAggregatedShortages(
         imageUrl: e.imageUrl,
       }));
 
-    // Best image and rarity
-    const assignedEdId = matchingDeckCards.find((c: any) => c.assignedEditionId)?.assignedEditionId;
-    const matchedEd = assignedEdId
-      ? editionsForSlug.find((e: any) => e.id === assignedEdId)
-      : editionsForSlug[0];
-    const imageUrl = matchedEd?.imageUrl || null;
-    const rarity = matchedEd?.rarity || editionsForSlug[0]?.rarity || 1;
+    const rarity = editionsForSlug.length > 0 ? Math.max(...editionsForSlug.map((e) => e.rarity)) : 1;
+    const imageUrl = editionsForSlug[0]?.imageUrl || null;
 
-    // Deck requirements (aggregate if same card in same deck across zones or list individually)
-    const deckRequirements: DeckRequirement[] = matchingDeckCards.map((c: any) => ({
+    const deckRequirements: DeckRequirement[] = matchingDeckCards.map((c) => ({
       deckId: c.deckId,
       deckName: c.deckName,
       quantity: c.quantity,
       zone: c.zone,
     }));
 
-    const totalDemand = deckRequirements.reduce((sum, d) => sum + d.quantity, 0);
+    const totalDemand = matchingDeckCards.reduce((sum, c) => sum + c.quantity, 0);
 
-    // Peak demand in any single deck
-    // Group quantities by deckId in case same card is in main + side of same deck
     const demandByDeck: Record<string, number> = {};
-    for (const req of deckRequirements) {
-      demandByDeck[req.deckId] = (demandByDeck[req.deckId] || 0) + req.quantity;
+    for (const c of matchingDeckCards) {
+      demandByDeck[c.deckId] = (demandByDeck[c.deckId] || 0) + c.quantity;
     }
     const peakDemand = Object.values(demandByDeck).reduce((max, q) => Math.max(max, q), 0);
 
-    const ownedForSlug = userInventory.filter((inv: any) => inv.cardSlug === slug);
-    const dedicatedOwned = ownedForSlug
-      .filter((inv: any) => inv.isDedicated)
-      .reduce((sum: number, inv: any) => sum + inv.quantity, 0);
-    const sharedOwned = ownedForSlug
-      .filter((inv: any) => !inv.isDedicated)
-      .reduce((sum: number, inv: any) => sum + inv.quantity, 0);
+    const ownedForCard = userInventory.filter((inv) => inv.cardSlug === slug);
+    const dedicatedOwned = ownedForCard
+      .filter((inv) => inv.isDedicated)
+      .reduce((sum, inv) => sum + inv.quantity, 0);
+    const sharedOwned = ownedForCard
+      .filter((inv) => !inv.isDedicated)
+      .reduce((sum, inv) => sum + inv.quantity, 0);
     const totalOwned = dedicatedOwned + sharedOwned;
 
-    const concurrentMissing = Math.max(0, totalDemand - totalOwned);
     const peakMissing = Math.max(0, peakDemand - totalOwned);
+    const concurrentMissing = Math.max(0, totalDemand - totalOwned);
 
-    const mypAvailableCopies = userMypListings
-      .filter((m: any) => m.cardSlug === slug)
-      .reduce((sum: number, m: any) => sum + Number(m.quantity || 0), 0);
-
-    // Global Market availability (net external stock)
-    const matchingMarketRows = marketListings.filter((m: any) => m.cardSlug === slug);
-    let marketAvailableCopies = 0;
-    let lowestPriceBrl = Infinity;
-    let lowestPriceStr: string | undefined;
-    let lowestPriceTcgStr: string | null = null;
-    let lowestPriceTcgNum: number | null = null;
-    let marketProductUrl: string | null = null;
-    let marketVendorName: string | null = null;
-    let marketVendorUrl: string | null = null;
-
-    for (const mRow of matchingMarketRows) {
-      const { netExternalStock } = calculateNetMarketStock(mRow, userMypListings);
-      if (netExternalStock > 0) {
-        marketAvailableCopies += netExternalStock;
-        const priceNum = Number(mRow.priceNumeric) || parseBrlPrice(mRow.price);
-        if (priceNum < lowestPriceBrl) {
-          lowestPriceBrl = priceNum;
-          lowestPriceStr = mRow.price;
-          marketProductUrl = mRow.mypProductUrl;
-          lowestPriceTcgStr = mRow.tcgPrice || null;
-          lowestPriceTcgNum =
-            mRow.tcgPriceNumeric !== null && mRow.tcgPriceNumeric !== undefined
-              ? Number(mRow.tcgPriceNumeric)
-              : null;
-          marketVendorName = mRow.vendorName || null;
-          marketVendorUrl = mRow.vendorUrl || null;
-        }
-      }
-    }
-
-    const marketPriceFairness =
-      lowestPriceBrl !== Infinity
-        ? evaluatePriceFairness(lowestPriceBrl, lowestPriceTcgNum, lowestPriceTcgStr)
-        : null;
-
-    const policyQuota = computeQuotaForCard(totalDemand, peakDemand, activePolicy);
+    const stapleCopies = stapleMap.get(slug) || 0;
+    const policyQuota = computeCombinedQuota({
+      totalDemand,
+      peakDemand,
+      policyHard: Boolean(user?.watchlistPolicyHard ?? true),
+      policyShared: Boolean(user?.watchlistPolicyShared ?? false),
+      policyStaples: Boolean(user?.watchlistPolicyStaples ?? false),
+      stapleCopies,
+    });
     const policyMissing = Math.max(0, policyQuota - totalOwned);
 
     const cardWatchlistItems: WatchlistSummaryItem[] = userWatchlistRows
-      .filter((w: any) => w.cardSlug === slug)
-      .map((w: any) => ({
+      .filter((w) => w.cardSlug === slug)
+      .map((w) => ({
         id: w.id,
         editionSlug: w.editionSlug,
         collectorNumber: w.collectorNumber,
-        status: w.status,
+        status: w.status as WatchlistStatus,
         targetQuantity: w.targetQuantity,
         targetPriceBrl: w.targetPriceBrl,
         mypProductUrl: w.mypProductUrl,
       }));
+
+    const marketInfo = resolveMarketAvailability(slug, marketListings, userMypListings);
 
     // Only include cards with a shortage under any policy or active watchlist
     if (concurrentMissing > 0 || peakMissing > 0 || policyMissing > 0 || cardWatchlistItems.length > 0) {
@@ -767,31 +365,17 @@ export async function calculateAggregatedShortages(
         quota: policyQuota,
         missing: policyMissing,
         watchlistItems: cardWatchlistItems,
-        mypAvailableCopies: mypAvailableCopies > 0 ? mypAvailableCopies : undefined,
-        marketAvailableCopies: marketAvailableCopies > 0 ? marketAvailableCopies : undefined,
-        marketLowestPriceBrl: lowestPriceBrl === Infinity ? undefined : lowestPriceBrl,
-        marketLowestPriceStr: lowestPriceStr,
-        marketProductUrl,
-        marketTcgPrice: lowestPriceTcgStr,
-        marketTcgPriceNumeric: lowestPriceTcgNum,
-        marketPriceFairness,
-        marketVendorName,
-        marketVendorUrl,
+        ...marketInfo,
       });
     }
   }
 
-  // Sort descending by concurrentMissing then peakMissing
-  shortageCards.sort((a, b) => {
-    if (b.concurrentMissing !== a.concurrentMissing) {
-      return b.concurrentMissing - a.concurrentMissing;
-    }
-    return b.peakMissing - a.peakMissing;
-  });
+  shortageCards.sort((a, b) =>
+    b.concurrentMissing !== a.concurrentMissing ? b.concurrentMissing - a.concurrentMissing : b.peakMissing - a.peakMissing
+  );
 
   const totalShortageCopies = shortageCards.reduce((sum, c) => sum + c.concurrentMissing, 0);
   const totalPeakShortageCopies = shortageCards.reduce((sum, c) => sum + c.peakMissing, 0);
-
   const counts = summarizeWatchlistRows(userWatchlistRows);
 
   return {
@@ -804,6 +388,7 @@ export async function calculateAggregatedShortages(
       ...counts,
       hasSavedMypCredentials: Boolean(user?.mypPasswordEncrypted),
       mypUsername: user?.mypUsername || null,
+      watchlistSyncToken: user?.watchlistSyncToken || null,
     },
     cards: shortageCards,
   };

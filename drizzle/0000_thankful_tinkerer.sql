@@ -199,8 +199,6 @@ CREATE TABLE IF NOT EXISTS `myp_watchlist` (
 	`target_quantity` integer DEFAULT 1 NOT NULL,
 	`synced_quantity` integer,
 	`target_price_brl` real DEFAULT 1.0 NOT NULL,
-	`target_price_str` text,
-	`is_collector_printing` integer DEFAULT 0 NOT NULL,
 	`status` text DEFAULT 'pending_add' NOT NULL,
 	`last_error` text,
 	`updated_at` integer DEFAULT (strftime('%s', 'now')),

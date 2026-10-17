@@ -1,5 +1,3 @@
-import { db } from "../db";
-import { users, cards } from "../db/schema";
 import { syncMetaStaples } from "./meta-staples";
 import {
   syncUserMarketplace,
@@ -9,7 +7,11 @@ import {
 import { syncMetaArchetypes } from "./meta";
 import { reconcileUserWatchlist, fetchPublicQueroList } from "./watchlist";
 import { executeAutomatedWatchlistSync } from "./watchlist-sync-runner";
-import { eq, isNotNull, and } from "drizzle-orm";
+import {
+  getUsersWithMypUsername,
+  getUsersForAutomatedWatchlistSync,
+} from "../db/repositories/settings-repository";
+import { hasCatalogData } from "../db/repositories/shortage-repository";
 
 export interface PipelineStageResult {
   stage: string;
@@ -33,9 +35,11 @@ export interface PipelineOptions {
 }
 
 export async function runFullSyncPipeline(
-  database: any = db,
+  database?: unknown,
   options: PipelineOptions = {}
 ): Promise<PipelineExecutionReport> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- repositories accept in-memory test database or singleton db
+  const dbParam = database as any;
   const customFetch = options.customFetch || fetch;
   const startedAt = Date.now();
   const stages: PipelineStageResult[] = [];
@@ -43,75 +47,63 @@ export async function runFullSyncPipeline(
   // Stage 0: Catalog Check
   const stage0Start = Date.now();
   try {
-    const existingCards = await database.select().from(cards).limit(1);
+    const hasCards = await hasCatalogData(dbParam);
     stages.push({
       stage: "Stage 0: Catalog Check",
       status: "success",
       durationMs: Date.now() - stage0Start,
       details: {
-        hasCatalogData: existingCards.length > 0,
+        hasCatalogData: hasCards,
       },
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     stages.push({
       stage: "Stage 0: Catalog Check",
       status: "failed",
       durationMs: Date.now() - stage0Start,
-      error: err.message,
+      error: err instanceof Error ? err.message : String(err),
     });
   }
 
   // Stage 1: Meta Staples Sync
   const stage1Start = Date.now();
   try {
-    const res = await syncMetaStaples(database, customFetch);
+    const res = await syncMetaStaples(dbParam, customFetch);
     stages.push({
       stage: "Stage 1: Meta Staples Sync",
       status: "success",
       durationMs: Date.now() - stage1Start,
       details: res,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     stages.push({
       stage: "Stage 1: Meta Staples Sync",
       status: "failed",
       durationMs: Date.now() - stage1Start,
-      error: err.message,
+      error: err instanceof Error ? err.message : String(err),
     });
   }
 
   // Stage 2a: Personal MyP Store Sync
   const stage2aStart = Date.now();
   try {
-    let usersToSync: any[] = [];
-    if (options.targetUserId) {
-      usersToSync = await database
-        .select()
-        .from(users)
-        .where(eq(users.id, options.targetUserId));
-    } else {
-      usersToSync = await database
-        .select()
-        .from(users)
-        .where(isNotNull(users.mypUsername));
-    }
-
-    const syncSummaries: any[] = [];
+    const usersToSync = await getUsersWithMypUsername(options.targetUserId, dbParam);
+    const syncSummaries: Record<string, unknown>[] = [];
     for (const u of usersToSync) {
       if (u.mypUsername) {
         try {
           const userRes = await syncUserMarketplace(
             u.id,
             u.mypUsername,
-            database,
+            dbParam,
             options.customFetch
           );
           syncSummaries.push({ userId: u.id, ...userRes });
-        } catch (uErr: any) {
+        } catch (uErr: unknown) {
           syncSummaries.push({
             userId: u.id,
             username: u.mypUsername,
-            error: uErr.message,
+            error: uErr instanceof Error ? uErr.message : String(uErr),
           });
         }
       }
@@ -126,31 +118,31 @@ export async function runFullSyncPipeline(
         synced: syncSummaries,
       },
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     stages.push({
       stage: "Stage 2a: Personal MyP Store Sync",
       status: "failed",
       durationMs: Date.now() - stage2aStart,
-      error: err.message,
+      error: err instanceof Error ? err.message : String(err),
     });
   }
 
   // Stage 2b: Global MyP Market Sync
   const stage2bStart = Date.now();
   try {
-    const res = await syncGlobalMarketplace(database, options.customFetch);
+    const res = await syncGlobalMarketplace(dbParam, options.customFetch);
     stages.push({
       stage: "Stage 2b: Global MyP Market Sync",
       status: "success",
       durationMs: Date.now() - stage2bStart,
       details: res,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     stages.push({
       stage: "Stage 2b: Global MyP Market Sync",
       status: "failed",
       durationMs: Date.now() - stage2bStart,
-      error: err.message,
+      error: err instanceof Error ? err.message : String(err),
     });
   }
 
@@ -163,7 +155,7 @@ export async function runFullSyncPipeline(
         userId: options.targetUserId,
         limit: 30,
       },
-      database,
+      dbParam,
       options.customFetch
     );
     stages.push({
@@ -172,44 +164,33 @@ export async function runFullSyncPipeline(
       durationMs: Date.now() - stage2cStart,
       details: res,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     stages.push({
       stage: "Stage 2c: Deck Shortages TCG Price Enrichment",
       status: "failed",
       durationMs: Date.now() - stage2cStart,
-      error: err.message,
+      error: err instanceof Error ? err.message : String(err),
     });
   }
 
   // Stage 2d: Watchlist Ledger Reconciliation
   const stage2dStart = Date.now();
   try {
-    let usersToReconcile: any[] = [];
-    if (options.targetUserId) {
-      usersToReconcile = await database
-        .select()
-        .from(users)
-        .where(eq(users.id, options.targetUserId));
-    } else {
-      usersToReconcile = await database
-        .select()
-        .from(users)
-        .where(isNotNull(users.mypUsername));
-    }
+    const usersToReconcile = await getUsersWithMypUsername(options.targetUserId, dbParam);
 
-    const reconcileResults: any[] = [];
+    const reconcileResults: Record<string, unknown>[] = [];
     for (const u of usersToReconcile) {
       if (u.mypUsername) {
         try {
           const rec = await reconcileUserWatchlist(u.id, {
-            database,
+            database: dbParam,
             fetchQuero: async (username) => {
               return fetchPublicQueroList(username, customFetch);
             },
           });
-          reconcileResults.push(rec);
-        } catch (rErr: any) {
-          reconcileResults.push({ userId: u.id, error: rErr.message });
+          reconcileResults.push(rec as unknown as Record<string, unknown>);
+        } catch (rErr: unknown) {
+          reconcileResults.push({ userId: u.id, error: rErr instanceof Error ? rErr.message : String(rErr) });
         }
       }
     }
@@ -223,38 +204,30 @@ export async function runFullSyncPipeline(
         results: reconcileResults,
       },
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     stages.push({
       stage: "Stage 2d: Watchlist Ledger Reconciliation",
       status: "failed",
       durationMs: Date.now() - stage2dStart,
-      error: err.message,
+      error: err instanceof Error ? err.message : String(err),
     });
   }
 
   // Stage 2e: Automated Watchlist Mutation Execution
   const stage2eStart = Date.now();
   try {
-    let usersToMutate: any[] = [];
-    if (options.targetUserId) {
-      usersToMutate = await database
-        .select()
-        .from(users)
-        .where(and(eq(users.id, options.targetUserId), isNotNull(users.mypPasswordEncrypted)));
-    } else {
-      usersToMutate = await database
-        .select()
-        .from(users)
-        .where(isNotNull(users.mypPasswordEncrypted));
-    }
+    const usersToMutate = await getUsersForAutomatedWatchlistSync(options.targetUserId, dbParam);
 
-    const mutationResults: any[] = [];
+    const mutationResults: Record<string, unknown>[] = [];
     for (const u of usersToMutate) {
+      if (!options.targetUserId && !u.mypAutoWatchlistEnabled) {
+        continue;
+      }
       try {
-        const mRes = await executeAutomatedWatchlistSync(u.id, { database });
+        const mRes = await executeAutomatedWatchlistSync(u.id, { database: dbParam });
         mutationResults.push({ userId: u.id, ...mRes });
-      } catch (mErr: any) {
-        mutationResults.push({ userId: u.id, error: mErr.message });
+      } catch (mErr: unknown) {
+        mutationResults.push({ userId: u.id, error: mErr instanceof Error ? mErr.message : String(mErr) });
       }
     }
 

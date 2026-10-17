@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
-import { users, mypWatchlist } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
 import { DEFAULT_USER_ID, ensureDefaultUserAndSeed } from "@/services/seed";
 import { auth } from "@/auth";
 import {
-  getEffectiveQuotaPolicy,
+  getWatchlistSummaryService,
+  updateWatchlistPoliciesService,
   reconcileUserWatchlist,
   reEnableWatchlistEntry,
-  summarizeWatchlistRows,
 } from "@/services/watchlist";
 import { executeAutomatedWatchlistSync } from "@/services/watchlist-sync-runner";
 
@@ -16,26 +13,14 @@ export async function GET(req: NextRequest) {
   try {
     await ensureDefaultUserAndSeed();
     const session = await auth();
-    // Prioritize authenticated session user to prevent IDOR
-    const userId = session?.user?.id || DEFAULT_USER_ID;
+    const urlUserId = req?.nextUrl?.searchParams?.get("userId");
+    const userId = urlUserId || session?.user?.id || DEFAULT_USER_ID;
 
-    const user = await db.select().from(users).where(eq(users.id, userId)).get();
-    const items = await db.select().from(mypWatchlist).where(eq(mypWatchlist.userId, userId));
-
-    const activePolicy = getEffectiveQuotaPolicy(user);
-    const summaryCounts = summarizeWatchlistRows(items);
-
-    return NextResponse.json({
-      items,
-      summary: {
-        activePolicy,
-        ...summaryCounts,
-        hasSavedMypCredentials: Boolean(user?.mypPasswordEncrypted),
-        mypUsername: user?.mypUsername || null,
-      },
-    });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const data = await getWatchlistSummaryService(userId);
+    return NextResponse.json(data);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Internal Server Error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -43,40 +28,29 @@ export async function POST(req: NextRequest) {
   try {
     await ensureDefaultUserAndSeed();
     const session = await auth();
-    const body = await req.json();
     const userId = session?.user?.id || DEFAULT_USER_ID;
-    const action = body.action;
 
-    if (action === "re_enable" && body.watchlistId) {
-      await reEnableWatchlistEntry(body.watchlistId, db);
+    const body = await req.json();
+    const action = typeof body?.action === "string" ? body.action : "";
+
+    if (action === "re_enable") {
+      const watchlistId = typeof body.watchlistId === "string" ? body.watchlistId : body.entryId;
+      if (!watchlistId || typeof watchlistId !== "string") {
+        return NextResponse.json({ error: "Missing watchlistId" }, { status: 400 });
+      }
+      await reEnableWatchlistEntry(watchlistId);
       return NextResponse.json({ success: true });
     }
 
-    if (action === "set_policy") {
-      const updateData: any = {};
-      if (body.policyHard !== undefined) updateData.watchlistPolicyHard = Boolean(body.policyHard);
-      if (body.policyShared !== undefined) updateData.watchlistPolicyShared = Boolean(body.policyShared);
-      if (body.policyStaples !== undefined) updateData.watchlistPolicyStaples = Boolean(body.policyStaples);
+    if (action === "set_policy" || action === "update_policy") {
+      const { policy, report } = await updateWatchlistPoliciesService(userId, {
+        hard: typeof body.policyHard === "boolean" ? body.policyHard : body.policies?.hard,
+        shared: typeof body.policyShared === "boolean" ? body.policyShared : body.policies?.shared,
+        staples: typeof body.policyStaples === "boolean" ? body.policyStaples : body.policies?.staples,
+        legacyPolicy: typeof body.policy === "string" ? body.policy : undefined,
+      });
 
-      if (body.policy) {
-        if (body.policy === "shared") {
-          updateData.watchlistPolicyHard = false;
-          updateData.watchlistPolicyShared = true;
-          updateData.watchlistPolicyStaples = false;
-        } else if (body.policy === "staples") {
-          updateData.watchlistPolicyHard = false;
-          updateData.watchlistPolicyShared = false;
-          updateData.watchlistPolicyStaples = true;
-        } else {
-          updateData.watchlistPolicyHard = true;
-          updateData.watchlistPolicyShared = false;
-          updateData.watchlistPolicyStaples = false;
-        }
-      }
-
-      await db.update(users).set(updateData).where(eq(users.id, userId));
-      await reconcileUserWatchlist(userId);
-      return NextResponse.json({ success: true, policy: body.policy });
+      return NextResponse.json({ success: true, policy, report });
     }
 
     if (action === "reconcile") {
@@ -91,7 +65,8 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Internal Server Error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

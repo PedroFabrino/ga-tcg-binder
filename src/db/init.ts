@@ -266,8 +266,6 @@ export async function runMigrations(customClient = client) {
     "ALTER TABLE `users` ADD COLUMN `watchlist_sync_token` text;",
     "ALTER TABLE `myp_watchlist` ADD COLUMN `myp_wishlist_item_id` text;",
     "ALTER TABLE `myp_watchlist` ADD COLUMN `synced_quantity` integer;",
-    "ALTER TABLE `myp_watchlist` ADD COLUMN `target_price_str` text;",
-    "ALTER TABLE `myp_watchlist` ADD COLUMN `is_collector_printing` integer DEFAULT 0 NOT NULL;",
     "ALTER TABLE `meta_archetypes` ADD COLUMN `element` text;",
     "ALTER TABLE `meta_archetypes` ADD COLUMN `signature_card_image_url` text;",
     "ALTER TABLE `meta_archetypes` ADD COLUMN `deck_count` integer DEFAULT 0;",

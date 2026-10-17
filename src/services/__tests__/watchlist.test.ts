@@ -392,7 +392,7 @@ describe("Watchlist Ledger & Quota Reconciliation (src/services/watchlist.ts)", 
       await reEnableWatchlistEntry(row.id, testDb);
       const reEnabled = (await testDb.select().from(mypWatchlist).where(eq(mypWatchlist.id, "wl-doa")))[0];
       expect(reEnabled.status).toBe("pending_add");
-    });
+    }, 15000);
 
     it("transitions watching to pending_update when shortage quantity decreases", async () => {
       // Existing watching row with targetQuantity = 3

@@ -10,6 +10,11 @@ import {
   parseFeatureFlag,
   type WsJoinMessage,
   type WsScanIdentifyResponse,
+  enCatalog,
+  ptBRCatalog,
+  createTranslator,
+  resolveLocale,
+  formatLocaleNumber,
 } from "./index";
 
 describe("@ga/contracts", () => {
@@ -86,5 +91,61 @@ describe("@ga/contracts", () => {
       expect(parseFeatureFlag("random", true)).toBe(true);
     });
   });
+
+  describe("i18n Translation Catalog", () => {
+    it("ensures exact key parity and non-empty strings between en and pt-BR", () => {
+      const getKeys = (obj: any, prefix = ""): string[] => {
+        let keys: string[] = [];
+        for (const [k, v] of Object.entries(obj)) {
+          const nextKey = prefix ? `${prefix}.${k}` : k;
+          if (v && typeof v === "object") {
+            keys = keys.concat(getKeys(v, nextKey));
+          } else {
+            keys.push(nextKey);
+          }
+        }
+        return keys.sort();
+      };
+
+      const enKeys = getKeys(enCatalog);
+      const ptKeys = getKeys(ptBRCatalog);
+
+      expect(ptKeys).toEqual(enKeys);
+      expect(enKeys.length).toBeGreaterThan(20);
+
+      // Verify no empty strings
+      const checkNonEmpty = (obj: any) => {
+        for (const v of Object.values(obj)) {
+          if (typeof v === "string") {
+            expect(v.trim().length).toBeGreaterThan(0);
+          } else if (typeof v === "object" && v !== null) {
+            checkNonEmpty(v);
+          }
+        }
+      };
+      checkNonEmpty(enCatalog);
+      checkNonEmpty(ptBRCatalog);
+    });
+
+    it("interpolates variables and translates keys correctly", () => {
+      const tEn = createTranslator("en");
+      const tPt = createTranslator("pt-BR");
+
+      expect(tEn("watchlist.bannerWatching", { count: 5 })).toBe("5 Watching on MyP");
+      expect(tPt("watchlist.bannerWatching", { count: 5 })).toBe("5 Acompanhadas no MyP");
+
+      expect(tEn("settings.mypAutomationTitle")).toBe("Automated Daily Watchlist Sync (Opt-In)");
+      expect(tPt("settings.mypAutomationTitle")).toBe("Sincronização Diária Automática (Opt-In)");
+
+      expect(resolveLocale("pt-BR")).toBe("pt-BR");
+      expect(resolveLocale("pt")).toBe("pt-BR");
+      expect(resolveLocale("en-US")).toBe("en");
+      expect(resolveLocale(null)).toBe("en");
+
+      expect(formatLocaleNumber(1000, "pt-BR")).toBe("1.000");
+      expect(formatLocaleNumber(1000, "en")).toBe("1,000");
+    });
+  });
 });
+
 

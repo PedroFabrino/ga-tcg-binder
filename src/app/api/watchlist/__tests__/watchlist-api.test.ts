@@ -141,6 +141,6 @@ describe("Watchlist API Endpoints (GET/POST /api/watchlist & POST /api/watchlist
     expect(updateRow.status).toBe("watching");
 
     const removeRow = (await testDb.select().from(mypWatchlist).where(eq(mypWatchlist.id, "wl-item-remove")))[0];
-    expect(removeRow.status).toBe("removed");
+    expect(removeRow).toBeUndefined();
   });
 });

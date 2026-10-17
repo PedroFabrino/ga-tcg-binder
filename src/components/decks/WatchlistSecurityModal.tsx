@@ -4,11 +4,13 @@ import { useState, useEffect } from "react";
 import { ShieldCheck, ExternalLink, Code, ChevronDown, ChevronRight } from "lucide-react";
 import { Modal } from "@/components/common";
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "@/lib/i18n";
 
 export interface WatchlistSecurityItem {
   id: string;
   cardName: string;
-  editionSlug: string;
+  setPrefix?: string;
+  editionSlug?: string;
   collectorNumber?: string;
   targetQuantity?: number;
   targetPriceBrl?: number;
@@ -18,6 +20,7 @@ export interface WatchlistSecurityItem {
 interface WatchlistSecurityModalProps {
   onClose: () => void;
   userId: string;
+  syncToken?: string | null;
   pendingAdds: WatchlistSecurityItem[];
   pendingUpdates: WatchlistSecurityItem[];
   pendingRemoves: WatchlistSecurityItem[];
@@ -26,10 +29,12 @@ interface WatchlistSecurityModalProps {
 export default function WatchlistSecurityModal({
   onClose,
   userId,
+  syncToken,
   pendingAdds,
   pendingUpdates,
   pendingRemoves,
 }: WatchlistSecurityModalProps) {
+  const { t } = useTranslation();
   const [showCode, setShowCode] = useState(false);
   const [consentGiven, setConsentGiven] = useState(false);
   const [scriptSource, setScriptSource] = useState<string>("");
@@ -55,10 +60,11 @@ export default function WatchlistSecurityModal({
     const payload = {
       appUrl: window.location.origin,
       userId,
+      syncToken: syncToken || undefined,
       pendingAdds: pendingAdds.map((item) => ({
         id: item.id,
         cardName: item.cardName,
-        editionSlug: item.editionSlug,
+        editionSlug: item.setPrefix || item.editionSlug || "",
         collectorNumber: item.collectorNumber || "",
         targetQuantity: item.targetQuantity || 1,
         targetPriceBrl: item.targetPriceBrl || 1.0,
@@ -67,14 +73,14 @@ export default function WatchlistSecurityModal({
       pendingUpdates: pendingUpdates.map((item) => ({
         id: item.id,
         cardName: item.cardName,
-        editionSlug: item.editionSlug,
+        editionSlug: item.setPrefix || item.editionSlug || "",
         targetQuantity: item.targetQuantity || 1,
         mypItemId: item.mypItemId || null,
       })),
       pendingRemoves: pendingRemoves.map((item) => ({
         id: item.id,
         cardName: item.cardName,
-        editionSlug: item.editionSlug,
+        editionSlug: item.setPrefix || item.editionSlug || "",
         mypItemId: item.mypItemId || null,
       })),
     };
@@ -90,8 +96,8 @@ export default function WatchlistSecurityModal({
 
   return (
     <Modal
-      title="Sincronização Segura via Browser Bridge"
-      subtitle="Ponte transparente executada no seu navegador sem armazenamento de credenciais"
+      title={t("securityModal.title")}
+      subtitle={t("securityModal.subtitle")}
       onClose={onClose}
       size="md"
       footer={
@@ -103,11 +109,11 @@ export default function WatchlistSecurityModal({
             className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors"
           >
             <ExternalLink className="h-3.5 w-3.5" />
-            Ver código aberto no GitHub
+            {t("securityModal.viewGithubSource")}
           </a>
           <div className="flex gap-2">
             <Button onClick={onClose} variant="outline" size="sm">
-              Cancelar
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={handleLaunchSync}
@@ -115,7 +121,7 @@ export default function WatchlistSecurityModal({
               className="bg-blue-600 hover:bg-blue-500 text-white font-medium shadow-md shadow-blue-500/20"
               disabled={totalMutations === 0 || !consentGiven}
             >
-              Iniciar Sincronização no MyP Cards
+              {t("watchlist.syncNowBtn")}
             </Button>
           </div>
         </div>
@@ -125,29 +131,29 @@ export default function WatchlistSecurityModal({
         <div className="flex items-start gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3.5">
           <ShieldCheck className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />
           <div className="space-y-1 text-xs">
-            <p className="font-semibold text-emerald-300 text-sm">Sua Senha e Sessão Permanecem Privadas</p>
+            <p className="font-semibold text-emerald-300 text-sm">{t("settings.savedCredentialsActive")}</p>
             <p className="text-slate-300 leading-relaxed">
-              O script roda diretamente na sua aba do MyP Cards usando a sua sessão ativa. Ele <strong>nunca</strong> lê, intercepta ou envia sua senha ou cookies de autenticação para o servidor.
+              {t("settings.mypCredentialsDesc")}
             </p>
           </div>
         </div>
 
         <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-3.5 space-y-2">
           <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-            Resumo de Alterações Pendentes ({totalMutations})
+            {t("securityModal.installationSteps")} ({totalMutations})
           </h4>
           <div className="grid grid-cols-3 gap-2 text-center text-xs">
             <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-2">
               <span className="block text-emerald-400 font-bold text-base">+{pendingAdds.length}</span>
-              <span className="text-[11px] text-slate-400">A Adicionar</span>
+              <span className="text-[11px] text-slate-400">{t("watchlist.statusPendingAdd")}</span>
             </div>
             <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-2">
               <span className="block text-amber-400 font-bold text-base">~{pendingUpdates.length}</span>
-              <span className="text-[11px] text-slate-400">Ajuste de Qtd</span>
+              <span className="text-[11px] text-slate-400">{t("watchlist.statusPendingUpdate")}</span>
             </div>
             <div className="rounded-lg bg-rose-500/10 border border-rose-500/20 p-2">
               <span className="block text-rose-400 font-bold text-base">-{pendingRemoves.length}</span>
-              <span className="text-[11px] text-slate-400">Quotas Cheias</span>
+              <span className="text-[11px] text-slate-400">{t("watchlist.statusPendingRemove")}</span>
             </div>
           </div>
         </div>
@@ -160,13 +166,13 @@ export default function WatchlistSecurityModal({
           >
             <span className="flex items-center gap-1.5">
               <Code className="h-4 w-4 text-blue-400" />
-              Como funciona o script (Auditoria de Código Unminified)
+              {t("securityModal.title")}
             </span>
             {showCode ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           </button>
           {showCode && (
             <div className="p-3 border-t border-white/[0.06] bg-slate-950 font-mono text-[11px] text-slate-400 leading-relaxed max-h-56 overflow-y-auto whitespace-pre">
-              {loadingScript ? "Carregando código do script..." : scriptSource}
+              {loadingScript ? t("common.loading") : scriptSource}
             </div>
           )}
         </div>
@@ -179,7 +185,7 @@ export default function WatchlistSecurityModal({
             className="mt-0.5 rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500"
           />
           <span className="text-xs text-slate-300 leading-snug">
-            Compreendo que esta sincronização opera através da extensão Tampermonkey na minha aba ativa do MyP Cards sob minha própria autorização.
+            {t("securityModal.consentCheckbox")}
           </span>
         </label>
       </div>

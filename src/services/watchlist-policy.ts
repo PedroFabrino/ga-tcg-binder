@@ -130,3 +130,90 @@ export function summarizeWatchlistRows(rows: { status: string }[]): WatchlistSta
     ignoredCount,
   };
 }
+
+/**
+ * Normalizes policy input into consistent boolean flags.
+ */
+export function normalizePolicyFlags(input: {
+  hard?: boolean;
+  shared?: boolean;
+  staples?: boolean;
+  legacyPolicy?: string;
+}): { hard: boolean; shared: boolean; staples: boolean } {
+  if (input.legacyPolicy) {
+    if (input.legacyPolicy === "shared") {
+      return { hard: false, shared: true, staples: false };
+    }
+    if (input.legacyPolicy === "staples") {
+      return { hard: false, shared: false, staples: true };
+    }
+    return { hard: true, shared: false, staples: false };
+  }
+
+  return {
+    hard: input.hard ?? true,
+    shared: input.shared ?? false,
+    staples: input.staples ?? false,
+  };
+}
+
+export interface WatchlistPartitionItem {
+  id: string;
+  cardName: string;
+  setPrefix: string;
+  collectorNumber: string;
+  targetQuantity: number;
+  targetPriceBrl: number;
+  status: string;
+  mypProductUrl?: string | null;
+}
+
+export function partitionPendingWatchlistItems(
+  cards: Array<{
+    cardName: string;
+    watchlistItems?: Array<{
+      id: string;
+      editionSlug: string;
+      collectorNumber: string;
+      status: string;
+      targetQuantity: number;
+      targetPriceBrl: number;
+      mypProductUrl?: string | null;
+    }>;
+  }>
+): {
+  pendingAdds: WatchlistPartitionItem[];
+  pendingUpdates: WatchlistPartitionItem[];
+  pendingRemoves: WatchlistPartitionItem[];
+} {
+  const pendingAdds: WatchlistPartitionItem[] = [];
+  const pendingUpdates: WatchlistPartitionItem[] = [];
+  const pendingRemoves: WatchlistPartitionItem[] = [];
+
+  for (const card of cards) {
+    if (!card.watchlistItems) continue;
+    for (const item of card.watchlistItems) {
+      const partItem: WatchlistPartitionItem = {
+        id: item.id,
+        cardName: card.cardName,
+        setPrefix: item.editionSlug,
+        collectorNumber: item.collectorNumber,
+        targetQuantity: item.targetQuantity,
+        targetPriceBrl: item.targetPriceBrl,
+        status: item.status,
+        mypProductUrl: item.mypProductUrl,
+      };
+
+      if (item.status === "pending_add") {
+        pendingAdds.push(partItem);
+      } else if (item.status === "pending_update") {
+        pendingUpdates.push(partItem);
+      } else if (item.status === "pending_remove") {
+        pendingRemoves.push(partItem);
+      }
+    }
+  }
+
+  return { pendingAdds, pendingUpdates, pendingRemoves };
+}
+

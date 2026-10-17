@@ -1,71 +1,89 @@
-import { eq, and, inArray, sql } from "drizzle-orm";
-import { db } from "../db";
-import { users, mypWatchlist, type WatchlistStatus } from "../db/schema";
-import { decryptMypPassword } from "../lib/crypto";
+import { getUserById } from "@/db/repositories/settings-repository";
+import {
+  getPendingWatchlistByUser,
+  updateWatchlistEntry,
+  deleteWatchlistItemsByIds,
+} from "@/db/repositories/watchlist-repository";
+import { decryptMypPassword } from "@/lib/crypto";
 
-export interface FlareSolverrTransport {
-  createSession: () => Promise<{ session: string }>;
-  destroySession: (session: string) => Promise<any>;
-  request: (options: {
-    method: "GET" | "POST";
-    url: string;
-    session?: string;
-    postData?: string;
-    headers?: Record<string, string>;
-  }) => Promise<{ status: number; response: string }>;
+export interface FlareSolverrRequestOptions {
+  method?: string;
+  url: string;
+  postData?: string;
+  session?: string;
+  headers?: Record<string, string>;
 }
 
-/**
- * Default FlareSolverr HTTP transport.
- */
-function createDefaultFlareSolverrTransport(
-  flareUrl = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1"
-): FlareSolverrTransport {
+export interface FlareSolverrResponse {
+  status: number;
+  message?: string;
+  solution?: {
+    url: string;
+    status: number;
+    response: string;
+    headers?: Record<string, string>;
+    cookies?: Array<{ name: string; value: string }>;
+  };
+}
+
+export interface FlareSolverrTransport {
+  createSession(): Promise<string | { session?: string }>;
+  destroySession(sessionId: string): Promise<void>;
+  request(options: FlareSolverrRequestOptions): Promise<FlareSolverrResponse>;
+}
+
+export function createDefaultFlareSolverrTransport(endpoint = "http://localhost:8191/v1"): FlareSolverrTransport {
   return {
-    createSession: async () => {
-      const res = await fetch(flareUrl, {
+    async createSession(): Promise<string> {
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cmd: "sessions.create" }),
       });
-      if (!res.ok) throw new Error(`FlareSolverr session creation failed: ${res.statusText}`);
-      const data = await res.json();
-      return { session: data.session };
+      const data = (await res.json()) as { session?: string; status?: string };
+      if (!data?.session) {
+        throw new Error("FlareSolverr failed to create session");
+      }
+      return data.session;
     },
-    destroySession: async (session: string) => {
+
+    async destroySession(sessionId: string): Promise<void> {
       try {
-        await fetch(flareUrl, {
+        await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ cmd: "sessions.destroy", session }),
+          body: JSON.stringify({ cmd: "sessions.destroy", session: sessionId }),
         });
       } catch {
-        // Ignore destroy cleanup errors
+        // Ignore session destroy errors
       }
     },
-    request: async (options) => {
-      const res = await fetch(flareUrl, {
+
+    async request(options: FlareSolverrRequestOptions): Promise<FlareSolverrResponse> {
+      const cmd = options.method?.toUpperCase() === "POST" ? "request.post" : "request.get";
+      const payload: Record<string, unknown> = {
+        cmd,
+        url: options.url,
+        session: options.session,
+        headers: options.headers,
+      };
+      if (options.postData) {
+        payload.postData = options.postData;
+      }
+
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cmd: options.method === "POST" ? "request.post" : "request.get",
-          url: options.url,
-          session: options.session,
-          postData: options.postData,
-          headers: options.headers,
-        }),
+        body: JSON.stringify(payload),
       });
-      const data = await res.json();
-      return {
-        status: data.status || 200,
-        response: data.solution?.response || "",
-      };
+
+      return (await res.json()) as FlareSolverrResponse;
     },
   };
 }
 
 export interface WatchlistRunnerOptions {
-  database?: any;
+  database?: unknown;
   transport?: FlareSolverrTransport;
   pacingMs?: number;
 }
@@ -88,15 +106,12 @@ export async function executeAutomatedWatchlistSync(
   userId: string,
   options: WatchlistRunnerOptions = {}
 ): Promise<WatchlistRunnerResult> {
-  const database = options.database || db;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- repositories accept in-memory test database or singleton db
+  const database = options.database as any;
   const transport = options.transport || createDefaultFlareSolverrTransport();
   const pacingMs = options.pacingMs ?? 500;
 
-  const user = await database
-    .select()
-    .from(users)
-    .where(eq(users.id, userId))
-    .get();
+  const user = await getUserById(userId, database);
 
   if (!user || !user.mypLogin || !user.mypPasswordEncrypted) {
     return {
@@ -107,15 +122,7 @@ export async function executeAutomatedWatchlistSync(
   }
 
   // Fetch pending mutations
-  const pendingRows = await database
-    .select()
-    .from(mypWatchlist)
-    .where(
-      and(
-        eq(mypWatchlist.userId, userId),
-        inArray(mypWatchlist.status, ["pending_add", "pending_update", "pending_remove"])
-      )
-    );
+  const pendingRows = await getPendingWatchlistByUser(userId, database);
 
   if (!pendingRows || pendingRows.length === 0) {
     return {
@@ -129,10 +136,11 @@ export async function executeAutomatedWatchlistSync(
   let passwordPlaintext: string;
   try {
     passwordPlaintext = decryptMypPassword(user.mypPasswordEncrypted);
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Decryption failed";
     return {
       success: false,
-      error: `Failed to decrypt MyP credentials: ${err.message}`,
+      error: `Failed to decrypt user credentials: ${message}`,
     };
   }
 
@@ -141,36 +149,49 @@ export async function executeAutomatedWatchlistSync(
   let updatesExecuted = 0;
   let removesExecuted = 0;
 
-  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
   try {
     const sessionRes = await transport.createSession();
-    sessionId = sessionRes.session;
+    sessionId = typeof sessionRes === "string" ? sessionRes : (sessionRes?.session ?? "");
 
-    // Login to MyP Cards
-    const loginRes = await transport.request({
+    // 1. Authenticate session on MyP Cards
+    const loginPageRes = await transport.request({
+      method: "GET",
+      url: "https://mypcards.com/login",
+      session: sessionId,
+    });
+
+    const loginHtml = loginPageRes.solution?.response || "";
+    const csrfMatch =
+      loginHtml.match(/name="_csrf(?:-frontend)?"\s+value="([^"]+)"/) ||
+      loginHtml.match(/value="([^"]+)"\s+name="_csrf(?:-frontend)?"/);
+    const csrfToken = csrfMatch ? csrfMatch[1] : "";
+
+    const loginForm = new URLSearchParams({
+      _csrf: csrfToken,
+      "LoginForm[username]": user.mypLogin,
+      "LoginForm[password]": passwordPlaintext,
+      "LoginForm[rememberMe]": "1",
+    });
+
+    const loginSubmitRes = await transport.request({
       method: "POST",
       url: "https://mypcards.com/site/login",
       session: sessionId,
-      postData: new URLSearchParams({
-        "LoginForm[username]": user.mypLogin,
-        "LoginForm[password]": passwordPlaintext,
-        "LoginForm[rememberMe]": "1",
-      }).toString(),
+      postData: loginForm.toString(),
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
       },
     });
 
-    const loginHtml = loginRes.response || "";
-    const csrfMatch =
-      loginHtml.match(/name="csrf-token"\s+content="([^"]+)"/i) ||
-      loginHtml.match(/name="_csrf"\s+value="([^"]+)"/i);
-    const csrfToken = csrfMatch ? csrfMatch[1] : "default_csrf";
+    if (loginSubmitRes.status !== 200 && loginSubmitRes.status !== 302) {
+      throw new Error(`MyP login failed with status ${loginSubmitRes.status}`);
+    }
 
-    // Execute mutations with pacing
+    // 2. Execute pending mutations with polite pacing
     for (const item of pendingRows) {
-      await sleep(pacingMs);
+      if (pacingMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, pacingMs));
+      }
 
       if (item.status === "pending_add") {
         if (item.mypItemId) {
@@ -181,12 +202,9 @@ export async function executeAutomatedWatchlistSync(
             postData: new URLSearchParams({
               _csrf: csrfToken,
               itemId: item.mypItemId,
-              tipo: "C", // Quero
+              tipo: "C",
               quantidade: String(item.targetQuantity || 1),
-              preco: (item.targetPriceBrl || 1).toFixed(2).replace(".", ","),
-              qualidade: "NM",
-              idioma: "EN",
-              foil: "0",
+              valor: item.targetPriceBrl ? item.targetPriceBrl.toFixed(2).replace(".", ",") : "1,00",
             }).toString(),
             headers: {
               "Content-Type": "application/x-www-form-urlencoded",
@@ -194,14 +212,14 @@ export async function executeAutomatedWatchlistSync(
           });
 
           if (res?.status === 200) {
-            await database
-              .update(mypWatchlist)
-              .set({
+            await updateWatchlistEntry(
+              item.id,
+              {
                 status: "watching",
-                updatedAt: sql`(strftime('%s', 'now'))`,
-              })
-              .where(eq(mypWatchlist.id, item.id));
-
+                syncedQuantity: item.targetQuantity,
+              },
+              database
+            );
             addsExecuted++;
           }
         }
@@ -223,14 +241,14 @@ export async function executeAutomatedWatchlistSync(
           });
 
           if (res?.status === 200) {
-            await database
-              .update(mypWatchlist)
-              .set({
+            await updateWatchlistEntry(
+              item.id,
+              {
                 status: "watching",
-                updatedAt: sql`(strftime('%s', 'now'))`,
-              })
-              .where(eq(mypWatchlist.id, item.id));
-
+                syncedQuantity: item.targetQuantity,
+              },
+              database
+            );
             updatesExecuted++;
           }
         }
@@ -251,14 +269,7 @@ export async function executeAutomatedWatchlistSync(
           });
 
           if (res?.status === 200) {
-            await database
-              .update(mypWatchlist)
-              .set({
-                status: "removed",
-                updatedAt: sql`(strftime('%s', 'now'))`,
-              })
-              .where(eq(mypWatchlist.id, item.id));
-
+            await deleteWatchlistItemsByIds(item.userId, [item.id], database);
             removesExecuted++;
           }
         }
@@ -271,10 +282,11 @@ export async function executeAutomatedWatchlistSync(
       updatesExecuted,
       removesExecuted,
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to execute automated watchlist mutations";
     return {
       success: false,
-      error: err.message || "Failed to execute automated watchlist mutations",
+      error: message,
     };
   } finally {
     if (sessionId) {

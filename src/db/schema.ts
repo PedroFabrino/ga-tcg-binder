@@ -219,7 +219,6 @@ export type WatchlistStatus =
   | "pending_add"
   | "pending_update"
   | "pending_remove"
-  | "removed"
   | "ignored";
 
 export const mypWatchlist = sqliteTable("myp_watchlist", {
@@ -235,9 +234,7 @@ export const mypWatchlist = sqliteTable("myp_watchlist", {
   targetQuantity: integer("target_quantity").notNull().default(1),
   syncedQuantity: integer("synced_quantity"),
   targetPriceBrl: real("target_price_brl").notNull().default(1.00),
-  targetPriceStr: text("target_price_str"),
-  isCollectorPrinting: integer("is_collector_printing", { mode: "boolean" }).notNull().default(false),
-  status: text("status").notNull().default("pending_add"), // 'watching' | 'pending_add' | 'pending_update' | 'pending_remove' | 'removed' | 'ignored'
+  status: text("status").notNull().default("pending_add"), // 'watching' | 'pending_add' | 'pending_update' | 'pending_remove' | 'ignored'
   lastError: text("last_error"),
   updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 }, (table) => ({

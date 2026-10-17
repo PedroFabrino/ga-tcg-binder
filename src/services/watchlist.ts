@@ -1,18 +1,13 @@
-import { eq, and, inArray, sql } from "drizzle-orm";
-import { db } from "../db";
 import {
-  users,
-  cards,
-  cardEditions,
-  cardCirculations,
-  collectionItems,
-  decks,
-  deckCards,
-  mypMarketCards,
-  mypWatchlist,
-  metaStaples,
-  type WatchlistStatus,
-} from "../db/schema";
+  loadWatchlistReconciliationData,
+  getWatchlistByUser,
+  updateWatchlistEntry,
+  markWatchlistItemsWatching,
+  deleteWatchlistItemsByIds,
+  type WatchlistRow,
+} from "@/db/repositories/watchlist-repository";
+import { getUserById, updateUserSettings } from "@/db/repositories/settings-repository";
+import { DEFAULT_USER_ID } from "@/services/seed";
 import { type ParsedMypItem } from "./marketplace";
 import {
   type WatchlistQuotaPolicy,
@@ -23,9 +18,16 @@ import {
   computeCombinedQuota,
   getEffectiveQuotaPolicy,
   summarizeWatchlistRows,
+  normalizePolicyFlags,
+  type WatchlistStatusCounts,
 } from "./watchlist-policy";
 import { fetchPublicQueroList, discoverMypProductPrintings } from "./watchlist-remote";
-import { reconcileShortagePrinting, reconcileFilledShortage } from "./watchlist-state";
+import {
+  reconcileShortagePrinting,
+  reconcileFilledShortage,
+  type PrintingTarget,
+  type ReconcileContext,
+} from "./watchlist-state";
 
 export {
   type WatchlistQuotaPolicy,
@@ -37,11 +39,10 @@ export {
   getEffectiveQuotaPolicy,
   summarizeWatchlistRows,
   fetchPublicQueroList,
-  discoverMypProductPrintings,
 };
 
 export interface ReconcileWatchlistOptions {
-  database?: any;
+  database?: unknown;
   fetchQuero?: (username: string) => Promise<ParsedMypItem[]>;
   discoverPrintings?: (cardName: string) => Promise<ParsedMypItem[]>;
 }
@@ -54,78 +55,48 @@ export interface ReconciledShortageSummary {
   missing: number;
 }
 
-export interface ReconcileWatchlistResult {
+export interface ReconcileWatchlistResult extends WatchlistStatusCounts {
   userId: string;
   activeShortageCards: ReconciledShortageSummary[];
   filledShortageCards: string[];
-  pendingAdds: number;
-  pendingUpdates: number;
-  pendingRemoves: number;
-  watchingCount: number;
-  ignoredCount: number;
 }
 
 /**
- * Reconciles the user's Watchlist Ledger against deck shortages, Binder holdings,
+ * Executes a two-way reconciliation between local collection shortages
  * and live public MyP Quero items.
  */
 export async function reconcileUserWatchlist(
   userId: string,
   options: ReconcileWatchlistOptions = {}
 ): Promise<ReconcileWatchlistResult> {
-  const database = options.database || db;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- repositories accept in-memory test database or singleton db
+  const database = options.database as any;
 
-  const user = await database
-    .select()
-    .from(users)
-    .where(eq(users.id, userId))
-    .get();
+  // 1. Load all reconciliation data via repository
+  const {
+    user,
+    allDeckCards,
+    userInventory,
+    existingWatchlistRows,
+    allCatalogEditions,
+    marketCards,
+    stapleMap,
+    uniqueSlugs,
+  } = await loadWatchlistReconciliationData(userId, database);
 
-  if (!user) {
-    throw new Error(`User not found with id ${userId}`);
-  }
-
-  const policy = getEffectiveQuotaPolicy(user);
-
-  // 1. Fetch user decks & deck cards
-  const userDecks = await database
-    .select({ id: decks.id, name: decks.name })
-    .from(decks)
-    .where(eq(decks.userId, userId));
-
-  const deckIds = userDecks.map((d: any) => d.id);
-  let allDeckCards: any[] = [];
-  if (deckIds.length > 0) {
-    allDeckCards = await database
-      .select({
-        deckId: deckCards.deckId,
-        cardSlug: deckCards.cardSlug,
-        quantity: deckCards.quantity,
-        zone: deckCards.zone,
-        name: cards.name,
-      })
-      .from(deckCards)
-      .innerJoin(cards, eq(deckCards.cardSlug, cards.slug))
-      .where(inArray(deckCards.deckId, deckIds));
-  }
-
-  // 2. Fetch user collection items (Binder)
-  const userInventory = await database
-    .select({
-      cardSlug: cardEditions.cardSlug,
-      quantity: collectionItems.quantity,
-    })
-    .from(collectionItems)
-    .innerJoin(cardEditions, eq(collectionItems.editionId, cardEditions.id))
-    .where(eq(collectionItems.userId, userId));
-
-  // 3. Fetch live MyP Quero items
+  // 2. Fetch live MyP Quero items
   let liveQueroItems: ParsedMypItem[] = [];
+  let hasLiveQueroSnapshot = false;
   if (user.mypUsername) {
-    if (options.fetchQuero) {
-      liveQueroItems = await options.fetchQuero(user.mypUsername);
-    } else {
-      liveQueroItems = await fetchPublicQueroList(user.mypUsername);
+    try {
+      if (options.fetchQuero) {
+        liveQueroItems = await options.fetchQuero(user.mypUsername);
+      } else {
+        liveQueroItems = await fetchPublicQueroList(user.mypUsername);
+      }
+      hasLiveQueroSnapshot = true;
+    } catch {
+      hasLiveQueroSnapshot = false;
     }
   }
 
@@ -134,96 +105,33 @@ export async function reconcileUserWatchlist(
     return isStandardPlayablePrinting({
       setPrefix: item.setPrefix,
       collectorNumber: item.rawName,
-      rarity: 1, // Unknown rarity from HTML, but check foil & collector keywords
+      rarity: 1,
       isFoil: item.isFoil,
       rawName: item.rawName,
     });
   });
 
-  // 4. Fetch existing myp_watchlist rows for this user
-  const existingWatchlistRows = await database
-    .select()
-    .from(mypWatchlist)
-    .where(eq(mypWatchlist.userId, userId));
-
-  const existingRowMap = new Map<string, any>();
+  const existingRowMap = new Map<string, WatchlistRow>();
   for (const row of existingWatchlistRows) {
     const key = `${row.cardSlug}:${row.editionSlug}:${row.collectorNumber}`.toUpperCase();
     existingRowMap.set(key, row);
-  }
-
-  // 5. Aggregate demands across decks per cardSlug, unioned with existing watchlist rows
-  // so cards removed from all decks are transitioned to pending_remove
-  const deckSlugs = allDeckCards.map((c: any) => String(c.cardSlug));
-  const watchlistSlugs = existingWatchlistRows.map((r: any) => String(r.cardSlug));
-  const uniqueSlugs = Array.from(new Set([...deckSlugs, ...watchlistSlugs]));
-
-  // Fetch all editions and circulations for these unique slugs
-  let allCatalogEditions: any[] = [];
-  if (uniqueSlugs.length > 0) {
-    allCatalogEditions = await database
-      .select({
-        id: cardEditions.id,
-        cardSlug: cardEditions.cardSlug,
-        setPrefix: cardEditions.setPrefix,
-        collectorNumber: cardEditions.collectorNumber,
-        rarity: cardEditions.rarity,
-        imageUrl: cardEditions.imageUrl,
-        foil: cardCirculations.foil,
-        kind: cardCirculations.kind,
-      })
-      .from(cardEditions)
-      .leftJoin(cardCirculations, eq(cardCirculations.editionId, cardEditions.id))
-      .where(inArray(cardEditions.cardSlug, uniqueSlugs));
-  }
-
-  // Also fetch market pricing data
-  let marketCards: any[] = [];
-  if (uniqueSlugs.length > 0) {
-    try {
-      marketCards = await database
-        .select()
-        .from(mypMarketCards)
-        .where(inArray(mypMarketCards.cardSlug, uniqueSlugs));
-    } catch {
-      // Fallback
-    }
-  }
-
-  // Also fetch staple recommendations if staples policy is active
-  const stapleMap = new Map<string, number>();
-  if (user.watchlistPolicyStaples && uniqueSlugs.length > 0) {
-    try {
-      const staplesList = await database
-        .select({
-          cardSlug: metaStaples.cardSlug,
-          recommendedCopies: metaStaples.recommendedCopies,
-        })
-        .from(metaStaples)
-        .where(inArray(metaStaples.cardSlug, uniqueSlugs));
-      for (const s of staplesList) {
-        stapleMap.set(s.cardSlug, s.recommendedCopies);
-      }
-    } catch {
-      // Fallback
-    }
   }
 
   const activeShortageCards: ReconciledShortageSummary[] = [];
   const filledShortageCards: string[] = [];
 
   for (const slug of uniqueSlugs) {
-    const matchingDeckCards = allDeckCards.filter((c: any) => c.cardSlug === slug);
-    const existingRowsForSlug = existingWatchlistRows.filter((r: any) => r.cardSlug === slug);
+    const matchingDeckCards = allDeckCards.filter((c) => c.cardSlug === slug);
+    const existingRowsForSlug = existingWatchlistRows.filter((r) => r.cardSlug === slug);
     const cardName = matchingDeckCards[0]?.name || existingRowsForSlug[0]?.cardName || slug;
 
-    const totalDemand = matchingDeckCards.reduce((sum: number, c: any) => sum + c.quantity, 0);
+    const totalDemand = matchingDeckCards.reduce((sum, c) => sum + c.quantity, 0);
 
     const demandByDeck: Record<string, number> = {};
     for (const c of matchingDeckCards) {
       demandByDeck[c.deckId] = (demandByDeck[c.deckId] || 0) + c.quantity;
     }
-    const peakDemand = Object.values(demandByDeck).reduce((max: number, q: number) => Math.max(max, q), 0);
+    const peakDemand = Object.values(demandByDeck).reduce((max, q) => Math.max(max, q), 0);
 
     const stapleCopies = stapleMap.get(slug) || 0;
     const quota = computeCombinedQuota({
@@ -236,8 +144,8 @@ export async function reconcileUserWatchlist(
     });
 
     const ownedCopies = userInventory
-      .filter((inv: any) => inv.cardSlug === slug)
-      .reduce((sum: number, inv: any) => sum + inv.quantity, 0);
+      .filter((inv) => inv.cardSlug === slug)
+      .reduce((sum, inv) => sum + inv.quantity, 0);
 
     const missing = Math.max(0, quota - ownedCopies);
 
@@ -252,7 +160,7 @@ export async function reconcileUserWatchlist(
 
       // Filter to Standard Playable Printings for this card
       const candidateEditions = allCatalogEditions.filter(
-        (e: any) =>
+        (e) =>
           e.cardSlug === slug &&
           isStandardPlayablePrinting({
             setPrefix: e.setPrefix,
@@ -263,7 +171,7 @@ export async function reconcileUserWatchlist(
       );
 
       // De-duplicate editions by (setPrefix, collectorNumber)
-      const uniquePrintings = new Map<string, any>();
+      const uniquePrintings = new Map<string, typeof candidateEditions[0]>();
       for (const ed of candidateEditions) {
         const pKey = `${ed.setPrefix}:${ed.collectorNumber}`.toUpperCase();
         if (!uniquePrintings.has(pKey)) {
@@ -271,10 +179,14 @@ export async function reconcileUserWatchlist(
         }
       }
 
-      // Check for 0-stock discovery if any printing lacks MyP info
+      // Check for 0-stock discovery if any printing lacks MyP info and is not already cached in DB
       let discoveredItems: ParsedMypItem[] = [];
       const discoveryFn = options.discoverPrintings || discoverMypProductPrintings;
       const needsDiscovery = Array.from(uniquePrintings.values()).some((ed) => {
+        const key = `${slug}:${ed.setPrefix}:${ed.collectorNumber}`.toUpperCase();
+        const existingRow = existingRowMap.get(key);
+        if (existingRow?.mypItemId) return false; // Already discovered and cached
+
         return !marketCards.some(
           (m) =>
             m.cardSlug === slug &&
@@ -282,6 +194,7 @@ export async function reconcileUserWatchlist(
             !m.isFoil
         );
       });
+
       if (needsDiscovery) {
         try {
           discoveredItems = await discoveryFn(cardName);
@@ -294,7 +207,6 @@ export async function reconcileUserWatchlist(
         const key = `${slug}:${printing.setPrefix}:${printing.collectorNumber}`.toUpperCase();
         const existingRow = existingRowMap.get(key);
 
-        // Find pricing & product URL
         const mkt = marketCards.find(
           (m) =>
             m.cardSlug === slug &&
@@ -314,8 +226,8 @@ export async function reconcileUserWatchlist(
           (discovered ? Number(discovered.price.replace(/[^0-9,.]/g, "").replace(",", ".")) : null) ??
           1.0;
 
-        const mypItemId = mkt?.mypItemId || discovered?.mypItemId || null;
-        const mypProductUrl = mkt?.mypProductUrl || discovered?.mypProductUrl || null;
+        const mypItemId = mkt?.mypItemId || discovered?.mypItemId || existingRow?.mypItemId || null;
+        const mypProductUrl = mkt?.mypProductUrl || discovered?.mypProductUrl || existingRow?.mypProductUrl || null;
 
         // Check if on live MyP Quero
         const liveMatch = liveStandardQuero.find(
@@ -325,35 +237,40 @@ export async function reconcileUserWatchlist(
             q.setPrefix.toUpperCase() === printing.setPrefix.toUpperCase()
         );
 
-        await reconcileShortagePrinting({
-          database,
-          userId,
+        const target: PrintingTarget = {
           slug,
           cardName,
-          printing,
+          setPrefix: printing.setPrefix,
+          collectorNumber: printing.collectorNumber,
           missing,
           targetPriceBrl,
           mypItemId,
           mypProductUrl,
+        };
+
+        const ctx: ReconcileContext = {
+          userId,
+          database,
+          hasLiveQueroSnapshot,
           existingRow,
           liveMatch,
-        });
+        };
+
+        await reconcileShortagePrinting(target, ctx);
       }
     } else {
       // missing === 0 -> Quota filled!
       filledShortageCards.push(slug);
 
-      const rowsForCard = existingWatchlistRows.filter((r: any) => r.cardSlug === slug);
-      await reconcileFilledShortage(database, rowsForCard);
+      const rowsForCard = existingWatchlistRows.filter((r) => r.cardSlug === slug);
+      if (rowsForCard.length > 0) {
+        await reconcileFilledShortage(rowsForCard, database);
+      }
     }
   }
 
-  // 6. Summary metrics
-  const finalRows = await database
-    .select()
-    .from(mypWatchlist)
-    .where(eq(mypWatchlist.userId, userId));
-
+  // 3. Summary metrics
+  const finalRows = await getWatchlistByUser(userId, database);
   const summaryCounts = summarizeWatchlistRows(finalRows);
 
   return {
@@ -369,13 +286,106 @@ export async function reconcileUserWatchlist(
  */
 export async function reEnableWatchlistEntry(
   watchlistId: string,
-  database: any = db
+  database?: unknown
 ): Promise<void> {
-  await database
-    .update(mypWatchlist)
-    .set({
-      status: "pending_add",
-      updatedAt: sql`(strftime('%s', 'now'))`,
-    })
-    .where(eq(mypWatchlist.id, watchlistId));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- repositories accept DrizzleDatabase or test mock
+  await updateWatchlistEntry(watchlistId, { status: "pending_add" }, database as any);
+}
+
+/**
+ * Domain service for fetching watchlist ledger rows and user summary metrics.
+ */
+export async function getWatchlistSummaryService(userId: string) {
+  const user = await getUserById(userId);
+  const items = await getWatchlistByUser(userId);
+
+  const activePolicy = getEffectiveQuotaPolicy(user);
+  const summaryCounts = summarizeWatchlistRows(items);
+
+  return {
+    items,
+    summary: {
+      activePolicy,
+      ...summaryCounts,
+      hasSavedMypCredentials: Boolean(user?.mypPasswordEncrypted),
+      mypUsername: user?.mypUsername || null,
+      watchlistSyncToken: user?.watchlistSyncToken || null,
+      mypAutoWatchlistEnabled: Boolean(user?.mypAutoWatchlistEnabled),
+    },
+  };
+}
+
+/**
+ * Domain service for updating watchlist quota policies and triggering reconciliation.
+ */
+export async function updateWatchlistPoliciesService(
+  userId: string,
+  policies: {
+    hard?: boolean;
+    shared?: boolean;
+    staples?: boolean;
+    legacyPolicy?: string;
+  }
+) {
+  const flags = normalizePolicyFlags(policies);
+
+  await updateUserSettings(userId, {
+    watchlistPolicyHard: flags.hard,
+    watchlistPolicyShared: flags.shared,
+    watchlistPolicyStaples: flags.staples,
+  });
+
+  const report = await reconcileUserWatchlist(userId);
+  return { policy: flags, report };
+}
+
+export interface ConfirmWatchlistSyncParams {
+  userId?: string;
+  sessionUserId?: string;
+  syncToken?: string | null;
+  confirmedAddIds: string[];
+  confirmedUpdateIds: string[];
+  confirmedRemoveIds: string[];
+}
+
+/**
+ * Domain service for processing userscript confirmations and hard-deleting satisfied quotas.
+ */
+export async function confirmWatchlistSyncService(params: ConfirmWatchlistSyncParams): Promise<{
+  success: boolean;
+  updatedCount: number;
+  error?: string;
+  status?: number;
+}> {
+  let targetUserId = params.sessionUserId;
+
+  // Cross-origin verification for Browser Userscript Bridge on mypcards.com
+  if (!targetUserId && params.userId) {
+    const user = await getUserById(params.userId);
+    if (user && user.watchlistSyncToken && params.syncToken === user.watchlistSyncToken) {
+      targetUserId = user.id;
+    } else if (process.env.NODE_ENV !== "production" && params.userId === DEFAULT_USER_ID) {
+      targetUserId = DEFAULT_USER_ID;
+    } else {
+      return { success: false, updatedCount: 0, error: "Unauthorized: Invalid sync token", status: 401 };
+    }
+  }
+
+  if (!targetUserId) {
+    targetUserId = DEFAULT_USER_ID;
+  }
+
+  let updatedCount = 0;
+  const watchingIds = Array.from(new Set([...params.confirmedAddIds, ...params.confirmedUpdateIds]));
+  if (watchingIds.length > 0) {
+    const count = await markWatchlistItemsWatching(targetUserId, watchingIds);
+    updatedCount += count;
+  }
+
+  if (params.confirmedRemoveIds.length > 0) {
+    const count = await deleteWatchlistItemsByIds(targetUserId, params.confirmedRemoveIds);
+    updatedCount += count;
+  }
+
+  return { success: true, updatedCount };
 }

@@ -32,6 +32,7 @@
   const {
     appUrl = "http://localhost:3000",
     userId,
+    syncToken,
     pendingAdds = [],
     pendingUpdates = [],
     pendingRemoves = [],
@@ -295,9 +296,13 @@
       // Send callback confirmation to Grand Archive TCG Binder API
       await fetch(`${appUrl}/api/watchlist/confirm`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Watchlist-Sync-Token": syncToken || "",
+        },
         body: JSON.stringify({
           userId,
+          syncToken,
           confirmedAddIds,
           confirmedUpdateIds,
           confirmedRemoveIds,
