@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Grand Archive TCG - MyP Watchlist Auto-Sync & Fulfillment Bridge
 // @namespace    https://github.com/PedroFabrino/ga-tcg-binder
-// @version      1.3.0
+// @version      1.4.0
 // @description  Auditable bridge for Grand Archive TCG: syncs deck shortages with your MyPCards.com Quero list, and provides an on-page fulfillment pick list & buyer pack assistant for pending orders on /vendas.
 // @author       Grand Archive TCG Collector
 // @match        https://mypcards.com/*
@@ -398,13 +398,17 @@
     rows.forEach((tr) => {
       if (tr.querySelector("th")) return; // Skip header rows
 
-      const firstTd = tr.querySelector("td");
-      if (!firstTd) return;
+      const tds = Array.from(tr.querySelectorAll("td"));
+      if (tds.length < 3) return;
+      const firstTd = tds[0];
 
-      const orderLink = tr.querySelector('a[href*="/pedido/"], a[href*="pedido"]');
-      const hrefOrderMatch = orderLink
-        ? (orderLink.getAttribute("href") || "").match(/(\d{4,})/)
-        : null;
+      // Find order link from first cell or "Abrir" link
+      const links = Array.from(tr.querySelectorAll("a"));
+      const firstCellLink = firstTd.querySelector("a");
+      const abrirLink = links.find((a) => /abrir/i.test(a.textContent || "")) || firstCellLink;
+      const rawOrderHref = abrirLink ? abrirLink.getAttribute("href") || "" : "";
+
+      const hrefOrderMatch = rawOrderHref.match(/(\d{4,})/);
       const firstCellMatch = (firstTd.textContent || "").trim().match(/^#?(\d{4,})\b/);
       const rowHashMatch = (tr.textContent || "").match(/#(\d{4,})/);
 
@@ -421,10 +425,34 @@
 
       seenOrderIds.add(orderId);
 
+      // Extract metadata directly from the /vendas row columns:
+      // [0: Código, 1: Data, 2: Envio, 3: Frete, 4: Total, 5: Comprador, 6: Status]
+      const rowDate = tds[1] ? (tds[1].textContent || "").trim() : "";
+      const rowShipping = tds[2] ? (tds[2].textContent || "").trim() : "";
+      const buyerCell = tds[5];
+      const buyerLink =
+        (buyerCell && buyerCell.querySelector("a")) ||
+        links.find(
+          (a) =>
+            a !== firstCellLink &&
+            a !== abrirLink &&
+            !/^\d+$/.test((a.textContent || "").trim()) &&
+            !/abrir|cancel|enviar/i.test((a.textContent || "").trim())
+        );
+      const rowBuyer = buyerLink
+        ? (buyerLink.textContent || "").trim()
+        : buyerCell
+        ? (buyerCell.textContent || "").trim()
+        : "Comprador";
+
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
       checkbox.className = "ga-order-checkbox";
       checkbox.dataset.orderId = orderId;
+      checkbox.dataset.orderHref = rawOrderHref || `/pedido/${orderId}`;
+      checkbox.dataset.orderDate = rowDate;
+      checkbox.dataset.shippingMethod = rowShipping;
+      checkbox.dataset.buyerNick = rowBuyer;
       checkbox.dataset.status = isAguard ? "aguard" : "separacao";
       checkbox.style.cssText = "margin-right: 8px; cursor: pointer; transform: scale(1.15);";
       checkbox.checked = isAguard;
@@ -464,8 +492,15 @@
         return;
       }
 
-      const orderIds = checkedBoxes.map((cb) => cb.dataset.orderId);
-      await startFulfillmentBatch(orderIds);
+      const selectedMeta = checkedBoxes.map((cb) => ({
+        orderId: cb.dataset.orderId,
+        orderHref: cb.dataset.orderHref,
+        orderDate: cb.dataset.orderDate,
+        shippingMethod: cb.dataset.shippingMethod,
+        buyerNick: cb.dataset.buyerNick,
+        status: cb.dataset.status === "separacao" ? "Em separação" : "Aguard. envio",
+      }));
+      await startFulfillmentBatch(selectedMeta);
     });
   }
 
@@ -473,12 +508,17 @@
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   // Extract /pedido/<id> while strictly ignoring buyer PII
-  async function fetchAndParseOrder(orderId, onProgress) {
-    const cacheKey = `ga_order_cache_${orderId}`;
+  async function fetchAndParseOrder(meta) {
+    const { orderId, orderHref } = meta;
+    // Versioned cache key so empty v1.3.0 caches are bypassed
+    const cacheKey = `ga_order_v14_${orderId}`;
     const cached = sessionStorage.getItem(cacheKey);
     if (cached) {
       try {
-        return JSON.parse(cached);
+        const parsed = JSON.parse(cached);
+        if (parsed && Array.isArray(parsed.items) && parsed.items.length > 0) {
+          return parsed;
+        }
       } catch (e) {
         // invalid cache
       }
@@ -487,7 +527,16 @@
     // Polite pacing delay 400-600ms
     await sleep(400 + Math.random() * 200);
 
-    const resp = await fetch(`/pedido/${orderId}`);
+    const fetchUrl = orderHref && orderHref.startsWith("http")
+      ? orderHref
+      : orderHref && orderHref.startsWith("/")
+      ? orderHref
+      : `/pedido/${orderId}`;
+
+    let resp = await fetch(fetchUrl, { credentials: "same-origin" });
+    if (!resp.ok && fetchUrl !== `/pedido/${orderId}`) {
+      resp = await fetch(`/pedido/${orderId}`, { credentials: "same-origin" });
+    }
     if (!resp.ok) {
       throw new Error(`Falha ao abrir pedido #${orderId} (HTTP ${resp.status})`);
     }
@@ -496,79 +545,154 @@
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
 
-    // Extract basic meta
-    const dateMatch = doc.body.textContent.match(/\b(\d{1,2}\/\d{1,2}\/\d{4})\b/);
-    const orderDate = dateMatch ? dateMatch[1] : new Date().toLocaleDateString("pt-BR");
+    const bodyText = doc.body ? doc.body.textContent || "" : "";
 
-    let buyerNick = "Comprador";
-    const userLink = doc.querySelector('a[href*="/usuario/"]');
-    if (userLink && userLink.getAttribute("href")) {
-      const m = userLink.getAttribute("href").match(/\/usuario\/([^/?#]+)/);
-      if (m) buyerNick = decodeURIComponent(m[1].trim());
+    // Extract basic meta (prefer /vendas row meta if available)
+    const dateMatch = bodyText.match(/\b(\d{1,2}\/\d{1,2}\/\d{4})\b/);
+    const orderDate = meta.orderDate || (dateMatch ? dateMatch[1] : new Date().toLocaleDateString("pt-BR"));
+
+    let buyerNick = meta.buyerNick || "Comprador";
+    if (!buyerNick || buyerNick === "Comprador") {
+      const userLink = doc.querySelector('a[href*="/usuario/"]');
+      if (userLink && userLink.getAttribute("href")) {
+        const m = userLink.getAttribute("href").match(/\/usuario\/([^/?#]+)/);
+        if (m) buyerNick = decodeURIComponent(m[1].trim());
+      }
     }
 
-    let shippingMethod = "Padrão";
-    const bodyText = doc.body.textContent || "";
-    if (/frete\s*combinado/i.test(bodyText)) shippingMethod = "Frete combinado com o vendedor";
-    else if (/\bpac\b/i.test(bodyText)) shippingMethod = "PAC";
-    else if (/\bsedex\b/i.test(bodyText)) shippingMethod = "Sedex";
-    else if (/frete\s*fixo/i.test(bodyText)) shippingMethod = "Frete Fixo com rastreio";
+    let shippingMethod = meta.shippingMethod || "Padrão";
+    if (!shippingMethod || shippingMethod === "Padrão") {
+      if (/frete\s*combinado/i.test(bodyText)) shippingMethod = "Frete combinado com o vendedor";
+      else if (/\bpac\b/i.test(bodyText)) shippingMethod = "PAC";
+      else if (/\bsedex\b/i.test(bodyText)) shippingMethod = "Sedex";
+      else if (/frete\s*fixo/i.test(bodyText)) shippingMethod = "Frete Fixo com rastreio";
+    }
 
-    // Extract items
+    // Extract items from order detail page
     const items = [];
-    const rows = doc.querySelectorAll("table tr");
+    const CandidateRows = Array.from(
+      doc.querySelectorAll("table tbody tr, table tr, .card-item, .produto-item, .pedido-item, .list-group-item")
+    );
 
-    rows.forEach((tr) => {
-      const link = tr.querySelector('a[href*="/grandarchive/"], a[href*="/pokemon/"], a[href*="/magic/"], .item-link');
-      if (!link) return;
+    const IGNORE_HREFS = /\/(vendas|compras|pedido|usuario|login|logout|carrinho|contato|faq|site|ajuda)\b/i;
 
-      const href = link.getAttribute("href") || "";
-      const rawTitle = (link.textContent || "").trim() || "Carta";
+    CandidateRows.forEach((tr) => {
+      if (tr.querySelector("th")) return;
+      const trText = (tr.textContent || "").replace(/\s+/g, " ").trim();
+      if (!trText) return;
 
-      const subEl = tr.querySelector(".subtitulo, .card-edicao");
+      // Must contain a price (R$) or quantity/condition indicator to be an order item row
+      const priceMatch = trText.match(/R\$\s*[\d.,]+/i);
+      const condMatch = trText.match(/\b(NM|SP|MP|HP|D|Near Mint|Slightly Played|Moderately Played)\b/i);
+
+      // Find the product link inside the row
+      const links = Array.from(tr.querySelectorAll("a[href]"));
+      const productLink = links.find((a) => {
+        const h = a.getAttribute("href") || "";
+        const txt = (a.textContent || "").trim();
+        if (!txt || txt.length < 2) return false;
+        if (IGNORE_HREFS.test(h)) return false;
+        if (/^(abrir|ver|detalhes|cancelar|enviar|rastreio)$/i.test(txt)) return false;
+        return (
+          /grandarchive|pokemon|magic|yugioh|onepiece|lorcana|riftbound|digimon|fab|produto|card/i.test(h) ||
+          Boolean(priceMatch)
+        );
+      });
+
+      // Fallback: look for card heading or image alt if there is no anchor tag
+      const headingEl = tr.querySelector("h3, h4, h5, .card-name, .nome-produto, .produto-nome, strong");
+      const imgEl = tr.querySelector("img[alt], img[src]");
+
+      if (!productLink && !(priceMatch && (headingEl || condMatch))) return;
+
+      const href = productLink ? productLink.getAttribute("href") || "" : "";
+      const imgSrc = imgEl ? imgEl.getAttribute("src") || "" : "";
+      const imgAlt = imgEl ? imgEl.getAttribute("alt") || "" : "";
+
+      let rawTitle = "";
+      if (productLink) {
+        rawTitle = (productLink.textContent || "").trim();
+      } else if (headingEl) {
+        rawTitle = (headingEl.textContent || "").trim();
+      } else if (imgAlt) {
+        rawTitle = imgAlt.split("|")[0].trim();
+      }
+      if (!rawTitle) return;
+
+      // Clean trailing edition/parenthetical if embedded in title
+      const subEl = tr.querySelector(".subtitulo, .card-edicao, small, .text-muted, .edicao");
       const rawSubtitle = subEl ? (subEl.textContent || "").trim() : undefined;
 
+      // Determine TCG & mypCode
       let mypCode = "";
-      if (href) {
-        const parts = href.replace(/^\//, "").split("/");
-        mypCode = `${parts[0] || "ga"}_${parts[1] || ""}`.toLowerCase();
+      const combinedSource = `${href} ${imgSrc} ${imgAlt} ${rawTitle} ${rawSubtitle || ""} ${trText}`.toLowerCase();
+
+      // Check for explicit grandarchive_<set>_<num> code in href, imgSrc, or text
+      const explicitGaMatch = combinedSource.match(/grandarchive[_/-]([a-z0-9]{2,5})[_/-]([a-z0-9]{1,5})/i);
+      const setNumBracketMatch = (rawSubtitle || trText).match(/\b([A-Z0-9]{2,4})\s*[-·#]\s*#?(\d{1,4})\b/);
+
+      if (explicitGaMatch) {
+        mypCode = `grandarchive_${explicitGaMatch[1].toLowerCase()}_${explicitGaMatch[2].toLowerCase()}`;
+      } else if (
+        /pokemon|pokémon/i.test(combinedSource) &&
+        !/grand\s*archive|grandarchive/i.test(combinedSource)
+      ) {
+        mypCode = `pokemon_${rawTitle.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`;
+      } else if (
+        /\b(yugioh|yu-gi-oh|magic|lorcana|onepiece|one\s*piece|riftbound|digimon)\b/i.test(combinedSource) &&
+        !/grand\s*archive|grandarchive/i.test(combinedSource)
+      ) {
+        const otherTcg = combinedSource.match(/\b(yugioh|yu-gi-oh|magic|lorcana|onepiece|one\s*piece|riftbound|digimon)\b/i)[1]
+          .replace(/[^a-z0-9]/g, "")
+          .toLowerCase();
+        mypCode = `${otherTcg}_${rawTitle.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`;
+      } else if (setNumBracketMatch) {
+        mypCode = `grandarchive_${setNumBracketMatch[1].toLowerCase()}_${setNumBracketMatch[2].toLowerCase()}`;
       } else {
-        mypCode = `item_${rawTitle.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`;
+        // Default to Grand Archive so the catalog enrichment repository can match by cardName / setPrefix
+        mypCode = `grandarchive_${rawTitle.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`;
       }
 
-      const trText = tr.textContent || "";
-      const isFoil = /foil/i.test(trText);
+      const isFoil = /\b(foil|curio|csr)\b/i.test(trText);
 
       let condition = "NM";
-      const condMatch = trText.match(/\b(NM|SP|MP|HP|D)\b/);
-      if (condMatch) condition = condMatch[1].toUpperCase();
+      if (condMatch) {
+        const c = condMatch[1].toUpperCase();
+        condition = c.startsWith("N") ? "NM" : c.startsWith("S") ? "SP" : c.startsWith("M") ? "MP" : c.startsWith("H") ? "HP" : c;
+      }
 
       let language = "EN";
-      const langMatch = trText.match(/\b(EN|PT|JP)\b/);
-      if (langMatch) language = langMatch[1].toUpperCase();
+      const langMatch = trText.match(/\b(EN|PT|JP|ING|POR|JAP)\b/i);
+      if (langMatch) {
+        const l = langMatch[1].toUpperCase();
+        language = l === "ING" ? "EN" : l === "POR" ? "PT" : l === "JAP" ? "JP" : l;
+      }
 
       let quantity = 1;
-      const cells = tr.querySelectorAll("td");
-      for (let c = 0; c < cells.length; c++) {
-        const t = (cells[c].textContent || "").trim();
-        if (/^\d+$/.test(t)) {
-          const val = parseInt(t, 10);
-          if (val > 0 && val < 500) {
-            quantity = val;
-            break;
+      const qtySpan = tr.querySelector(".quantidade-num, .qtd, .qty");
+      if (qtySpan && /^\d+$/.test((qtySpan.textContent || "").trim())) {
+        quantity = parseInt((qtySpan.textContent || "").trim(), 10);
+      } else {
+        const cells = tr.querySelectorAll("td");
+        for (let c = 0; c < cells.length; c++) {
+          const t = (cells[c].textContent || "").trim().replace(/^x/i, "");
+          if (/^\d+$/.test(t)) {
+            const val = parseInt(t, 10);
+            if (val > 0 && val < 100 && String(val) !== orderId) {
+              quantity = val;
+              break;
+            }
           }
         }
       }
 
-      let unitPriceBrl = "R$ 0,00";
-      const priceMatch = trText.match(/R\$\s*[\d.,]+/i);
-      if (priceMatch) unitPriceBrl = priceMatch[0];
+      const unitPriceBrl = priceMatch ? priceMatch[0] : "R$ 0,00";
 
       items.push({
-        rawTitle,
-        rawSubtitle,
+        rawTitle: rawTitle.replace(/\s*\([^)]*\)/g, "").trim() || rawTitle,
+        rawSubtitle: rawSubtitle || rawTitle,
         mypCode,
-        productUrl: href,
+        productUrl: href.startsWith("http") ? href : href ? `https://mypcards.com${href}` : null,
         condition,
         language,
         isFoil,
@@ -577,21 +701,28 @@
       });
     });
 
+    const fullOrderUrl =
+      fetchUrl.startsWith("http")
+        ? fetchUrl
+        : `https://mypcards.com${fetchUrl.startsWith("/") ? "" : "/"}${fetchUrl}`;
+
     const parsedOrder = {
       orderId,
       orderDate,
       buyerNick,
       shippingMethod,
-      status: "Aguard. envio",
-      orderUrl: `https://mypcards.com/pedido/${orderId}`,
+      status: meta.status || "Aguard. envio",
+      orderUrl: fullOrderUrl,
       items,
     };
 
-    sessionStorage.setItem(cacheKey, JSON.stringify(parsedOrder));
+    if (items.length > 0) {
+      sessionStorage.setItem(cacheKey, JSON.stringify(parsedOrder));
+    }
     return parsedOrder;
   }
 
-  async function startFulfillmentBatch(orderIds) {
+  async function startFulfillmentBatch(selectedOrdersMeta) {
     const backdrop = document.createElement("div");
     backdrop.id = "ga-fulfillment-modal-backdrop";
     backdrop.style.cssText = `
@@ -648,21 +779,19 @@
 
     const progressBar = container.querySelector("#ga-progress-bar");
     const progressLabel = container.querySelector("#ga-progress-label");
-    const modalBody = container.querySelector("#ga-modal-body");
-    const modalStatus = container.querySelector("#ga-modal-status");
 
     const orders = [];
-    for (let i = 0; i < orderIds.length; i++) {
-      const orderId = orderIds[i];
-      const pct = Math.round(((i + 1) / orderIds.length) * 100);
+    for (let i = 0; i < selectedOrdersMeta.length; i++) {
+      const meta = selectedOrdersMeta[i];
+      const pct = Math.round(((i + 1) / selectedOrdersMeta.length) * 100);
       progressBar.style.width = `${pct}%`;
-      progressLabel.innerText = `Lendo pedido ${i + 1} de ${orderIds.length} (#${orderId})...`;
+      progressLabel.innerText = `Lendo pedido ${i + 1} de ${selectedOrdersMeta.length} (#${meta.orderId} - ${meta.buyerNick})...`;
 
       try {
-        const order = await fetchAndParseOrder(orderId);
+        const order = await fetchAndParseOrder(meta);
         orders.push(order);
       } catch (err) {
-        console.error(`Erro ao carregar #${orderId}:`, err);
+        console.error(`Erro ao carregar #${meta.orderId}:`, err);
       }
     }
 
