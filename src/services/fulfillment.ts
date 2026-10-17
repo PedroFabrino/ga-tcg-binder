@@ -94,6 +94,7 @@ function extractSetAndCollectorNumber(item: RawMypOrderItemInput): {
 function toCanonicalElement(rawElement?: string | null): string {
   if (!rawElement) return UNMATCHED_ELEMENT;
   const norm = normalizeElement(rawElement);
+  if (norm === "EXALTED") return "Norm";
   const label = ELEMENT_LABELS[norm];
   if (label && CANONICAL_ELEMENT_ORDER.includes(label)) {
     return label;

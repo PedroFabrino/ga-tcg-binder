@@ -57,6 +57,13 @@ export interface SyncStats {
   durationMs: number;
 }
 
+function resolveBaseElement(card: GatcgApiCard): string {
+  const nonExalted = card.elements?.find((el) => el.toUpperCase() !== "EXALTED");
+  if (nonExalted) return nonExalted;
+  if (card.element && card.element.toUpperCase() !== "EXALTED") return card.element;
+  return "NORM";
+}
+
 export async function syncCatalogFromApi(
   options: {
     targetDb?: any;
@@ -87,7 +94,7 @@ export async function syncCatalogFromApi(
     const cardsData = json.data || [];
 
     for (const card of cardsData) {
-      const element = card.element || (card.elements && card.elements[0]) || "NORM";
+      const element = resolveBaseElement(card);
       const cardClass = (card.classes && card.classes[0]) || "ALL";
       const cardType = (card.types && card.types[0]) || "UNKNOWN";
       const subtypes = JSON.stringify(card.subtypes || []);
@@ -230,7 +237,7 @@ export async function syncSingleCardFromApi(
     const cardData = json.data?.[0];
     if (!cardData) return null;
 
-    const element = cardData.element || (cardData.elements && cardData.elements[0]) || "NORM";
+    const element = resolveBaseElement(cardData);
     const cardClass = (cardData.classes && cardData.classes[0]) || "ALL";
     const cardType = (cardData.types && cardData.types[0]) || "UNKNOWN";
     const subtypes = JSON.stringify(cardData.subtypes || []);
