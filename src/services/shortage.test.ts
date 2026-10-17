@@ -8,6 +8,7 @@ import {
   decks,
   deckCards,
   friendLinks,
+  mypMarketCards,
 } from "../db/schema";
 import { calculateDeckShortage, calculateAggregatedShortages } from "./shortage";
 
@@ -397,6 +398,65 @@ describe("Shortage Calculation & Friend Idle Discovery Seams", () => {
     expect(report.summary.totalShortageCopies).toBe(7); // 3 (frac) + 4 (fireball)
     expect(report.summary.totalPeakShortageCopies).toBe(3); // 1 (frac) + 2 (fireball)
     expect(report.summary.uniqueShortageCards).toBe(2);
+  });
+
+  it("attaches marketPriceFairness and marketTcgPrice to deck shortage items", async () => {
+    const { db } = await createTestDb();
+
+    await db.insert(users).values({
+      id: "u-shortage-fairness",
+      name: "Shortage Fairness User",
+      friendCode: "GA-SHORT1",
+    });
+
+    await db.insert(cards).values({
+      slug: "liminal-guide",
+      name: "Liminal Guide",
+      element: "WIND",
+      class: "MAGE",
+      type: "ACTION",
+      subtypes: "[]",
+    });
+
+    await db.insert(decks).values({
+      id: "d-fairness",
+      userId: "u-shortage-fairness",
+      name: "Wind Deck",
+      champion: "Arthur",
+    });
+
+    await db.insert(deckCards).values({
+      id: "dc-lg",
+      deckId: "d-fairness",
+      cardSlug: "liminal-guide",
+      zone: "main",
+      quantity: 2,
+    });
+
+    // Insert heavily overpriced market row (R$ 400 vs TCG R$ 150 -> 2.67x)
+    await db.insert(mypMarketCards).values({
+      id: "mkt-lg",
+      cardSlug: "liminal-guide",
+      rawName: "Liminal Guide",
+      cardName: "Liminal Guide",
+      setPrefix: "ALC",
+      quantity: 1,
+      price: "R$ 400,00",
+      priceNumeric: 400.0,
+      tcgPrice: "R$ 150,00",
+      tcgPriceNumeric: 150.0,
+      mypProductUrl: "https://mypcards.com/produto/123",
+    });
+
+    const report = await calculateDeckShortage("d-fairness", "u-shortage-fairness", db);
+    const item = report.items.find((i) => i.cardSlug === "liminal-guide");
+
+    expect(item).toBeDefined();
+    expect(item?.marketAvailableCopies).toBe(1);
+    expect(item?.marketLowestPriceBrl).toBe(400.0);
+    expect(item?.marketTcgPrice).toBe("R$ 150,00");
+    expect(item?.marketPriceFairness?.tier).toBe("HEAVILY_OVERPRICED");
+    expect(item?.marketPriceFairness?.ratio).toBeCloseTo(2.67, 1);
   });
 });
 
