@@ -29,13 +29,15 @@ export function parseStaplesHtml(html: string): ParsedMetaStaple[] {
   >();
 
   // Split by section or iterate matches
-  // A section typically starts with <h2 class="...section-title...">Section Name</h2>
-  const sectionRegex = /<h\d[^>]*class=["'][^"']*section-title[^"']*["'][^>]*>([\s\S]*?)<\/h\d>/gi;
+  // A section starts with <summary class="staples-section-title"...>Section Name<span ...>...</span></summary>
+  // or <h\d class="...section-title...">Section Name</h\d>
+  const sectionRegex = /<(?:summary|h\d)[^>]*class=["'][^"']*section-title[^"']*["'][^>]*>([\s\S]*?)<\/(?:summary|h\d)>/gi;
   const sections: { title: string; startIndex: number }[] = [];
   let secMatch: RegExpExecArray | null;
 
   while ((secMatch = sectionRegex.exec(html)) !== null) {
-    const rawTitle = secMatch[1].replace(/<[^>]+>/g, "").trim();
+    // Strip nested spans/tags like <span class="staples-section-sub">...</span>
+    const rawTitle = secMatch[1].replace(/<[^>]+>[\s\S]*?<\/[^>]+>/g, "").replace(/<[^>]+>/g, "").trim();
     sections.push({ title: rawTitle, startIndex: secMatch.index });
   }
 
@@ -77,7 +79,7 @@ export function parseStaplesHtml(html: string): ParsedMetaStaple[] {
       cardName = dataNameMatch[1].trim();
     } else {
       const nameTagMatch =
-        innerHtml.match(/class=["'][^"']*(?:card-name|card-link)[^"']*["'][^>]*>([\s\S]*?)<\/(?:span|a)>/i) ||
+        innerHtml.match(/class=["'][^"']*(?:cname|card-name|card-link)[^"']*["'][^>]*>([\s\S]*?)<\/(?:span|a)>/i) ||
         innerHtml.match(/<a[^>]*href=["'][^"']*\/cards\/[^"']*["'][^>]*>([\s\S]*?)<\/a>/i);
       if (nameTagMatch) {
         cardName = nameTagMatch[1].replace(/<[^>]+>/g, "").trim();
@@ -93,7 +95,8 @@ export function parseStaplesHtml(html: string): ParsedMetaStaple[] {
     if (dataIncMatch) {
       inclusionRateStr = dataIncMatch[1].trim();
     } else {
-      const incMatch = innerHtml.match(/class=["'][^"']*stat-inclusion[^"']*["'][^>]*>([\s\S]*?)<\/div>/i) ||
+      const incMatch =
+        innerHtml.match(/class=["'][^"']*(?:cinc|stat-inclusion)[^"']*["'][^>]*>([\s\S]*?)<\/(?:span|div)>/i) ||
         innerHtml.match(/(\d+(?:\.\d+)?)\s*%/);
       if (incMatch) {
         inclusionRateStr = incMatch[1].replace(/<[^>]+>/g, "").trim();
@@ -110,15 +113,16 @@ export function parseStaplesHtml(html: string): ParsedMetaStaple[] {
       continue;
     }
 
-    // Extract avg copies
+    // Extract avg copies and deck count from csub: e.g. "x4.0 avg &middot; 1,332 decks" or "1,513 decks"
     let avgCopiesStr = "1.0";
     let avgCopiesNum = 1.0;
     const dataAvgMatch = otherAttrs.match(/data-avg-copies=["']([^"']+)["']/i);
     if (dataAvgMatch) {
       avgCopiesStr = dataAvgMatch[1].trim();
     } else {
-      const avgMatch = innerHtml.match(/class=["'][^"']*stat-copies[^"']*["'][^>]*>([\s\S]*?)<\/div>/i) ||
-        innerHtml.match(/(\d+(?:\.\d+)?)\s*(?:avg|copies)/i);
+      const avgMatch =
+        innerHtml.match(/x?(\d+(?:\.\d+)?)\s*avg/i) ||
+        innerHtml.match(/class=["'][^"']*stat-copies[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
       if (avgMatch) {
         avgCopiesStr = avgMatch[1].replace(/<[^>]+>/g, "").trim().replace(/[^\d.]/g, "");
       }
@@ -133,6 +137,11 @@ export function parseStaplesHtml(html: string): ParsedMetaStaple[] {
     const dataDecksMatch = otherAttrs.match(/data-decks=["']([^"']+)["']/i);
     if (dataDecksMatch) {
       deckCount = parseInt(dataDecksMatch[1], 10) || 0;
+    } else {
+      const decksMatch = innerHtml.match(/([\d,]+)\s*decks/i);
+      if (decksMatch) {
+        deckCount = parseInt(decksMatch[1].replace(/,/g, ""), 10) || 0;
+      }
     }
 
     // Extract image URL

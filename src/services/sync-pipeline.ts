@@ -98,7 +98,7 @@ export async function runFullSyncPipeline(
             u.id,
             u.mypUsername,
             database,
-            customFetch
+            options.customFetch
           );
           syncSummaries.push({ userId: u.id, ...userRes });
         } catch (uErr: any) {
@@ -132,7 +132,7 @@ export async function runFullSyncPipeline(
   // Stage 2b: Global MyP Market Sync
   const stage2bStart = Date.now();
   try {
-    const res = await syncGlobalMarketplace(database, customFetch);
+    const res = await syncGlobalMarketplace(database, options.customFetch);
     stages.push({
       stage: "Stage 2b: Global MyP Market Sync",
       status: "success",
