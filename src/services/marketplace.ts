@@ -535,18 +535,18 @@ export async function syncUserMarketplace(
       .where(eq(users.id, userId));
   }
 
-  // 1. Fetch Page 1
-  const page1Url = `https://mypcards.com/${encodeURIComponent(username)}`;
+  // 1. Fetch Page 1 specifically for Grand Archive store
+  const page1Url = `https://mypcards.com/${encodeURIComponent(username)}/grandarchive`;
   const p1Html = await fetchMypText(page1Url, customFetch);
   const parsedItems: ParsedMypItem[] = [...parseMypHtml(p1Html)];
 
-  // 2. Fetch subsequent pages via /usuario/load-more
+  // 2. Fetch subsequent pages via /usuario/load-more?nick=...&marca=grandarchive
   let page = 2;
   const maxPages = 35; // up to ~1050 listings safety cap
   while (page <= maxPages) {
     const moreUrl = `https://mypcards.com/usuario/load-more?nick=${encodeURIComponent(
       username
-    )}&page=${page}`;
+    )}&marca=grandarchive&page=${page}`;
     try {
       const moreText = await fetchMypText(moreUrl, customFetch);
       const json = JSON.parse(moreText);
@@ -560,13 +560,22 @@ export async function syncUserMarketplace(
     }
   }
 
+  if (parsedItems.length === 0) {
+    return {
+      totalSynced: 0,
+      matchedCount: 0,
+      unmatchedCount: 0,
+      username,
+    };
+  }
+
   // 3. Resolve against local Catalog
   const catalog = await loadCatalogResolutionData(database);
 
   let matchedCount = 0;
   let unmatchedCount = 0;
 
-  // Wipe previous MyP snapshot for this user
+  // Wipe previous MyP snapshot for this user only after successfully parsing new items
   await database.delete(mypCards).where(eq(mypCards.userId, userId));
 
   const rowsToInsert: any[] = [];
