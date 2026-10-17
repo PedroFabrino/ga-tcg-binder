@@ -182,6 +182,17 @@ _Avoid_: Sync queue, wantlist cache
 Official Grand Archive TCG gameplay terms—including Card names, Elements (`Norm`, `Fire`, `Water`, `Wind`, `Tera`, `Crux`, `Umbra`, `Luxem`, `Exalted`, `Astra`, `Exia`, `Arcane`, `Neos`), Rarities (`Common`, `Uncommon`, `Rare`, `Super Rare`, `Ultra Rare`, `Collector`), Deck zones (`Main Deck`, `Material Deck`, `Sideboard`), and Finishes (`Foil`, `Normal`)—that remain in their canonical English form across all application locales (`en`, `pt-BR`).
 _Avoid_: Translated element names, translated rarity tiers, translated deck zones
 
+**Fulfillment Order**:
+A customer purchase on the Collector's external marketplace store awaiting shipment or currently in separation, containing one or more sold Printings that must be pulled, verified per order, and packed.
+_Avoid_: Sale row, invoice, pending shipment
+
+**Pick List**:
+The aggregated list of sold Printings across selected Fulfillment Orders, grouped by canonical Element and Card name so the Collector can pull all required physical copies from storage in a single pass.
+_Avoid_: Pull sheet, element batch, shopping list
+
+**Buyer Pack**:
+The post-pick grouping of Fulfillment Orders organized first by buyer nickname to consolidate physical parcels and then sub-grouped by individual Fulfillment Order so each order's items can be staged and photographed separately before shipping together.
+_Avoid_: Customer bundle, shipment stack, order merge
 
 **Repository**:
 A module in `src/db/repositories/` that owns all database queries for one aggregate; the only layer allowed to touch Drizzle/libSQL.
@@ -190,3 +201,4 @@ _Avoid_: DAO, data layer, db helper
 **Service**:
 A module in `src/services/` holding domain logic and orchestration, calling Repositories and never the database directly.
 _Avoid_: Manager, util
+

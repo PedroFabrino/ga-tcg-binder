@@ -60,8 +60,15 @@ export default function CollectionPage() {
   const [showAddModal, setShowAddModal] = useState(false);
 
   useEffect(() => {
-    const v = new URLSearchParams(window.location.search).get("view") as View | null;
-    if (v && VIEWS.includes(v)) setActiveTab(v);
+    const params = new URLSearchParams(window.location.search);
+    const v = params.get("view") as View | null;
+    const tab = params.get("tab");
+    const isFulfillment = params.get("fulfillment") === "1" || window.location.hash.startsWith("#ga_fulfillment=");
+    if (isFulfillment || tab === "myp-store") {
+      setActiveTab("MYP_STORE");
+    } else if (v && VIEWS.includes(v)) {
+      setActiveTab(v);
+    }
   }, []);
 
   const fetchCollection = useCallback(async (silent = false) => {
