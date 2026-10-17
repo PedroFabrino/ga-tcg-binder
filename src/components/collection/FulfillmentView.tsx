@@ -118,7 +118,7 @@ export default function FulfillmentView({ mypUsername }: FulfillmentViewProps = 
             <ExternalLink className="h-4 w-4" />
           </Button>
           <Button
-            variant="secondary"
+            variant="outline"
             onClick={handleCopyUserscript}
             className="gap-2"
           >
