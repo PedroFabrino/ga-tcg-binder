@@ -157,16 +157,34 @@ export default function ShortageTable({
                     </div>
                   ) : null}
                   {short && item.marketAvailableCopies && item.marketAvailableCopies > 0 ? (
-                    <div className="mt-1.5 flex items-center gap-1.5">
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                       <a
                         href={item.marketProductUrl || `/marketplace?query=${encodeURIComponent(item.cardName)}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 rounded-full border border-cyan-400/40 bg-cyan-400/15 px-2 py-0.5 text-[10px] font-semibold text-cyan-200 hover:bg-cyan-400/25 transition-colors"
-                        title={`Buy on MyP Cards starting from ${item.marketLowestPriceStr || "R$ --"}`}
+                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors ${
+                          item.marketPriceFairness?.tier === "HEAVILY_OVERPRICED"
+                            ? "border-red-500/50 bg-red-500/15 text-red-200 hover:bg-red-500/25"
+                            : item.marketPriceFairness?.tier === "SLIGHTLY_OVERPRICED"
+                            ? "border-amber-400/50 bg-amber-500/15 text-amber-200 hover:bg-amber-400/25"
+                            : "border-cyan-400/40 bg-cyan-400/15 text-cyan-200 hover:bg-cyan-400/25"
+                        }`}
+                        title={
+                          item.marketPriceFairness?.tier === "HEAVILY_OVERPRICED"
+                            ? `⚠️ HEAVILY OVERPRICED on MyP: ${item.marketLowestPriceStr} vs TCG Player ${item.marketTcgPrice} (${(item.marketPriceFairness.ratio ?? 0).toFixed(1)}x)`
+                            : item.marketPriceFairness?.tier === "SLIGHTLY_OVERPRICED"
+                            ? `Slightly Overpriced on MyP: ${item.marketLowestPriceStr} vs TCG Player ${item.marketTcgPrice} (+${item.marketPriceFairness.markupPercent}%)`
+                            : `Buy on MyP Cards starting from ${item.marketLowestPriceStr || "R$ --"}`
+                        }
                       >
-                        <ExternalLink className="h-2.5 w-2.5 text-cyan-300" />
+                        <ExternalLink className="h-2.5 w-2.5" />
                         Buy on MyP · {item.marketLowestPriceStr || "Market"} ({item.marketAvailableCopies} avail)
+                        {item.marketPriceFairness?.tier === "HEAVILY_OVERPRICED" && (
+                          <span className="font-bold text-red-300">· 🚨 {(item.marketPriceFairness.ratio ?? 0).toFixed(1)}x TCG</span>
+                        )}
+                        {item.marketPriceFairness?.tier === "SLIGHTLY_OVERPRICED" && (
+                          <span className="text-amber-300">· +{item.marketPriceFairness.markupPercent}%</span>
+                        )}
                       </a>
                     </div>
                   ) : null}

@@ -578,11 +578,29 @@ function ShortageCardRow({
                 href={card.marketProductUrl || `/marketplace?query=${encodeURIComponent(card.cardName)}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 rounded-full border border-cyan-400/40 bg-cyan-400/15 px-2 py-0.5 text-[10px] font-semibold text-cyan-200 hover:bg-cyan-400/25 transition-colors"
-                title={`Buy on MyP Cards starting from ${card.marketLowestPriceStr || "R$ --"}`}
+                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors ${
+                  card.marketPriceFairness?.tier === "HEAVILY_OVERPRICED"
+                    ? "border-red-500/50 bg-red-500/15 text-red-200 hover:bg-red-500/25"
+                    : card.marketPriceFairness?.tier === "SLIGHTLY_OVERPRICED"
+                    ? "border-amber-400/50 bg-amber-500/15 text-amber-200 hover:bg-amber-400/25"
+                    : "border-cyan-400/40 bg-cyan-400/15 text-cyan-200 hover:bg-cyan-400/25"
+                }`}
+                title={
+                  card.marketPriceFairness?.tier === "HEAVILY_OVERPRICED"
+                    ? `⚠️ HEAVILY OVERPRICED on MyP: ${card.marketLowestPriceStr} vs TCG Player ${card.marketTcgPrice} (${(card.marketPriceFairness.ratio ?? 0).toFixed(1)}x)`
+                    : card.marketPriceFairness?.tier === "SLIGHTLY_OVERPRICED"
+                    ? `Slightly Overpriced on MyP: ${card.marketLowestPriceStr} vs TCG Player ${card.marketTcgPrice} (+${card.marketPriceFairness.markupPercent}%)`
+                    : `Buy on MyP Cards starting from ${card.marketLowestPriceStr || "R$ --"}`
+                }
               >
-                <ExternalLink className="h-2.5 w-2.5 text-cyan-300" />
+                <ExternalLink className="h-2.5 w-2.5" />
                 Buy on MyP · {card.marketLowestPriceStr || "Market"} ({card.marketAvailableCopies} avail)
+                {card.marketPriceFairness?.tier === "HEAVILY_OVERPRICED" && (
+                  <span className="font-bold text-red-300">· 🚨 {(card.marketPriceFairness.ratio ?? 0).toFixed(1)}x TCG</span>
+                )}
+                {card.marketPriceFairness?.tier === "SLIGHTLY_OVERPRICED" && (
+                  <span className="text-amber-300">· +{card.marketPriceFairness.markupPercent}%</span>
+                )}
               </a>
             ) : null}
           </div>

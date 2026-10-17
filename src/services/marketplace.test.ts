@@ -9,6 +9,9 @@ import {
   syncGlobalMarketplace,
   getGlobalMarketReport,
   calculateNetMarketStock,
+  extractTcgPlayerPrice,
+  evaluatePriceFairness,
+  enrichMarketplaceTcgPrices,
 } from "./marketplace";
 import { calculateAggregatedShortages, calculateDeckShortage } from "./shortage";
 
@@ -749,6 +752,193 @@ describe("Marketplace (MyPCards) Sync, Shortage Offset & Claim Seam", () => {
     // Sorting: Fracturize is a Staple Deficit, so it sorts ahead of Apotheosis Rite even though Apo is R$ 500 vs R$ 10
     expect(report.cards[0].cardSlug).toBe("fracturize");
     expect(report.cards[1].cardSlug).toBe("apotheosis-rite");
+  });
+
+  describe("Preço TCG Player Extraction and Price Fairness Evaluation", () => {
+    it("extracts Preço TCG Player from product page HTML", () => {
+      const sampleHtml = `
+        <div class="produto-resumo">
+          <span class="resumo-preco resumo-preco--tcg" title="Preço TCG Player" role="group" aria-label="Preço TCG Player">
+            <span aria-hidden='true' class='svg-icon' data-icone='tcgplayer'><svg viewBox="0 0 20 20"></svg></span>
+            <span class="moeda">R$ 2,25</span>
+          </span>
+          <span class="resumo-preco resumo-preco--menor" title="Menor Preço">
+            <span class="moeda">R$ 3,00</span>
+          </span>
+        </div>
+      `;
+
+      const result = extractTcgPlayerPrice(sampleHtml);
+      expect(result).not.toBeNull();
+      expect(result?.tcgPrice).toBe("R$ 2,25");
+      expect(result?.tcgPriceNumeric).toBe(2.25);
+    });
+
+    it("extracts price with non-breaking spaces and larger denominations", () => {
+      const sampleHtml = `
+        <span class="resumo-preco resumo-preco--tcg">
+          <span class="moeda">R$&nbsp;26,90</span>
+        </span>
+      `;
+      const result = extractTcgPlayerPrice(sampleHtml);
+      expect(result).not.toBeNull();
+      expect(result?.tcgPrice).toBe("R$ 26,90");
+      expect(result?.tcgPriceNumeric).toBe(26.9);
+    });
+
+    it("returns null when resumo-preco--tcg is not present or invalid", () => {
+      expect(extractTcgPlayerPrice("<div>No TCG price here</div>")).toBeNull();
+      expect(extractTcgPlayerPrice("")).toBeNull();
+      expect(extractTcgPlayerPrice('<span class="resumo-preco--tcg"><span class="moeda">R$ 0,00</span></span>')).toBeNull();
+    });
+
+    it("evaluates price fairness tiers according to user rules", () => {
+      // Rule 1: Over double (> 2.0x) => HEAVILY_OVERPRICED
+      const heavilyOverpriced = evaluatePriceFairness(5.0, 2.0, "R$ 2,00");
+      expect(heavilyOverpriced.tier).toBe("HEAVILY_OVERPRICED");
+      expect(heavilyOverpriced.ratio).toBe(2.5);
+      expect(heavilyOverpriced.markupPercent).toBe(150);
+
+      // Rule 2: In between 1.2x and 2.0x => SLIGHTLY_OVERPRICED
+      const slightlyOverpriced = evaluatePriceFairness(3.0, 2.0, "R$ 2,00");
+      expect(slightlyOverpriced.tier).toBe("SLIGHTLY_OVERPRICED");
+      expect(slightlyOverpriced.ratio).toBe(1.5);
+      expect(slightlyOverpriced.markupPercent).toBe(50);
+
+      const exactlyDouble = evaluatePriceFairness(4.0, 2.0, "R$ 2,00");
+      expect(exactlyDouble.tier).toBe("SLIGHTLY_OVERPRICED");
+
+      // Rule 3: Between 1.0x and 1.2x (up to 20% higher) => NORMAL
+      const normalUpper = evaluatePriceFairness(2.4, 2.0, "R$ 2,00");
+      expect(normalUpper.tier).toBe("NORMAL");
+      expect(normalUpper.ratio).toBe(1.2);
+      expect(normalUpper.markupPercent).toBe(20);
+
+      const normalEqual = evaluatePriceFairness(2.0, 2.0, "R$ 2,00");
+      expect(normalEqual.tier).toBe("NORMAL");
+      expect(normalEqual.ratio).toBe(1.0);
+      expect(normalEqual.markupPercent).toBe(0);
+
+      // Rule 4: Less than 1.0x => BELOW_MARKET
+      const belowMarket = evaluatePriceFairness(1.5, 2.0, "R$ 2,00");
+      expect(belowMarket.tier).toBe("BELOW_MARKET");
+      expect(belowMarket.ratio).toBe(0.75);
+
+      // Rule 5: Missing or invalid benchmark => UNKNOWN
+      expect(evaluatePriceFairness(10.0, null).tier).toBe("UNKNOWN");
+      expect(evaluatePriceFairness(10.0, 0).tier).toBe("UNKNOWN");
+      expect(evaluatePriceFairness(10.0, -1).tier).toBe("UNKNOWN");
+    });
+
+    it("includes tcgPrice and priceFairness in getGlobalMarketReport and tracks summary counts", async () => {
+      const { db } = await createTestDb();
+
+      await db.insert(users).values({
+        id: "u-fairness-test",
+        name: "Fairness Test User",
+        friendCode: "GA-FAIR1",
+      });
+
+      await db.insert(cards).values({
+        slug: "slime-card",
+        name: "Baby Silver Slime",
+        element: "NORM",
+        class: "ALL",
+        type: "ALLY",
+      });
+
+      await db.insert(mypMarketCards).values([
+        {
+          id: "mkt-overpriced",
+          cardSlug: "slime-card",
+          rawName: "Baby Silver Slime",
+          cardName: "Baby Silver Slime",
+          setPrefix: "DOA",
+          quantity: 2,
+          price: "R$ 10,00",
+          priceNumeric: 10.0,
+          tcgPrice: "R$ 2,00",
+          tcgPriceNumeric: 2.0, // 5.0x ratio -> HEAVILY_OVERPRICED
+        },
+        {
+          id: "mkt-slightly",
+          cardSlug: "slime-card",
+          rawName: "Baby Silver Slime (NM)",
+          cardName: "Baby Silver Slime",
+          setPrefix: "DOA",
+          quantity: 1,
+          price: "R$ 3,00",
+          priceNumeric: 3.0,
+          tcgPrice: "R$ 2,00",
+          tcgPriceNumeric: 2.0, // 1.5x ratio -> SLIGHTLY_OVERPRICED
+        },
+        {
+          id: "mkt-fair",
+          cardSlug: "slime-card",
+          rawName: "Baby Silver Slime (LP)",
+          cardName: "Baby Silver Slime",
+          setPrefix: "DOA",
+          quantity: 3,
+          price: "R$ 2,20",
+          priceNumeric: 2.2,
+          tcgPrice: "R$ 2,00",
+          tcgPriceNumeric: 2.0, // 1.1x ratio -> NORMAL
+        },
+      ]);
+
+      const report = await getGlobalMarketReport("u-fairness-test", db);
+      expect(report.summary.heavilyOverpricedCount).toBe(1);
+      expect(report.summary.overpricedCount).toBe(2);
+
+      const heavilyItem = report.cards.find((c) => c.id === "mkt-overpriced");
+      expect(heavilyItem?.priceFairness.tier).toBe("HEAVILY_OVERPRICED");
+      expect(heavilyItem?.tcgPrice).toBe("R$ 2,00");
+
+      const slightlyItem = report.cards.find((c) => c.id === "mkt-slightly");
+      expect(slightlyItem?.priceFairness.tier).toBe("SLIGHTLY_OVERPRICED");
+
+      const fairItem = report.cards.find((c) => c.id === "mkt-fair");
+      expect(fairItem?.priceFairness.tier).toBe("NORMAL");
+    });
+
+    it("enriches cards with TCGPlayer prices via enrichMarketplaceTcgPrices", async () => {
+      const { db } = await createTestDb();
+
+      await db.insert(mypMarketCards).values({
+        id: "mkt-to-enrich",
+        rawName: "Liminal Guide",
+        cardName: "Liminal Guide",
+        setPrefix: "ALC",
+        quantity: 1,
+        price: "R$ 400,00",
+        priceNumeric: 400.0,
+        mypProductUrl: "https://mypcards.com/grandarchive/produto/12345/liminal-guide",
+        tcgPrice: null,
+        tcgPriceNumeric: null,
+      });
+
+      const mockFetch = async () =>
+        ({
+          ok: true,
+          text: async () => `
+            <div class="resumo-preco resumo-preco--tcg">
+              <span class="moeda">R$ 150,00</span>
+            </div>
+          `,
+        } as any);
+
+      const result = await enrichMarketplaceTcgPrices(
+        { cardIds: ["mkt-to-enrich"] },
+        db,
+        mockFetch
+      );
+
+      expect(result.enrichedCount).toBe(1);
+
+      const enrichedRows = await db.select().from(mypMarketCards).all();
+      expect(enrichedRows[0].tcgPrice).toBe("R$ 150,00");
+      expect(enrichedRows[0].tcgPriceNumeric).toBe(150.0);
+    });
   });
 });
 

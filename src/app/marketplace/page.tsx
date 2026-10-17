@@ -34,6 +34,7 @@ import type {
 } from "@/services/marketplace";
 
 type ShortageFilter = "ALL_SHORTAGES" | "HARD_ONLY" | "SHARED_ONLY" | "STAPLES_ONLY" | "ALL_MARKET";
+type PriceFilter = "ALL" | "FAIR_ONLY" | "OVERPRICED_ONLY" | "HEAVILY_OVERPRICED_ONLY";
 
 export default function MarketplacePage() {
   const { data: session } = useSession();
@@ -42,10 +43,13 @@ export default function MarketplacePage() {
   const [report, setReport] = useState<GlobalMarketReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [enrichingTcg, setEnrichingTcg] = useState(false);
+  const [enrichingIds, setEnrichingIds] = useState<Set<string>>(new Set());
 
   // Filters
   const [query, setQuery] = useState("");
   const [shortageFilter, setShortageFilter] = useState<ShortageFilter>("ALL_SHORTAGES");
+  const [priceFilter, setPriceFilter] = useState<PriceFilter>("ALL");
   const [selectedElements, setSelectedElements] = useState<string[]>([]);
   const [selectedRarities, setSelectedRarities] = useState<number[]>([]);
 
@@ -100,6 +104,38 @@ export default function MarketplacePage() {
     }
   };
 
+  const handleEnrichTcg = async (targetCardIds?: string[]) => {
+    if (enrichingTcg) return;
+    setEnrichingTcg(true);
+    if (targetCardIds && targetCardIds.length > 0) {
+      setEnrichingIds(new Set(targetCardIds));
+    }
+    try {
+      const res = await fetch("/api/marketplace/enrich-tcg", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cardIds: targetCardIds,
+          limit: targetCardIds ? targetCardIds.length : 25,
+          onlyShortages: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Price enrichment failed");
+
+      showToast(
+        `Checked TCG Player prices: ${data.enrichedCount || 0} listings updated!`,
+        "success"
+      );
+      await fetchMarket();
+    } catch (err: any) {
+      showToast(err.message || "Failed to check TCG prices", "error");
+    } finally {
+      setEnrichingTcg(false);
+      setEnrichingIds(new Set());
+    }
+  };
+
   const toggleElement = (el: string) => {
     setSelectedElements((prev) =>
       prev.includes(el) ? prev.filter((e) => e !== el) : [...prev, el]
@@ -137,6 +173,22 @@ export default function MarketplacePage() {
       list = list.filter((c) => selectedRarities.includes(c.rarity || 1));
     }
 
+    if (priceFilter === "FAIR_ONLY") {
+      list = list.filter(
+        (c) =>
+          c.priceFairness?.tier === "NORMAL" ||
+          c.priceFairness?.tier === "BELOW_MARKET"
+      );
+    } else if (priceFilter === "OVERPRICED_ONLY") {
+      list = list.filter(
+        (c) =>
+          c.priceFairness?.tier === "SLIGHTLY_OVERPRICED" ||
+          c.priceFairness?.tier === "HEAVILY_OVERPRICED"
+      );
+    } else if (priceFilter === "HEAVILY_OVERPRICED_ONLY") {
+      list = list.filter((c) => c.priceFairness?.tier === "HEAVILY_OVERPRICED");
+    }
+
     if (query.trim()) {
       const q = query.trim().toLowerCase();
       list = list.filter((c) => {
@@ -150,7 +202,7 @@ export default function MarketplacePage() {
     }
 
     return list;
-  }, [report?.cards, shortageFilter, selectedElements, selectedRarities, query]);
+  }, [report?.cards, shortageFilter, priceFilter, selectedElements, selectedRarities, query]);
 
   const summary = report?.summary;
 
@@ -170,8 +222,18 @@ export default function MarketplacePage() {
             )}
 
             <Button
+              onClick={() => handleEnrichTcg()}
+              disabled={enrichingTcg || syncing}
+              variant="outline"
+              className="gap-2 border-amber-400/40 text-amber-200 hover:bg-amber-400/10 font-semibold"
+            >
+              <RefreshCw className={`h-4 w-4 ${enrichingTcg ? "animate-spin" : ""}`} />
+              {enrichingTcg ? "Checking TCG..." : "Check TCG Prices"}
+            </Button>
+
+            <Button
               onClick={() => handleSyncMarket()}
-              disabled={syncing}
+              disabled={syncing || enrichingTcg}
               className="gap-2 bg-cyan-500 text-slate-950 hover:bg-cyan-400 font-semibold shadow-[0_0_20px_-5px_rgba(34,211,238,0.4)]"
             >
               <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
@@ -415,6 +477,45 @@ export default function MarketplacePage() {
               );
             })}
           </div>
+
+          {/* Price Fairness Filter */}
+          <div className="flex flex-wrap items-center gap-1.5 border-t border-white/[0.04] pt-2">
+            <span className="text-[11px] font-medium text-slate-500 mr-1">Price Check:</span>
+            {[
+              { id: "ALL" as const, label: "All Prices" },
+              { id: "FAIR_ONLY" as const, label: "Fair Price Only (≤ 1.2x)" },
+              { id: "OVERPRICED_ONLY" as const, label: "Overpriced (> 1.2x)", count: summary?.overpricedCount },
+              { id: "HEAVILY_OVERPRICED_ONLY" as const, label: "🚨 Heavily Overpriced (> 2.0x)", count: summary?.heavilyOverpricedCount, alert: true },
+            ].map((p) => {
+              const active = priceFilter === p.id;
+              return (
+                <button
+                  type="button"
+                  key={p.id}
+                  onClick={() => setPriceFilter(p.id)}
+                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all cursor-pointer ${
+                    active
+                      ? p.alert
+                        ? "border-red-400 bg-red-500/20 text-red-200 font-semibold shadow-[0_0_10px_rgba(239,68,68,0.3)]"
+                        : "border-cyan-400 bg-cyan-400/20 text-cyan-200 font-semibold shadow-[0_0_10px_rgba(34,211,238,0.25)]"
+                      : "border-white/[0.08] text-slate-400 hover:border-white/[0.18] hover:text-slate-200"
+                  }`}
+                >
+                  {active && <Check className="h-3 w-3 shrink-0" />}
+                  <span>{p.label}</span>
+                  {typeof p.count === "number" && p.count > 0 && (
+                    <span
+                      className={`ml-1 rounded-full px-1.5 py-0.2 font-mono text-[9px] ${
+                        p.alert ? "bg-red-500/30 text-red-200" : "bg-white/10 text-white"
+                      }`}
+                    >
+                      {p.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -639,7 +740,55 @@ export default function MarketplacePage() {
                     <div className="font-mono text-base font-bold text-emerald-300">
                       {card.price}
                     </div>
-                    <div className="text-[11px] text-slate-400">
+
+                    {/* Preço TCG Player Benchmark & Overpriced Alerts */}
+                    {card.priceFairness?.tier === "HEAVILY_OVERPRICED" ? (
+                      <div className="mt-1 flex flex-col items-start md:items-end">
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full border border-red-500/50 bg-red-500/20 px-2 py-0.5 text-[10px] font-bold text-red-300 shadow-[0_0_12px_-2px_rgba(239,68,68,0.4)]"
+                          title={`Preço TCG Player: ${card.tcgPrice || "N/A"} · ${(card.priceFairness.ratio ?? 0).toFixed(1)}x baseline (+${card.priceFairness.markupPercent}%)`}
+                        >
+                          <AlertTriangle className="h-2.5 w-2.5 text-red-400" />
+                          HEAVILY OVERPRICED
+                        </span>
+                        <span className="text-[10px] font-mono text-red-400/80">
+                          TCG: {card.tcgPrice} ({(card.priceFairness.ratio ?? 0).toFixed(1)}x)
+                        </span>
+                      </div>
+                    ) : card.priceFairness?.tier === "SLIGHTLY_OVERPRICED" ? (
+                      <div className="mt-1 flex flex-col items-start md:items-end">
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-300"
+                          title={`Preço TCG Player: ${card.tcgPrice || "N/A"} · ${(card.priceFairness.ratio ?? 0).toFixed(1)}x baseline (+${card.priceFairness.markupPercent}%)`}
+                        >
+                          <AlertTriangle className="h-2.5 w-2.5 text-amber-400" />
+                          Slightly Overpriced
+                        </span>
+                        <span className="text-[10px] font-mono text-amber-400/70">
+                          TCG: {card.tcgPrice} (+{card.priceFairness.markupPercent}%)
+                        </span>
+                      </div>
+                    ) : card.priceFairness?.tier === "NORMAL" ? (
+                      <div className="text-[10px] font-mono text-slate-400">
+                        TCG: {card.tcgPrice} <span className="text-emerald-400/70">(Normal)</span>
+                      </div>
+                    ) : card.priceFairness?.tier === "BELOW_MARKET" ? (
+                      <div className="text-[10px] font-mono text-emerald-300">
+                        TCG: {card.tcgPrice} <span className="text-emerald-400 font-bold">(Below TCG)</span>
+                      </div>
+                    ) : card.mypProductUrl ? (
+                      <button
+                        type="button"
+                        onClick={() => handleEnrichTcg([card.id])}
+                        disabled={enrichingIds.has(card.id) || enrichingTcg}
+                        className="text-[10px] font-mono text-slate-500 hover:text-cyan-300 transition-colors cursor-pointer"
+                        title="Fetch Preço TCG Player from product page"
+                      >
+                        {enrichingIds.has(card.id) ? "Checking TCG..." : "Check TCG Price"}
+                      </button>
+                    ) : null}
+
+                    <div className="text-[11px] text-slate-400 mt-0.5">
                       {card.personalStoreQuantity > 0 ? (
                         <>
                           <span className="font-mono font-semibold text-white">{card.netExternalStock}</span> from other sellers
