@@ -2,6 +2,8 @@ import { db } from "../index";
 import { cards, cardEditions } from "../schema";
 import { eq, sql } from "drizzle-orm";
 
+export type CatalogDatabase = typeof db;
+
 export interface CatalogEditionMatch {
   cardSlug: string;
   cardName: string;
@@ -33,7 +35,7 @@ export async function findCatalogEditionForFulfillment(
     collectorNumber?: string | null;
     cardName?: string | null;
   },
-  database = db
+  database: CatalogDatabase = db
 ): Promise<CatalogEditionMatch | null> {
   const { setPrefix, collectorNumber, cardName } = params;
 

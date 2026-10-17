@@ -29,8 +29,7 @@ import { ALL_ELEMENTS, ELEMENT_COLORS, ELEMENT_LABELS, normalizeElement } from "
 import { RARITIES } from "@/lib/rarities";
 import type { MarketplaceCardItem, MarketplaceReport } from "@/services/marketplace";
 import FulfillmentView from "./FulfillmentView";
-import { useTranslation } from "@/lib/i18n";
-import { Package } from "lucide-react";
+import MypStoreSubTabs, { type MypSubView } from "./MypStoreSubTabs";
 
 export default function MypStoreView() {
   const { data: session } = useSession();
@@ -53,20 +52,7 @@ export default function MypStoreView() {
   const [selectedElements, setSelectedElements] = useState<string[]>([]);
   const [selectedRarities, setSelectedRarities] = useState<number[]>([]);
 
-  const { t } = useTranslation();
-  const [subView, setSubView] = useState<"listings" | "fulfillment">("listings");
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const searchParams = new URLSearchParams(window.location.search);
-      const isFulfillment =
-        searchParams.get("fulfillment") === "1" ||
-        window.location.hash.startsWith("#ga_fulfillment=");
-      if (isFulfillment) {
-        setSubView("fulfillment");
-      }
-    }
-  }, []);
+  const [subView, setSubView] = useState<MypSubView>("listings");
 
   const userIdQuery = session?.user?.id ? `?userId=${session.user.id}` : "";
 
@@ -231,34 +217,7 @@ export default function MypStoreView() {
 
   return (
     <div className="space-y-6">
-      {/* Sub-view switcher: Listings vs Fulfillment */}
-      <div className="flex items-center gap-2 border-b border-white/[0.08] pb-3 mb-6">
-        <button
-          type="button"
-          onClick={() => setSubView("listings")}
-          className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl transition-all cursor-pointer ${
-            subView === "listings"
-              ? "border border-white/20 bg-white/10 text-white shadow-sm"
-              : "border border-white/[0.08] bg-white/[0.02] text-slate-400 hover:text-white"
-          }`}
-        >
-          <Store className="h-4 w-4" />
-          {t("fulfillment.tabListings")}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setSubView("fulfillment")}
-          className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl transition-all cursor-pointer ${
-            subView === "fulfillment"
-              ? "border border-sky-400/40 bg-sky-500/20 text-sky-200 shadow-[0_0_12px_rgba(56,189,248,0.25)]"
-              : "border border-white/[0.08] bg-white/[0.02] text-slate-400 hover:text-white"
-          }`}
-        >
-          <Package className="h-4 w-4 text-sky-400" />
-          {t("fulfillment.tabFulfillment")}
-        </button>
-      </div>
+      <MypStoreSubTabs currentView={subView} onViewChange={setSubView} />
 
       {subView === "fulfillment" ? (
         <FulfillmentView />

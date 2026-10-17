@@ -271,4 +271,90 @@ describe("Fulfillment Service Boundary", () => {
     expect(lootGroup!.totalOrders).toBe(1);
     expect(lootGroup!.primaryShippingMethod).toBe("Frete Fixo com rastreio");
   });
+
+  it("handles mixed Grand Archive and non-GA orders by including GA items in pick list and flagging in nonGrandArchiveOrders", async () => {
+    const { db } = await createTestDb();
+
+    await db.insert(cards).values([
+      {
+        slug: "voids-cloak",
+        name: "Void's Cloak",
+        element: "NORM",
+        class: "ASSASSIN",
+        type: "ITEM",
+        subtypes: "[]",
+        effect: null,
+      },
+    ]);
+
+    await db.insert(cardEditions).values([
+      {
+        id: "ed-void",
+        cardSlug: "voids-cloak",
+        setPrefix: "RDO",
+        setName: "Radiant Origins",
+        collectorNumber: "029",
+        rarity: 1,
+        imageUrl: "https://api.gatcg.com/cards/images/rdo_029.jpg",
+      },
+    ]);
+
+    const mixedOrders: RawMypFulfillmentOrderInput[] = [
+      {
+        orderId: "777001",
+        orderDate: "18/10/2026",
+        buyerNick: "MixedCollector",
+        shippingMethod: "PAC",
+        status: "Aguard. envio",
+        orderUrl: "https://mypcards.com/pedido/777001",
+        items: [
+          {
+            rawTitle: "Void's Cloak",
+            mypCode: "grandarchive_rdo_029",
+            condition: "NM",
+            language: "EN",
+            isFoil: false,
+            quantity: 2,
+            unitPriceBrl: "R$ 10,00",
+          },
+          {
+            rawTitle: "Charizard ex",
+            mypCode: "pokemon_sv3_125",
+            condition: "NM",
+            language: "EN",
+            isFoil: true,
+            quantity: 1,
+            unitPriceBrl: "R$ 150,00",
+          },
+        ],
+      },
+    ];
+
+    const fixedTime = 1770000000000;
+    const report = await buildFulfillmentReport(mixedOrders, db, fixedTime);
+
+    expect(report.generatedAt).toBe(1770000000);
+    expect(report.totalGrandArchiveOrders).toBe(1);
+    expect(report.totalGrandArchiveCopies).toBe(2);
+
+    // GA items are in the pick list
+    expect(report.pickListByElement["Norm"]).toHaveLength(1);
+    expect(report.pickListByElement["Norm"][0].totalQuantity).toBe(2);
+
+    // Non-GA items are flagged in nonGrandArchiveOrders notice
+    expect(report.nonGrandArchiveOrders).toHaveLength(1);
+    expect(report.nonGrandArchiveOrders[0]).toEqual({
+      orderId: "777001",
+      orderDate: "18/10/2026",
+      buyerNick: "MixedCollector",
+      orderUrl: "https://mypcards.com/pedido/777001",
+      detectedTcg: "pokemon",
+      itemCount: 1,
+    });
+
+    // Buyer pack has the GA items
+    expect(report.buyerPacks).toHaveLength(1);
+    expect(report.buyerPacks[0].orders[0].items).toHaveLength(1);
+    expect(report.buyerPacks[0].orders[0].items[0].cardName).toBe("Void's Cloak");
+  });
 });

@@ -8,9 +8,11 @@ import {
   NonGrandArchiveOrderNotice,
   FulfillmentReport,
   CANONICAL_ELEMENT_ORDER,
+  UNMATCHED_ELEMENT,
 } from "@ga/contracts";
 import {
   findCatalogEditionForFulfillment,
+  type CatalogDatabase,
 } from "../db/repositories/catalog-repository";
 import { normalizeElement, ELEMENT_LABELS } from "../lib/elements";
 
@@ -39,6 +41,23 @@ export function detectNonGaTcg(item: RawMypOrderItemInput): string {
     if (parts[0]) return parts[0].toLowerCase();
   }
   return "other";
+}
+
+/**
+ * Builds a NonGrandArchiveOrderNotice helper to prevent duplicated object instantiation.
+ */
+function toNonGaNotice(
+  order: RawMypFulfillmentOrderInput,
+  nonGaItems: RawMypOrderItemInput[]
+): NonGrandArchiveOrderNotice {
+  return {
+    orderId: order.orderId,
+    orderDate: order.orderDate,
+    buyerNick: order.buyerNick,
+    orderUrl: order.orderUrl,
+    detectedTcg: detectNonGaTcg(nonGaItems[0]),
+    itemCount: nonGaItems.length,
+  };
 }
 
 /**
@@ -73,34 +92,168 @@ function extractSetAndCollectorNumber(item: RawMypOrderItemInput): {
  * Maps raw or DB element strings to canonical Game Nomenclature Element title.
  */
 function toCanonicalElement(rawElement?: string | null): string {
-  if (!rawElement) return "UNMATCHED";
+  if (!rawElement) return UNMATCHED_ELEMENT;
   const norm = normalizeElement(rawElement);
   const label = ELEMENT_LABELS[norm];
   if (label && CANONICAL_ELEMENT_ORDER.includes(label)) {
     return label;
   }
-  return "UNMATCHED";
+  return UNMATCHED_ELEMENT;
 }
+
+const SHIPPING_PRIORITY_SCORES: ReadonlyArray<[RegExp, number]> = [
+  [/sedex/i, 10],
+  [/pac/i, 9],
+  [/fixo|rastreio/i, 8],
+  [/combinado/i, 1],
+];
 
 /**
  * Prioritizes shipping methods: paid/tracked methods first, then Frete combinado.
  */
-function getPrimaryShippingMethod(methods: string[]): string {
-  if (methods.length === 0) return "Padrão";
+export function getPrimaryShippingMethod(methods: string[]): string {
+  if (methods.length === 0) return "";
 
-  const ranked = [...methods].sort((a, b) => {
-    const score = (m: string) => {
-      const lower = m.toLowerCase();
-      if (lower.includes("sedex")) return 10;
-      if (lower.includes("pac")) return 9;
-      if (lower.includes("fixo") || lower.includes("rastreio")) return 8;
-      if (lower.includes("combinado")) return 1;
-      return 5;
-    };
-    return score(b) - score(a);
+  const scoreMethod = (method: string): number => {
+    for (const [pattern, score] of SHIPPING_PRIORITY_SCORES) {
+      if (pattern.test(method)) return score;
+    }
+    return 5;
+  };
+
+  const ranked = [...methods].sort((a, b) => scoreMethod(b) - scoreMethod(a));
+  return ranked[0];
+}
+
+/**
+ * Enriches a single Grand Archive order item against the catalog repository.
+ */
+async function enrichFulfillmentItem(
+  item: RawMypOrderItemInput,
+  database?: CatalogDatabase
+): Promise<EnrichedFulfillmentItem> {
+  const { setPrefix: extractedPrefix, collectorNumber: extractedNum } =
+    extractSetAndCollectorNumber(item);
+
+  const match = await findCatalogEditionForFulfillment(
+    {
+      setPrefix: extractedPrefix,
+      collectorNumber: extractedNum,
+      cardName: item.rawTitle,
+    },
+    database
+  );
+
+  const isMatched = Boolean(match);
+  const cardSlug = match ? match.cardSlug : null;
+  const cardName = match ? match.cardName : item.rawTitle;
+  const element = isMatched ? toCanonicalElement(match?.element) : UNMATCHED_ELEMENT;
+  const setPrefix = match ? match.setPrefix : extractedPrefix || "UNK";
+  const collectorNumber = match ? match.collectorNumber : extractedNum || null;
+  const rarity = match ? match.rarity : null;
+  const imageUrl = match ? match.imageUrl : null;
+
+  const itemKey = `${cardSlug || item.mypCode}:${setPrefix}:${
+    collectorNumber || "none"
+  }:${item.isFoil ? "foil" : "normal"}:${item.condition}`.toLowerCase();
+
+  return {
+    itemKey,
+    isGrandArchive: true,
+    cardSlug,
+    cardName,
+    element,
+    setPrefix,
+    collectorNumber,
+    rarity,
+    imageUrl,
+    condition: item.condition,
+    isFoil: item.isFoil,
+    quantity: item.quantity,
+    unitPriceBrl: item.unitPriceBrl,
+    mypCode: item.mypCode,
+  };
+}
+
+/**
+ * Aggregates an enriched item into the Pick List element bucket.
+ */
+function addToPickList(
+  pickListByElement: Record<string, PickListEntry[]>,
+  enriched: EnrichedFulfillmentItem,
+  order: RawMypFulfillmentOrderInput
+): void {
+  const bucket = pickListByElement[enriched.element] || pickListByElement[UNMATCHED_ELEMENT];
+  const existing = bucket.find((e) => e.itemKey === enriched.itemKey);
+
+  if (existing) {
+    existing.totalQuantity += enriched.quantity;
+    const ref = existing.orderReferences.find((r) => r.orderId === order.orderId);
+    if (ref) {
+      ref.quantity += enriched.quantity;
+    } else {
+      existing.orderReferences.push({
+        orderId: order.orderId,
+        buyerNick: order.buyerNick,
+        quantity: enriched.quantity,
+      });
+    }
+  } else {
+    bucket.push({
+      itemKey: enriched.itemKey,
+      cardSlug: enriched.cardSlug,
+      cardName: enriched.cardName,
+      element: enriched.element,
+      setPrefix: enriched.setPrefix,
+      collectorNumber: enriched.collectorNumber,
+      rarity: enriched.rarity,
+      imageUrl: enriched.imageUrl,
+      condition: enriched.condition,
+      isFoil: enriched.isFoil,
+      totalQuantity: enriched.quantity,
+      orderReferences: [
+        {
+          orderId: order.orderId,
+          buyerNick: order.buyerNick,
+          quantity: enriched.quantity,
+        },
+      ],
+    });
+  }
+}
+
+/**
+ * Constructs and ranks buyer pack groups.
+ */
+function buildBuyerPacks(buyerPacksMap: Map<string, BuyerPackSubOrder[]>): BuyerPackGroup[] {
+  const buyerPacks: BuyerPackGroup[] = [];
+
+  for (const [buyerNick, subOrders] of buyerPacksMap.entries()) {
+    const shippingMethods = Array.from(new Set(subOrders.map((o) => o.shippingMethod)));
+    const totalItems = subOrders.reduce(
+      (sum, o) => sum + o.items.reduce((s, i) => s + i.quantity, 0),
+      0
+    );
+
+    buyerPacks.push({
+      buyerNick,
+      totalOrders: subOrders.length,
+      totalItems,
+      shippingMethods,
+      primaryShippingMethod: getPrimaryShippingMethod(shippingMethods),
+      orders: subOrders.sort((a, b) => a.orderId.localeCompare(b.orderId)),
+    });
+  }
+
+  // Multi-order buyers first, then alphabetical by buyerNick
+  buyerPacks.sort((a, b) => {
+    if (a.totalOrders !== b.totalOrders) {
+      return b.totalOrders - a.totalOrders;
+    }
+    return a.buyerNick.localeCompare(b.buyerNick, undefined, { sensitivity: "base" });
   });
 
-  return ranked[0];
+  return buyerPacks;
 }
 
 /**
@@ -108,7 +261,8 @@ function getPrimaryShippingMethod(methods: string[]): string {
  */
 export async function buildFulfillmentReport(
   orders: RawMypFulfillmentOrderInput[],
-  database?: any
+  database?: CatalogDatabase,
+  currentTimeMs: number = Date.now()
 ): Promise<FulfillmentReport> {
   const pickListByElement: Record<string, PickListEntry[]> = {};
   for (const el of CANONICAL_ELEMENT_ORDER) {
@@ -125,122 +279,24 @@ export async function buildFulfillmentReport(
     const gaItems = order.items.filter(isGrandArchiveItem);
     const nonGaItems = order.items.filter((i) => !isGrandArchiveItem(i));
 
-    // Handle non-GA orders
-    if (gaItems.length === 0 && nonGaItems.length > 0) {
-      const detectedTcg = detectNonGaTcg(nonGaItems[0]);
-      nonGrandArchiveOrders.push({
-        orderId: order.orderId,
-        orderDate: order.orderDate,
-        buyerNick: order.buyerNick,
-        orderUrl: order.orderUrl,
-        detectedTcg,
-        itemCount: nonGaItems.length,
-      });
-      continue;
-    }
-
+    // Handle orders with non-GA items
     if (nonGaItems.length > 0) {
-      nonGrandArchiveOrders.push({
-        orderId: order.orderId,
-        orderDate: order.orderDate,
-        buyerNick: order.buyerNick,
-        orderUrl: order.orderUrl,
-        detectedTcg: detectNonGaTcg(nonGaItems[0]),
-        itemCount: nonGaItems.length,
-      });
-    }
-
-    totalGrandArchiveOrders++;
-
-    const enrichedSubOrderItems: EnrichedFulfillmentItem[] = [];
-
-    for (const item of gaItems) {
-      const { setPrefix: extractedPrefix, collectorNumber: extractedNum } =
-        extractSetAndCollectorNumber(item);
-
-      const match = await findCatalogEditionForFulfillment(
-        {
-          setPrefix: extractedPrefix,
-          collectorNumber: extractedNum,
-          cardName: item.rawTitle,
-        },
-        database
-      );
-
-      const isMatched = Boolean(match);
-      const cardSlug = match ? match.cardSlug : null;
-      const cardName = match ? match.cardName : item.rawTitle;
-      const element = isMatched ? toCanonicalElement(match?.element) : "UNMATCHED";
-      const setPrefix = match ? match.setPrefix : extractedPrefix || "UNK";
-      const collectorNumber = match ? match.collectorNumber : extractedNum || null;
-      const rarity = match ? match.rarity : null;
-      const imageUrl = match ? match.imageUrl : null;
-
-      const itemKey = `${cardSlug || item.mypCode}:${setPrefix}:${
-        collectorNumber || "none"
-      }:${item.isFoil ? "foil" : "normal"}:${item.condition}`.toLowerCase();
-
-      const enrichedItem: EnrichedFulfillmentItem = {
-        itemKey,
-        isGrandArchive: true,
-        cardSlug,
-        cardName,
-        element,
-        setPrefix,
-        collectorNumber,
-        rarity,
-        imageUrl,
-        condition: item.condition,
-        isFoil: item.isFoil,
-        quantity: item.quantity,
-        unitPriceBrl: item.unitPriceBrl,
-        mypCode: item.mypCode,
-      };
-
-      enrichedSubOrderItems.push(enrichedItem);
-      totalGrandArchiveCopies += item.quantity;
-
-      // Aggregate into pickListByElement
-      const bucket = pickListByElement[element] || pickListByElement["UNMATCHED"];
-      const existing = bucket.find((e) => e.itemKey === itemKey);
-
-      if (existing) {
-        existing.totalQuantity += item.quantity;
-        const ref = existing.orderReferences.find((r) => r.orderId === order.orderId);
-        if (ref) {
-          ref.quantity += item.quantity;
-        } else {
-          existing.orderReferences.push({
-            orderId: order.orderId,
-            buyerNick: order.buyerNick,
-            quantity: item.quantity,
-          });
-        }
-      } else {
-        bucket.push({
-          itemKey,
-          cardSlug,
-          cardName,
-          element,
-          setPrefix,
-          collectorNumber,
-          rarity,
-          imageUrl,
-          condition: item.condition,
-          isFoil: item.isFoil,
-          totalQuantity: item.quantity,
-          orderReferences: [
-            {
-              orderId: order.orderId,
-              buyerNick: order.buyerNick,
-              quantity: item.quantity,
-            },
-          ],
-        });
+      nonGrandArchiveOrders.push(toNonGaNotice(order, nonGaItems));
+      if (gaItems.length === 0) {
+        continue;
       }
     }
 
-    // Sub-order for buyer packs
+    totalGrandArchiveOrders++;
+    const enrichedSubOrderItems: EnrichedFulfillmentItem[] = [];
+
+    for (const item of gaItems) {
+      const enrichedItem = await enrichFulfillmentItem(item, database);
+      enrichedSubOrderItems.push(enrichedItem);
+      totalGrandArchiveCopies += item.quantity;
+      addToPickList(pickListByElement, enrichedItem, order);
+    }
+
     const subOrder: BuyerPackSubOrder = {
       orderId: order.orderId,
       orderDate: order.orderDate,
@@ -262,35 +318,10 @@ export async function buildFulfillmentReport(
     );
   }
 
-  // Construct buyer packs
-  const buyerPacks: BuyerPackGroup[] = [];
-  for (const [buyerNick, subOrders] of buyerPacksMap.entries()) {
-    const shippingMethods = Array.from(new Set(subOrders.map((o) => o.shippingMethod)));
-    const totalItems = subOrders.reduce(
-      (sum, o) => sum + o.items.reduce((s, i) => s + i.quantity, 0),
-      0
-    );
-
-    buyerPacks.push({
-      buyerNick,
-      totalOrders: subOrders.length,
-      totalItems,
-      shippingMethods,
-      primaryShippingMethod: getPrimaryShippingMethod(shippingMethods),
-      orders: subOrders.sort((a, b) => a.orderId.localeCompare(b.orderId)),
-    });
-  }
-
-  // Sort buyers: multi-order buyers first, then tracked shipping, then alphabetical
-  buyerPacks.sort((a, b) => {
-    if (a.totalOrders !== b.totalOrders) {
-      return b.totalOrders - a.totalOrders;
-    }
-    return a.buyerNick.localeCompare(b.buyerNick, undefined, { sensitivity: "base" });
-  });
+  const buyerPacks = buildBuyerPacks(buyerPacksMap);
 
   return {
-    generatedAt: Math.floor(Date.now() / 1000),
+    generatedAt: Math.floor(currentTimeMs / 1000),
     totalGrandArchiveOrders,
     totalGrandArchiveCopies,
     pickListByElement,

@@ -1,6 +1,8 @@
 import React from "react";
-(globalThis as any).React = React;
 import { describe, it, expect, vi } from "vitest";
+
+// Ensure React is present on globalThis in Node test environment for JSX static markup
+vi.stubGlobal("React", React);
 import { renderToStaticMarkup } from "react-dom/server";
 import { FulfillmentReport } from "@ga/contracts";
 import FulfillmentPickList from "../FulfillmentPickList";

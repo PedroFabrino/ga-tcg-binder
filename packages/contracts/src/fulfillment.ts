@@ -98,6 +98,8 @@ export interface FulfillmentReport {
   nonGrandArchiveOrders: NonGrandArchiveOrderNotice[];
 }
 
+export const UNMATCHED_ELEMENT = "UNMATCHED";
+
 export const CANONICAL_ELEMENT_ORDER: readonly string[] = [
   "Norm",
   "Fire",
@@ -112,5 +114,5 @@ export const CANONICAL_ELEMENT_ORDER: readonly string[] = [
   "Exia",
   "Arcane",
   "Neos",
-  "UNMATCHED",
+  UNMATCHED_ELEMENT,
 ] as const;

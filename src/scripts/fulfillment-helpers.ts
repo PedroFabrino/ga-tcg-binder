@@ -64,11 +64,23 @@ export function formatFulfillmentTextReport(report: FulfillmentReport): string {
   return lines.join("\n").trim();
 }
 
+export interface ElementLike {
+  textContent?: string | null;
+  getAttribute(name: string): string | null;
+  querySelector(selector: string): ElementLike | null;
+  querySelectorAll(selector: string): ArrayLike<ElementLike> | NodeListOf<Element>;
+}
+
+export interface QueryableRoot {
+  querySelector(selector: string): ElementLike | null;
+  querySelectorAll(selector: string): ArrayLike<ElementLike> | NodeListOf<Element>;
+}
+
 /**
  * Extracts order items from a DOM document without retaining buyer PII.
  */
 export function extractOrderFromDom(
-  doc: Document | { querySelector: any; querySelectorAll: any },
+  doc: Document | QueryableRoot,
   fallbackOrderId: string
 ): RawMypFulfillmentOrderInput {
   // Order ID
@@ -107,7 +119,7 @@ export function extractOrderFromDom(
   const items: RawMypOrderItemInput[] = [];
   const rows = doc.querySelectorAll("table tr, .item-row");
 
-  rows.forEach((tr: any) => {
+  Array.from(rows).forEach((tr) => {
     const link = tr.querySelector('a[href*="/grandarchive/"], a[href*="/pokemon/"], a[href*="/magic/"], .item-link');
     if (!link) return;
 

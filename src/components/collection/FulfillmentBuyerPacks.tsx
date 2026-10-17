@@ -93,7 +93,9 @@ export default function FulfillmentBuyerPacks({ report }: FulfillmentBuyerPacksP
 
               <div className="flex items-center gap-2">
                 <span className="rounded-md bg-slate-800 border border-slate-700 px-2.5 py-1 text-xs font-medium text-slate-300">
-                  {t("fulfillment.shippingLabel", { method: buyer.primaryShippingMethod })}
+                  {t("fulfillment.shippingLabel", {
+                    method: buyer.primaryShippingMethod || t("fulfillment.shippingDefault"),
+                  })}
                 </span>
               </div>
             </div>

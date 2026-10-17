@@ -156,6 +156,7 @@ export const enCatalog = {
     openOrderLink: "Open #{orderId} on MyP ↗",
     totalPrice: "Unit: {price}",
     cardsToPull: "{count} cards to pull",
+    shippingDefault: "Standard",
   },
 };
 
@@ -310,6 +311,7 @@ export const ptBRCatalog: TranslationCatalog = {
     openOrderLink: "Abrir #{orderId} no MyP ↗",
     totalPrice: "Unitário: {price}",
     cardsToPull: "{count} cartas para pegar",
+    shippingDefault: "Padrão",
   },
 };
 
