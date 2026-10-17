@@ -10,12 +10,21 @@ import { formatFulfillmentTextReport } from "@/scripts/fulfillment-helpers";
 import FulfillmentPickList from "./FulfillmentPickList";
 import FulfillmentBuyerPacks from "./FulfillmentBuyerPacks";
 
-export default function FulfillmentView() {
+interface FulfillmentViewProps {
+  mypUsername?: string | null;
+}
+
+export default function FulfillmentView({ mypUsername }: FulfillmentViewProps = {}) {
   const { t } = useTranslation();
   const { showToast } = useToast();
 
   const [report, setReport] = useState<FulfillmentReport | null>(null);
   const [activeTab, setActiveTab] = useState<"pick" | "buyer">("pick");
+
+  const cleanUser = mypUsername?.trim();
+  const vendasUrl = cleanUser
+    ? `https://mypcards.com/${encodeURIComponent(cleanUser)}/vendas`
+    : "https://mypcards.com/Fabrino/vendas";
 
   const loadBatch = useCallback(() => {
     // 1. Check URL hash
@@ -83,7 +92,7 @@ export default function FulfillmentView() {
         <div className="mt-6">
           <Button
             variant="outline"
-            onClick={() => window.open("https://mypcards.com/vendas", "_blank")}
+            onClick={() => window.open(vendasUrl, "_blank")}
             className="gap-2"
           >
             {t("fulfillment.openMypVendasBtn")}
