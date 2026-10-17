@@ -17,11 +17,14 @@ import {
   Gem,
   Store,
   ExternalLink,
+  Shield,
+  RefreshCw,
 } from "lucide-react";
 import { CardArt, ElementBadge, RarityGem } from "@/components/common";
 import { CardPreviewTrigger } from "@/components/CardHoverPreview";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ToastProvider";
+import WatchlistSecurityModal from "./WatchlistSecurityModal";
 import { ELEMENT_COLORS, ALL_ELEMENTS, normalizeElement } from "@/lib/elements";
 import { RARITIES } from "@/lib/rarities";
 import type {
@@ -67,10 +70,87 @@ export default function AllShortagesView({
   onRefresh: () => void;
   loading?: boolean;
 }) {
+  const { showToast } = useToast();
   const [query, setQuery] = useState("");
   const [selectedElements, setSelectedElements] = useState<string[]>([]);
   const [selectedRarities, setSelectedRarities] = useState<number[]>([]);
   const [groupMode, setGroupMode] = useState<GroupMode>("none");
+  const [showSecurityModal, setShowSecurityModal] = useState(false);
+  const [syncingAutomated, setSyncingAutomated] = useState(false);
+  const [policyUpdating, setPolicyUpdating] = useState(false);
+
+  const pendingAdds = useMemo(() => {
+    const list: any[] = [];
+    report?.cards.forEach((c) => {
+      c.watchlistItems?.forEach((w) => {
+        if (w.status === "pending_add") {
+          list.push({ ...w, cardName: c.cardName });
+        }
+      });
+    });
+    return list;
+  }, [report]);
+
+  const pendingUpdates = useMemo(() => {
+    const list: any[] = [];
+    report?.cards.forEach((c) => {
+      c.watchlistItems?.forEach((w) => {
+        if (w.status === "pending_update") {
+          list.push({ ...w, cardName: c.cardName });
+        }
+      });
+    });
+    return list;
+  }, [report]);
+
+  const pendingRemoves = useMemo(() => {
+    const list: any[] = [];
+    report?.cards.forEach((c) => {
+      c.watchlistItems?.forEach((w) => {
+        if (w.status === "pending_remove") {
+          list.push({ ...w, cardName: c.cardName });
+        }
+      });
+    });
+    return list;
+  }, [report]);
+
+  const handlePolicyChange = async (policy: "hard" | "shared" | "staples") => {
+    setPolicyUpdating(true);
+    try {
+      const res = await fetch("/api/watchlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_policy", policy }),
+      });
+      if (!res.ok) throw new Error();
+      showToast(`Watchlist Quota Policy updated to ${policy.toUpperCase()}`, "success");
+      onRefresh();
+    } catch {
+      showToast("Failed to update policy", "error");
+    } finally {
+      setPolicyUpdating(false);
+    }
+  };
+
+  const handleAutomatedSync = async () => {
+    setSyncingAutomated(true);
+    try {
+      const res = await fetch("/api/watchlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "sync_now" }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error);
+      showToast("Watchlist synchronized automatically with MyP Cards!", "success");
+      onRefresh();
+    } catch (err: any) {
+      showToast(err.message || "Automated sync failed", "error");
+    } finally {
+      setSyncingAutomated(false);
+    }
+  };
 
   const toggleElement = (el: string) => {
     setSelectedElements((prev) =>
@@ -246,6 +326,104 @@ export default function AllShortagesView({
 
   return (
     <div className="space-y-6">
+      {/* Watchlist Quota Policy & Action Bar */}
+      {summary && summary.deckCount > 0 && (
+        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <span className="text-xs font-semibold text-slate-300">Quota Policy:</span>
+            <div className="inline-flex rounded-xl border border-white/[0.08] bg-slate-900/60 p-1">
+              <button
+                type="button"
+                disabled={policyUpdating}
+                onClick={() => handlePolicyChange("hard")}
+                className={`rounded-lg px-3 py-1 text-xs font-medium transition-all ${
+                  (summary.activePolicy || "hard") === "hard"
+                    ? "bg-rose-500/20 text-rose-300 border border-rose-500/30 font-semibold"
+                    : "text-slate-400 hover:text-white"
+                }`}
+                title="Hard Shortage: sleeve all user decks concurrently"
+              >
+                Hard (All Decks)
+              </button>
+              <button
+                type="button"
+                disabled={policyUpdating}
+                onClick={() => handlePolicyChange("shared")}
+                className={`rounded-lg px-3 py-1 text-xs font-medium transition-all ${
+                  summary.activePolicy === "shared"
+                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold"
+                    : "text-slate-400 hover:text-white"
+                }`}
+                title="Shared Shortage: maximum needed by any single deck"
+              >
+                Shared (Peak Deck)
+              </button>
+              <button
+                type="button"
+                disabled={policyUpdating}
+                onClick={() => handlePolicyChange("staples")}
+                className={`rounded-lg px-3 py-1 text-xs font-medium transition-all ${
+                  summary.activePolicy === "staples"
+                    ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-semibold"
+                    : "text-slate-400 hover:text-white"
+                }`}
+                title="Staples Policy: cap at playset of 4 across decks"
+              >
+                Staples (Cap 4)
+              </button>
+            </div>
+          </div>
+
+          {/* Watchlist Ledger Badges & Sync Buttons */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-medium">
+                Watching: {summary.watchingCount ?? 0}
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-medium">
+                +{summary.pendingAdds ?? pendingAdds.length} to Watch
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30 font-medium">
+                ~{summary.pendingUpdates ?? pendingUpdates.length} Qty Updates
+              </span>
+              {(summary.pendingRemoves || pendingRemoves.length) > 0 && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/30 font-medium">
+                  -{summary.pendingRemoves ?? pendingRemoves.length} Quota Filled
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 ml-auto">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowSecurityModal(true)}
+                className="gap-1.5 text-xs border-blue-500/30 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 hover:text-white"
+              >
+                <Shield className="h-3.5 w-3.5 text-blue-400" />
+                Sincronizar via Browser Bridge
+              </Button>
+
+              {summary.hasSavedMypCredentials && (
+                <Button
+                  size="sm"
+                  disabled={syncingAutomated}
+                  onClick={handleAutomatedSync}
+                  className="gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20 font-medium"
+                >
+                  {syncingAutomated ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  )}
+                  Auto-Sync Agora
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Shortage Summary Cards */}
       {summary && summary.deckCount > 0 && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -549,6 +727,16 @@ export default function AllShortagesView({
           ))}
         </div>
       )}
+
+      {showSecurityModal && (
+        <WatchlistSecurityModal
+          onClose={() => setShowSecurityModal(false)}
+          userId={report?.summary?.mypUsername || "default"}
+          pendingAdds={pendingAdds}
+          pendingUpdates={pendingUpdates}
+          pendingRemoves={pendingRemoves}
+        />
+      )}
     </div>
   );
 }
@@ -708,6 +896,60 @@ function ShortageCardRow({
               </span>
             ))}
           </div>
+
+          {/* Watchlist managed printings */}
+          {card.watchlistItems && card.watchlistItems.length > 0 && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] uppercase tracking-wider text-slate-500">Watchlist:</span>
+              {card.watchlistItems.map((wl) => (
+                <span
+                  key={wl.id}
+                  className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium border ${
+                    wl.status === "watching"
+                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                      : wl.status === "pending_add"
+                      ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
+                      : wl.status === "pending_update"
+                      ? "border-sky-500/30 bg-sky-500/10 text-sky-300"
+                      : wl.status === "pending_remove"
+                      ? "border-rose-500/30 bg-rose-500/10 text-rose-300"
+                      : "border-slate-500/30 bg-slate-500/10 text-slate-400"
+                  }`}
+                >
+                  <span className="font-semibold">{wl.editionSlug} #{wl.collectorNumber}:</span>
+                  {wl.status === "watching" && <span>Watching ({wl.targetQuantity}x)</span>}
+                  {wl.status === "pending_add" && <span>Queued Add ({wl.targetQuantity}x)</span>}
+                  {wl.status === "pending_update" && <span>Queued Update ({wl.targetQuantity}x)</span>}
+                  {wl.status === "pending_remove" && <span>Queued Remove</span>}
+                  {wl.status === "ignored" && (
+                    <span className="inline-flex items-center gap-1">
+                      <span>Ignored on MyP</span>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await fetch("/api/watchlist", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ action: "re_enable", watchlistId: wl.id }),
+                            });
+                            showToast("Watch reativado", "success");
+                            onCardUpdated();
+                          } catch {
+                            showToast("Falha ao reativar", "error");
+                          }
+                        }}
+                        className="underline hover:text-white ml-0.5 cursor-pointer font-bold"
+                        title="Re-enable Watchlist tracking for this printing"
+                      >
+                        Reativar
+                      </button>
+                    </span>
+                  )}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

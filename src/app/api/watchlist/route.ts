@@ -1,0 +1,107 @@
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/db";
+import { users, mypWatchlist } from "@/db/schema";
+import { eq, sql } from "drizzle-orm";
+import { DEFAULT_USER_ID, ensureDefaultUserAndSeed } from "@/services/seed";
+import { auth } from "@/auth";
+import {
+  getEffectiveQuotaPolicy,
+  reconcileUserWatchlist,
+  reEnableWatchlistEntry,
+} from "@/services/watchlist";
+import { executeAutomatedWatchlistSync } from "@/services/watchlist-sync-runner";
+
+export async function GET(req: NextRequest) {
+  try {
+    await ensureDefaultUserAndSeed();
+    const session = await auth();
+    const url = new URL(req.url);
+    const userId = url.searchParams.get("userId") || session?.user?.id || DEFAULT_USER_ID;
+
+    const user = await db.select().from(users).where(eq(users.id, userId)).get();
+    const items = await db.select().from(mypWatchlist).where(eq(mypWatchlist.userId, userId));
+
+    const activePolicy = getEffectiveQuotaPolicy(user);
+
+    let pendingAdds = 0;
+    let pendingUpdates = 0;
+    let pendingRemoves = 0;
+    let watchingCount = 0;
+    let ignoredCount = 0;
+
+    for (const item of items) {
+      if (item.status === "pending_add") pendingAdds++;
+      else if (item.status === "pending_update") pendingUpdates++;
+      else if (item.status === "pending_remove") pendingRemoves++;
+      else if (item.status === "watching") watchingCount++;
+      else if (item.status === "ignored") ignoredCount++;
+    }
+
+    return NextResponse.json({
+      items,
+      summary: {
+        activePolicy,
+        pendingAdds,
+        pendingUpdates,
+        pendingRemoves,
+        watchingCount,
+        ignoredCount,
+        hasSavedMypCredentials: Boolean(user?.mypPasswordEncrypted),
+        mypUsername: user?.mypUsername || null,
+      },
+    });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    await ensureDefaultUserAndSeed();
+    const session = await auth();
+    const body = await req.json();
+    const userId = body.userId || session?.user?.id || DEFAULT_USER_ID;
+    const action = body.action;
+
+    if (action === "re_enable" && body.watchlistId) {
+      await reEnableWatchlistEntry(body.watchlistId, db);
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === "set_policy" && body.policy) {
+      const updateData: any = {};
+      if (body.policy === "shared") {
+        updateData.watchlistPolicyHard = false;
+        updateData.watchlistPolicyShared = true;
+        updateData.watchlistPolicyStaples = false;
+      } else if (body.policy === "staples") {
+        updateData.watchlistPolicyHard = false;
+        updateData.watchlistPolicyShared = false;
+        updateData.watchlistPolicyStaples = true;
+      } else {
+        updateData.watchlistPolicyHard = true;
+        updateData.watchlistPolicyShared = false;
+        updateData.watchlistPolicyStaples = false;
+      }
+
+      await db.update(users).set(updateData).where(eq(users.id, userId));
+      await reconcileUserWatchlist(userId);
+      return NextResponse.json({ success: true, policy: body.policy });
+    }
+
+    if (action === "reconcile") {
+      const report = await reconcileUserWatchlist(userId);
+      return NextResponse.json({ success: true, report });
+    }
+
+    if (action === "sync_now") {
+      await reconcileUserWatchlist(userId);
+      const runnerRes = await executeAutomatedWatchlistSync(userId);
+      return NextResponse.json({ success: true, runner: runnerRes });
+    }
+
+    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}

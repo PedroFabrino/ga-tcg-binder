@@ -100,7 +100,11 @@ export async function ensureDefaultUserAndSeed(database = db) {
     await doSeed(database);
   } catch (err: any) {
     const errorMsg = (err?.message || "").toLowerCase();
-    if (errorMsg.includes("no such table") || errorMsg.includes("sqlite_error")) {
+    if (
+      errorMsg.includes("no such table") ||
+      errorMsg.includes("no such column") ||
+      errorMsg.includes("sqlite_error")
+    ) {
       await runMigrations();
       await doSeed(database);
       return;

@@ -24,6 +24,13 @@ describe("Unified Sequential Sync Pipeline Seam", () => {
           text: async () => `<div class="gt-card-tile" data-card-name="Fracturize" data-inclusion="90%" data-avg-copies="4.0">Fracturize</div>`,
         };
       }
+      if (url.includes("exibirSomenteCompra")) {
+        executionLog.push("user-watchlist");
+        return {
+          ok: true,
+          text: async () => ``,
+        };
+      }
       if (url.includes("mypcards.com/PipeMaster")) {
         executionLog.push("user-myp");
         return {
@@ -59,16 +66,18 @@ describe("Unified Sequential Sync Pipeline Seam", () => {
     }
 
     expect(report.success).toBe(true);
-    expect(report.stages).toHaveLength(6);
+    expect(report.stages).toHaveLength(8);
     expect(report.stages[0].stage).toContain("Catalog Check");
     expect(report.stages[1].stage).toContain("Meta Staples Sync");
     expect(report.stages[2].stage).toContain("Personal MyP Store Sync");
     expect(report.stages[3].stage).toContain("Global MyP Market Sync");
     expect(report.stages[4].stage).toContain("Deck Shortages TCG Price");
-    expect(report.stages[5].stage).toContain("Meta Archetypes");
+    expect(report.stages[5].stage).toContain("Watchlist Ledger Reconciliation");
+    expect(report.stages[6].stage).toContain("Automated Watchlist Mutation Execution");
+    expect(report.stages[7].stage).toContain("Meta Archetypes");
 
-    // Exact order verification: staples -> user-myp -> global-myp -> meta
-    expect(executionLog).toEqual(["staples", "user-myp", "global-myp", "meta"]);
+    // Exact order verification: staples -> user-myp -> global-myp -> user-watchlist -> meta
+    expect(executionLog).toEqual(["staples", "user-myp", "global-myp", "user-watchlist", "meta"]);
   });
 
   it("isolates stage faults so upstream failures do not prevent subsequent stages", async () => {
@@ -95,6 +104,8 @@ describe("Unified Sequential Sync Pipeline Seam", () => {
     expect(report.stages[3].status).toBe("success");
     expect(report.stages[4].status).toBe("success");
     expect(report.stages[5].status).toBe("success");
+    expect(report.stages[6].status).toBe("success");
+    expect(report.stages[7].status).toBe("success");
     expect(report.success).toBe(false); // Overall indicates a failure occurred
   });
 });

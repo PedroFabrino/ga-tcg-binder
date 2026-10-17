@@ -9,6 +9,8 @@ import {
   users,
   mypCards,
   mypMarketCards,
+  mypWatchlist,
+  type WatchlistStatus,
 } from "../db/schema";
 import { db } from "../db";
 import { DEFAULT_USER_ID } from "./seed";
@@ -18,6 +20,11 @@ import {
   evaluatePriceFairness,
   type PriceFairnessEvaluation,
 } from "./marketplace";
+import {
+  computeQuotaForCard,
+  getEffectiveQuotaPolicy,
+  type WatchlistQuotaPolicy,
+} from "./watchlist";
 
 export interface MarketShortageAvailability {
   mypAvailableCopies?: number;
@@ -413,6 +420,16 @@ export interface CardEditionSummary {
   imageUrl: string;
 }
 
+export interface WatchlistSummaryItem {
+  id: string;
+  editionSlug: string;
+  collectorNumber: string;
+  status: WatchlistStatus;
+  targetQuantity: number;
+  targetPriceBrl: number;
+  mypProductUrl?: string | null;
+}
+
 export interface AggregatedShortageCard extends MarketShortageAvailability {
   cardSlug: string;
   cardName: string;
@@ -430,6 +447,9 @@ export interface AggregatedShortageCard extends MarketShortageAvailability {
   sharedOwned: number;
   peakMissing: number;
   concurrentMissing: number;
+  quota?: number;
+  missing?: number;
+  watchlistItems?: WatchlistSummaryItem[];
 }
 
 export interface AggregatedShortageReport {
@@ -438,6 +458,14 @@ export interface AggregatedShortageReport {
     totalPeakShortageCopies: number;
     uniqueShortageCards: number;
     deckCount: number;
+    activePolicy?: WatchlistQuotaPolicy;
+    pendingAdds?: number;
+    pendingUpdates?: number;
+    pendingRemoves?: number;
+    watchingCount?: number;
+    ignoredCount?: number;
+    hasSavedMypCredentials?: boolean;
+    mypUsername?: string | null;
   };
   cards: AggregatedShortageCard[];
 }
@@ -447,6 +475,37 @@ export async function calculateAggregatedShortages(
   database: any = db
 ): Promise<AggregatedShortageReport> {
   const effectiveUserId = userId || DEFAULT_USER_ID;
+
+  // 0. Fetch user settings for quota policy and credentials
+  let user: any = null;
+  try {
+    user = await database
+      .select({
+        id: users.id,
+        mypUsername: users.mypUsername,
+        watchlistPolicyHard: users.watchlistPolicyHard,
+        watchlistPolicyShared: users.watchlistPolicyShared,
+        watchlistPolicyStaples: users.watchlistPolicyStaples,
+        mypPasswordEncrypted: users.mypPasswordEncrypted,
+      })
+      .from(users)
+      .where(eq(users.id, effectiveUserId))
+      .get();
+  } catch {
+    // Fallback if columns not available
+  }
+
+  const activePolicy: WatchlistQuotaPolicy = getEffectiveQuotaPolicy(user);
+
+  let userWatchlistRows: any[] = [];
+  try {
+    userWatchlistRows = await database
+      .select()
+      .from(mypWatchlist)
+      .where(eq(mypWatchlist.userId, effectiveUserId));
+  } catch {
+    // Fallback
+  }
 
   // 1. Fetch all decks for user
   const userDecks = await database
@@ -460,12 +519,33 @@ export async function calculateAggregatedShortages(
     .where(eq(decks.userId, effectiveUserId));
 
   if (!userDecks || userDecks.length === 0) {
+    let pendingAdds = 0;
+    let pendingUpdates = 0;
+    let pendingRemoves = 0;
+    let watchingCount = 0;
+    let ignoredCount = 0;
+    for (const w of userWatchlistRows) {
+      if (w.status === "pending_add") pendingAdds++;
+      else if (w.status === "pending_update") pendingUpdates++;
+      else if (w.status === "pending_remove") pendingRemoves++;
+      else if (w.status === "watching") watchingCount++;
+      else if (w.status === "ignored") ignoredCount++;
+    }
+
     return {
       summary: {
         totalShortageCopies: 0,
         totalPeakShortageCopies: 0,
         uniqueShortageCards: 0,
         deckCount: 0,
+        activePolicy,
+        pendingAdds,
+        pendingUpdates,
+        pendingRemoves,
+        watchingCount,
+        ignoredCount,
+        hasSavedMypCredentials: Boolean(user?.mypPasswordEncrypted),
+        mypUsername: user?.mypUsername || null,
       },
       cards: [],
     };
@@ -664,8 +744,23 @@ export async function calculateAggregatedShortages(
         ? evaluatePriceFairness(lowestPriceBrl, lowestPriceTcgNum, lowestPriceTcgStr)
         : null;
 
-    // Only include cards with a shortage
-    if (concurrentMissing > 0 || peakMissing > 0) {
+    const policyQuota = computeQuotaForCard(totalDemand, peakDemand, activePolicy);
+    const policyMissing = Math.max(0, policyQuota - totalOwned);
+
+    const cardWatchlistItems: WatchlistSummaryItem[] = userWatchlistRows
+      .filter((w: any) => w.cardSlug === slug)
+      .map((w: any) => ({
+        id: w.id,
+        editionSlug: w.editionSlug,
+        collectorNumber: w.collectorNumber,
+        status: w.status,
+        targetQuantity: w.targetQuantity,
+        targetPriceBrl: w.targetPriceBrl,
+        mypProductUrl: w.mypProductUrl,
+      }));
+
+    // Only include cards with a shortage under any policy or active watchlist
+    if (concurrentMissing > 0 || peakMissing > 0 || policyMissing > 0 || cardWatchlistItems.length > 0) {
       shortageCards.push({
         cardSlug: slug,
         cardName,
@@ -683,6 +778,9 @@ export async function calculateAggregatedShortages(
         sharedOwned,
         peakMissing,
         concurrentMissing,
+        quota: policyQuota,
+        missing: policyMissing,
+        watchlistItems: cardWatchlistItems,
         mypAvailableCopies: mypAvailableCopies > 0 ? mypAvailableCopies : undefined,
         marketAvailableCopies: marketAvailableCopies > 0 ? marketAvailableCopies : undefined,
         marketLowestPriceBrl: lowestPriceBrl === Infinity ? undefined : lowestPriceBrl,
@@ -708,12 +806,33 @@ export async function calculateAggregatedShortages(
   const totalShortageCopies = shortageCards.reduce((sum, c) => sum + c.concurrentMissing, 0);
   const totalPeakShortageCopies = shortageCards.reduce((sum, c) => sum + c.peakMissing, 0);
 
+  let pendingAdds = 0;
+  let pendingUpdates = 0;
+  let pendingRemoves = 0;
+  let watchingCount = 0;
+  let ignoredCount = 0;
+  for (const w of userWatchlistRows) {
+    if (w.status === "pending_add") pendingAdds++;
+    else if (w.status === "pending_update") pendingUpdates++;
+    else if (w.status === "pending_remove") pendingRemoves++;
+    else if (w.status === "watching") watchingCount++;
+    else if (w.status === "ignored") ignoredCount++;
+  }
+
   return {
     summary: {
       totalShortageCopies,
       totalPeakShortageCopies,
       uniqueShortageCards: shortageCards.length,
       deckCount: userDecks.length,
+      activePolicy,
+      pendingAdds,
+      pendingUpdates,
+      pendingRemoves,
+      watchingCount,
+      ignoredCount,
+      hasSavedMypCredentials: Boolean(user?.mypPasswordEncrypted),
+      mypUsername: user?.mypUsername || null,
     },
     cards: shortageCards,
   };

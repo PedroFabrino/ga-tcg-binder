@@ -7,7 +7,9 @@ import {
   enrichMarketplaceTcgPrices,
 } from "./marketplace";
 import { syncMetaArchetypes } from "./meta";
-import { eq, isNotNull } from "drizzle-orm";
+import { reconcileUserWatchlist, fetchPublicQueroList } from "./watchlist";
+import { executeAutomatedWatchlistSync } from "./watchlist-sync-runner";
+import { eq, isNotNull, and } from "drizzle-orm";
 
 export interface PipelineStageResult {
   stage: string;
@@ -175,6 +177,101 @@ export async function runFullSyncPipeline(
       stage: "Stage 2c: Deck Shortages TCG Price Enrichment",
       status: "failed",
       durationMs: Date.now() - stage2cStart,
+      error: err.message,
+    });
+  }
+
+  // Stage 2d: Watchlist Ledger Reconciliation
+  const stage2dStart = Date.now();
+  try {
+    let usersToReconcile: any[] = [];
+    if (options.targetUserId) {
+      usersToReconcile = await database
+        .select()
+        .from(users)
+        .where(eq(users.id, options.targetUserId));
+    } else {
+      usersToReconcile = await database
+        .select()
+        .from(users)
+        .where(isNotNull(users.mypUsername));
+    }
+
+    const reconcileResults: any[] = [];
+    for (const u of usersToReconcile) {
+      if (u.mypUsername) {
+        try {
+          const rec = await reconcileUserWatchlist(u.id, {
+            database,
+            fetchQuero: async (username) => {
+              return fetchPublicQueroList(username, customFetch);
+            },
+          });
+          reconcileResults.push(rec);
+        } catch (rErr: any) {
+          reconcileResults.push({ userId: u.id, error: rErr.message });
+        }
+      }
+    }
+
+    stages.push({
+      stage: "Stage 2d: Watchlist Ledger Reconciliation",
+      status: "success",
+      durationMs: Date.now() - stage2dStart,
+      details: {
+        usersReconciled: reconcileResults.length,
+        results: reconcileResults,
+      },
+    });
+  } catch (err: any) {
+    stages.push({
+      stage: "Stage 2d: Watchlist Ledger Reconciliation",
+      status: "failed",
+      durationMs: Date.now() - stage2dStart,
+      error: err.message,
+    });
+  }
+
+  // Stage 2e: Automated Watchlist Mutation Execution
+  const stage2eStart = Date.now();
+  try {
+    let usersToMutate: any[] = [];
+    if (options.targetUserId) {
+      usersToMutate = await database
+        .select()
+        .from(users)
+        .where(and(eq(users.id, options.targetUserId), isNotNull(users.mypPasswordEncrypted)));
+    } else {
+      usersToMutate = await database
+        .select()
+        .from(users)
+        .where(isNotNull(users.mypPasswordEncrypted));
+    }
+
+    const mutationResults: any[] = [];
+    for (const u of usersToMutate) {
+      try {
+        const mRes = await executeAutomatedWatchlistSync(u.id, { database });
+        mutationResults.push({ userId: u.id, ...mRes });
+      } catch (mErr: any) {
+        mutationResults.push({ userId: u.id, error: mErr.message });
+      }
+    }
+
+    stages.push({
+      stage: "Stage 2e: Automated Watchlist Mutation Execution",
+      status: "success",
+      durationMs: Date.now() - stage2eStart,
+      details: {
+        usersProcessed: mutationResults.length,
+        results: mutationResults,
+      },
+    });
+  } catch (err: any) {
+    stages.push({
+      stage: "Stage 2e: Automated Watchlist Mutation Execution",
+      status: "failed",
+      durationMs: Date.now() - stage2eStart,
       error: err.message,
     });
   }

@@ -28,17 +28,17 @@ _Avoid_: Cloned card, virtual copy
 An Owned Copy strictly reserved for a single Deck, preventing any other Deck from satisfying its card requirements with that copy.
 _Avoid_: Locked card, exclusive card
 
-**Shortage**:
+**Shortage** (_pt-BR_: **Cartas Necessárias**):
 The quantity deficit when the number of copies required by one or more Decks exceeds available Owned Copies.
-_Avoid_: Missing card, out of stock
+_Avoid_: Missing card, out of stock, falta
 
-**Hard Shortage**:
+**Hard Shortage** (_pt-BR_: **Compra Necessária** / **Sem Cópia Suficiente**):
 A high-priority single-deck Shortage where the Collector does not own enough copies in their Binder to sleeve even one individual Deck (`peakMissing > 0`).
-_Avoid_: Peak deficit, unplayable gap
+_Avoid_: Peak deficit, unplayable gap, falta crítica
 
-**Shared Shortage**:
+**Shared Shortage** (_pt-BR_: **Revezamento entre Decks**):
 A secondary multi-deck Shortage where every individual Deck has enough copies if shared, but total concurrent demand across multiple Decks exceeds Owned Copies (`concurrentMissing > 0` with `peakMissing = 0`).
-_Avoid_: Contention deficit, swap shortage
+_Avoid_: Contention deficit, swap shortage, falta compartilhada
 
 **Population**:
 The total number of circulating copies produced for a given Printing as recorded by the publisher API.
@@ -153,3 +153,40 @@ _Avoid_: Expensive card, bad deal, markup tier
 **Fair Price**:
 A Market Listing whose asking price is between 1.0x and 1.2x (up to 20% higher than) the Preço TCG Player baseline, or below baseline (bargain).
 _Avoid_: Normal price, cheap listing
+
+**Market Vendor**:
+An external seller or store offering one or more Market Listings, used to group Buyable Shortages into multi-card packages that consolidate shipping costs.
+_Avoid_: Merchant, third-party shop, dealer
+
+**Quota**:
+The target copy count of a Card that a Collector aims to hold in their active Binder, governed by their configured shortage policy (Hard Shortage, Shared Shortage, or Staple Deficit).
+_Avoid_: Target count, max copies, cap
+
+**Standard Playable Printing**:
+A base non-foil Printing of a Card (Common through Ultra Rare, excluding special treatments such as Collector Rarity, Curio, Full Art, or Foil), eligible for automated gameplay shortage watching.
+_Avoid_: Normal version, base card
+
+**Collector Printing**:
+A foil, Collector Super Rare (CSR), Curio (CUR), Full Art, or promotional Printing of a Card sought for aesthetic or collectible value rather than standard deck completion, and excluded from automated watchlist mutations.
+_Avoid_: Bling, high-rarity version, chase card
+
+**Watchlist Entry**:
+A Standard Playable Printing of a Card registered on the Collector's external marketplace wantlist to monitor stock and seller cart matches until its Card's Quota is satisfied in the Binder.
+_Avoid_: Favorite item, wishlist row, tracked product
+
+**Watchlist Ledger**:
+The managed set of Watchlist Entries created and tracked by the system, isolating automated shortage additions and quota-fulfilled removals of Standard Playable Printings from Collector Printings or items the Collector added manually on the marketplace.
+_Avoid_: Sync queue, wantlist cache
+
+**Game Nomenclature**:
+Official Grand Archive TCG gameplay terms—including Card names, Elements (`Norm`, `Fire`, `Water`, `Wind`, `Tera`, `Crux`, `Umbra`, `Luxem`, `Exalted`, `Astra`, `Exia`, `Arcane`, `Neos`), Rarities (`Common`, `Uncommon`, `Rare`, `Super Rare`, `Ultra Rare`, `Collector`), Deck zones (`Main Deck`, `Material Deck`, `Sideboard`), and Finishes (`Foil`, `Normal`)—that remain in their canonical English form across all application locales (`en`, `pt-BR`).
+_Avoid_: Translated element names, translated rarity tiers, translated deck zones
+
+
+**Repository**:
+A module in `src/db/repositories/` that owns all database queries for one aggregate; the only layer allowed to touch Drizzle/libSQL.
+_Avoid_: DAO, data layer, db helper
+
+**Service**:
+A module in `src/services/` holding domain logic and orchestration, calling Repositories and never the database directly.
+_Avoid_: Manager, util

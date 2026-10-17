@@ -185,4 +185,23 @@ CREATE TABLE IF NOT EXISTS `myp_market_cards` (
 	FOREIGN KEY (`card_slug`) REFERENCES `cards`(`slug`) ON UPDATE no action ON DELETE set null,
 	FOREIGN KEY (`edition_id`) REFERENCES `card_editions`(`id`) ON UPDATE no action ON DELETE set null
 );
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `myp_watchlist` (
+	`id` text PRIMARY KEY NOT NULL,
+	`user_id` text NOT NULL,
+	`card_slug` text NOT NULL,
+	`card_name` text NOT NULL,
+	`edition_slug` text NOT NULL,
+	`collector_number` text NOT NULL,
+	`myp_item_id` text,
+	`myp_product_url` text,
+	`target_quantity` integer DEFAULT 1 NOT NULL,
+	`target_price_brl` real DEFAULT 1.0 NOT NULL,
+	`status` text DEFAULT 'pending_add' NOT NULL,
+	`last_error` text,
+	`updated_at` integer DEFAULT (strftime('%s', 'now')),
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS `myp_watchlist_user_printing_idx` ON `myp_watchlist` (`user_id`,`edition_slug`,`collector_number`);
 

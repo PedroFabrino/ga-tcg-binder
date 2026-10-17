@@ -12,6 +12,11 @@ export const users = sqliteTable("users", {
   friendCode: text("friend_code").unique().notNull(),
   lowPopThreshold: integer("low_pop_threshold").notNull().default(1000),
   mypUsername: text("myp_username"),
+  watchlistPolicyHard: integer("watchlist_policy_hard", { mode: "boolean" }).notNull().default(true),
+  watchlistPolicyShared: integer("watchlist_policy_shared", { mode: "boolean" }).notNull().default(false),
+  watchlistPolicyStaples: integer("watchlist_policy_staples", { mode: "boolean" }).notNull().default(false),
+  mypLogin: text("myp_login"),
+  mypPasswordEncrypted: text("myp_password_encrypted"),
   createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
 
@@ -203,4 +208,32 @@ export const mypMarketCards = sqliteTable("myp_market_cards", {
   vendorUrl: text("vendor_url"),
   updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
+
+// ---------------------------------------------------------------------------
+// Managed MyPCards Watchlist Ledger
+// ---------------------------------------------------------------------------
+export type WatchlistStatus =
+  | "watching"
+  | "pending_add"
+  | "pending_update"
+  | "pending_remove"
+  | "ignored";
+
+export const mypWatchlist = sqliteTable("myp_watchlist", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  cardSlug: text("card_slug").notNull(),
+  cardName: text("card_name").notNull(),
+  editionSlug: text("edition_slug").notNull(),
+  collectorNumber: text("collector_number").notNull(),
+  mypItemId: text("myp_item_id"),
+  mypProductUrl: text("myp_product_url"),
+  targetQuantity: integer("target_quantity").notNull().default(1),
+  targetPriceBrl: real("target_price_brl").notNull().default(1.00),
+  status: text("status").notNull().default("pending_add"), // 'watching' | 'pending_add' | 'pending_update' | 'pending_remove' | 'ignored'
+  lastError: text("last_error"),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+}, (table) => ({
+  userPrintingIdx: uniqueIndex("myp_watchlist_user_printing_idx").on(table.userId, table.editionSlug, table.collectorNumber),
+}));
 
