@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Grand Archive TCG - MyP Watchlist Auto-Sync & Fulfillment Bridge
 // @namespace    https://github.com/PedroFabrino/ga-tcg-binder
-// @version      1.2.0
+// @version      1.3.0
 // @description  Auditable bridge for Grand Archive TCG: syncs deck shortages with your MyPCards.com Quero list, and provides an on-page fulfillment pick list & buyer pack assistant for pending orders on /vendas.
 // @author       Grand Archive TCG Collector
 // @match        https://mypcards.com/*
@@ -331,10 +331,13 @@
 
   function initVendasFulfillment() {
     const tables = Array.from(document.querySelectorAll("table"));
-    const table =
-      tables.find((t) => t.querySelector('a[href*="/pedido/"]') || /aguard\.?\s*envio|separa/i.test(t.textContent || "")) ||
-      document.querySelector("table.table-vendas, table.table, table");
-    if (!table) return;
+    if (!tables.length) return;
+
+    // Prefer inserting the control bar right above the "Aguard. envio" table (or "Em separação")
+    const targetTable =
+      tables.find((t) => /aguard\.?\s*envio/i.test(t.textContent || "")) ||
+      tables.find((t) => /em\s*separa[çc][ãa]o/i.test(t.textContent || "")) ||
+      tables[0];
 
     // Inject Floating Controls Bar
     const controlBar = document.createElement("div");
@@ -386,20 +389,29 @@
       </div>
     `;
 
-    table.parentNode.insertBefore(controlBar, table);
+    targetTable.parentNode.insertBefore(controlBar, targetTable);
 
-    // Inject checkboxes into rows
-    const rows = table.querySelectorAll("tbody tr, tr");
-    let totalEligible = 0;
+    // Inject checkboxes into all eligible rows across ALL tables on the page
+    const rows = document.querySelectorAll("table tbody tr, table tr");
+    const seenOrderIds = new Set();
 
     rows.forEach((tr) => {
-      const orderLink = tr.querySelector('a[href*="/pedido/"]');
-      const orderMatch = (tr.textContent || "").match(/#(\d+)/);
-      const orderId = orderLink
-        ? (orderLink.getAttribute("href") || "").match(/\/pedido\/(\d+)/)?.[1]
-        : orderMatch?.[1];
+      if (tr.querySelector("th")) return; // Skip header rows
 
-      if (!orderId) return;
+      const firstTd = tr.querySelector("td");
+      if (!firstTd) return;
+
+      const orderLink = tr.querySelector('a[href*="/pedido/"], a[href*="pedido"]');
+      const hrefOrderMatch = orderLink
+        ? (orderLink.getAttribute("href") || "").match(/(\d{4,})/)
+        : null;
+      const firstCellMatch = (firstTd.textContent || "").trim().match(/^#?(\d{4,})\b/);
+      const rowHashMatch = (tr.textContent || "").match(/#(\d{4,})/);
+
+      const orderId =
+        hrefOrderMatch?.[1] || firstCellMatch?.[1] || rowHashMatch?.[1];
+
+      if (!orderId || seenOrderIds.has(orderId)) return;
 
       const trText = tr.textContent || "";
       const isAguard = /aguard\.?\s*envio/i.test(trText);
@@ -407,8 +419,7 @@
 
       if (!isAguard && !isSeparacao) return;
 
-      const firstTd = tr.querySelector("td");
-      if (!firstTd) return;
+      seenOrderIds.add(orderId);
 
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
@@ -420,8 +431,6 @@
 
       checkbox.addEventListener("change", updateSelectedCount);
       firstTd.insertBefore(checkbox, firstTd.firstChild);
-
-      if (isAguard) totalEligible++;
     });
 
     const toggleSeparacao = controlBar.querySelector("#ga-toggle-separacao");
@@ -430,7 +439,7 @@
     const btnSeparar = controlBar.querySelector("#ga-btn-separar");
 
     function updateSelectedCount() {
-      const checkedBoxes = table.querySelectorAll(".ga-order-checkbox:checked");
+      const checkedBoxes = document.querySelectorAll(".ga-order-checkbox:checked");
       const count = checkedBoxes.length;
       countBadge.innerText = String(count);
       summaryText.innerText = `${count} pedido(s) selecionado(s) para separação`;
@@ -439,7 +448,7 @@
 
     toggleSeparacao.addEventListener("change", () => {
       const include = toggleSeparacao.checked;
-      const separacaoBoxes = table.querySelectorAll('.ga-order-checkbox[data-status="separacao"]');
+      const separacaoBoxes = document.querySelectorAll('.ga-order-checkbox[data-status="separacao"]');
       separacaoBoxes.forEach((cb) => {
         cb.checked = include;
       });
@@ -449,7 +458,7 @@
     updateSelectedCount();
 
     btnSeparar.addEventListener("click", async () => {
-      const checkedBoxes = Array.from(table.querySelectorAll(".ga-order-checkbox:checked"));
+      const checkedBoxes = Array.from(document.querySelectorAll(".ga-order-checkbox:checked"));
       if (!checkedBoxes.length) {
         alert("Selecione ao menos um pedido para separar.");
         return;
