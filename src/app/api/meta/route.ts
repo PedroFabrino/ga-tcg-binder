@@ -16,8 +16,14 @@ export async function GET(req: NextRequest) {
     const archetypes = await getMetaArchetypes(db, userId);
 
     // Recommended archetypes: sorted by completion percentage descending, then winRate
-    const recommendedArchetypes = [...archetypes]
-      .filter((a) => (a.completionPct || 0) > 0)
+    // Must have a meaningful completion threshold (at least 40% owned to be "Recommended")
+    const meaningfulArchetypes = [...archetypes].filter((a) => (a.completionPct || 0) >= 40);
+    const candidatePool =
+      meaningfulArchetypes.length > 0
+        ? meaningfulArchetypes
+        : [...archetypes].filter((a) => (a.completionPct || 0) >= 20);
+
+    const recommendedArchetypes = candidatePool
       .sort((a, b) => {
         if ((b.completionPct || 0) !== (a.completionPct || 0)) {
           return (b.completionPct || 0) - (a.completionPct || 0);

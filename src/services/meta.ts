@@ -197,15 +197,21 @@ export function parseMetaTableHtml(html: string): ParsedMetaArchetypeRow[] {
     const rowHtml = match[1];
     if (!rowHtml.includes("/meta/archetypes/")) continue;
 
-    const nameMatch = rowHtml.match(/<a[^>]*href=["'](\/meta\/archetypes\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/i);
+    const nameMatch =
+      rowHtml.match(/<a[^>]*class=["'][^"']*arch-name[^"']*["'][^>]*href=["'](\/meta\/archetypes\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/i) ||
+      rowHtml.match(/<a[^>]*href=["'](\/meta\/archetypes\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/i);
     if (!nameMatch) continue;
 
     const detailUrl = nameMatch[1];
-    const name = nameMatch[2].replace(/<[^>]+>/g, "").trim();
+    let name = nameMatch[2].replace(/<[^>]+>/g, "").trim();
+    if (!name) {
+      name = decodeURIComponent(detailUrl.replace(/^\/meta\/archetypes\//, "").replace(/\+/g, " "));
+    }
 
-    // Extract tier (Tier 1, Tier 2, Tier 3, or badge)
+    // Extract tier (Tier 1, Tier 2, Tier 3, or pill/badge)
     let tier = "Tier 2";
     const tierMatch =
+      rowHtml.match(/class=["'][^"']*tier-pill[^"']*["'][^>]*>([\s\S]*?)<\/span>/i) ||
       rowHtml.match(/(?:tier|meta-tier)[^>]*>([\s\S]*?)<\/(?:span|div|td)>/i) ||
       rowHtml.match(/\b(Tier\s*[1-3]|S|A|B|C)\b/i);
     if (tierMatch) {
@@ -236,24 +242,38 @@ export function parseMetaTableHtml(html: string): ParsedMetaArchetypeRow[] {
 
     // Extract share rate
     let shareRate = "0%";
-    const shareMatch = rowHtml.match(/(\d+(?:\.\d+)?)\s*%/);
+    const shareMatch =
+      rowHtml.match(/class=["'][^"']*share-num[^"']*["'][^>]*>([\s\S]*?)<\/div>/i) ||
+      rowHtml.match(/(\d+(?:\.\d+)?)\s*%/);
     if (shareMatch) {
-      shareRate = `${shareMatch[1]}%`;
+      shareRate = shareMatch[1].replace(/<[^>]+>/g, "").trim();
+      if (!shareRate.endsWith("%")) shareRate += "%";
     }
 
-    // Extract win rate (second percentage if available)
+    // Extract win rate: look for class="wr ..." span, or percentage
     let winRate = "50%";
-    const allPercentages = Array.from(rowHtml.matchAll(/(\d+(?:\.\d+)?)\s*%/g));
-    if (allPercentages.length >= 2) {
-      winRate = `${allPercentages[1][1]}%`;
+    const wrMatch = rowHtml.match(/class=["'][^"']*wr\b[^"']*["'][^>]*>([\s\S]*?)<\/span>/i);
+    if (wrMatch) {
+      winRate = wrMatch[1].replace(/<[^>]+>/g, "").trim();
+    } else {
+      const allPercentages = Array.from(rowHtml.matchAll(/(\d+(?:\.\d+)?)\s*%/g));
+      if (allPercentages.length >= 2) {
+        winRate = `${allPercentages[1][1]}%`;
+      }
     }
 
-    // Extract deck count
+    // Extract deck count from data-decks or text
     let deckCount = 0;
-    const countMatch = rowHtml.match(/class=["'][^"']*deck-count[^"']*["'][^>]*>(\d+)<\//i) ||
-      rowHtml.match(/(\d+)\s*decks?/i);
-    if (countMatch) {
-      deckCount = parseInt(countMatch[1], 10) || 0;
+    const dataDecks = match[0].match(/data-decks=["'](\d+)["']/i);
+    if (dataDecks) {
+      deckCount = parseInt(dataDecks[1], 10) || 0;
+    } else {
+      const countMatch =
+        rowHtml.match(/class=["'][^"']*deck-count[^"']*["'][^>]*>(\d+)<\//i) ||
+        rowHtml.match(/(\d+)\s*decks?/i);
+      if (countMatch) {
+        deckCount = parseInt(countMatch[1], 10) || 0;
+      }
     }
 
     // Extract signature card image URL
