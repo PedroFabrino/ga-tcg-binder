@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { ExternalLink, Check, Camera } from "lucide-react";
 import { FulfillmentReport } from "@ga/contracts";
-import { ElementBadge, FoilBadge } from "@/components/common";
+import { ElementBadge, FoilBadge, CardArt } from "@/components/common";
 import { CardPreviewTrigger } from "@/components/CardHoverPreview";
 import { useTranslation } from "@/lib/i18n";
 import { useToast } from "@/components/ToastProvider";
@@ -180,7 +180,13 @@ export default function FulfillmentBuyerPacks({ report }: FulfillmentBuyerPacksP
                                 element={item.element}
                                 slug={item.cardSlug || undefined}
                                 imageUrl={item.imageUrl || undefined}
+                                className="flex items-center gap-2.5 min-w-0"
                               >
+                                <CardArt
+                                  src={item.imageUrl}
+                                  alt={item.cardName}
+                                  className="h-11 w-8 shrink-0 rounded border border-slate-700/80 object-cover shadow-sm"
+                                />
                                 <span
                                   className={`truncate text-xs font-medium ${
                                     isChecked ? "line-through text-slate-400" : "text-slate-200"

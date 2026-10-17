@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         Grand Archive TCG - MyP Watchlist Auto-Sync & Fulfillment Bridge
 // @namespace    https://github.com/PedroFabrino/ga-tcg-binder
-// @version      1.5.0
+// @version      1.6.0
 // @description  Auditable bridge for Grand Archive TCG: syncs deck shortages with your MyPCards.com Quero list, and provides an on-page fulfillment pick list & buyer pack assistant for pending orders on /vendas.
 // @author       Grand Archive TCG Collector
 // @match        https://mypcards.com/*
 // @match        https://www.mypcards.com/*
-// @grant        none
+// @grant        window.close
 // ==/UserScript==
 
 (function () {
@@ -805,6 +805,19 @@
       }
 
       const report = await enrichResp.json();
+
+      if (window.opener && !window.opener.closed) {
+        try {
+          window.opener.postMessage({ type: "GA_FULFILLMENT_BATCH", report }, "*");
+          progressLabel.innerText = "✅ Separação concluída! Retornando ao GA Binder...";
+          await sleep(250);
+          window.opener.focus();
+          window.close();
+        } catch (err) {
+          console.warn("[GA Fulfillment] Could not postMessage to opener:", err);
+        }
+      }
+
       renderFulfillmentReportInModal(container, report, appUrl);
     } catch (e) {
       console.error("[GA Fulfillment] Erro:", e);
@@ -902,11 +915,15 @@
                     ? `<span style="background: #d97706; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; margin-left: 6px;">FOIL</span>`
                     : "";
                   const col = entry.collectorNumber ? ` #${entry.collectorNumber}` : "";
+                  const thumb = entry.imageUrl
+                    ? `<img src="${entry.imageUrl}" alt="${entry.cardName}" style="width: 34px; height: 48px; object-fit: cover; border-radius: 4px; border: 1px solid #475569; flex-shrink: 0;" />`
+                    : `<div style="width: 34px; height: 48px; border-radius: 4px; border: 1px solid #475569; background: #0f172a; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #64748b; flex-shrink: 0;">${(entry.cardName || "GA").slice(0, 2).toUpperCase()}</div>`;
 
                   return `
                     <label style="display: flex; align-items: center; justify-content: space-between; font-size: 13px; cursor: pointer; padding: 6px; border-radius: 6px; background: rgba(15, 23, 42, 0.4);">
-                      <div style="display: flex; align-items: center; gap: 8px;">
+                      <div style="display: flex; align-items: center; gap: 10px;">
                         <input type="checkbox" data-check-key="${checkKey}" class="ga-pick-item-check" ${isChecked ? "checked" : ""} style="cursor: pointer; transform: scale(1.1);">
+                        ${thumb}
                         <span style="${isChecked ? "text-decoration: line-through; opacity: 0.6;" : "font-weight: 500;"}">
                           ${entry.cardName} <span style="color: #94a3b8; font-size: 11px;">[${entry.setPrefix}${col} · ${entry.condition}]</span>${foilBadge}
                         </span>
@@ -965,11 +982,15 @@
                           const itemCheckKey = `ga_item_${sub.orderId}_${i.itemKey}`;
                           const isItemChecked = localStorage.getItem(itemCheckKey) === "1";
                           const foil = i.isFoil ? `<span style="background: #d97706; color: #fff; font-size: 9px; font-weight: 700; padding: 1px 4px; border-radius: 3px; margin-left: 4px;">FOIL</span>` : "";
+                          const thumb = i.imageUrl
+                            ? `<img src="${i.imageUrl}" alt="${i.cardName}" style="width: 30px; height: 42px; object-fit: cover; border-radius: 4px; border: 1px solid #475569; flex-shrink: 0;" />`
+                            : `<div style="width: 30px; height: 42px; border-radius: 4px; border: 1px solid #475569; background: #0f172a; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #64748b; flex-shrink: 0;">${(i.cardName || "GA").slice(0, 2).toUpperCase()}</div>`;
 
                           return `
                             <label style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; cursor: pointer; padding: 4px 6px; border-radius: 4px; background: rgba(30, 41, 59, 0.5);">
-                              <div style="display: flex; align-items: center; gap: 6px;">
+                              <div style="display: flex; align-items: center; gap: 8px;">
                                 <input type="checkbox" data-item-check-key="${itemCheckKey}" class="ga-sub-item-check" ${isItemChecked ? "checked" : ""} style="cursor: pointer;">
+                                ${thumb}
                                 <span style="${isItemChecked ? "text-decoration: line-through; opacity: 0.6;" : ""}">
                                   ${i.cardName} <span style="color: #94a3b8; font-size: 10px;">[${i.setPrefix} #${i.collectorNumber || ""} · ${i.condition}]</span>${foil}
                                 </span>
@@ -1004,7 +1025,7 @@
               📋 Copiar Texto
             </button>
             <button id="ga-btn-open-binder" style="background: #059669; color: #fff; border: none; border-radius: 8px; padding: 8px 12px; font-size: 12px; font-weight: 600; cursor: pointer;">
-              🔗 Abrir no GA Binder
+              🔗 Voltar ao GA Binder (Fechar Aba)
             </button>
           </div>
         </div>
@@ -1032,11 +1053,21 @@
         });
       });
 
-      // Wire open in GA Binder
+      // Wire return to GA Binder & close current tab
       modalBody.querySelector("#ga-btn-open-binder").addEventListener("click", () => {
+        if (window.opener && !window.opener.closed) {
+          try {
+            window.opener.postMessage({ type: "GA_FULFILLMENT_BATCH", report }, "*");
+            window.opener.focus();
+            window.close();
+            return;
+          } catch (e) {
+            // fallback below
+          }
+        }
         const encoded = encodeURIComponent(JSON.stringify(report));
         const url = `${appUrl}/collection?tab=myp-store&fulfillment=1#ga_fulfillment=${encoded}`;
-        window.open(url, "_blank");
+        window.location.href = url;
       });
 
       // Wire persistent checkboxes

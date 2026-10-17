@@ -79,6 +79,27 @@ export default function FulfillmentView({ mypUsername }: FulfillmentViewProps = 
 
   useEffect(() => {
     loadBatch();
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === "GA_FULFILLMENT_BATCH" && event.data.report) {
+        const incoming: FulfillmentReport = event.data.report;
+        setReport(incoming);
+        localStorage.setItem("ga_fulfillment_batch", JSON.stringify(incoming));
+      }
+    };
+
+    const handleHashOrStorage = () => {
+      loadBatch();
+    };
+
+    window.addEventListener("message", handleMessage);
+    window.addEventListener("hashchange", handleHashOrStorage);
+    window.addEventListener("storage", handleHashOrStorage);
+    return () => {
+      window.removeEventListener("message", handleMessage);
+      window.removeEventListener("hashchange", handleHashOrStorage);
+      window.removeEventListener("storage", handleHashOrStorage);
+    };
   }, [loadBatch]);
 
   const handleCopyText = async () => {

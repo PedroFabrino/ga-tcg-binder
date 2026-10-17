@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Check } from "lucide-react";
 import { FulfillmentReport, CANONICAL_ELEMENT_ORDER } from "@ga/contracts";
-import { ElementBadge, FoilBadge } from "@/components/common";
+import { ElementBadge, FoilBadge, CardArt } from "@/components/common";
 import { CardPreviewTrigger } from "@/components/CardHoverPreview";
 import { useTranslation } from "@/lib/i18n";
 
@@ -95,7 +95,13 @@ export default function FulfillmentPickList({ report }: FulfillmentPickListProps
                         element={entry.element}
                         slug={entry.cardSlug || undefined}
                         imageUrl={entry.imageUrl || undefined}
+                        className="flex items-center gap-3 min-w-0"
                       >
+                        <CardArt
+                          src={entry.imageUrl}
+                          alt={entry.cardName}
+                          className="h-12 w-9 shrink-0 rounded border border-slate-700/80 object-cover shadow-sm"
+                        />
                         <span
                           className={`truncate text-sm font-medium ${
                             isChecked ? "line-through text-slate-400" : "text-slate-100"
