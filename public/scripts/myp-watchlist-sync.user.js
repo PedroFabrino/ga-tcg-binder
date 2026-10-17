@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Grand Archive TCG - MyP Watchlist Auto-Sync & Fulfillment Bridge
 // @namespace    https://github.com/PedroFabrino/ga-tcg-binder
-// @version      1.4.0
+// @version      1.5.0
 // @description  Auditable bridge for Grand Archive TCG: syncs deck shortages with your MyPCards.com Quero list, and provides an on-page fulfillment pick list & buyer pack assistant for pending orders on /vendas.
 // @author       Grand Archive TCG Collector
 // @match        https://mypcards.com/*
@@ -510,8 +510,8 @@
   // Extract /pedido/<id> while strictly ignoring buyer PII
   async function fetchAndParseOrder(meta) {
     const { orderId, orderHref } = meta;
-    // Versioned cache key so empty v1.3.0 caches are bypassed
-    const cacheKey = `ga_order_v14_${orderId}`;
+    // Versioned cache key so earlier empty caches are bypassed
+    const cacheKey = `ga_order_v15_${orderId}`;
     const cached = sessionStorage.getItem(cacheKey);
     if (cached) {
       try {
@@ -553,10 +553,16 @@
 
     let buyerNick = meta.buyerNick || "Comprador";
     if (!buyerNick || buyerNick === "Comprador") {
-      const userLink = doc.querySelector('a[href*="/usuario/"]');
-      if (userLink && userLink.getAttribute("href")) {
-        const m = userLink.getAttribute("href").match(/\/usuario\/([^/?#]+)/);
-        if (m) buyerNick = decodeURIComponent(m[1].trim());
+      // On /pedido/<id>, Comprador box has "Nome e nick\nFull Name (Betinho3)"
+      const parenNickMatch = bodyText.match(/Nome\s+e\s+nick[\s\S]{1,120}?\(([^)]+)\)/i);
+      if (parenNickMatch) {
+        buyerNick = parenNickMatch[1].trim();
+      } else {
+        const userLink = doc.querySelector('a[href*="/usuario/"]');
+        if (userLink && userLink.getAttribute("href")) {
+          const m = userLink.getAttribute("href").match(/\/usuario\/([^/?#]+)/);
+          if (m) buyerNick = decodeURIComponent(m[1].trim());
+        }
       }
     }
 
@@ -568,129 +574,118 @@
       else if (/frete\s*fixo/i.test(bodyText)) shippingMethod = "Frete Fixo com rastreio";
     }
 
-    // Extract items from order detail page
+    // Extract items from the "Itens" section on /pedido/<id>
+    // Each item in the Itens panel displays:
+    // - Card title link: "Void's Cloak"
+    // - Subtitle: "Void's Cloak - Radiant Origins"
+    // - Code: "grandarchive_rdo_029" (or "pokemon_...")
+    // - Condition: "NM - Quase nova"
+    // - Quantity & Unit Price: "1 x R$ 7,00"
     const items = [];
-    const CandidateRows = Array.from(
-      doc.querySelectorAll("table tbody tr, table tr, .card-item, .produto-item, .pedido-item, .list-group-item")
-    );
-
+    const seenItemContainers = new Set();
     const IGNORE_HREFS = /\/(vendas|compras|pedido|usuario|login|logout|carrinho|contato|faq|site|ajuda)\b/i;
 
-    CandidateRows.forEach((tr) => {
-      if (tr.querySelector("th")) return;
-      const trText = (tr.textContent || "").replace(/\s+/g, " ").trim();
-      if (!trText) return;
+    // Strategy 1: Walk up from every element containing a "<qty> x R$ <price>" pattern or "<tcg>_<set>_<num>" code
+    const allElements = Array.from(doc.querySelectorAll("div, li, tr"));
+    const itemContainers = allElements.filter((el) => {
+      const txt = (el.textContent || "").replace(/\s+/g, " ").trim();
+      if (!txt || txt.length > 900) return false;
+      const hasQtyTimesPrice = /\b\d+\s*x\s*R\$\s*[\d.,]+/i.test(txt);
+      const hasTcgCode = /\b(grandarchive|pokemon|magic|yugioh|lorcana|onepiece|riftbound)_[a-z0-9_]+\b/i.test(txt);
+      const hasCondition = /\b(NM|SP|MP|HP|D)\s*-\s*/i.test(txt);
+      return hasQtyTimesPrice && (hasTcgCode || hasCondition || Boolean(el.querySelector("a[href]")));
+    });
 
-      // Must contain a price (R$) or quantity/condition indicator to be an order item row
-      const priceMatch = trText.match(/R\$\s*[\d.,]+/i);
-      const condMatch = trText.match(/\b(NM|SP|MP|HP|D|Near Mint|Slightly Played|Moderately Played)\b/i);
+    // Pick the innermost container per item so parent wrapper divs aren't double-counted
+    const leafItemContainers = itemContainers.filter(
+      (el) => !itemContainers.some((other) => other !== el && el.contains(other))
+    );
 
-      // Find the product link inside the row
-      const links = Array.from(tr.querySelectorAll("a[href]"));
-      const productLink = links.find((a) => {
+    leafItemContainers.forEach((container) => {
+      if (seenItemContainers.has(container)) return;
+      seenItemContainers.add(container);
+
+      const blockText = (container.textContent || "").replace(/\s+/g, " ").trim();
+
+      // 1. Find card title link
+      const links = Array.from(container.querySelectorAll("a[href]")).filter((a) => {
         const h = a.getAttribute("href") || "";
-        const txt = (a.textContent || "").trim();
-        if (!txt || txt.length < 2) return false;
-        if (IGNORE_HREFS.test(h)) return false;
-        if (/^(abrir|ver|detalhes|cancelar|enviar|rastreio)$/i.test(txt)) return false;
-        return (
-          /grandarchive|pokemon|magic|yugioh|onepiece|lorcana|riftbound|digimon|fab|produto|card/i.test(h) ||
-          Boolean(priceMatch)
-        );
+        const t = (a.textContent || "").trim();
+        return t.length >= 2 && !IGNORE_HREFS.test(h);
       });
+      const titleLink = links[0] || null;
+      const href = titleLink ? titleLink.getAttribute("href") || "" : "";
 
-      // Fallback: look for card heading or image alt if there is no anchor tag
-      const headingEl = tr.querySelector("h3, h4, h5, .card-name, .nome-produto, .produto-nome, strong");
-      const imgEl = tr.querySelector("img[alt], img[src]");
+      // 2. Extract mypCode (e.g. "grandarchive_rdo_029" or "pokemon_...")
+      const codeMatch = blockText.match(
+        /\b((?:grandarchive|pokemon|magic|yugioh|lorcana|onepiece|riftbound|digimon|fab)_[a-z0-9_]+)\b/i
+      );
+      let mypCode = codeMatch ? codeMatch[1].toLowerCase() : "";
 
-      if (!productLink && !(priceMatch && (headingEl || condMatch))) return;
-
-      const href = productLink ? productLink.getAttribute("href") || "" : "";
-      const imgSrc = imgEl ? imgEl.getAttribute("src") || "" : "";
-      const imgAlt = imgEl ? imgEl.getAttribute("alt") || "" : "";
-
-      let rawTitle = "";
-      if (productLink) {
-        rawTitle = (productLink.textContent || "").trim();
-      } else if (headingEl) {
-        rawTitle = (headingEl.textContent || "").trim();
-      } else if (imgAlt) {
-        rawTitle = imgAlt.split("|")[0].trim();
+      // 3. Extract rawTitle & rawSubtitle
+      let rawTitle = titleLink ? (titleLink.textContent || "").trim() : "";
+      if (!rawTitle) {
+        const img = container.querySelector("img[alt]");
+        if (img) rawTitle = (img.getAttribute("alt") || "").split("|")[0].trim();
+      }
+      if (!rawTitle && mypCode) {
+        rawTitle = mypCode;
       }
       if (!rawTitle) return;
 
-      // Clean trailing edition/parenthetical if embedded in title
-      const subEl = tr.querySelector(".subtitulo, .card-edicao, small, .text-muted, .edicao");
-      const rawSubtitle = subEl ? (subEl.textContent || "").trim() : undefined;
-
-      // Determine TCG & mypCode
-      let mypCode = "";
-      const combinedSource = `${href} ${imgSrc} ${imgAlt} ${rawTitle} ${rawSubtitle || ""} ${trText}`.toLowerCase();
-
-      // Check for explicit grandarchive_<set>_<num> code in href, imgSrc, or text
-      const explicitGaMatch = combinedSource.match(/grandarchive[_/-]([a-z0-9]{2,5})[_/-]([a-z0-9]{1,5})/i);
-      const setNumBracketMatch = (rawSubtitle || trText).match(/\b([A-Z0-9]{2,4})\s*[-·#]\s*#?(\d{1,4})\b/);
-
-      if (explicitGaMatch) {
-        mypCode = `grandarchive_${explicitGaMatch[1].toLowerCase()}_${explicitGaMatch[2].toLowerCase()}`;
-      } else if (
-        /pokemon|pokémon/i.test(combinedSource) &&
-        !/grand\s*archive|grandarchive/i.test(combinedSource)
-      ) {
-        mypCode = `pokemon_${rawTitle.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`;
-      } else if (
-        /\b(yugioh|yu-gi-oh|magic|lorcana|onepiece|one\s*piece|riftbound|digimon)\b/i.test(combinedSource) &&
-        !/grand\s*archive|grandarchive/i.test(combinedSource)
-      ) {
-        const otherTcg = combinedSource.match(/\b(yugioh|yu-gi-oh|magic|lorcana|onepiece|one\s*piece|riftbound|digimon)\b/i)[1]
-          .replace(/[^a-z0-9]/g, "")
-          .toLowerCase();
-        mypCode = `${otherTcg}_${rawTitle.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`;
-      } else if (setNumBracketMatch) {
-        mypCode = `grandarchive_${setNumBracketMatch[1].toLowerCase()}_${setNumBracketMatch[2].toLowerCase()}`;
+      // Subtitle like "Void's Cloak - Radiant Origins"
+      let rawSubtitle = rawTitle;
+      const subEl = container.querySelector("em, i, .subtitulo, .card-edicao, small, .text-muted");
+      if (subEl && (subEl.textContent || "").trim()) {
+        rawSubtitle = (subEl.textContent || "").trim();
       } else {
-        // Default to Grand Archive so the catalog enrichment repository can match by cardName / setPrefix
-        mypCode = `grandarchive_${rawTitle.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`;
+        const dashMatch = blockText.match(new RegExp(`${rawTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*-\\s*([A-Za-z0-9\\s']+)`));
+        if (dashMatch) {
+          rawSubtitle = `${rawTitle} - ${dashMatch[1].trim()}`;
+        }
       }
 
-      const isFoil = /\b(foil|curio|csr)\b/i.test(trText);
+      if (!mypCode) {
+        if (/pokemon|pokémon/i.test(blockText) && !/grand\s*archive|grandarchive/i.test(blockText)) {
+          mypCode = `pokemon_${rawTitle.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`;
+        } else {
+          mypCode = `grandarchive_${rawTitle.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`;
+        }
+      }
 
+      // 4. Condition (e.g. "NM - Quase nova")
       let condition = "NM";
+      const condMatch = blockText.match(/\b(NM|SP|MP|HP|D)\b/);
       if (condMatch) {
-        const c = condMatch[1].toUpperCase();
-        condition = c.startsWith("N") ? "NM" : c.startsWith("S") ? "SP" : c.startsWith("M") ? "MP" : c.startsWith("H") ? "HP" : c;
+        condition = condMatch[1].toUpperCase();
       }
 
+      // 5. Foil check
+      const isFoil = /\b(foil|curio|csr)\b/i.test(blockText);
+
+      // 6. Quantity & Unit Price (e.g. "1 x R$ 7,00")
+      let quantity = 1;
+      let unitPriceBrl = "R$ 0,00";
+      const qtyPriceMatch = blockText.match(/\b(\d+)\s*x\s*(R\$\s*[\d.,]+)/i);
+      if (qtyPriceMatch) {
+        quantity = parseInt(qtyPriceMatch[1], 10) || 1;
+        unitPriceBrl = qtyPriceMatch[2].trim();
+      } else {
+        const priceOnly = blockText.match(/R\$\s*[\d.,]+/i);
+        if (priceOnly) unitPriceBrl = priceOnly[0];
+      }
+
+      // 7. Language (from flag img or text)
       let language = "EN";
-      const langMatch = trText.match(/\b(EN|PT|JP|ING|POR|JAP)\b/i);
+      const langMatch = blockText.match(/\b(EN|PT|JP|ING|POR|JAP)\b/i);
       if (langMatch) {
         const l = langMatch[1].toUpperCase();
         language = l === "ING" ? "EN" : l === "POR" ? "PT" : l === "JAP" ? "JP" : l;
       }
 
-      let quantity = 1;
-      const qtySpan = tr.querySelector(".quantidade-num, .qtd, .qty");
-      if (qtySpan && /^\d+$/.test((qtySpan.textContent || "").trim())) {
-        quantity = parseInt((qtySpan.textContent || "").trim(), 10);
-      } else {
-        const cells = tr.querySelectorAll("td");
-        for (let c = 0; c < cells.length; c++) {
-          const t = (cells[c].textContent || "").trim().replace(/^x/i, "");
-          if (/^\d+$/.test(t)) {
-            const val = parseInt(t, 10);
-            if (val > 0 && val < 100 && String(val) !== orderId) {
-              quantity = val;
-              break;
-            }
-          }
-        }
-      }
-
-      const unitPriceBrl = priceMatch ? priceMatch[0] : "R$ 0,00";
-
       items.push({
         rawTitle: rawTitle.replace(/\s*\([^)]*\)/g, "").trim() || rawTitle,
-        rawSubtitle: rawSubtitle || rawTitle,
+        rawSubtitle,
         mypCode,
         productUrl: href.startsWith("http") ? href : href ? `https://mypcards.com${href}` : null,
         condition,
