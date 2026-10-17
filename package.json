@@ -13,7 +13,8 @@
     "db:push": "drizzle-kit push",
     "sync:catalog": "tsx scripts/sync-catalog.ts",
     "sync:hashes": "tsx scripts/sync-hashes.ts",
-    "sync:market": "tsx scripts/sync-market.ts"
+    "sync:market": "tsx scripts/sync-market.ts",
+    "sync:pipeline": "tsx scripts/sync-pipeline.ts"
   },
   "dependencies": {
     "@ga/contracts": "workspace:*",

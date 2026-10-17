@@ -35,7 +35,10 @@ const EMPTY_COPY: Record<View, { title: string; description: string }> = {
       ? "Use the Add Card button above, paste a list with the bulk importer, or scan cards with your phone."
       : "Use the Add Card button above, or paste a list with the bulk importer.",
   },
-  STAPLES: { title: "No multi-deck staples yet", description: "Cards used in two or more of your active decks will appear here." },
+  STAPLES: {
+    title: "No meta staples yet",
+    description: "Format meta staples from Grand Archive competitive tournaments and cards used across your active decks will appear here.",
+  },
   LOW_POP: { title: "No collector gems yet", description: "Printings at or below your low-population threshold will be highlighted here." },
   IDLE: { title: "No idle copies", description: "Copies not needed by any active deck show up here, ready to trade or lend." },
   MYP_STORE: {

@@ -12,7 +12,12 @@ import {
 } from "../db/schema";
 import { db } from "../db";
 import { DEFAULT_USER_ID } from "./seed";
-import { parseBrlPrice, calculateNetMarketStock } from "./marketplace";
+import {
+  parseBrlPrice,
+  calculateNetMarketStock,
+  evaluatePriceFairness,
+  type PriceFairnessEvaluation,
+} from "./marketplace";
 
 export interface MarketShortageAvailability {
   mypAvailableCopies?: number;
@@ -20,6 +25,9 @@ export interface MarketShortageAvailability {
   marketLowestPriceBrl?: number;
   marketLowestPriceStr?: string;
   marketProductUrl?: string | null;
+  marketTcgPrice?: string | null;
+  marketTcgPriceNumeric?: number | null;
+  marketPriceFairness?: PriceFairnessEvaluation | null;
 }
 
 export interface FriendIdleCard {
@@ -208,6 +216,8 @@ export async function calculateDeckShortage(
         quantity: mypMarketCards.quantity,
         price: mypMarketCards.price,
         priceNumeric: mypMarketCards.priceNumeric,
+        tcgPrice: mypMarketCards.tcgPrice,
+        tcgPriceNumeric: mypMarketCards.tcgPriceNumeric,
         mypProductUrl: mypMarketCards.mypProductUrl,
       })
       .from(mypMarketCards);
@@ -317,6 +327,8 @@ export async function calculateDeckShortage(
     let marketAvailableCopies = 0;
     let lowestPriceBrl = Infinity;
     let lowestPriceStr: string | undefined;
+    let lowestPriceTcgStr: string | null = null;
+    let lowestPriceTcgNum: number | null = null;
     let marketProductUrl: string | null = null;
 
     for (const mRow of matchingMarketRows) {
@@ -328,9 +340,19 @@ export async function calculateDeckShortage(
           lowestPriceBrl = priceNum;
           lowestPriceStr = mRow.price;
           marketProductUrl = mRow.mypProductUrl;
+          lowestPriceTcgStr = mRow.tcgPrice || null;
+          lowestPriceTcgNum =
+            mRow.tcgPriceNumeric !== null && mRow.tcgPriceNumeric !== undefined
+              ? Number(mRow.tcgPriceNumeric)
+              : null;
         }
       }
     }
+
+    const marketPriceFairness =
+      lowestPriceBrl !== Infinity
+        ? evaluatePriceFairness(lowestPriceBrl, lowestPriceTcgNum, lowestPriceTcgStr)
+        : null;
 
     items.push({
       cardSlug: slug,
@@ -350,6 +372,9 @@ export async function calculateDeckShortage(
       marketLowestPriceBrl: lowestPriceBrl === Infinity ? undefined : lowestPriceBrl,
       marketLowestPriceStr: lowestPriceStr,
       marketProductUrl,
+      marketTcgPrice: lowestPriceTcgStr,
+      marketTcgPriceNumeric: lowestPriceTcgNum,
+      marketPriceFairness,
     });
   }
 
@@ -500,6 +525,8 @@ export async function calculateAggregatedShortages(
         quantity: mypMarketCards.quantity,
         price: mypMarketCards.price,
         priceNumeric: mypMarketCards.priceNumeric,
+        tcgPrice: mypMarketCards.tcgPrice,
+        tcgPriceNumeric: mypMarketCards.tcgPriceNumeric,
         mypProductUrl: mypMarketCards.mypProductUrl,
       })
       .from(mypMarketCards);
@@ -594,6 +621,8 @@ export async function calculateAggregatedShortages(
     let marketAvailableCopies = 0;
     let lowestPriceBrl = Infinity;
     let lowestPriceStr: string | undefined;
+    let lowestPriceTcgStr: string | null = null;
+    let lowestPriceTcgNum: number | null = null;
     let marketProductUrl: string | null = null;
 
     for (const mRow of matchingMarketRows) {
@@ -605,9 +634,19 @@ export async function calculateAggregatedShortages(
           lowestPriceBrl = priceNum;
           lowestPriceStr = mRow.price;
           marketProductUrl = mRow.mypProductUrl;
+          lowestPriceTcgStr = mRow.tcgPrice || null;
+          lowestPriceTcgNum =
+            mRow.tcgPriceNumeric !== null && mRow.tcgPriceNumeric !== undefined
+              ? Number(mRow.tcgPriceNumeric)
+              : null;
         }
       }
     }
+
+    const marketPriceFairness =
+      lowestPriceBrl !== Infinity
+        ? evaluatePriceFairness(lowestPriceBrl, lowestPriceTcgNum, lowestPriceTcgStr)
+        : null;
 
     // Only include cards with a shortage
     if (concurrentMissing > 0 || peakMissing > 0) {
@@ -633,6 +672,9 @@ export async function calculateAggregatedShortages(
         marketLowestPriceBrl: lowestPriceBrl === Infinity ? undefined : lowestPriceBrl,
         marketLowestPriceStr: lowestPriceStr,
         marketProductUrl,
+        marketTcgPrice: lowestPriceTcgStr,
+        marketTcgPriceNumeric: lowestPriceTcgNum,
+        marketPriceFairness,
       });
     }
   }

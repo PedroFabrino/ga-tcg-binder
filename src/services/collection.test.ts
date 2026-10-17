@@ -7,6 +7,7 @@ import {
   cardCirculations,
   decks,
   deckCards,
+  metaStaples,
 } from "../db/schema";
 import {
   addOrUpdateCollectionItem,
@@ -152,6 +153,30 @@ describe("Collection Inventory & Smart Views", () => {
     expect(staplesView).toHaveLength(1);
     expect(staplesView[0].cardSlug).toBe("fracturize");
     expect(staplesView[0].activeDeckUsages).toBe(2);
+
+    // 4. Add format Meta Staple to meta_staples for Apotheosis Rite
+    await db.insert(metaStaples).values({
+      cardSlug: "apotheosis-rite",
+      cardName: "Apotheosis Rite",
+      categories: JSON.stringify(["Divine Relics"]),
+      primaryCategory: "Divine Relics",
+      element: "NORM",
+      inclusionRate: "95.0%",
+      avgCopies: "1.0",
+      recommendedCopies: 1,
+      deckCount: 150,
+      updatedAt: new Date(),
+    });
+
+    const staplesWithMetaView = await getCollectionSmartView("u1", "STAPLES", db);
+    // Should now contain both Fracturize (multi-deck) and Apotheosis Rite (format meta staple)
+    expect(staplesWithMetaView).toHaveLength(2);
+    const apoStaple = staplesWithMetaView.find((s) => s.cardSlug === "apotheosis-rite");
+    expect(apoStaple).toBeDefined();
+    expect(apoStaple?.isMetaStaple).toBe(true);
+    expect(apoStaple?.stapleInclusionRate).toBe("95.0%");
+    expect(apoStaple?.stapleRecommendedCopies).toBe(1);
+    expect(apoStaple?.isStapleComplete).toBe(true); // User owns 1, recommended is 1
 
     // Test Smart View "IDLE"
     // Fracturize: owns 4, max deck usage is 2 => idle is 2 (still in idle view!)

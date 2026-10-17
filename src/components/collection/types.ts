@@ -18,6 +18,11 @@ export interface CollectionItem {
   isLowPop: boolean;
   activeDeckUsages: number;
   idleQuantity: number;
+  isMetaStaple?: boolean;
+  stapleInclusionRate?: string | null;
+  stapleCategories?: string[];
+  stapleRecommendedCopies?: number | null;
+  isStapleComplete?: boolean;
 }
 
 export interface CollectionActions {

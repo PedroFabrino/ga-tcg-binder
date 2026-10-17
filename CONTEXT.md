@@ -135,3 +135,21 @@ _Avoid_: Global scraper, price pull
 **Buyable Shortage**:
 An active Deck Shortage (either a hard single-deck deficit or a multi-deck sharing contention) that matches at least one active Market Listing available for purchase.
 _Avoid_: Purchasable missing card, market match
+
+**Preço TCG Player**:
+The benchmark market price reported by MyP Cards for a Printing, sourced from TCGplayer reference data and converted to BRL.
+_Avoid_: US price, TCG baseline, external quote
+
+**Price Fairness**:
+The quantitative evaluation comparing a Market Listing's asking price against its Preço TCG Player baseline to detect price gouging or bargains.
+_Avoid_: Price rating, deal score
+
+**Overpriced Listing**:
+A Market Listing whose asking price exceeds 1.2x (more than 20% above) its Preço TCG Player baseline, subdivided into:
+- **Heavily Overpriced**: Asking price is over double (> 2.0x) the Preço TCG Player baseline.
+- **Slightly Overpriced**: Asking price is between 1.2x and 2.0x (20% to 100% higher than) the Preço TCG Player baseline.
+_Avoid_: Expensive card, bad deal, markup tier
+
+**Fair Price**:
+A Market Listing whose asking price is between 1.0x and 1.2x (up to 20% higher than) the Preço TCG Player baseline, or below baseline (bargain).
+_Avoid_: Normal price, cheap listing

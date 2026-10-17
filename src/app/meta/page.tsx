@@ -25,18 +25,38 @@ interface MetaArchetype {
   name: string;
   tier: string;
   champion: string;
+  element?: string | null;
+  signatureCardImageUrl?: string | null;
   shareRate: string;
   winRate: string;
+  deckCount?: number | null;
   decklist: string;
+  detailUrl?: string | null;
+  sampleEventDeckUrl?: string | null;
   sourceUrl?: string | null;
+  completionPct?: number;
+  binderPct?: number;
+  mypStorePct?: number;
+  totalCoreRequired?: number;
+  totalCoreOwned?: number;
+  binderCardsOwned?: number;
+  mypStoreCardsOwned?: number;
+  missingCardsCount?: number;
+  missingAvailableOnMarketCount?: number;
+  estimatedCostToCompleteBrl?: number;
+  isRecommended?: boolean;
 }
 
-const TIERS = ["S", "A", "B", "C"];
+const TIERS = ["Tier 1", "Tier 2", "Tier 3", "S", "A", "B", "C", "Rogue"];
 const TIER_COPY: Record<string, string> = {
+  "Tier 1": "Dominant meta staples and tournament winners",
+  "Tier 2": "High-tier competitive contenders",
+  "Tier 3": "Solid competitive alternatives",
   S: "Defining the format",
   A: "Top contenders",
   B: "Strong picks",
-  C: "Niche and rogue",
+  C: "Niche contenders",
+  Rogue: "Unranked or niche archetypes",
 };
 
 function pctValue(v: string) {
@@ -47,33 +67,115 @@ function pctValue(v: string) {
 function ArchetypeCard({
   meta,
   onCompare,
+  onImport,
+  importing,
 }: {
   meta: MetaArchetype;
   onCompare: () => void;
+  onImport: () => void;
+  importing: boolean;
 }) {
+  const completion = meta.completionPct ?? 0;
+  const hasHoldings = (meta.totalCoreOwned ?? 0) > 0;
+
   return (
-    <article className="hover-lift group flex flex-col rounded-2xl glass p-5">
+    <article className="hover-lift group flex flex-col rounded-2xl glass p-5 relative">
+      {/* Top Banner / Recommendation Pill */}
+      {meta.isRecommended && (
+        <div className="mb-2 inline-flex items-center gap-1.5 self-start rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300">
+          <span>✨ Recommended for You</span>
+        </div>
+      )}
+
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="truncate text-base font-semibold text-white">{meta.name}</h3>
-          <p className="mt-0.5 truncate text-xs text-slate-400">{meta.champion}</p>
+          <p className="mt-0.5 truncate text-xs text-slate-400">
+            {meta.champion}
+            {meta.element ? ` · ${meta.element}` : ""}
+          </p>
         </div>
         <span
-          className={`tier-${meta.tier} shrink-0 rounded-lg px-2 py-0.5 font-mono text-xs font-bold`}
+          className={`tier-${meta.tier.replace(/\s+/g, "")} shrink-0 rounded-lg px-2 py-0.5 font-mono text-xs font-bold border border-white/10`}
         >
           {meta.tier}
         </span>
       </div>
+
+      {/* Archetype Completion Progress Bar */}
+      {meta.totalCoreRequired && meta.totalCoreRequired > 0 ? (
+        <div className="mb-3 rounded-xl border border-white/[0.06] bg-black/30 p-3">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-semibold text-white">
+              {completion}% Owned
+            </span>
+            <span className="font-mono text-[11px] text-slate-400">
+              {meta.totalCoreOwned}/{meta.totalCoreRequired} Core Cards
+            </span>
+          </div>
+
+          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/[0.08] flex">
+            {meta.binderPct && meta.binderPct > 0 ? (
+              <div
+                className="h-full bg-cyan-400"
+                style={{ width: `${meta.binderPct}%` }}
+                title={`Binder: ${meta.binderCardsOwned} cards`}
+              />
+            ) : null}
+            {meta.mypStorePct && meta.mypStorePct > 0 ? (
+              <div
+                className="h-full bg-amber-400"
+                style={{ width: `${meta.mypStorePct}%` }}
+                title={`MyP Store: ${meta.mypStoreCardsOwned} cards`}
+              />
+            ) : null}
+          </div>
+
+          <div className="mt-1.5 flex flex-wrap items-center justify-between text-[10px] text-slate-400 gap-1">
+            <div className="flex items-center gap-2">
+              <span className="text-cyan-300">● {meta.binderCardsOwned || 0} Binder</span>
+              {(meta.mypStoreCardsOwned || 0) > 0 && (
+                <span className="text-amber-300">● {meta.mypStoreCardsOwned} MyP Store</span>
+              )}
+            </div>
+            {(meta.missingCardsCount || 0) > 0 && (
+              <span className="font-mono text-slate-400">
+                {meta.missingCardsCount} missing
+              </span>
+            )}
+          </div>
+
+          {/* Cost to complete on MyP */}
+          {(meta.missingCardsCount || 0) > 0 && (
+            <div className="mt-2 border-t border-white/[0.06] pt-1.5 text-[10px] text-slate-400 flex items-center justify-between">
+              <span>MyP Market:</span>
+              <span className="font-mono text-emerald-300 font-medium">
+                {meta.missingAvailableOnMarketCount && meta.missingAvailableOnMarketCount > 0 ? (
+                  <>
+                    {meta.missingAvailableOnMarketCount}/{meta.missingCardsCount} in stock · from R${" "}
+                    {(meta.estimatedCostToCompleteBrl || 0).toLocaleString("pt-BR", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </>
+                ) : (
+                  <span className="text-slate-500">Out of stock</span>
+                )}
+              </span>
+            </div>
+          )}
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-3">
         {[
           { label: "Win Rate", value: meta.winRate, bar: "bg-emerald-400", max: 70 },
           { label: "Meta Share", value: meta.shareRate, bar: "bg-cyan-400", max: 30 },
         ].map((s) => (
-          <div key={s.label} className="rounded-xl border border-white/[0.05] bg-black/20 p-3">
+          <div key={s.label} className="rounded-xl border border-white/[0.05] bg-black/20 p-2.5">
             <div className="label-caps !text-[9px]">{s.label}</div>
-            <div className="mt-1 font-mono text-lg font-semibold text-white">{s.value}</div>
-            <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/[0.06]">
+            <div className="mt-0.5 font-mono text-base font-semibold text-white">{s.value}</div>
+            <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/[0.06]">
               <div
                 className={`h-full rounded-full ${s.bar}`}
                 style={{ width: `${Math.min(100, (pctValue(s.value) / s.max) * 100)}%` }}
@@ -83,16 +185,27 @@ function ArchetypeCard({
         ))}
       </div>
 
-      <div className="mt-4 flex items-center gap-2 border-t border-white/[0.05] pt-4">
+      <div className="mt-4 flex items-center gap-2 border-t border-white/[0.05] pt-3">
         <Button
           onClick={onCompare}
           variant="outline"
-          className="flex-1 py-1.5 text-xs group-hover:border-cyan-400/30 group-hover:text-cyan-200"
+          size="sm"
+          className="flex-1 text-xs group-hover:border-cyan-400/30 group-hover:text-cyan-200"
         >
-          <Swords className="h-3.5 w-3.5" /> Compare to Binder
+          <Swords className="h-3.5 w-3.5 mr-1" /> Compare
+        </Button>
+        <Button
+          onClick={onImport}
+          disabled={importing}
+          variant="default"
+          size="sm"
+          className="bg-cyan-500 text-slate-950 hover:bg-cyan-400 font-semibold text-xs"
+        >
+          {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BookmarkPlus className="h-3.5 w-3.5 mr-1" />}
+          Import
         </Button>
         {meta.sourceUrl && (
-          <Button asChild variant="outline" className="px-2.5 py-1.5">
+          <Button asChild variant="outline" size="sm" className="px-2">
             <a
               href={meta.sourceUrl}
               target="_blank"
@@ -112,6 +225,7 @@ export default function MetaExplorerPage() {
   const { data: session } = useSession();
   const { showToast } = useToast();
   const [archetypes, setArchetypes] = useState<MetaArchetype[]>([]);
+  const [recommended, setRecommended] = useState<MetaArchetype[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [customText, setCustomText] = useState("");
@@ -120,21 +234,25 @@ export default function MetaExplorerPage() {
   const [report, setReport] = useState<ShortageReport | null>(null);
   const [savingDeck, setSavingDeck] = useState(false);
   const [savedDeckId, setSavedDeckId] = useState<string | null>(null);
+  const [importingId, setImportingId] = useState<string | null>(null);
+
+  const userIdQuery = session?.user?.id ? `?userId=${session.user.id}` : "";
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/meta");
+        const res = await fetch(`/api/meta${userIdQuery}`);
         if (!res.ok) throw new Error();
         const data = await res.json();
         setArchetypes(Array.isArray(data.archetypes) ? data.archetypes : []);
+        setRecommended(Array.isArray(data.recommendedArchetypes) ? data.recommendedArchetypes : []);
       } catch {
         setError(true);
       } finally {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [userIdQuery]);
 
   const compare = async (title: string, body: { metaId?: string; deckText?: string }) => {
     setCompareTitle(title);
@@ -160,6 +278,44 @@ export default function MetaExplorerPage() {
       setCompareTitle(null);
     } finally {
       setComparing(false);
+    }
+  };
+
+  const importArchetype = async (m: MetaArchetype) => {
+    if (!m.decklist) {
+      showToast("No decklist available for this archetype.", "error");
+      return;
+    }
+    setImportingId(m.id);
+    try {
+      const res = await fetch("/api/decks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: m.name,
+          champion: m.champion || "",
+          format: "standard",
+          omnidexText: m.decklist,
+          userId: session?.user?.id,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.id) {
+        if ((m.mypStoreCardsOwned || 0) > 0) {
+          showToast(
+            `Imported "${m.name}"! Note: ${m.mypStoreCardsOwned} copies are in your MyP Store. Click MyP Store tab to claim them.`,
+            "success"
+          );
+        } else {
+          showToast(`Imported "${m.name}" to your Decks!`, "success");
+        }
+      } else {
+        throw new Error(data.error || "Failed to import deck");
+      }
+    } catch (err: any) {
+      showToast(err.message || "Failed to import archetype", "error");
+    } finally {
+      setImportingId(null);
     }
   };
 
@@ -207,8 +363,8 @@ export default function MetaExplorerPage() {
     <div className="pb-12">
       <PageHeader
         eyebrow="Tournament Meta"
-        title="Meta Tier List"
-        description="Top competitive archetypes by win rate and share. Compare any list against your binder to see how close you are."
+        title="Meta Tier List & Recommendations"
+        description="Top competitive archetypes by win rate and share, personalized to your binder and MyP store inventory."
       />
 
       <form
@@ -233,6 +389,37 @@ export default function MetaExplorerPage() {
         </Button>
       </form>
 
+      {/* Recommended for Your Collection Highlight Rail */}
+      {recommended.length > 0 && (
+        <section className="mb-10" aria-label="Recommended Decks">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-300 font-bold">
+                ✨
+              </span>
+              <div>
+                <h2 className="text-base font-bold text-white">Recommended for Your Collection</h2>
+                <p className="text-xs text-slate-400">
+                  Archetypes you are closest to completing with cards in your Binder and MyP Store
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {recommended.map((m) => (
+              <ArchetypeCard
+                key={`rec-${m.id}`}
+                meta={{ ...m, isRecommended: true }}
+                onCompare={() => compare(m.name, { metaId: m.id })}
+                onImport={() => importArchetype(m)}
+                importing={importingId === m.id}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
       {loading ? (
         <SkeletonGrid count={6} />
       ) : error ? (
@@ -250,20 +437,22 @@ export default function MetaExplorerPage() {
       ) : (
         <div className="space-y-10">
           {TIERS.map((tier) => {
-            const list = archetypes.filter((a) => a.tier === tier);
+            const list = archetypes.filter(
+              (a) => a.tier.toLowerCase() === tier.toLowerCase()
+            );
             if (list.length === 0) return null;
             return (
               <section key={tier} aria-label={`Tier ${tier}`}>
                 <div className="mb-4 flex items-center gap-3">
                   <span
-                    className={`tier-${tier} flex h-9 w-9 items-center justify-center rounded-xl font-mono text-base font-bold`}
+                    className={`tier-${tier.replace(/\s+/g, "")} flex h-9 px-3 items-center justify-center rounded-xl font-mono text-xs font-bold border border-white/10`}
                   >
                     {tier}
                   </span>
                   <div>
-                    <h2 className="text-sm font-semibold text-white">Tier {tier}</h2>
+                    <h2 className="text-sm font-semibold text-white">{tier}</h2>
                     <p className="text-[11px] text-slate-500">
-                      {TIER_COPY[tier]} · {list.length} archetype{list.length === 1 ? "" : "s"}
+                      {TIER_COPY[tier] || "Competitive Archetypes"} · {list.length} archetype{list.length === 1 ? "" : "s"}
                     </p>
                   </div>
                   <div className="ml-2 h-px flex-1 bg-gradient-to-r from-white/[0.08] to-transparent" />
@@ -274,6 +463,8 @@ export default function MetaExplorerPage() {
                       key={m.id}
                       meta={m}
                       onCompare={() => compare(m.name, { metaId: m.id })}
+                      onImport={() => importArchetype(m)}
+                      importing={importingId === m.id}
                     />
                   ))}
                 </div>

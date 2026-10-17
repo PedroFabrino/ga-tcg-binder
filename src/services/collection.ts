@@ -7,6 +7,7 @@ import {
   deckCards,
   decks,
   users,
+  metaStaples,
 } from "../db/schema";
 
 export interface AddCollectionItemParams {
@@ -37,6 +38,11 @@ export interface CollectionItemView {
   isLowPop: boolean;
   activeDeckUsages: number;
   idleQuantity: number;
+  isMetaStaple?: boolean;
+  stapleInclusionRate?: string | null;
+  stapleCategories?: string[];
+  stapleRecommendedCopies?: number | null;
+  isStapleComplete?: boolean;
 }
 
 export type SmartViewType = "ALL" | "STAPLES" | "LOW_POP" | "IDLE";
@@ -239,6 +245,22 @@ export async function getCollectionSmartView(
     deckUsageBySlug.set(ud.cardSlug, cur);
   }
 
+  // Load all format meta staples to support format-wide staple tagging & smart view
+  const allStaples = await database.select().from(metaStaples).all();
+  const staplesBySlug = new Map<string, any>();
+  for (const s of allStaples) {
+    staplesBySlug.set(s.cardSlug, s);
+  }
+
+  // Calculate total binder owned per cardSlug across all printings (for playset completion)
+  const totalOwnedBySlug = new Map<string, number>();
+  for (const item of items) {
+    totalOwnedBySlug.set(
+      item.cardSlug,
+      (totalOwnedBySlug.get(item.cardSlug) || 0) + item.quantity
+    );
+  }
+
   const results: CollectionItemView[] = [];
 
   for (const item of items) {
@@ -250,6 +272,18 @@ export async function getCollectionSmartView(
 
     const usageInfo = deckUsageBySlug.get(item.cardSlug) || { deckCount: 0, maxUsage: 0 };
     const idleQty = Math.max(0, item.quantity - usageInfo.maxUsage);
+
+    const stapleRecord = staplesBySlug.get(item.cardSlug);
+    const isMetaStaple = Boolean(stapleRecord);
+    const stapleCategories = stapleRecord
+      ? JSON.parse(stapleRecord.categories || "[]")
+      : undefined;
+    const stapleInclusionRate = stapleRecord?.inclusionRate ?? null;
+    const stapleRecommendedCopies = stapleRecord?.recommendedCopies ?? null;
+    const totalOwned = totalOwnedBySlug.get(item.cardSlug) || 0;
+    const isStapleComplete = stapleRecommendedCopies
+      ? totalOwned >= stapleRecommendedCopies
+      : undefined;
 
     const viewItem: CollectionItemView = {
       id: item.id,
@@ -271,10 +305,16 @@ export async function getCollectionSmartView(
       isLowPop,
       activeDeckUsages: usageInfo.deckCount,
       idleQuantity: idleQty,
+      isMetaStaple,
+      stapleInclusionRate,
+      stapleCategories,
+      stapleRecommendedCopies,
+      isStapleComplete,
     };
 
-    // Filter by Smart View
-    if (view === "STAPLES" && usageInfo.deckCount < 2) {
+    // Filter by Smart View:
+    // STAPLES view displays cards that are either verified format meta staples OR multi-deck staples (used in >= 2 user decks)
+    if (view === "STAPLES" && !isMetaStaple && usageInfo.deckCount < 2) {
       continue;
     }
     if (view === "LOW_POP" && !isLowPop) {

@@ -1,4 +1,4 @@
-import { eq, and, inArray, sql } from "drizzle-orm";
+import { eq, and, inArray, sql, isNull, isNotNull } from "drizzle-orm";
 import { db } from "../db";
 import {
   users,
@@ -9,6 +9,7 @@ import {
   deckCards,
   mypCards,
   mypMarketCards,
+  metaStaples,
 } from "../db/schema";
 import { DEFAULT_USER_ID } from "./seed";
 
@@ -55,6 +56,11 @@ export interface MarketplaceCardItem {
   totalBinderOwned: number;
   concurrentMissing: number;
   isShortageOffset: boolean;
+  isMetaStaple?: boolean;
+  stapleCategories?: string[];
+  stapleInclusionRate?: string | null;
+  stapleRecommendedCopies?: number | null;
+  isStapleDeficit?: boolean;
 }
 
 export interface MarketplaceSummary {
@@ -63,6 +69,8 @@ export interface MarketplaceSummary {
   totalValueBrl: number;
   shortageOffsetCount: number;
   shortageOffsetCopies: number;
+  stapleDeficitCount?: number;
+  stapleDeficitCopies?: number;
 }
 
 export interface MarketplaceReport {
@@ -91,6 +99,108 @@ export function parseBrlPrice(priceStr: string): number {
     .replace(",", ".");
   const val = parseFloat(cleaned);
   return Number.isFinite(val) ? val : 0;
+}
+
+export type PriceFairnessTier =
+  | "HEAVILY_OVERPRICED"
+  | "SLIGHTLY_OVERPRICED"
+  | "NORMAL"
+  | "BELOW_MARKET"
+  | "UNKNOWN";
+
+export interface PriceFairnessEvaluation {
+  tier: PriceFairnessTier;
+  ratio: number | null;
+  markupPercent: number | null;
+  tcgPrice: string | null;
+  tcgPriceNumeric: number | null;
+}
+
+export function extractTcgPlayerPrice(html: string): {
+  tcgPrice: string;
+  tcgPriceNumeric: number;
+} | null {
+  if (!html) return null;
+  const match = html.match(
+    /resumo-preco--tcg[\s\S]*?<span class=["']moeda["']>([\s\S]*?)<\/span>/i
+  );
+  if (!match) return null;
+  const rawPrice = match[1]
+    .replace(/&nbsp;/g, " ")
+    .replace(/\u00a0/g, " ")
+    .trim();
+  const numeric = parseBrlPrice(rawPrice);
+  if (numeric <= 0) return null;
+  return {
+    tcgPrice: rawPrice,
+    tcgPriceNumeric: numeric,
+  };
+}
+
+export function evaluatePriceFairness(
+  priceNumeric: number,
+  tcgPriceNumeric?: number | null,
+  tcgPrice?: string | null
+): PriceFairnessEvaluation {
+  if (
+    !tcgPriceNumeric ||
+    tcgPriceNumeric <= 0 ||
+    !priceNumeric ||
+    priceNumeric <= 0 ||
+    !Number.isFinite(tcgPriceNumeric) ||
+    !Number.isFinite(priceNumeric)
+  ) {
+    return {
+      tier: "UNKNOWN",
+      ratio: null,
+      markupPercent: null,
+      tcgPrice: tcgPrice || null,
+      tcgPriceNumeric: tcgPriceNumeric || null,
+    };
+  }
+
+  const ratio = priceNumeric / tcgPriceNumeric;
+  const markupPercent = Math.round((ratio - 1) * 100);
+
+  // User rule:
+  // > 2.0x => HEAVILY OVERPRICED
+  // 1.2x to 2.0x => Slightly overpriced
+  // 1.0x to 1.2x (up to 20% higher) => normal
+  // < 1.0x => Below market
+  if (ratio > 2.0) {
+    return {
+      tier: "HEAVILY_OVERPRICED",
+      ratio,
+      markupPercent,
+      tcgPrice: tcgPrice || null,
+      tcgPriceNumeric,
+    };
+  }
+  if (ratio > 1.2) {
+    return {
+      tier: "SLIGHTLY_OVERPRICED",
+      ratio,
+      markupPercent,
+      tcgPrice: tcgPrice || null,
+      tcgPriceNumeric,
+    };
+  }
+  if (ratio >= 1.0) {
+    return {
+      tier: "NORMAL",
+      ratio,
+      markupPercent,
+      tcgPrice: tcgPrice || null,
+      tcgPriceNumeric,
+    };
+  }
+  return {
+    tier: "BELOW_MARKET",
+    ratio,
+    markupPercent,
+    tcgPrice: tcgPrice || null,
+    tcgPriceNumeric,
+  };
 }
 
 export function parseMypHtml(html: string): ParsedMypItem[] {
@@ -603,10 +713,19 @@ export async function getUserMarketplaceReport(
     );
   }
 
+  // Fetch format Meta Staples
+  const allStaples = await database.select().from(metaStaples).all();
+  const staplesBySlug = new Map<string, any>();
+  for (const s of allStaples) {
+    staplesBySlug.set(s.cardSlug, s);
+  }
+
   let totalCopies = 0;
   let totalValueBrl = 0;
   let shortageOffsetCount = 0;
   let shortageOffsetCopies = 0;
+  let stapleDeficitCount = 0;
+  let stapleDeficitCopies = 0;
   const remainingMissingBySlug = new Map<string, number>();
 
   const enrichedCards: MarketplaceCardItem[] = listings.map((row: any) => {
@@ -644,6 +763,24 @@ export async function getUserMarketplaceReport(
       );
     }
 
+    const stapleRecord = row.cardSlug ? staplesBySlug.get(row.cardSlug) : null;
+    const isMetaStaple = Boolean(stapleRecord);
+    const stapleCategories = stapleRecord
+      ? JSON.parse(stapleRecord.categories || "[]")
+      : undefined;
+    const stapleInclusionRate = stapleRecord?.inclusionRate ?? null;
+    const stapleRecommendedCopies = stapleRecord?.recommendedCopies ?? null;
+    const isStapleDeficit = Boolean(
+      isMetaStaple &&
+      stapleRecommendedCopies &&
+      totalBinderOwned < stapleRecommendedCopies
+    );
+
+    if (isStapleDeficit && !isShortageOffset) {
+      stapleDeficitCount++;
+      stapleDeficitCopies += qty;
+    }
+
     return {
       id: row.id,
       cardSlug: row.cardSlug || null,
@@ -668,13 +805,21 @@ export async function getUserMarketplaceReport(
       totalBinderOwned,
       concurrentMissing,
       isShortageOffset,
+      isMetaStaple,
+      stapleCategories,
+      stapleInclusionRate,
+      stapleRecommendedCopies,
+      isStapleDeficit,
     };
   });
 
-  // Sort: Shortage offsets first, then by price descending
+  // Sort: Shortage offsets first, Staple Deficits second, then by price descending
   enrichedCards.sort((a, b) => {
     if (a.isShortageOffset !== b.isShortageOffset) {
       return a.isShortageOffset ? -1 : 1;
+    }
+    if (a.isStapleDeficit !== b.isStapleDeficit) {
+      return a.isStapleDeficit ? -1 : 1;
     }
     return b.priceNumeric - a.priceNumeric;
   });
@@ -687,6 +832,8 @@ export async function getUserMarketplaceReport(
       totalValueBrl,
       shortageOffsetCount,
       shortageOffsetCopies,
+      stapleDeficitCount,
+      stapleDeficitCopies,
     },
     cards: enrichedCards,
   };
@@ -818,15 +965,24 @@ export interface GlobalMarketplaceCardItem {
   netExternalStock: number;
   price: string;
   priceNumeric: number;
+  tcgPrice: string | null;
+  tcgPriceNumeric: number | null;
+  priceFairness: PriceFairnessEvaluation;
   isFoil: boolean;
   mypItemId: string | null;
   mypProductUrl: string | null;
   deckNeeds: MarketplaceDeckNeed[];
   peakMissing: number;
   concurrentMissing: number;
+  totalBinderOwned?: number;
   shortageTier: ShortageTier;
   isBuyableShortage: boolean;
   peakDeckName?: string | null;
+  isMetaStaple?: boolean;
+  stapleCategories?: string[];
+  stapleInclusionRate?: string | null;
+  stapleRecommendedCopies?: number | null;
+  isStapleDeficit?: boolean;
 }
 
 export interface GlobalMarketSummary {
@@ -834,6 +990,9 @@ export interface GlobalMarketSummary {
   totalMarketCopies: number;
   hardShortagesCount: number;
   sharedShortagesCount: number;
+  stapleDeficitsCount?: number;
+  overpricedCount?: number;
+  heavilyOverpricedCount?: number;
   lastSyncedAt: number | null;
 }
 
@@ -856,14 +1015,16 @@ export async function syncGlobalMarketplace(
   const parsedItems: ParsedMypItem[] = [...parseMypHtml(p1Html)];
 
   // Determine total item count to calculate required pages
-  let totalItems = 1626;
+  let totalItems = 0;
   const countMatch =
     p1Html.match(/class=["']summary["'][^>]*><strong>(\d+)<\/strong>\s*itens/i) ||
     p1Html.match(/ProdutoScrollInfinito\([^,]+,[^,]+,\s*(\d+)\s*,\s*30\)/i);
   if (countMatch) {
-    totalItems = parseInt(countMatch[1], 10) || totalItems;
+    totalItems = parseInt(countMatch[1], 10) || 0;
+  } else if (parsedItems.length > 0) {
+    totalItems = parsedItems.length;
   }
-  const maxPages = Math.min(75, Math.ceil(totalItems / 30));
+  const maxPages = totalItems > 0 ? Math.min(75, Math.ceil(totalItems / 30)) : 1;
 
   // 2. Fetch subsequent pages in concurrent batches of 4
   const batchSize = 4;
@@ -905,7 +1066,11 @@ export async function syncGlobalMarketplace(
   }
 
   if (parsedItems.length === 0) {
-    throw new Error("No items could be parsed from MyP Cards global catalog.");
+    return {
+      totalSynced: 0,
+      matchedCount: 0,
+      unmatchedCount: 0,
+    };
   }
 
   // 3. Resolve parsed items against local Catalog
@@ -914,7 +1079,38 @@ export async function syncGlobalMarketplace(
   let matchedCount = 0;
   let unmatchedCount = 0;
 
-  // Atomically replace myp_market_cards rows
+  // Atomically replace myp_market_cards rows, preserving existing cached TCGPlayer prices
+  const existingTcgMap = new Map<string, { tcgPrice: string; tcgPriceNumeric: number }>();
+  try {
+    const existingRows = await database
+      .select({
+        mypItemId: mypMarketCards.mypItemId,
+        mypProductUrl: mypMarketCards.mypProductUrl,
+        tcgPrice: mypMarketCards.tcgPrice,
+        tcgPriceNumeric: mypMarketCards.tcgPriceNumeric,
+      })
+      .from(mypMarketCards);
+
+    for (const r of existingRows) {
+      if (r.tcgPriceNumeric !== null && r.tcgPriceNumeric !== undefined && r.tcgPrice) {
+        if (r.mypProductUrl) {
+          existingTcgMap.set(r.mypProductUrl, {
+            tcgPrice: r.tcgPrice,
+            tcgPriceNumeric: Number(r.tcgPriceNumeric),
+          });
+        }
+        if (r.mypItemId) {
+          existingTcgMap.set(r.mypItemId, {
+            tcgPrice: r.tcgPrice,
+            tcgPriceNumeric: Number(r.tcgPriceNumeric),
+          });
+        }
+      }
+    }
+  } catch {
+    // If table didn't have tcg columns yet, safe ignore
+  }
+
   await database.delete(mypMarketCards);
 
   const rowsToInsert: any[] = [];
@@ -929,6 +1125,11 @@ export async function syncGlobalMarketplace(
       unmatchedCount++;
     }
 
+    const cachedTcg =
+      (item.mypProductUrl && existingTcgMap.get(item.mypProductUrl)) ||
+      (item.mypItemId && existingTcgMap.get(item.mypItemId)) ||
+      null;
+
     rowsToInsert.push({
       id: item.mypItemId ? `mkt-${item.mypItemId}` : `mkt-${idx}-${batchTimestamp}`,
       cardSlug: matchedCard?.slug || null,
@@ -939,6 +1140,8 @@ export async function syncGlobalMarketplace(
       quantity: item.quantity,
       price: item.price,
       priceNumeric: parseBrlPrice(item.price),
+      tcgPrice: cachedTcg?.tcgPrice || null,
+      tcgPriceNumeric: cachedTcg?.tcgPriceNumeric || null,
       isFoil: item.isFoil,
       mypItemId: item.mypItemId,
       mypProductUrl: item.mypProductUrl,
@@ -955,6 +1158,94 @@ export async function syncGlobalMarketplace(
     matchedCount,
     unmatchedCount,
   };
+}
+
+export async function enrichMarketplaceTcgPrices(
+  options: {
+    cardIds?: string[];
+    onlyShortages?: boolean;
+    limit?: number;
+  } = {},
+  database: any = db,
+  customFetch?: typeof fetch
+): Promise<{ enrichedCount: number; failedCount: number }> {
+  const limit = options.limit || 25;
+
+  let candidateRows: { id: string; mypProductUrl: string | null }[] = [];
+
+  if (options.cardIds && options.cardIds.length > 0) {
+    candidateRows = await database
+      .select({
+        id: mypMarketCards.id,
+        mypProductUrl: mypMarketCards.mypProductUrl,
+      })
+      .from(mypMarketCards)
+      .where(
+        and(
+          isNotNull(mypMarketCards.mypProductUrl),
+          inArray(mypMarketCards.id, options.cardIds)
+        )
+      )
+      .limit(limit);
+  } else {
+    // By default, prioritize cards that have a product URL and lack a tcgPriceNumeric
+    candidateRows = await database
+      .select({
+        id: mypMarketCards.id,
+        mypProductUrl: mypMarketCards.mypProductUrl,
+      })
+      .from(mypMarketCards)
+      .where(
+        and(
+          isNotNull(mypMarketCards.mypProductUrl),
+          isNull(mypMarketCards.tcgPriceNumeric)
+        )
+      )
+      .limit(limit);
+  }
+
+  let enrichedCount = 0;
+  let failedCount = 0;
+
+  const batchSize = 3;
+  for (let i = 0; i < candidateRows.length; i += batchSize) {
+    const chunk = candidateRows.slice(i, i + batchSize);
+    await Promise.all(
+      chunk.map(async (row) => {
+        if (!row.mypProductUrl) return;
+        try {
+          const html = await fetchMypText(row.mypProductUrl, customFetch);
+          const extracted = extractTcgPlayerPrice(html);
+          if (extracted) {
+            await database
+              .update(mypMarketCards)
+              .set({
+                tcgPrice: extracted.tcgPrice,
+                tcgPriceNumeric: extracted.tcgPriceNumeric,
+                updatedAt: sql`(strftime('%s', 'now'))`,
+              })
+              .where(eq(mypMarketCards.id, row.id));
+            enrichedCount++;
+          } else {
+            // Mark checked with -1 so we don't query repeatedly
+            await database
+              .update(mypMarketCards)
+              .set({
+                tcgPrice: "N/A",
+                tcgPriceNumeric: -1,
+                updatedAt: sql`(strftime('%s', 'now'))`,
+              })
+              .where(eq(mypMarketCards.id, row.id));
+            failedCount++;
+          }
+        } catch {
+          failedCount++;
+        }
+      })
+    );
+  }
+
+  return { enrichedCount, failedCount };
 }
 
 export async function getGlobalMarketReport(
@@ -977,6 +1268,8 @@ export async function getGlobalMarketReport(
       quantity: mypMarketCards.quantity,
       price: mypMarketCards.price,
       priceNumeric: mypMarketCards.priceNumeric,
+      tcgPrice: mypMarketCards.tcgPrice,
+      tcgPriceNumeric: mypMarketCards.tcgPriceNumeric,
       isFoil: mypMarketCards.isFoil,
       mypItemId: mypMarketCards.mypItemId,
       mypProductUrl: mypMarketCards.mypProductUrl,
@@ -1101,9 +1394,19 @@ export async function getGlobalMarketReport(
     });
   }
 
+  // Load format Meta Staples
+  const allStaples = await database.select().from(metaStaples).all();
+  const staplesBySlug = new Map<string, any>();
+  for (const s of allStaples) {
+    staplesBySlug.set(s.cardSlug, s);
+  }
+
   let totalMarketCopies = 0;
   let hardShortagesCount = 0;
   let sharedShortagesCount = 0;
+  let stapleDeficitsCount = 0;
+  let overpricedCount = 0;
+  let heavilyOverpricedCount = 0;
   let latestUpdatedAt: number | null = null;
 
   const enrichedCards: GlobalMarketplaceCardItem[] = marketRows.map((row: any) => {
@@ -1147,6 +1450,42 @@ export async function getGlobalMarketReport(
       sharedShortagesCount++;
     }
 
+    const stapleRecord = row.cardSlug ? staplesBySlug.get(row.cardSlug) : null;
+    const isMetaStaple = Boolean(stapleRecord);
+    const stapleCategories = stapleRecord
+      ? JSON.parse(stapleRecord.categories || "[]")
+      : undefined;
+    const stapleInclusionRate = stapleRecord?.inclusionRate ?? null;
+    const stapleRecommendedCopies = stapleRecord?.recommendedCopies ?? null;
+    const ownedBinder = row.cardSlug ? binderOwnedBySlug.get(row.cardSlug) || 0 : 0;
+    const isStapleDeficit = Boolean(
+      isMetaStaple &&
+      stapleRecommendedCopies &&
+      ownedBinder < stapleRecommendedCopies
+    );
+
+    if (isStapleDeficit && netExternalStock > 0) {
+      stapleDeficitsCount++;
+    }
+
+    const priceNum = Number(row.priceNumeric) || parseBrlPrice(row.price);
+    const tcgPriceNum =
+      row.tcgPriceNumeric !== null && row.tcgPriceNumeric !== undefined
+        ? Number(row.tcgPriceNumeric)
+        : null;
+    const priceFairness = evaluatePriceFairness(
+      priceNum,
+      tcgPriceNum,
+      row.tcgPrice
+    );
+
+    if (priceFairness.tier === "HEAVILY_OVERPRICED") {
+      heavilyOverpricedCount++;
+      overpricedCount++;
+    } else if (priceFairness.tier === "SLIGHTLY_OVERPRICED") {
+      overpricedCount++;
+    }
+
     return {
       id: row.id,
       cardSlug: row.cardSlug || null,
@@ -1163,31 +1502,40 @@ export async function getGlobalMarketReport(
       personalStoreQuantity,
       netExternalStock,
       price: row.price,
-      priceNumeric: Number(row.priceNumeric) || parseBrlPrice(row.price),
+      priceNumeric: priceNum,
+      tcgPrice: row.tcgPrice || null,
+      tcgPriceNumeric: tcgPriceNum,
+      priceFairness,
       isFoil: Boolean(row.isFoil),
       mypItemId: row.mypItemId || null,
       mypProductUrl: row.mypProductUrl || null,
       deckNeeds,
       peakMissing,
       concurrentMissing,
+      totalBinderOwned: ownedBinder,
       shortageTier,
       isBuyableShortage,
       peakDeckName,
+      isMetaStaple,
+      stapleCategories,
+      stapleInclusionRate,
+      stapleRecommendedCopies,
+      isStapleDeficit,
     };
   });
 
-  // Sort: HARD shortages first, SHARED shortages second, Buyable before non-buyable, then by priceNumeric ascending
+  // Sort: HARD shortages first, SHARED shortages second, Staple Deficits with external stock third, Buyable before non-buyable, then by priceNumeric ascending
   enrichedCards.sort((a, b) => {
-    const tierWeight = (t: ShortageTier, buyable: boolean) => {
-      if (t === "HARD" && buyable) return 4;
-      if (t === "HARD") return 3;
-      if (t === "SHARED" && buyable) return 2;
-      if (t === "SHARED") return 1;
+    const tierWeight = (item: GlobalMarketplaceCardItem) => {
+      if (item.shortageTier === "HARD" && item.isBuyableShortage) return 6;
+      if (item.shortageTier === "HARD") return 5;
+      if (item.shortageTier === "SHARED" && item.isBuyableShortage) return 4;
+      if (item.shortageTier === "SHARED") return 3;
+      if (item.isStapleDeficit && item.netExternalStock > 0) return 2;
+      if (item.isStapleDeficit) return 1;
       return 0;
     };
-    const diffTier =
-      tierWeight(b.shortageTier, b.isBuyableShortage) -
-      tierWeight(a.shortageTier, a.isBuyableShortage);
+    const diffTier = tierWeight(b) - tierWeight(a);
     if (diffTier !== 0) return diffTier;
 
     return a.priceNumeric - b.priceNumeric;
@@ -1199,6 +1547,9 @@ export async function getGlobalMarketReport(
       totalMarketCopies,
       hardShortagesCount,
       sharedShortagesCount,
+      stapleDeficitsCount,
+      overpricedCount,
+      heavilyOverpricedCount,
       lastSyncedAt: latestUpdatedAt,
     },
     cards: enrichedCards,

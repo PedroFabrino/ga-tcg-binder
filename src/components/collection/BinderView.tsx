@@ -79,6 +79,14 @@ function BinderSlot({ item, onQuantity, onToggleDedicated }: { item: CollectionI
               <Gem className="h-2.5 w-2.5" />
             </span>
           )}
+          {item.isMetaStaple && (
+            <span
+              className="absolute right-1.5 bottom-8 z-[5] rounded-full bg-amber-500/90 px-1.5 py-0.5 text-[9px] font-bold text-black shadow-sm"
+              title={`Meta Staple (${item.stapleInclusionRate || ""}) - Playset: ${item.quantity}/${item.stapleRecommendedCopies || 1}`}
+            >
+              🔥 Staple
+            </span>
+          )}
           <div className="absolute inset-x-0 bottom-0 z-[5] p-2">
             <div className="truncate text-[11px] font-semibold text-white sm:text-xs">{item.cardName}</div>
             <div className="font-mono text-[9px] text-slate-300/80">

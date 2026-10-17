@@ -89,11 +89,31 @@ CREATE TABLE `meta_archetypes` (
 	`name` text NOT NULL,
 	`tier` text DEFAULT 'A' NOT NULL,
 	`champion` text NOT NULL,
+	`element` text,
+	`signature_card_image_url` text,
 	`share_rate` text DEFAULT '0%' NOT NULL,
 	`win_rate` text DEFAULT '50%' NOT NULL,
+	`deck_count` integer DEFAULT 0,
 	`decklist` text NOT NULL,
+	`detail_url` text,
+	`sample_event_deck_url` text,
 	`source_url` text,
 	`updated_at` integer DEFAULT (strftime('%s', 'now'))
+);
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `meta_staples` (
+	`card_slug` text PRIMARY KEY NOT NULL,
+	`card_name` text NOT NULL,
+	`categories` text DEFAULT '[]' NOT NULL,
+	`primary_category` text NOT NULL,
+	`element` text DEFAULT 'NORM' NOT NULL,
+	`inclusion_rate` text DEFAULT '0%' NOT NULL,
+	`avg_copies` text DEFAULT '1.0' NOT NULL,
+	`recommended_copies` integer DEFAULT 1 NOT NULL,
+	`deck_count` integer DEFAULT 0 NOT NULL,
+	`image_url` text,
+	`updated_at` integer DEFAULT (strftime('%s', 'now')),
+	FOREIGN KEY (`card_slug`) REFERENCES `cards`(`slug`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
 CREATE TABLE `scanner_sessions` (
@@ -154,6 +174,8 @@ CREATE TABLE IF NOT EXISTS `myp_market_cards` (
 	`quantity` integer DEFAULT 1 NOT NULL,
 	`price` text DEFAULT 'R$ 0,00' NOT NULL,
 	`price_numeric` real DEFAULT 0 NOT NULL,
+	`tcg_price` text,
+	`tcg_price_numeric` real,
 	`is_foil` integer DEFAULT false NOT NULL,
 	`myp_item_id` text,
 	`myp_product_url` text,

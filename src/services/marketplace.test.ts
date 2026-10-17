@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createTestDb } from "../db/test-utils";
-import { cards, cardEditions, users, decks, deckCards, collectionItems, mypCards, mypMarketCards } from "../db/schema";
+import { cards, cardEditions, users, decks, deckCards, collectionItems, mypCards, mypMarketCards, metaStaples } from "../db/schema";
 import {
   parseMypHtml,
   syncUserMarketplace,
@@ -592,6 +592,163 @@ describe("Marketplace (MyPCards) Sync, Shortage Offset & Claim Seam", () => {
     const result4 = calculateNetMarketStock(noIdListing, noIdSameFoil);
     expect(result4.personalStoreQuantity).toBe(1);
     expect(result4.netExternalStock).toBe(1);
+  });
+
+  it("identifies staple deficits vs surplus playset in personal MyP store listings", async () => {
+    const { db } = await createTestDb();
+
+    // 1. User setup
+    await db.insert(users).values({
+      id: "u-staple-collector",
+      name: "Staple Collector",
+      friendCode: "GA-STAPLE",
+      mypUsername: "StapleMaster",
+    });
+
+    // 2. Card setup
+    await db.insert(cards).values([
+      {
+        slug: "fracturize",
+        name: "Fracturize",
+        element: "NORM",
+        class: "WARRIOR",
+        type: "ACTION",
+        subtypes: "[]",
+      },
+      {
+        slug: "apotheosis-rite",
+        name: "Apotheosis Rite",
+        element: "NORM",
+        class: "WARRIOR",
+        type: "REGALIA",
+        subtypes: "[]",
+      },
+    ]);
+
+    await db.insert(cardEditions).values([
+      {
+        id: "ed-frac-1",
+        cardSlug: "fracturize",
+        setPrefix: "DOA",
+        setName: "Dawn of Ashes",
+        collectorNumber: "001",
+        rarity: 3,
+        imageUrl: "https://example.com/frac.jpg",
+      },
+      {
+        id: "ed-apo-1",
+        cardSlug: "apotheosis-rite",
+        setPrefix: "P24",
+        setName: "Promotional",
+        collectorNumber: "000",
+        rarity: 9,
+        imageUrl: "https://example.com/apo.jpg",
+      },
+    ]);
+
+    // 3. Register Meta Staples:
+    // Fracturize: recommendedCopies = 4
+    // Apotheosis Rite: recommendedCopies = 1
+    await db.insert(metaStaples).values([
+      {
+        cardSlug: "fracturize",
+        cardName: "Fracturize",
+        categories: JSON.stringify(["Water Main Deck", "Sideboard Tech"]),
+        primaryCategory: "Water Main Deck",
+        element: "NORM",
+        inclusionRate: "88.0%",
+        avgCopies: "3.2",
+        recommendedCopies: 4,
+        deckCount: 110,
+        updatedAt: new Date(),
+      },
+      {
+        cardSlug: "apotheosis-rite",
+        cardName: "Apotheosis Rite",
+        categories: JSON.stringify(["Divine Relics"]),
+        primaryCategory: "Divine Relics",
+        element: "NORM",
+        inclusionRate: "95.0%",
+        avgCopies: "1.0",
+        recommendedCopies: 1,
+        deckCount: 150,
+        updatedAt: new Date(),
+      },
+    ]);
+
+    // 4. Binder Inventory:
+    // User owns 2 copies of Fracturize (< 4 -> Deficit!)
+    // User owns 1 copy of Apotheosis Rite (>= 1 -> Full Playset!)
+    await db.insert(collectionItems).values([
+      {
+        id: "coll-f1",
+        userId: "u-staple-collector",
+        editionId: "ed-frac-1",
+        quantity: 2,
+        isDedicated: false,
+      },
+      {
+        id: "coll-a1",
+        userId: "u-staple-collector",
+        editionId: "ed-apo-1",
+        quantity: 1,
+        isDedicated: false,
+      },
+    ]);
+
+    // 5. User MyP Store Listings:
+    // Listing for Fracturize (1 copy listed on MyP)
+    // Listing for Apotheosis Rite (1 surplus copy listed on MyP)
+    await db.insert(mypCards).values([
+      {
+        id: "myp-f1",
+        userId: "u-staple-collector",
+        cardSlug: "fracturize",
+        editionId: "ed-frac-1",
+        rawName: "Fracturize",
+        cardName: "Fracturize",
+        setPrefix: "DOA",
+        quantity: 1,
+        price: "R$ 10,00",
+        quality: "NM",
+        isFoil: false,
+      },
+      {
+        id: "myp-a1",
+        userId: "u-staple-collector",
+        cardSlug: "apotheosis-rite",
+        editionId: "ed-apo-1",
+        rawName: "Apotheosis Rite",
+        cardName: "Apotheosis Rite",
+        setPrefix: "P24",
+        quantity: 1,
+        price: "R$ 500,00",
+        quality: "NM",
+        isFoil: true,
+      },
+    ]);
+
+    const report = await getUserMarketplaceReport("u-staple-collector", db);
+    expect(report.summary.stapleDeficitCount).toBe(1);
+    expect(report.summary.stapleDeficitCopies).toBe(1);
+
+    const fracItem = report.cards.find((c) => c.cardSlug === "fracturize");
+    expect(fracItem).toBeDefined();
+    expect(fracItem?.isMetaStaple).toBe(true);
+    expect(fracItem?.isStapleDeficit).toBe(true); // binder has 2, recommended is 4
+    expect(fracItem?.stapleRecommendedCopies).toBe(4);
+    expect(fracItem?.totalBinderOwned).toBe(2);
+
+    const apoItem = report.cards.find((c) => c.cardSlug === "apotheosis-rite");
+    expect(apoItem).toBeDefined();
+    expect(apoItem?.isMetaStaple).toBe(true);
+    expect(apoItem?.isStapleDeficit).toBe(false); // binder has 1, recommended is 1 -> playset owned!
+    expect(apoItem?.stapleRecommendedCopies).toBe(1);
+    expect(apoItem?.totalBinderOwned).toBe(1);
+
+    // Sorting: Fracturize is a Staple Deficit, so it sorts ahead of Apotheosis Rite even though Apo is R$ 500 vs R$ 10
+    expect(report.cards[0].cardSlug).toBe("fracturize");
+    expect(report.cards[1].cardSlug).toBe("apotheosis-rite");
   });
 });
 

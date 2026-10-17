@@ -130,12 +130,34 @@ export const scannerSessions = sqliteTable("scanner_sessions", {
 export const metaArchetypes = sqliteTable("meta_archetypes", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
-  tier: text("tier").notNull().default("A"), // 'S' | 'A' | 'B' | 'C'
+  tier: text("tier").notNull().default("A"), // 'Tier 1' | 'Tier 2' | 'Tier 3' | 'Rogue' | 'S' | 'A' | 'B' | 'C'
   champion: text("champion").notNull(),
+  element: text("element"), // e.g. 'Wind', 'Water', 'Fire'
+  signatureCardImageUrl: text("signature_card_image_url"),
   shareRate: text("share_rate").notNull().default("0%"),
   winRate: text("win_rate").notNull().default("50%"),
+  deckCount: integer("deck_count").default(0),
   decklist: text("decklist").notNull(), // Omnidex text representation
+  detailUrl: text("detail_url"),
+  sampleEventDeckUrl: text("sample_event_deck_url"),
   sourceUrl: text("source_url"),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+});
+
+// ---------------------------------------------------------------------------
+// Format Meta Staples (GrandArchiveStats integration)
+// ---------------------------------------------------------------------------
+export const metaStaples = sqliteTable("meta_staples", {
+  cardSlug: text("card_slug").primaryKey().references(() => cards.slug, { onDelete: "cascade" }),
+  cardName: text("card_name").notNull(),
+  categories: text("categories").notNull().default("[]"), // JSON string array of sections, e.g. ["Water Main Deck", "Sideboard Tech"]
+  primaryCategory: text("primary_category").notNull(),
+  element: text("element").notNull().default("NORM"),
+  inclusionRate: text("inclusion_rate").notNull().default("0%"), // e.g. "97.6%"
+  avgCopies: text("avg_copies").notNull().default("1.0"), // e.g. "3.9"
+  recommendedCopies: integer("recommended_copies").notNull().default(1),
+  deckCount: integer("deck_count").notNull().default(0),
+  imageUrl: text("image_url"),
   updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
 
@@ -172,6 +194,8 @@ export const mypMarketCards = sqliteTable("myp_market_cards", {
   quantity: integer("quantity").notNull().default(1),
   price: text("price").notNull().default("R$ 0,00"),
   priceNumeric: real("price_numeric").notNull().default(0),
+  tcgPrice: text("tcg_price"),
+  tcgPriceNumeric: real("tcg_price_numeric"),
   isFoil: integer("is_foil", { mode: "boolean" }).notNull().default(false),
   mypItemId: text("myp_item_id"),
   mypProductUrl: text("myp_product_url"),

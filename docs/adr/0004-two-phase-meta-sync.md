@@ -1,5 +1,7 @@
 # 0004: Two-Phase Meta Archetype Synchronization from GrandArchiveStats
 
+Status: partially superseded by ADR-0009 (Phase 2 is now Eager Cached Canonical Decklist Indexing)
+
 ## Context
 Competitive Grand Archive decklists and tier rankings are continuously compiled by the community on `grandarchivestats.com`. Previously, our `/meta` explorer displayed static hardcoded mock seed data (`SEED_META_ARCHETYPES`). Directly scraping all 30+ archetypes and their individual tournament event decklists eagerly on every sync would generate dozens of HTTP requests, risk rate-limiting, and slow down scheduled jobs.
 

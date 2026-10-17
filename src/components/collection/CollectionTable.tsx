@@ -66,12 +66,32 @@ export default function CollectionTable({ items, onQuantity, onToggleDedicated }
                 </div>
               </td>
               <td className="px-4 py-3">
-                {item.activeDeckUsages > 0 ? (
-                  <div className="font-medium text-cyan-300">{item.activeDeckUsages} deck{item.activeDeckUsages > 1 ? "s" : ""}</div>
+                {item.isMetaStaple ? (
+                  <div className="space-y-1">
+                    <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+                      <span>🔥 Meta Staple</span>
+                      {item.stapleInclusionRate && <span>· {item.stapleInclusionRate}</span>}
+                    </div>
+                    {item.stapleRecommendedCopies && (
+                      <div className="font-mono text-[10px] text-slate-400">
+                        Playset: <span className={item.isStapleComplete ? "text-emerald-400 font-semibold" : "text-amber-300 font-semibold"}>{item.quantity}/{item.stapleRecommendedCopies}</span>
+                      </div>
+                    )}
+                    {item.activeDeckUsages > 0 && (
+                      <div className="text-[10px] text-cyan-300">{item.activeDeckUsages} active deck{item.activeDeckUsages > 1 ? "s" : ""}</div>
+                    )}
+                  </div>
+                ) : item.activeDeckUsages > 0 ? (
+                  <div>
+                    <div className="font-medium text-cyan-300">{item.activeDeckUsages} deck{item.activeDeckUsages > 1 ? "s" : ""}</div>
+                    <div className="font-mono text-[10px] text-emerald-400">{item.idleQuantity} idle</div>
+                  </div>
                 ) : (
-                  <div className="text-slate-500">Unassigned</div>
+                  <div>
+                    <div className="text-slate-500">Unassigned</div>
+                    <div className="font-mono text-[10px] text-emerald-400">{item.idleQuantity} idle</div>
+                  </div>
                 )}
-                <div className="font-mono text-[10px] text-emerald-400">{item.idleQuantity} idle</div>
               </td>
               <td className="px-4 py-3">
                 <QuantityStepper value={item.quantity} label={item.cardName} onChange={(d) => onQuantity(item, d)} />

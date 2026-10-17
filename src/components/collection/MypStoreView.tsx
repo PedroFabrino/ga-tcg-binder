@@ -46,6 +46,7 @@ export default function MypStoreView() {
   // Filters
   const [query, setQuery] = useState("");
   const [onlyShortages, setOnlyShortages] = useState(false);
+  const [filterMode, setFilterMode] = useState<"ALL" | "SHORTAGES" | "STAPLES">("ALL");
   const [selectedElements, setSelectedElements] = useState<string[]>([]);
   const [selectedRarities, setSelectedRarities] = useState<number[]>([]);
 
@@ -175,8 +176,10 @@ export default function MypStoreView() {
     if (!report?.cards) return [];
     let list = report.cards;
 
-    if (onlyShortages) {
+    if (filterMode === "SHORTAGES" || onlyShortages) {
       list = list.filter((c) => c.isShortageOffset);
+    } else if (filterMode === "STAPLES") {
+      list = list.filter((c) => c.isStapleDeficit);
     }
 
     if (selectedElements.length > 0) {
@@ -197,12 +200,13 @@ export default function MypStoreView() {
           c.cardName.toLowerCase().includes(q) || c.rawName.toLowerCase().includes(q);
         const setMatch = c.setPrefix.toLowerCase().includes(q);
         const deckMatch = c.deckNeeds.some((d) => d.deckName.toLowerCase().includes(q));
-        return nameMatch || setMatch || deckMatch;
+        const stapleMatch = c.stapleCategories?.some((cat) => cat.toLowerCase().includes(q));
+        return nameMatch || setMatch || deckMatch || stapleMatch;
       });
     }
 
     return list;
-  }, [report?.cards, onlyShortages, selectedElements, selectedRarities, query]);
+  }, [report?.cards, filterMode, onlyShortages, selectedElements, selectedRarities, query]);
 
   const summary = report?.summary;
   const needsOnboarding = !loading && (!report?.mypUsername || editingUsername);
@@ -433,19 +437,53 @@ export default function MypStoreView() {
               )}
             </div>
 
-            <button
-              type="button"
-              onClick={() => setOnlyShortages(!onlyShortages)}
-              className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2.5 text-xs font-semibold transition-all cursor-pointer ${
-                onlyShortages
-                  ? "border-amber-400 bg-amber-400/20 text-amber-200 shadow-[0_0_12px_rgba(251,191,36,0.3)]"
-                  : "border-white/[0.08] bg-white/[0.02] text-slate-300 hover:border-white/20"
-              }`}
-            >
-              <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
-              Shortage Offsets Only
-              {onlyShortages && <Check className="h-3.5 w-3.5 text-amber-300" />}
-            </button>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterMode("ALL");
+                  setOnlyShortages(false);
+                }}
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-all cursor-pointer ${
+                  filterMode === "ALL" && !onlyShortages
+                    ? "border-white/20 bg-white/10 text-white"
+                    : "border-white/[0.08] bg-white/[0.02] text-slate-400 hover:text-white"
+                }`}
+              >
+                All ({report.cards.length})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterMode(filterMode === "SHORTAGES" ? "ALL" : "SHORTAGES");
+                  setOnlyShortages(false);
+                }}
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-all cursor-pointer ${
+                  filterMode === "SHORTAGES" || onlyShortages
+                    ? "border-amber-400 bg-amber-400/20 text-amber-200 shadow-[0_0_12px_rgba(251,191,36,0.3)]"
+                    : "border-white/[0.08] bg-white/[0.02] text-slate-300 hover:border-amber-400/30"
+                }`}
+              >
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
+                Shortages ({summary?.shortageOffsetCount || 0})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterMode(filterMode === "STAPLES" ? "ALL" : "STAPLES");
+                  setOnlyShortages(false);
+                }}
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-all cursor-pointer ${
+                  filterMode === "STAPLES"
+                    ? "border-rose-400 bg-rose-500/20 text-rose-200 shadow-[0_0_12px_rgba(244,63,94,0.3)]"
+                    : "border-white/[0.08] bg-white/[0.02] text-slate-300 hover:border-rose-400/30"
+                }`}
+              >
+                <span>🔥 Staple Deficits ({summary?.stapleDeficitCount || 0})</span>
+              </button>
+            </div>
           </div>
 
           {/* Element & Rarity Multi-Select Chips */}
@@ -696,6 +734,24 @@ export default function MypStoreView() {
                           {d.deckName} <span className="ml-1 font-mono text-slate-300">x{d.quantity}</span>
                         </a>
                       ))}
+                    </div>
+                  ) : null}
+
+                  {card.isStapleDeficit ? (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      <span className="inline-flex items-center gap-1.5 rounded-md border border-rose-400/40 bg-rose-500/15 px-2 py-0.5 text-[11px] font-semibold text-rose-200">
+                        <span>🔥 Meta Staple · Keep in Binder!</span>
+                        <span className="font-mono text-rose-300">
+                          (Binder: {card.totalBinderOwned}/{card.stapleRecommendedCopies}
+                          {card.stapleInclusionRate ? ` · ${card.stapleInclusionRate}` : ""})
+                        </span>
+                      </span>
+                    </div>
+                  ) : card.isMetaStaple && card.stapleRecommendedCopies ? (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      <span className="inline-flex items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[10px] text-slate-400">
+                        <span>Meta Staple · Playset Owned in Binder ({card.totalBinderOwned}/{card.stapleRecommendedCopies})</span>
+                      </span>
                     </div>
                   ) : null}
                 </div>

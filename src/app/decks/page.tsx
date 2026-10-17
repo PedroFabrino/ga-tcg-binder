@@ -46,6 +46,7 @@ export default function DecksPage() {
   const [formMode, setFormMode] = useState<"create" | "import" | null>(null);
   const [pendingDelete, setPendingDelete] = useState<DeckSummary | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [recommendedMeta, setRecommendedMeta] = useState<any[]>([]);
 
   useEffect(() => {
     const v = new URLSearchParams(window.location.search).get("view") as DecksViewTab | null;
@@ -88,6 +89,18 @@ export default function DecksPage() {
       const list: DeckSummary[] = Array.isArray(data.decks) ? data.decks : [];
       setDecks(list);
       setError(false);
+
+      // Fetch recommended meta archetypes
+      try {
+        const metaRes = await fetch(`/api/meta${userIdQuery}`);
+        if (metaRes.ok) {
+          const metaData = await metaRes.json();
+          setRecommendedMeta(Array.isArray(metaData.recommendedArchetypes) ? metaData.recommendedArchetypes : []);
+        }
+      } catch {
+        // Soft error: ignore
+      }
+
       list.forEach(async (d) => {
         try {
           const r = await fetch(`/api/decks/${d.id}/shortage${userIdQuery}`);
@@ -174,6 +187,68 @@ export default function DecksPage() {
 
       {/* View Switcher: My Decks vs All Shortages */}
       <Tabs tabs={TABS} active={activeTab} onChange={handleTabChange} />
+
+      {activeTab === "decks" && recommendedMeta.length > 0 && (
+        <div className="rounded-2xl glass border border-emerald-400/25 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-emerald-300 font-bold">✨</span>
+              <h2 className="text-sm font-bold text-white">Recommended Meta Decks for Your Collection</h2>
+            </div>
+            <a href="/meta" className="text-xs text-cyan-400 hover:text-cyan-300 font-medium">
+              View All Meta Archetypes →
+            </a>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {recommendedMeta.slice(0, 3).map((m: any) => (
+              <div
+                key={m.id}
+                className="flex items-center justify-between rounded-xl border border-white/[0.08] bg-black/30 p-3 hover:border-emerald-400/40 transition-colors"
+              >
+                <div className="min-w-0 mr-3">
+                  <div className="font-semibold text-white text-xs truncate">{m.name}</div>
+                  <div className="text-[11px] text-slate-400">
+                    <span className="font-mono text-emerald-300 font-bold">{m.completionPct}% owned</span>
+                    {m.missingCardsCount > 0 ? ` · ${m.missingCardsCount} missing` : " · Complete!"}
+                  </div>
+                </div>
+                <Button
+                  onClick={async () => {
+                    try {
+                      const res = await fetch("/api/decks", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          name: m.name,
+                          champion: m.champion || "",
+                          format: "standard",
+                          omnidexText: m.decklist,
+                          userId: session?.user?.id,
+                        }),
+                      });
+                      const data = await res.json();
+                      if (data.success) {
+                        showToast(`Imported "${m.name}" to your Decks!`, "success");
+                        fetchDecks();
+                      } else {
+                        showToast("Failed to import deck: " + data.error, "error");
+                      }
+                    } catch (err: any) {
+                      showToast("Failed to import: " + err.message, "error");
+                    }
+                  }}
+                  size="sm"
+                  variant="outline"
+                  className="text-xs border-emerald-400/30 text-emerald-300 hover:bg-emerald-500/10 shrink-0"
+                >
+                  Import
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {activeTab === "shortages" ? (
         <AllShortagesView

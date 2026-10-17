@@ -33,7 +33,7 @@ import type {
   GlobalMarketReport,
 } from "@/services/marketplace";
 
-type ShortageFilter = "ALL_SHORTAGES" | "HARD_ONLY" | "SHARED_ONLY" | "ALL_MARKET";
+type ShortageFilter = "ALL_SHORTAGES" | "HARD_ONLY" | "SHARED_ONLY" | "STAPLES_ONLY" | "ALL_MARKET";
 
 export default function MarketplacePage() {
   const { data: session } = useSession();
@@ -122,6 +122,8 @@ export default function MarketplacePage() {
       list = list.filter((c) => c.shortageTier === "HARD" && c.netExternalStock > 0);
     } else if (shortageFilter === "SHARED_ONLY") {
       list = list.filter((c) => c.shortageTier === "SHARED" && c.netExternalStock > 0);
+    } else if (shortageFilter === "STAPLES_ONLY") {
+      list = list.filter((c) => c.isMetaStaple && c.netExternalStock > 0);
     }
 
     if (selectedElements.length > 0) {
@@ -142,7 +144,8 @@ export default function MarketplacePage() {
           c.cardName.toLowerCase().includes(q) || c.rawName.toLowerCase().includes(q);
         const setMatch = c.setPrefix.toLowerCase().includes(q);
         const deckMatch = c.deckNeeds.some((d) => d.deckName.toLowerCase().includes(q));
-        return nameMatch || setMatch || deckMatch;
+        const stapleMatch = c.stapleCategories?.some((cat) => cat.toLowerCase().includes(q));
+        return nameMatch || setMatch || deckMatch || stapleMatch;
       });
     }
 
@@ -589,6 +592,28 @@ export default function MarketplacePage() {
                       </div>
                     ) : null}
 
+                    {/* Meta Staple Badge */}
+                    {card.isStapleDeficit ? (
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-400/40 bg-rose-500/15 px-2.5 py-0.5 text-[10px] font-semibold text-rose-200">
+                          <span>🔥 Meta Staple Deficit</span>
+                          {card.stapleRecommendedCopies && (
+                            <span className="font-mono text-rose-300">
+                              (Binder: {card.totalBinderOwned ?? 0}/{card.stapleRecommendedCopies})
+                            </span>
+                          )}
+                          {card.stapleInclusionRate && <span>· {card.stapleInclusionRate}</span>}
+                        </span>
+                      </div>
+                    ) : card.isMetaStaple ? (
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+                          <span>🔥 Meta Staple</span>
+                          {card.stapleInclusionRate && <span>· {card.stapleInclusionRate}</span>}
+                        </span>
+                      </div>
+                    ) : null}
+
                     {/* Self-listing collision badge */}
                     {card.personalStoreQuantity > 0 && !isSelfCollision && (
                       <div className="mt-1 flex items-center gap-1.5">
@@ -598,7 +623,10 @@ export default function MarketplacePage() {
                           title="You already own copies of this card listed in your MyP Store"
                         >
                           <Store className="h-2.5 w-2.5 text-amber-400" />
-                          You have {card.personalStoreQuantity} listed in your MyP Store
+                          <span>In Your MyP Store:</span>
+                          <span className="font-mono font-bold text-amber-300">
+                            {card.personalStoreQuantity}x
+                          </span>
                         </a>
                       </div>
                     )}
