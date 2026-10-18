@@ -1,5 +1,5 @@
-import { and, eq, like, or, sql, inArray } from "drizzle-orm";
-import { cards, cardEditions, cardCirculations, decks, deckCards } from "../db/schema";
+import { and, eq, like, or, inArray } from "drizzle-orm";
+import { cards, cardEditions, cardCirculations, decks, deckCards, metaStaples } from "../db/schema";
 
 export interface CatalogSearchFilters {
   query?: string;
@@ -8,6 +8,7 @@ export interface CatalogSearchFilters {
   type?: string;
   setPrefix?: string;
   lowPopOnly?: boolean;
+  staplesOnly?: boolean;
   lowPopThreshold?: number;
   userId?: string;
   limit?: number;
@@ -53,6 +54,10 @@ export interface CatalogCardResult {
   level: number | null;
   speed: boolean | null;
   hasLowPopEdition: boolean;
+  isMetaStaple: boolean;
+  stapleInclusionRate: string | null;
+  stapleRecommendedCopies: number | null;
+  stapleCategories: string[];
   deckUsage: DeckUsage[];
   editions: EditionWithCirculations[];
 }
@@ -108,6 +113,19 @@ export async function searchCatalog(
 
   const matchingSlugs = matchingCards.map((c: any) => c.slug);
 
+  // Fetch meta staples for matching cards
+  let staplesData: any[] = [];
+  if (matchingSlugs.length > 0) {
+    staplesData = await database
+      .select()
+      .from(metaStaples)
+      .where(inArray(metaStaples.cardSlug, matchingSlugs));
+  }
+  const staplesBySlug = new Map<string, any>();
+  for (const s of staplesData) {
+    staplesBySlug.set(s.cardSlug, s);
+  }
+
   // Fetch editions for these cards
   let editionQuery = database
     .select()
@@ -162,6 +180,13 @@ export async function searchCatalog(
   const results: CatalogCardResult[] = [];
 
   for (const card of matchingCards) {
+    const stapleRecord = staplesBySlug.get(card.slug);
+    const isMetaStaple = Boolean(stapleRecord);
+
+    if (filters.staplesOnly && !isMetaStaple) {
+      continue;
+    }
+
     const cardEds = editionsData.filter((e: any) => e.cardSlug === card.slug);
     if (filters.setPrefix && filters.setPrefix !== "ALL" && cardEds.length === 0) {
       continue; // Filtered out by set prefix
@@ -214,6 +239,15 @@ export async function searchCatalog(
         zone: d.zone,
       }));
 
+    let stapleCategories: string[] = [];
+    if (stapleRecord?.categories) {
+      try {
+        stapleCategories = JSON.parse(stapleRecord.categories);
+      } catch {
+        stapleCategories = [];
+      }
+    }
+
     results.push({
       slug: card.slug,
       name: card.name,
@@ -227,6 +261,10 @@ export async function searchCatalog(
       level: card.level,
       speed: card.speed,
       hasLowPopEdition: cardHasLowPop,
+      isMetaStaple,
+      stapleInclusionRate: stapleRecord?.inclusionRate ?? null,
+      stapleRecommendedCopies: stapleRecord?.recommendedCopies ?? null,
+      stapleCategories,
       deckUsage: cardDeckUsage,
       editions: populatedEditions,
     });

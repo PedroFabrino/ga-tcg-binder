@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Search, Sparkles, Gem, RefreshCw, SlidersHorizontal, X } from "lucide-react";
+import { Search, Sparkles, Gem, Flame, RefreshCw, SlidersHorizontal, X } from "lucide-react";
 import { PageHeader } from "@/components/common";
 import { SkeletonGrid, EmptyState } from "@/components/Skeletons";
 import { useToast } from "@/components/ToastProvider";
@@ -10,6 +10,7 @@ import CatalogCard, { type CatalogCardData, type Edition } from "@/components/ca
 import { ALL_ELEMENTS, ELEMENT_LABELS, getElementColor } from "@/lib/elements";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { useTranslation } from "@/lib/i18n";
 
 const ELEMENTS = ALL_ELEMENTS;
 const CLASSES = ["WARRIOR", "MAGE", "TANK", "CLERIC", "ASSASSIN", "RANGER", "TAMER"];
@@ -34,6 +35,7 @@ function Chip({ active, onClick, children, color }: { active: boolean; onClick: 
 export default function CatalogPage() {
   const { data: session } = useSession();
   const { showToast } = useToast();
+  const { t } = useTranslation();
   const [cards, setCards] = useState<CatalogCardData[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -43,6 +45,7 @@ export default function CatalogPage() {
   const [cardClass, setCardClass] = useState<string | null>(null);
   const [setPrefix, setSetPrefix] = useState<string | null>(null);
   const [lowPopOnly, setLowPopOnly] = useState(false);
+  const [staplesOnly, setStaplesOnly] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
 
@@ -56,6 +59,7 @@ export default function CatalogPage() {
       if (cardClass) params.set("class", cardClass);
       if (setPrefix) params.set("setPrefix", setPrefix);
       if (lowPopOnly) params.set("lowPopOnly", "true");
+      if (staplesOnly) params.set("staplesOnly", "true");
       const res = await fetch(`/api/catalog?${params}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
@@ -67,7 +71,7 @@ export default function CatalogPage() {
     } finally {
       setLoading(false);
     }
-  }, [session?.user?.id, query, element, cardClass, setPrefix, lowPopOnly]);
+  }, [session?.user?.id, query, element, cardClass, setPrefix, lowPopOnly, staplesOnly]);
 
   useEffect(() => {
     const t = setTimeout(fetchCards, 250);
@@ -115,12 +119,16 @@ export default function CatalogPage() {
     }
   };
 
-  const activeCount = [element, cardClass, setPrefix].filter(Boolean).length + (lowPopOnly ? 1 : 0);
+  const activeCount =
+    [element, cardClass, setPrefix].filter(Boolean).length +
+    (lowPopOnly ? 1 : 0) +
+    (staplesOnly ? 1 : 0);
   const clearAll = () => {
     setElement(null);
     setCardClass(null);
     setSetPrefix(null);
     setLowPopOnly(false);
+    setStaplesOnly(false);
   };
 
   const filters = (
@@ -151,6 +159,15 @@ export default function CatalogPage() {
           ))}
         </div>
       </div>
+      <label
+        htmlFor="staples-switch"
+        className={`flex w-full cursor-pointer items-center justify-between rounded-xl border px-3 py-2.5 text-xs font-semibold transition-all ${
+          staplesOnly ? "border-amber-400/40 bg-amber-500/15 text-amber-200 shadow-[0_0_20px_-8px_rgba(245,158,11,0.6)]" : "border-white/[0.06] text-slate-400 hover:text-slate-200"
+        }`}
+      >
+        <span className="flex items-center gap-2"><Flame className="h-3.5 w-3.5 text-amber-400" /> {t("fulfillment.staplesOnlyFilter")}</span>
+        <Switch id="staples-switch" tone="gold" checked={staplesOnly} onCheckedChange={setStaplesOnly} />
+      </label>
       <label
         htmlFor="lowpop-switch"
         className={`flex w-full cursor-pointer items-center justify-between rounded-xl border px-3 py-2.5 text-xs font-semibold transition-all ${

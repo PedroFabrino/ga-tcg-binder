@@ -158,6 +158,9 @@ export const enCatalog = {
     cardsToPull: "{count} cards to pull",
     shippingDefault: "Standard",
     cardNotePlaceholder: "Add commentary (e.g. didn't find 4, only 3, is it ok?)...",
+    stapleBadge: "Meta Staple",
+    stapleTooltip: "Meta Staple ({rate}) · Recommended: {copies}x",
+    staplesOnlyFilter: "Meta Staples only",
   },
 };
 
@@ -314,6 +317,9 @@ export const ptBRCatalog: TranslationCatalog = {
     cardsToPull: "{count} cartas para pegar",
     shippingDefault: "Padrão",
     cardNotePlaceholder: "Adicionar observação (ex: só achei 3 de 4, tudo bem?)...",
+    stapleBadge: "Staple do Meta",
+    stapleTooltip: "Staple do Meta ({rate}) · Recomendado: {copies}x",
+    staplesOnlyFilter: "Apenas Staples do Meta",
   },
 };
 

@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Check, Sparkles, Gem, Layers } from "lucide-react";
+import { Plus, Check, Sparkles, Gem, Layers, Flame } from "lucide-react";
 import TiltCard from "@/components/TiltCard";
 import { CardArt, ElementBadge, RarityGem } from "@/components/common";
 import { formatPopulation, getElementClass } from "@/lib/elements";
 import { CardPreviewTrigger } from "@/components/CardHoverPreview";
+import { useTranslation } from "@/lib/i18n";
 
 export interface Circulation { id: string; kind: string; population: number; foil: boolean }
 export interface Edition {
@@ -33,11 +34,16 @@ export interface CatalogCardData {
   type: string;
   effect: string | null;
   hasLowPopEdition: boolean;
+  isMetaStaple?: boolean;
+  stapleInclusionRate?: string | null;
+  stapleRecommendedCopies?: number | null;
+  stapleCategories?: string[];
   deckUsage?: DeckUsage[];
   editions: Edition[];
 }
 
 export default function CatalogCard({ card, onAdd }: { card: CatalogCardData; onAdd: (ed: Edition, foil: boolean) => Promise<boolean> }) {
+  const { t } = useTranslation();
   const [selected, setSelected] = useState(0);
   const [added, setAdded] = useState<string | null>(null);
   const ed = card.editions[selected];
@@ -65,11 +71,26 @@ export default function CatalogCard({ card, onAdd }: { card: CatalogCardData; on
           <CardArt src={ed?.imageUrl} alt={card.name} className="h-full w-full object-top transition-transform duration-500 group-hover:scale-105" />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0b0f19] via-transparent to-transparent" />
           <div className="absolute left-2.5 top-2.5 z-[5]"><ElementBadge element={card.element} /></div>
-          {card.hasLowPopEdition && (
-            <span className="gold-badge absolute right-2.5 top-2.5 z-[5] inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">
-              <Gem className="h-2.5 w-2.5" /> Low Pop
-            </span>
-          )}
+          <div className="absolute right-2.5 top-2.5 z-[5] flex flex-col items-end gap-1">
+            {card.hasLowPopEdition && (
+              <span className="gold-badge inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">
+                <Gem className="h-2.5 w-2.5" /> Low Pop
+              </span>
+            )}
+            {card.isMetaStaple && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-500/90 px-2 py-0.5 text-[10px] font-bold text-slate-950 shadow-sm"
+                title={t("fulfillment.stapleTooltip", {
+                  rate: card.stapleInclusionRate || "Meta",
+                  copies: card.stapleRecommendedCopies || 4,
+                })}
+              >
+                <Flame className="h-2.5 w-2.5 fill-current" />
+                {t("fulfillment.stapleBadge")}
+                {card.stapleInclusionRate ? ` · ${card.stapleInclusionRate}` : ""}
+              </span>
+            )}
+          </div>
           {card.deckUsage && card.deckUsage.length > 0 && (
             <div className="absolute bottom-2 left-2.5 right-2.5 z-[5] flex flex-wrap gap-1">
               <span
@@ -98,6 +119,19 @@ export default function CatalogCard({ card, onAdd }: { card: CatalogCardData; on
             <h3 className="truncate text-sm font-semibold text-white transition-colors hover:text-cyan-300 cursor-pointer">{card.name}</h3>
           </CardPreviewTrigger>
           <p className="mt-0.5 text-[11px] text-slate-500">{[card.type, card.class].filter(Boolean).join(" · ")}</p>
+
+          {card.isMetaStaple && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              <span className="inline-flex items-center gap-1 rounded-md border border-amber-400/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+                <Flame className="h-3 w-3 text-amber-400" />
+                <span>{t("fulfillment.stapleBadge")}</span>
+                {card.stapleInclusionRate && <span>· {card.stapleInclusionRate}</span>}
+                {card.stapleRecommendedCopies && (
+                  <span className="font-mono text-amber-200">({card.stapleRecommendedCopies}x)</span>
+                )}
+              </span>
+            </div>
+          )}
 
           {card.deckUsage && card.deckUsage.length > 0 && (
             <div className="mt-2 flex flex-wrap items-center gap-1.5">

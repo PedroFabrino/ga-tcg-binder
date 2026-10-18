@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createTestDb } from "../db/test-utils";
-import { cards, cardEditions, cardCirculations, users, decks, deckCards } from "../db/schema";
+import { cards, cardEditions, cardCirculations, users, decks, deckCards, metaStaples } from "../db/schema";
 import { searchCatalog } from "./catalog";
 
 describe("Catalog & Search Seam", () => {
@@ -160,5 +160,26 @@ describe("Catalog & Search Seam", () => {
       quantity: 4,
       zone: "main",
     });
+
+    // 6. Meta staple detection and staplesOnly filtering
+    await db.insert(metaStaples).values({
+      cardSlug: "flame-burst",
+      cardName: "Flame Burst",
+      categories: JSON.stringify(["Fire Main Deck"]),
+      primaryCategory: "Fire Main Deck",
+      element: "FIRE",
+      inclusionRate: "94.2%",
+      avgCopies: "3.8",
+      recommendedCopies: 4,
+      deckCount: 45,
+    });
+
+    const stapleSearch = await searchCatalog({ staplesOnly: true }, db);
+    expect(stapleSearch.total).toBe(1);
+    expect(stapleSearch.cards[0].slug).toBe("flame-burst");
+    expect(stapleSearch.cards[0].isMetaStaple).toBe(true);
+    expect(stapleSearch.cards[0].stapleInclusionRate).toBe("94.2%");
+    expect(stapleSearch.cards[0].stapleRecommendedCopies).toBe(4);
+    expect(stapleSearch.cards[0].stapleCategories).toEqual(["Fire Main Deck"]);
   });
 });

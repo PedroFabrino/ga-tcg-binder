@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
     const cardType = url.searchParams.get("type") || undefined;
     const setPrefix = url.searchParams.get("setPrefix") || undefined;
     const lowPopOnly = url.searchParams.get("lowPopOnly") === "true";
+    const staplesOnly = url.searchParams.get("staplesOnly") === "true";
     const lowPopThreshold = url.searchParams.get("threshold")
       ? parseInt(url.searchParams.get("threshold")!, 10)
       : 1000;
@@ -35,6 +36,7 @@ export async function GET(req: NextRequest) {
         type: cardType,
         setPrefix,
         lowPopOnly,
+        staplesOnly,
         lowPopThreshold,
         userId,
         limit,
