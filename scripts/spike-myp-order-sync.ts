@@ -169,13 +169,20 @@ async function runFeasibilitySpike(): Promise<SpikeReport> {
     const submitUrl = loginSubmitRes.solution?.url || "";
     console.log(`   └─ Post-login landing URL: ${submitUrl}`);
 
-    const errorMatch =
-      submitHtml.match(/class=["'][^"']*help-block-error[^"']*["'][^>]*>([^<]+)/i) ||
-      submitHtml.match(/class=["'][^"']*alert-danger[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+    if (submitUrl.includes("login") || submitHtml.includes("LoginForm[password]")) {
+      const titleMatch = submitHtml.match(/<title>([^<]+)<\/title>/i);
+      console.log(`   └─ Landing page title: ${titleMatch ? titleMatch[1] : "N/A"}`);
 
-    if (errorMatch) {
-      const cleanError = errorMatch[1].replace(/<[^>]+>/g, " ").trim();
-      throw new Error(`MyP login rejected with message: "${cleanError}"`);
+      const errors = Array.from(
+        submitHtml.matchAll(/<(?:p|div|span)[^>]*class=["'][^"']*(?:error|danger|alert|warning|help-block)[^"']*["'][^>]*>([\s\S]*?)<\/(?:p|div|span)>/gi)
+      )
+        .map((m) => m[1].replace(/<[^>]+>/g, " ").trim())
+        .filter((t) => t.length > 0 && !t.includes("function") && !t.includes("{"));
+
+      console.log(`   └─ Detected page notices/errors:`, errors);
+      throw new Error(
+        `MyP login did not establish a session (still on ${submitUrl}). Page notices: ${errors.join("; ") || "No explicit error message found (possible captcha or Cloudflare challenge)"}`
+      );
     }
 
     report.authenticated = true;
