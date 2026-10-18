@@ -199,3 +199,56 @@ export function extractOrderFromDom(
     items,
   };
 }
+
+export function toMypCarrier(carrier?: string | null): "correios" | "loggi" | "jadlog" | "outro" {
+  const c = String(carrier || "").toLowerCase();
+  if (c === "correios" || c === "loggi" || c === "jadlog") return c;
+  return "outro";
+}
+
+export interface ConfirmarEnvioPayload {
+  orderId?: string;
+  carrier: string;
+  trackingCode: string;
+  autoSubmit?: boolean;
+}
+
+export function fillAndValidateConfirmarEnvioForm(
+  doc: Document | { querySelector: (s: string) => any },
+  payload: ConfirmarEnvioPayload
+): { success: boolean; mappedCarrier: string; submitted: boolean } {
+  const select = doc.querySelector("#transportadorapedido") || doc.querySelector("select[name='transportadorapedido']");
+  const trackingInput = doc.querySelector("#pedido-numerorastreiopedido") || doc.querySelector("input[name='numerorastreiopedido']");
+  const submitBtn = doc.querySelector("#btn-confirmar-envio");
+  const form = doc.querySelector("#w0") || (submitBtn?.closest ? submitBtn.closest("form") : null);
+
+  if (!select || !trackingInput) {
+    return { success: false, mappedCarrier: "outro", submitted: false };
+  }
+
+  const mappedCarrier = toMypCarrier(payload.carrier);
+  select.value = mappedCarrier;
+  select.dispatchEvent?.(new Event("change", { bubbles: true }));
+
+  trackingInput.value = payload.trackingCode || "";
+  trackingInput.dispatchEvent?.(new Event("input", { bubbles: true }));
+  trackingInput.dispatchEvent?.(new Event("blur", { bubbles: true }));
+
+  if (submitBtn) {
+    submitBtn.disabled = false;
+  }
+
+  let submitted = false;
+  if (payload.autoSubmit && form) {
+    if (typeof form.requestSubmit === "function") {
+      form.requestSubmit();
+      submitted = true;
+    } else if (typeof form.submit === "function") {
+      form.submit();
+      submitted = true;
+    }
+  }
+
+  return { success: true, mappedCarrier, submitted };
+}
+

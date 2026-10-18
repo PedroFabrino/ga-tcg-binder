@@ -13,6 +13,7 @@ import FulfillmentShippingModal from "./FulfillmentShippingModal";
 import FulfillmentEmptyState from "./FulfillmentEmptyState";
 import FulfillmentNonGaBanner from "./FulfillmentNonGaBanner";
 import FulfillmentProcessedTab from "./FulfillmentProcessedTab";
+import FulfillmentSentTab from "./FulfillmentSentTab";
 import type { QuotedBuyerPack } from "@/services/superfrete";
 
 interface FulfillmentViewProps {
@@ -364,9 +365,7 @@ export default function FulfillmentView({ mypUsername }: FulfillmentViewProps = 
       ) : lifecycleTab === "processed" ? (
         <FulfillmentProcessedTab />
       ) : (
-        <div className="rounded-xl border border-dashed border-slate-800 bg-slate-900/30 p-12 text-center text-slate-400">
-          <p className="text-sm font-medium">{t("fulfillment.noSentOrders")}</p>
-        </div>
+        <FulfillmentSentTab />
       )}
 
       {/* Superfrete Shipping Validation Modal */}

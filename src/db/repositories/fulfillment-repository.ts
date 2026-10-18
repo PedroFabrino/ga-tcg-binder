@@ -274,5 +274,24 @@ export async function getShippingTicketsWithOrders(
   }));
 }
 
+export async function markOrdersAsSent(
+  userId: string,
+  orderIds: string[],
+  database = db
+): Promise<boolean> {
+  if (orderIds.length === 0) return true;
+  await database
+    .update(fulfillmentOrders)
+    .set({
+      status: "sent",
+      mypConfirmedAt: new Date().toISOString(),
+      updatedAt: sql`(strftime('%s', 'now'))`,
+    })
+    .where(and(eq(fulfillmentOrders.userId, userId), inArray(fulfillmentOrders.id, orderIds)));
+
+  return true;
+}
+
+
 
 

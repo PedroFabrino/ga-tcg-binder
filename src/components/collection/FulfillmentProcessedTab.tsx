@@ -11,6 +11,8 @@ import {
   Truck,
   HelpCircle,
   PackageCheck,
+  Send,
+  Sliders,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/lib/i18n";
@@ -26,6 +28,8 @@ export default function FulfillmentProcessedTab() {
   const [tickets, setTickets] = useState<ShippingTicketWithOrders[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [confirmationMode, setConfirmationMode] = useState<"assisted" | "batch">("assisted");
+  const [isBatchSubmitting, setIsBatchSubmitting] = useState(false);
 
   const loadTickets = useCallback(async () => {
     try {
@@ -78,6 +82,58 @@ export default function FulfillmentProcessedTab() {
     }
   };
 
+  const handleMarkAsSent = async (orderId: string, mypOrderId: string) => {
+    try {
+      const res = await fetch("/api/marketplace/fulfillment/confirm-sent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      });
+      if (res.ok) {
+        showToast(t("fulfillment.orderSentToast", { orderId: mypOrderId }));
+        await loadTickets();
+      }
+    } catch (e) {
+      console.error("Failed to mark order as sent:", e);
+    }
+  };
+
+  const handleOpenMyPConfirm = (
+    order: { mypOrderId: string },
+    ticket: { carrier: string; trackingCode: string | null }
+  ) => {
+    const payload = {
+      orderId: order.mypOrderId,
+      carrier: ticket.carrier,
+      trackingCode: ticket.trackingCode || "",
+      autoSubmit: confirmationMode === "batch",
+    };
+    const encoded = encodeURIComponent(JSON.stringify(payload));
+    const url = `https://mypcards.com/pedido/confirmar-envio?id=${order.mypOrderId}#ga_confirm=${encoded}`;
+    window.open(url, "_blank");
+  };
+
+  const handleBatchConfirm = async () => {
+    const eligibleOrders = tickets
+      .flatMap((t) => (t.trackingCode ? t.orders.map((o) => ({ order: o, ticket: t })) : []));
+
+    if (eligibleOrders.length === 0) return;
+
+    setIsBatchSubmitting(true);
+    try {
+      for (const item of eligibleOrders) {
+        handleOpenMyPConfirm(item.order, item.ticket);
+      }
+    } finally {
+      setIsBatchSubmitting(false);
+    }
+  };
+
+  const totalEligibleToConfirm = tickets.reduce(
+    (sum, t) => sum + (t.trackingCode ? t.orders.length : 0),
+    0
+  );
+
   const renderStatusBadge = (status: string) => {
     if (status === "pending") {
       return (
@@ -129,6 +185,32 @@ export default function FulfillmentProcessedTab() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Mode Selector */}
+          <div className="inline-flex items-center rounded-lg border border-slate-700 bg-slate-800 p-0.5 text-xs">
+            <button
+              type="button"
+              onClick={() => setConfirmationMode("assisted")}
+              className={`rounded-md px-2.5 py-1 font-semibold transition-colors ${
+                confirmationMode === "assisted"
+                  ? "bg-sky-600 text-white"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              {t("fulfillment.assistedMode")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmationMode("batch")}
+              className={`rounded-md px-2.5 py-1 font-semibold transition-colors ${
+                confirmationMode === "batch"
+                  ? "bg-sky-600 text-white"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              {t("fulfillment.batchAutoMode")}
+            </button>
+          </div>
+
           <a
             href={SUPERFRETE_PANEL_URL}
             target="_blank"
@@ -147,6 +229,18 @@ export default function FulfillmentProcessedTab() {
             <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`} />
             {isSyncing ? t("fulfillment.syncingTrackingLoading") : t("fulfillment.syncTrackingBtn")}
           </Button>
+
+          {totalEligibleToConfirm > 0 && (
+            <Button
+              size="sm"
+              onClick={handleBatchConfirm}
+              disabled={isBatchSubmitting}
+              className="gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
+            >
+              <Send className="h-3.5 w-3.5" />
+              {t("fulfillment.batchConfirmBtn", { count: totalEligibleToConfirm })}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -233,23 +327,45 @@ export default function FulfillmentProcessedTab() {
                     )}
                   </div>
 
-                  {/* Linked orders count */}
-                  <div className="flex items-center gap-2">
+                  {/* Linked orders with confirmation actions */}
+                  <div className="flex flex-wrap items-center gap-3">
                     <span className="text-xs text-slate-400">
                       {t("fulfillment.includedOrders", { count: ticket.orders?.length || 0 })}:
                     </span>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-2">
                       {ticket.orders?.map((o) => (
-                        <a
-                          key={o.id}
-                          href={`https://mypcards.com/pedido/${o.mypOrderId}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 rounded bg-slate-800 px-2 py-0.5 text-xs font-mono text-sky-400 hover:text-sky-300"
-                        >
-                          #{o.mypOrderId}
-                          <ExternalLink className="h-2.5 w-2.5" />
-                        </a>
+                        <div key={o.id} className="inline-flex items-center gap-1.5 rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1 text-xs">
+                          <a
+                            href={`https://mypcards.com/pedido/${o.mypOrderId}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-mono text-sky-400 hover:text-sky-300 underline inline-flex items-center gap-0.5"
+                          >
+                            #{o.mypOrderId}
+                            <ExternalLink className="h-2.5 w-2.5" />
+                          </a>
+
+                          {ticket.trackingCode && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenMyPConfirm(o, ticket)}
+                                className="ml-1 text-emerald-400 hover:text-emerald-300 font-semibold"
+                                title={t("fulfillment.confirmShippingBtn")}
+                              >
+                                {t("fulfillment.confirmShippingBtn")} ↗
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleMarkAsSent(o.id, o.mypOrderId)}
+                                className="text-slate-400 hover:text-slate-200"
+                                title={t("fulfillment.markAsSentBtn")}
+                              >
+                                ✓
+                              </button>
+                            </>
+                          )}
+                        </div>
                       ))}
                     </div>
                   </div>

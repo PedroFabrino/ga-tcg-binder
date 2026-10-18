@@ -29,6 +29,13 @@
     }
   }
 
+  const CONFIRM_PREFIX = "#ga_confirm=";
+
+  if (rawHash.startsWith(CONFIRM_PREFIX) || window.location.pathname.includes("/pedido/confirmar-envio")) {
+    initConfirmarEnvio(rawHash);
+    return;
+  }
+
   if (rawHash.startsWith(HASH_PREFIX)) {
     initWatchlistSync(rawHash);
     return;
@@ -1199,4 +1206,110 @@
 
     renderContent();
   }
+
+  // =========================================================================
+  // 3. SHIPPING CONFIRMATION FORM FILLER (PEDIDO/CONFIRMAR-ENVIO)
+  // =========================================================================
+
+  function initConfirmarEnvio(hash) {
+    let payload = null;
+    if (hash && hash.startsWith(CONFIRM_PREFIX)) {
+      try {
+        const jsonStr = decodeURIComponent(hash.slice(CONFIRM_PREFIX.length));
+        payload = JSON.parse(jsonStr);
+      } catch (err) {
+        console.error("[GA Fulfillment Bridge] Failed to parse confirmation payload:", err);
+      }
+    }
+
+    if (!payload) {
+      try {
+        const stored = sessionStorage.getItem("ga_confirm_payload");
+        if (stored) payload = JSON.parse(stored);
+      } catch (e) {}
+    }
+
+    if (!payload) {
+      return;
+    }
+
+    function toMypCarrier(carrier) {
+      const c = String(carrier || "").toLowerCase();
+      if (c === "correios" || c === "loggi" || c === "jadlog") return c;
+      return "outro";
+    }
+
+    function tryFill() {
+      const select = document.querySelector("#transportadorapedido") || document.querySelector("select[name='transportadorapedido']");
+      const trackingInput = document.querySelector("#pedido-numerorastreiopedido") || document.querySelector("input[name='numerorastreiopedido']");
+      const submitBtn = document.querySelector("#btn-confirmar-envio");
+      const form = document.querySelector("#w0") || (submitBtn?.closest ? submitBtn.closest("form") : null);
+
+      if (!select || !trackingInput) {
+        return false;
+      }
+
+      const mappedCarrier = toMypCarrier(payload.carrier);
+      select.value = mappedCarrier;
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+
+      trackingInput.value = payload.trackingCode || "";
+      trackingInput.dispatchEvent(new Event("input", { bubbles: true }));
+      trackingInput.dispatchEvent(new Event("blur", { bubbles: true }));
+
+      if (submitBtn) {
+        submitBtn.disabled = false;
+      }
+
+      const banner = document.createElement("div");
+      banner.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 999999;
+        background: #0f172a;
+        color: #f8fafc;
+        border: 1px solid #38bdf8;
+        border-radius: 8px;
+        padding: 12px 16px;
+        font-family: system-ui, sans-serif;
+        font-size: 13px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      `;
+
+      if (payload.autoSubmit) {
+        banner.innerHTML = "<strong>GA TCG Binder:</strong> Enviando confirmação de envio automaticamente...";
+        document.body.appendChild(banner);
+        setTimeout(() => {
+          if (form) {
+            if (typeof form.requestSubmit === "function") {
+              form.requestSubmit();
+            } else {
+              form.submit();
+            }
+          }
+          if (payload.callbackUrl && payload.orderId) {
+            fetch(payload.callbackUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ orderId: payload.orderId }),
+            }).catch(() => {});
+          }
+        }, 600);
+      } else {
+        banner.innerHTML = `<strong>GA TCG Binder:</strong> Transportadora (${mappedCarrier}) e Rastreio (${payload.trackingCode || ""}) preenchidos! Confira e clique em Confirmar Envio.`;
+        document.body.appendChild(banner);
+        setTimeout(() => banner.remove(), 8000);
+      }
+
+      return true;
+    }
+
+    if (!tryFill()) {
+      window.addEventListener("DOMContentLoaded", tryFill);
+      setTimeout(tryFill, 500);
+      setTimeout(tryFill, 1500);
+    }
+  }
 })();
+

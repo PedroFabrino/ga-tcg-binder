@@ -206,6 +206,14 @@ export const enCatalog = {
     ticketStatusPosted: "Posted",
     ticketStatusUnknown: "Unknown",
     awaitingTracking: "Awaiting postal tracking code...",
+    confirmShippingBtn: "Confirm on MyP",
+    markAsSentBtn: "Mark as Sent",
+    orderSentToast: "Order #{orderId} marked as sent!",
+    batchConfirmBtn: "Confirm All Released ({count})",
+    assistedMode: "Assisted Validation Mode",
+    batchAutoMode: "Batch Auto-Submit Mode",
+    confirmedAt: "Confirmed on {date}",
+    trackingNumber: "Tracking: {code}",
   },
 };
 
@@ -410,6 +418,14 @@ export const ptBRCatalog: TranslationCatalog = {
     ticketStatusPosted: "Postado",
     ticketStatusUnknown: "Desconhecido",
     awaitingTracking: "Aguardando geração de rastreio...",
+    confirmShippingBtn: "Confirmar no MyP",
+    markAsSentBtn: "Marcar como Enviado",
+    orderSentToast: "Pedido #{orderId} marcado como enviado!",
+    batchConfirmBtn: "Confirmar Todos com Rastreio ({count})",
+    assistedMode: "Modo Validação Assistida",
+    batchAutoMode: "Modo Automático em Lote",
+    confirmedAt: "Confirmado em {date}",
+    trackingNumber: "Rastreio: {code}",
   },
 };
 
