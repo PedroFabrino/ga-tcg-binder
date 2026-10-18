@@ -198,6 +198,14 @@ _Avoid_: Customer bundle, shipment stack, order merge
 A freight shipment registered in the external shipping aggregator (Superfrete) for a consolidated Buyer Pack, progressing from `pending` (awaiting payment in the aggregator panel) to `released` (paid, with an assigned postal tracking code) and `posted`.
 _Avoid_: Shipping label, cart row, freight order
 
+**Headless Ingestion Engine**:
+The server-side background and on-demand synchronization worker using FlareSolverr transport to discover eligible Fulfillment Orders from the external marketplace (`Aguard. envio` and `Em separação`) and extract order and recipient details incrementally.
+_Avoid_: Order bot, background scraper, sync daemon
+
+**Order Reconciliation**:
+The synchronization state comparison between external marketplace orders and local Fulfillment Orders, detecting status modifications and buyer cancellation requests, and cross-referencing them against Shipping Ticket payment status to alert the Collector whether an order is safe to cancel or requires freight intervention.
+_Avoid_: State sync, diff check, order auditor
+
 **Repository**:
 A module in `src/db/repositories/` that owns all database queries for one aggregate; the only layer allowed to touch Drizzle/libSQL.
 _Avoid_: DAO, data layer, db helper

@@ -14,7 +14,8 @@
     "sync:catalog": "tsx scripts/sync-catalog.ts",
     "sync:hashes": "tsx scripts/sync-hashes.ts",
     "sync:market": "tsx scripts/sync-market.ts",
-    "sync:pipeline": "tsx scripts/sync-pipeline.ts"
+    "sync:pipeline": "tsx scripts/sync-pipeline.ts",
+    "spike:myp": "tsx scripts/spike-myp-order-sync.ts"
   },
   "dependencies": {
     "@ga/contracts": "workspace:*",

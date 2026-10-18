@@ -1,0 +1,76 @@
+name: MyP Order Sync Feasibility Spike (ADR 0014)
+
+on:
+  workflow_dispatch:
+    inputs:
+      order_id:
+        description: "Optional specific MyP Order ID to inspect (e.g. 654326). If empty, inspects the first order discovered in /vendas."
+        required: false
+        type: string
+      myp_login:
+        description: "Optional MyP Login override. If empty, resolves from the Turso database settings."
+        required: false
+        type: string
+      myp_password:
+        description: "Optional MyP Password override. If empty, decrypts from the Turso database settings."
+        required: false
+        type: string
+
+jobs:
+  spike-myp-sync:
+    name: Run Read-Only MyP Feasibility Spike
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js & pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start FlareSolverr Container
+        run: |
+          docker run -d \
+            --name=flaresolverr \
+            -p 8191:8191 \
+            -e LOG_LEVEL=info \
+            ghcr.io/flaresolverr/flaresolverr:latest
+          
+          # Wait up to 60s for FlareSolverr to become ready
+          for i in {1..30}; do
+            if curl -s http://localhost:8191/ | grep -q "FlareSolverr"; then
+              echo "FlareSolverr is ready!"
+              break
+            fi
+            echo "Waiting for FlareSolverr... ($i/30)"
+            sleep 2
+          done
+
+      - name: Run Read-Only Feasibility Spike Script
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          FLARESOLVERR_URL: "http://localhost:8191"
+          MYP_SPIKE_ORDER_ID: ${{ inputs.order_id }}
+          MYP_LOGIN: ${{ inputs.myp_login }}
+          MYP_PASSWORD: ${{ inputs.myp_password }}
+        run: npx tsx scripts/spike-myp-order-sync.ts
+
+      - name: Stop FlareSolverr
+        if: always()
+        run: |
+          docker stop flaresolverr || true
+          docker rm flaresolverr || true
