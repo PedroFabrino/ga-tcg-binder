@@ -148,12 +148,24 @@ async function runFeasibilitySpike(): Promise<SpikeReport> {
     const userField = inputNames.find((n) => /LoginForm\[(username|login)\]/i.test(n)) || "LoginForm[username]";
     const passField = inputNames.find((n) => /LoginForm\[password\]/i.test(n)) || "LoginForm[password]";
 
-    const loginForm = new URLSearchParams({
-      _csrf: csrfToken,
-      [userField]: creds.login,
-      [passField]: creds.passwordPlaintext,
-      "LoginForm[rememberMe]": "1",
-    });
+    // Collect all hidden fields from the login form to guarantee exact CSRF parameter name and value
+    const hiddenInputs = Array.from(
+      loginFormHtml.matchAll(/<input[^>]*type=["']hidden["'][^>]*name=["']([^"']+)["'][^>]*value=["']([^"']*)["']/gi)
+    );
+    const loginForm = new URLSearchParams();
+    for (const h of hiddenInputs) {
+      loginForm.set(h[1], h[2]);
+    }
+
+    if (csrfToken) {
+      loginForm.set("_csrf", csrfToken);
+      loginForm.set("_csrf-frontend", csrfToken);
+    }
+    loginForm.set(userField, creds.login);
+    loginForm.set(passField, creds.passwordPlaintext);
+    loginForm.set("LoginForm[rememberMe]", "1");
+
+    console.log("   └─ Sending form params:", Array.from(loginForm.keys()));
 
     const loginSubmitRes = await transport.request({
       method: "POST",
@@ -162,6 +174,7 @@ async function runFeasibilitySpike(): Promise<SpikeReport> {
       postData: loginForm.toString(),
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
+        "Referer": "https://mypcards.com/login",
       },
     });
 
