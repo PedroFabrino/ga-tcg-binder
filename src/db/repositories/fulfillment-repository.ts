@@ -5,7 +5,7 @@ import {
   shippingTickets,
   type FulfillmentOrderStatus,
 } from "../schema";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc, inArray } from "drizzle-orm";
 
 export type FulfillmentOrderRow = typeof fulfillmentOrders.$inferSelect;
 export type FulfillmentOrderInsert = typeof fulfillmentOrders.$inferInsert;
@@ -156,3 +156,38 @@ export async function getShippingTickets(
     .where(query)
     .orderBy(desc(shippingTickets.createdAt));
 }
+
+export async function createShippingTicketWithOrders(
+  userId: string,
+  ticketData: Omit<ShippingTicketInsert, "id" | "userId">,
+  orderIds: string[],
+  database = db
+): Promise<ShippingTicketRow> {
+  const ticketId = crypto.randomUUID();
+  await database.insert(shippingTickets).values({
+    ...ticketData,
+    id: ticketId,
+    userId,
+    status: ticketData.status || "pending",
+  });
+
+  if (orderIds.length > 0) {
+    await database
+      .update(fulfillmentOrders)
+      .set({
+        status: "processed",
+        shippingTicketId: ticketId,
+        updatedAt: sql`(strftime('%s', 'now'))`,
+      })
+      .where(and(eq(fulfillmentOrders.userId, userId), inArray(fulfillmentOrders.id, orderIds)));
+  }
+
+  const [ticket] = await database
+    .select()
+    .from(shippingTickets)
+    .where(eq(shippingTickets.id, ticketId))
+    .limit(1);
+
+  return ticket;
+}
+

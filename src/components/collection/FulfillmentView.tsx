@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Package, Copy, Trash2, ExternalLink, AlertTriangle, ListChecks, Users } from "lucide-react";
+import { Package, Copy, Trash2, ExternalLink, AlertTriangle, ListChecks, Users, Truck, Loader2 } from "lucide-react";
 import { FulfillmentReport } from "@ga/contracts";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/lib/i18n";
@@ -9,6 +9,10 @@ import { useToast } from "@/components/ToastProvider";
 import { formatFulfillmentTextReport } from "@/scripts/fulfillment-helpers";
 import FulfillmentPickList from "./FulfillmentPickList";
 import FulfillmentBuyerPacks from "./FulfillmentBuyerPacks";
+import FulfillmentShippingModal from "./FulfillmentShippingModal";
+import FulfillmentEmptyState from "./FulfillmentEmptyState";
+import FulfillmentNonGaBanner from "./FulfillmentNonGaBanner";
+import type { QuotedBuyerPack } from "@/services/superfrete";
 
 interface FulfillmentViewProps {
   mypUsername?: string | null;
@@ -22,6 +26,9 @@ export default function FulfillmentView({ mypUsername }: FulfillmentViewProps = 
   const [lifecycleTab, setLifecycleTab] = useState<"open" | "processed" | "sent">("open");
   const [activeTab, setActiveTab] = useState<"pick" | "buyer">("pick");
   const [cardNotes, setCardNotes] = useState<Record<string, string>>({});
+  const [isShippingModalOpen, setIsShippingModalOpen] = useState(false);
+  const [quotedPacks, setQuotedPacks] = useState<QuotedBuyerPack[]>([]);
+  const [isQuotingShipping, setIsQuotingShipping] = useState(false);
 
   const cleanUser = mypUsername?.trim();
   const baseVendasUrl = cleanUser
@@ -146,35 +153,59 @@ export default function FulfillmentView({ mypUsername }: FulfillmentViewProps = 
     showToast(t("fulfillment.batchClearedToast"));
   };
 
+  const handleOpenShippingModal = async () => {
+    setIsQuotingShipping(true);
+    try {
+      const res = await fetch("/api/marketplace/fulfillment/shipping/quote", {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.error === "SUPERFRETE_API_KEY_NOT_CONFIGURED") {
+          showToast(t("fulfillment.superfreteNotConfigured"));
+          return;
+        }
+        throw new Error(data.error || "Failed to quote shipping");
+      }
+      setQuotedPacks(data);
+      setIsShippingModalOpen(true);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error quoting shipping";
+      showToast(msg);
+    } finally {
+      setIsQuotingShipping(false);
+    }
+  };
+
+  const handleConfirmShippingTickets = async (
+    selectedPacks: Array<{
+      buyerNick: string;
+      selectedServiceCode: string;
+      selectedServiceName?: string;
+      quotedPriceBrl?: number;
+    }>
+  ) => {
+    const res = await fetch("/api/marketplace/fulfillment/shipping/create-tickets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ packs: selectedPacks }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || "Failed to create shipping tickets");
+    }
+
+    showToast(t("fulfillment.ticketsCreatedToast", { count: data.tickets?.length || selectedPacks.length }));
+    setIsShippingModalOpen(false);
+    setLifecycleTab("processed");
+  };
+
   if (!report) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-700 bg-slate-900/40 p-12 text-center">
-        <Package className="h-12 w-12 text-slate-500 mb-4" />
-        <h3 className="text-lg font-semibold text-slate-200">
-          {t("fulfillment.emptyStateTitle")}
-        </h3>
-        <p className="mt-2 max-w-md text-sm text-slate-400">
-          {t("fulfillment.emptyStateDesc")}
-        </p>
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-          <Button
-            variant="outline"
-            onClick={handleOpenVendas}
-            className="gap-2"
-          >
-            {t("fulfillment.openMypVendasBtn")}
-            <ExternalLink className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleCopyUserscript}
-            className="gap-2"
-          >
-            <Copy className="h-4 w-4" />
-            {t("securityModal.copyScriptBtn")}
-          </Button>
-        </div>
-      </div>
+      <FulfillmentEmptyState
+        onOpenVendas={handleOpenVendas}
+        onCopyUserscript={handleCopyUserscript}
+      />
     );
   }
 
@@ -199,6 +230,26 @@ export default function FulfillmentView({ mypUsername }: FulfillmentViewProps = 
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {lifecycleTab === "open" && (
+            <Button
+              size="sm"
+              onClick={handleOpenShippingModal}
+              disabled={isQuotingShipping}
+              className="gap-1.5 text-xs bg-sky-600 hover:bg-sky-500 text-white font-semibold"
+            >
+              {isQuotingShipping ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  {t("fulfillment.generateShippingLoading")}
+                </>
+              ) : (
+                <>
+                  <Truck className="h-3.5 w-3.5" />
+                  {t("fulfillment.generateShippingBtn")}
+                </>
+              )}
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -221,35 +272,7 @@ export default function FulfillmentView({ mypUsername }: FulfillmentViewProps = 
       </div>
 
       {/* Non-GA Orders Banner */}
-      {report.nonGrandArchiveOrders && report.nonGrandArchiveOrders.length > 0 && (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-950/15 p-4 text-amber-200">
-          <div className="flex items-center gap-2 font-semibold text-sm text-amber-300">
-            <AlertTriangle className="h-4 w-4 shrink-0" />
-            {t("fulfillment.nonGaNoticeTitle", {
-              count: report.nonGrandArchiveOrders.length,
-            })}
-          </div>
-          <p className="text-xs text-amber-300/80 mt-1">
-            {t("fulfillment.nonGaNoticeDesc")}
-          </p>
-          <div className="mt-2.5 flex flex-wrap gap-2">
-            {report.nonGrandArchiveOrders.map((o) => (
-              <a
-                key={o.orderId}
-                href={o.orderUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded bg-amber-950/40 border border-amber-500/30 px-2.5 py-1 text-xs text-amber-200 hover:text-amber-100 hover:border-amber-500/50"
-              >
-                <span>
-                  #{o.orderId} ({o.buyerNick}) · {o.detectedTcg.toUpperCase()}
-                </span>
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
+      <FulfillmentNonGaBanner orders={report.nonGrandArchiveOrders || []} />
 
       {/* Lifecycle Tabs (Open Orders / Processed / Sent) */}
       <div className="flex border-b border-slate-800 gap-2 pb-2">
@@ -341,11 +364,19 @@ export default function FulfillmentView({ mypUsername }: FulfillmentViewProps = 
         <div className="rounded-xl border border-dashed border-slate-800 bg-slate-900/30 p-12 text-center text-slate-400">
           <p className="text-sm font-medium">
             {lifecycleTab === "processed"
-              ? "Nenhum frete gerado ou em processamento ainda."
-              : "Nenhum pedido enviado registrado ainda."}
+              ? t("fulfillment.noProcessedOrders")
+              : t("fulfillment.noSentOrders")}
           </p>
         </div>
       )}
+
+      {/* Superfrete Shipping Validation Modal */}
+      <FulfillmentShippingModal
+        isOpen={isShippingModalOpen}
+        onClose={() => setIsShippingModalOpen(false)}
+        quotedPacks={quotedPacks}
+        onConfirm={handleConfirmShippingTickets}
+      />
     </div>
   );
 }
