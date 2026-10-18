@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseFulfillmentRequest, safeParseTogglePhotographedInput } from "@/lib/validation/fulfillment-schemas";
-import { buildFulfillmentReport, persistFulfillmentOrdersService, getFulfillmentOrdersService, toggleOrderPhotographedService } from "@/services/fulfillment";
+import {
+  buildFulfillmentReport,
+  persistFulfillmentOrdersService,
+  getFulfillmentOrdersService,
+  toggleOrderPhotographedService,
+  authenticateFulfillmentBridgeUser,
+} from "@/services/fulfillment";
 import { auth } from "@/auth";
 import { ensureDefaultUserAndSeed } from "@/services/seed";
 import type { FulfillmentOrderStatus } from "@ga/contracts";
@@ -8,7 +14,8 @@ import type { FulfillmentOrderStatus } from "@ga/contracts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Headers":
+    "Content-Type, Authorization, X-GA-User-Id, X-GA-Sync-Token, x-ga-user-id, x-ga-sync-token",
 };
 
 export async function OPTIONS() {
@@ -46,11 +53,24 @@ export async function POST(req: NextRequest) {
   try {
     await ensureDefaultUserAndSeed();
     const session = await auth();
-    const userId = session?.user?.id;
+    let userId = session?.user?.id;
 
+    // Support cross-origin browser userscript bridge on mypcards.com
     if (!userId) {
+      const headerUserId = req.headers.get("x-ga-user-id") || req.headers.get("X-GA-User-Id");
+      const headerToken =
+        req.headers.get("x-ga-sync-token") ||
+        req.headers.get("X-GA-Sync-Token") ||
+        req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+      if (headerUserId && headerToken) {
+        userId = (await authenticateFulfillmentBridgeUser(headerUserId, headerToken)) || undefined;
+      }
+    }
+
+    const mode = req.nextUrl?.searchParams?.get("mode");
+    if (!userId && mode !== "enrich") {
       return NextResponse.json(
-        { error: "Unauthorized: authentication required" },
+        { error: "Unauthorized: abra o MyP Vendas pelo botão 'Abrir MyP Vendas' no Grand Archive Binder para autorizar a sincronização." },
         { status: 401, headers: corsHeaders }
       );
     }
@@ -68,8 +88,8 @@ export async function POST(req: NextRequest) {
     // 1. Build enriched report
     const report = await buildFulfillmentReport(validation.data);
 
-    // 2. Persist to database if orders are present
-    if (validation.data.length > 0) {
+    // 2. Persist to database if authenticated and orders are present
+    if (userId && validation.data.length > 0) {
       await persistFulfillmentOrdersService(userId, validation.data);
     }
 
@@ -84,6 +104,7 @@ export async function POST(req: NextRequest) {
         : "Internal Server Error";
     return NextResponse.json({ error: message }, { status: 500, headers: corsHeaders });
   }
+
 }
 
 export async function PATCH(req: NextRequest) {

@@ -17,6 +17,8 @@ import {
 import { enrichFulfillmentItem, buildFulfillmentReport } from "./fulfillment-report";
 import type { CatalogDatabase } from "../db/repositories/catalog-repository";
 
+import { getUserById } from "../db/repositories/settings-repository";
+
 // Re-export reporting service functions for backwards compatibility
 export {
   isGrandArchiveItem,
@@ -25,6 +27,23 @@ export {
   enrichFulfillmentItem,
   buildFulfillmentReport,
 } from "./fulfillment-report";
+
+/**
+ * Validates cross-origin fulfillment bridge token from MyP browser userscript.
+ */
+export async function authenticateFulfillmentBridgeUser(
+  userId?: string | null,
+  syncToken?: string | null,
+  database?: unknown
+): Promise<string | null> {
+  if (!userId || !syncToken) return null;
+  const user = await getUserById(userId, database as any);
+  if (user && user.watchlistSyncToken && user.watchlistSyncToken === syncToken) {
+    return user.id;
+  }
+  return null;
+}
+
 
 /**
  * Validates that postal address contains all mandatory fields.

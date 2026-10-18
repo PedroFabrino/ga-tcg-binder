@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Grand Archive TCG - MyP Watchlist Auto-Sync & Fulfillment Bridge
 // @namespace    https://github.com/PedroFabrino/ga-tcg-binder
-// @version      1.6.0
+// @version      1.7.0
 // @description  Auditable bridge for Grand Archive TCG: syncs deck shortages with your MyPCards.com Quero list, and provides an on-page fulfillment pick list & buyer pack assistant for pending orders on /vendas.
 // @author       Grand Archive TCG Collector
 // @match        https://mypcards.com/*
@@ -14,8 +14,24 @@
 
   const HASH_PREFIX = "#ga_watchlist_sync=";
   const APP_URL_PREFIX = "#ga_app_url=";
+  const FULFILLMENT_BRIDGE_PREFIX = "#ga_fulfillment_bridge=";
+  const FULFILLMENT_STORAGE_KEY = "ga_fulfillment_bridge_v1";
   const DEFAULT_APP_URL = "https://ga-tcg-binder-7dnicdb0m-fabrinos-projects.vercel.app";
   const rawHash = window.location.hash || "";
+
+  if (rawHash.startsWith(FULFILLMENT_BRIDGE_PREFIX)) {
+    try {
+      const jsonStr = decodeURIComponent(rawHash.slice(FULFILLMENT_BRIDGE_PREFIX.length));
+      const bridge = JSON.parse(jsonStr);
+      if (bridge && bridge.appUrl) {
+        localStorage.setItem(FULFILLMENT_STORAGE_KEY, JSON.stringify(bridge));
+        localStorage.setItem("ga_app_url", bridge.appUrl);
+      }
+      history.replaceState(null, document.title, window.location.pathname + window.location.search);
+    } catch (e) {
+      console.error("[GA Fulfillment Bridge] Failed to parse bridge payload:", e);
+    }
+  }
 
   if (rawHash.startsWith(APP_URL_PREFIX)) {
     try {
@@ -903,20 +919,48 @@
     }
 
     progressLabel.innerText = "Enriquecendo catálogo e elementos no Grand Archive Binder...";
-    const appUrl = localStorage.getItem("ga_app_url") || DEFAULT_APP_URL;
+
+    let bridge = null;
+    try {
+      const stored = localStorage.getItem(FULFILLMENT_STORAGE_KEY);
+      if (stored) bridge = JSON.parse(stored);
+    } catch (e) {}
+
+    const appUrl = (bridge && bridge.appUrl) || localStorage.getItem("ga_app_url") || DEFAULT_APP_URL;
+    const headers = { "Content-Type": "application/json" };
+    if (bridge && bridge.userId && bridge.token) {
+      headers["X-GA-User-Id"] = bridge.userId;
+      headers["X-GA-Sync-Token"] = bridge.token;
+    }
 
     try {
-      const enrichResp = await fetch(`${appUrl}/api/marketplace/fulfillment`, {
+      let enrichResp = await fetch(`${appUrl}/api/marketplace/fulfillment`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(orders),
       });
 
-      if (!enrichResp.ok) {
+      // If 401 and bridge was missing or invalid, fallback to mode=enrich so pick list still opens
+      if (!enrichResp.ok && enrichResp.status === 401) {
+        console.warn("[GA Fulfillment] 401 received, retrying in stateless enrichment mode (?mode=enrich)...");
+        const fallbackResp = await fetch(`${appUrl}/api/marketplace/fulfillment?mode=enrich`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(orders),
+        });
+        if (fallbackResp.ok) {
+          enrichResp = fallbackResp;
+        } else {
+          throw new Error(
+            "Erro de autenticação (HTTP 401). Abra o MyP Vendas pelo botão 'Abrir MyP Vendas' no Grand Archive Binder para autorizar a sincronização."
+          );
+        }
+      } else if (!enrichResp.ok) {
         throw new Error(`Enriquecimento falhou com HTTP ${enrichResp.status}`);
       }
 
       const report = await enrichResp.json();
+
 
       if (window.opener && !window.opener.closed) {
         try {

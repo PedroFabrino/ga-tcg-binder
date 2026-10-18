@@ -50,6 +50,7 @@ describe("Fulfillment API Route (/api/marketplace/fulfillment)", () => {
       name: "Fulfillment User",
       email: "fulfill@test.com",
       friendCode: "GA-FULF",
+      watchlistSyncToken: "valid-sync-token-123",
     });
   });
 
@@ -59,7 +60,10 @@ describe("Fulfillment API Route (/api/marketplace/fulfillment)", () => {
     expect(res.headers.get("access-control-allow-origin")).toBe("*");
     expect(res.headers.get("access-control-allow-methods")).toContain("POST");
     expect(res.headers.get("access-control-allow-headers")).toContain("Content-Type");
+    expect(res.headers.get("access-control-allow-headers")).toContain("X-GA-User-Id");
+    expect(res.headers.get("access-control-allow-headers")).toContain("X-GA-Sync-Token");
   });
+
 
   it("returns 400 when body does not match validation schema", async () => {
     const req = new NextRequest("http://localhost:3000/api/marketplace/fulfillment", {
@@ -138,4 +142,111 @@ describe("Fulfillment API Route (/api/marketplace/fulfillment)", () => {
     const afterPatch = await afterPatchRes.json();
     expect(afterPatch[0].isPhotographed).toBe(true);
   });
+
+  it("authenticates via cross-origin bridge headers X-GA-User-Id and X-GA-Sync-Token when session is null", async () => {
+    const { auth } = await import("@/auth");
+    (auth as any).mockResolvedValueOnce(null);
+
+    const payload = [
+      {
+        orderId: "777888",
+        orderDate: "18/10/2026",
+        buyerNick: "BridgeBuyer",
+        shippingMethod: "PAC",
+        status: "Aguard. envio",
+        orderUrl: "https://mypcards.com/pedido/777888",
+        items: [
+          {
+            rawTitle: "Void's Cloak",
+            mypCode: "grandarchive_rdo_029",
+            condition: "NM",
+            language: "EN",
+            isFoil: false,
+            quantity: 1,
+            unitPriceBrl: "R$ 10,00",
+          },
+        ],
+      },
+    ];
+
+    const req = new NextRequest("http://localhost:3000/api/marketplace/fulfillment", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-GA-User-Id": "u-fulfillment",
+        "X-GA-Sync-Token": "valid-sync-token-123",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const report = await res.json();
+    expect(report.totalGrandArchiveOrders).toBe(1);
+
+    // Verify it was persisted under u-fulfillment
+    const getReq = new NextRequest("http://localhost:3000/api/marketplace/fulfillment");
+    const { GET } = await import("../route");
+    const getRes = await GET(getReq);
+    const persisted = await getRes.json();
+    expect(persisted.some((o: any) => o.mypOrderId === "777888")).toBe(true);
+  });
+
+  it("allows stateless enrichment without auth when mode=enrich", async () => {
+    const { auth } = await import("@/auth");
+    (auth as any).mockResolvedValueOnce(null);
+
+    const payload = [
+      {
+        orderId: "999000",
+        orderDate: "18/10/2026",
+        buyerNick: "StatelessBuyer",
+        shippingMethod: "Sedex",
+        status: "Aguard. envio",
+        orderUrl: "https://mypcards.com/pedido/999000",
+        items: [
+          {
+            rawTitle: "Void's Cloak",
+            mypCode: "grandarchive_rdo_029",
+            condition: "NM",
+            language: "EN",
+            isFoil: false,
+            quantity: 2,
+            unitPriceBrl: "R$ 12,00",
+          },
+        ],
+      },
+    ];
+
+    const req = new NextRequest("http://localhost:3000/api/marketplace/fulfillment?mode=enrich", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const report = await res.json();
+    expect(report.totalGrandArchiveCopies).toBe(2);
+  });
+
+  it("returns 401 when session is null, bridge token is invalid, and mode!=enrich", async () => {
+    const { auth } = await import("@/auth");
+    (auth as any).mockResolvedValueOnce(null);
+
+    const req = new NextRequest("http://localhost:3000/api/marketplace/fulfillment", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-GA-User-Id": "u-fulfillment",
+        "X-GA-Sync-Token": "invalid-token",
+      },
+      body: JSON.stringify([]),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(401);
+    const body = await res.json();
+    expect(body.error).toContain("Unauthorized");
+  });
 });
+

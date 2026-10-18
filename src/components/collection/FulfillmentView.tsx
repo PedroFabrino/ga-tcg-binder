@@ -17,12 +17,38 @@ import FulfillmentSentTab from "./FulfillmentSentTab";
 import type { QuotedBuyerPack } from "@/services/superfrete";
 
 interface FulfillmentViewProps {
+
   mypUsername?: string | null;
+  userId?: string;
+  syncToken?: string;
 }
 
-export default function FulfillmentView({ mypUsername }: FulfillmentViewProps = {}) {
+export default function FulfillmentView({
+  mypUsername,
+  userId: propUserId,
+  syncToken: propSyncToken,
+}: FulfillmentViewProps = {}) {
   const { t } = useTranslation();
   const { showToast } = useToast();
+
+  const [resolvedUserId, setResolvedUserId] = useState<string | null>(propUserId || null);
+  const [resolvedSyncToken, setResolvedSyncToken] = useState<string | null>(propSyncToken || null);
+
+  useEffect(() => {
+    if (propUserId && !resolvedUserId) setResolvedUserId(propUserId);
+    if (propSyncToken && !resolvedSyncToken) setResolvedSyncToken(propSyncToken);
+
+    if (!resolvedSyncToken || !resolvedUserId) {
+      fetch("/api/settings")
+        .then((r) => r.json())
+        .then((data) => {
+          if (data?.user?.id && !resolvedUserId) setResolvedUserId(data.user.id);
+          if (data?.user?.watchlistSyncToken && !resolvedSyncToken) setResolvedSyncToken(data.user.watchlistSyncToken);
+        })
+        .catch(() => {});
+    }
+  }, [resolvedSyncToken, resolvedUserId, propUserId, propSyncToken]);
+
 
   const [report, setReport] = useState<FulfillmentReport | null>(null);
   const [lifecycleTab, setLifecycleTab] = useState<"open" | "processed" | "sent">("open");
@@ -39,11 +65,23 @@ export default function FulfillmentView({ mypUsername }: FulfillmentViewProps = 
 
   const handleOpenVendas = () => {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const targetUrl = origin
-      ? `${baseVendasUrl}#ga_app_url=${encodeURIComponent(origin)}`
-      : baseVendasUrl;
+    let targetUrl = baseVendasUrl;
+    if (origin) {
+      if (resolvedUserId && resolvedSyncToken) {
+        const bridge = {
+          version: 1,
+          appUrl: origin,
+          userId: resolvedUserId,
+          token: resolvedSyncToken,
+        };
+        targetUrl = `${baseVendasUrl}#ga_fulfillment_bridge=${encodeURIComponent(JSON.stringify(bridge))}`;
+      } else {
+        targetUrl = `${baseVendasUrl}#ga_app_url=${encodeURIComponent(origin)}`;
+      }
+    }
     window.open(targetUrl, "_blank");
   };
+
 
   const handleCopyUserscript = async () => {
     try {

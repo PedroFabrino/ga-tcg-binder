@@ -220,7 +220,10 @@ export default function MypStoreView() {
       <MypStoreSubTabs currentView={subView} onViewChange={setSubView} />
 
       {subView === "fulfillment" ? (
-        <FulfillmentView mypUsername={report?.mypUsername} />
+        <FulfillmentView
+          mypUsername={report?.mypUsername}
+          userId={session?.user?.id}
+        />
       ) : (
         <>
           {/* Header Bar */}
