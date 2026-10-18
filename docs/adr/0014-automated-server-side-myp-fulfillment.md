@@ -157,19 +157,28 @@ The following decisions are intentionally deferred until the read-only spike suc
    - Buyer cancellation requested with paid Superfrete ticket.
 8. No automated cancellation, ticket discard, ticket purchase, refund, or void action is authorized by this ADR.
 
-## Acceptance Criteria for the Feasibility Spike
+## Empirical Spike Findings (2026-10-18)
 
-The feasibility spike is successful when it can:
+A comprehensive feasibility spike was conducted across both environments:
+1. **GitHub Actions (Datacenter IP)** via workflow `.github/workflows/spike-myp-order-sync.yml`
+2. **Local Machine (Residential IP)** via local Docker FlareSolverr (`ghcr.io/flaresolverr/flaresolverr:latest` on port 8899)
 
-1. Establish an authenticated MyP session through the selected FlareSolverr flow.
-2. Retrieve the MyP sales page using `GET /vendas`.
-3. Identify at least one accessible order reference from the sales page.
-4. Retrieve an order detail page using `GET /pedido/<id>`.
-5. Extract the minimum required order fields reliably enough for a follow-up implementation:
-   - MyP order identifier.
-   - Order status.
-   - Buyer cancellation-request indication, when present.
-   - Order creation or sale date, when available.
-   - Shipping and buyer fields required by the fulfillment workflow.
-6. Produce redacted diagnostics without exposing PII, credentials, tokens, or raw address data.
-7. Confirm that no MyP or Superfrete mutation was performed.
+### Technical Analysis & Root Causes:
+
+1. **Direct HTTP Clients (Fetch/Got/Curl)**:
+   - Blocked immediately by Cloudflare WAF with `HTTP 403 Forbidden` (`<title>Just a moment...</title>`). Cloudflare enforces TLS/JA4 ClientHello fingerprinting, preventing Node.js `fetch` from reusing `cf_clearance` cookies outside a real browser TLS stack.
+
+2. **FlareSolverr Headless Session (`request.post`)**:
+   - FlareSolverr cleanly passes the Cloudflare challenge on `GET /login`.
+   - However, FlareSolverr's internal implementation of `request.post` (`flaresolverr_service.py: _post_request`) constructs a synthetic form (`hackForm`) and navigates to `data:text/html;charset=utf-8,...`.
+   - This causes two fatal incompatibilities with MyP's Yii2 PHP framework:
+     - **Origin Mismatch**: Navigation from `data:` yields `Origin: null`, which Yii2 CSRF protection strictly rejects.
+     - **Double Encoding**: FlareSolverr applies `quote(name)` and `quote(value)` to form parameters. When Chromium submits the form, it URL-encodes `%` to `%25` (e.g., `LoginForm[username]` becomes `LoginForm%255Busername%255D`), corrupting the form parameter dictionary and the CSRF token.
+   - Result: Both GitHub Actions and local residential Docker return `HTTP 400 Bad Request (Problema Encontrado!)`.
+
+### Conclusion & Operational Directive:
+
+- **Headless Server-Side MyP Login**: Proved unviable using off-the-shelf FlareSolverr `request.post` without maintaining a custom, dedicated Playwright/Puppeteer stealth runtime with native DOM input population.
+- **Tampermonkey Architectural Role**: The user's directive to keep Tampermonkey enabled was completely validated. Running inside the user's real browser context bypasses Cloudflare WAF, TLS fingerprinting, and CSRF barriers effortlessly.
+- **Next Operational Step**: Retain Tampermonkey as the primary order ingestion vector (`POST /api/marketplace/fulfillment`). Focus backend automation strictly on Superfrete shipping workflows, cart creation, tracking number updates, and fulfillment reconciliation.
+
