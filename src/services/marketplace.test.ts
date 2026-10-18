@@ -829,6 +829,19 @@ describe("Marketplace (MyPCards) Sync, Shortage Offset & Claim Seam", () => {
       expect(evaluatePriceFairness(10.0, null).tier).toBe("UNKNOWN");
       expect(evaluatePriceFairness(10.0, 0).tier).toBe("UNKNOWN");
       expect(evaluatePriceFairness(10.0, -1).tier).toBe("UNKNOWN");
+
+      // Custom thresholds
+      const customFairness = evaluatePriceFairness(3.0, 2.0, "R$ 2,00", {
+        slightlyOverpriced: 1.6, // 1.5 ratio is now NORMAL instead of SLIGHTLY_OVERPRICED
+        heavilyOverpriced: 2.5,
+      });
+      expect(customFairness.tier).toBe("NORMAL");
+
+      const customHeavily = evaluatePriceFairness(4.5, 2.0, "R$ 2,00", {
+        slightlyOverpriced: 1.5,
+        heavilyOverpriced: 2.2, // 2.25 ratio is now HEAVILY_OVERPRICED
+      });
+      expect(customHeavily.tier).toBe("HEAVILY_OVERPRICED");
     });
 
     it("includes tcgPrice and priceFairness in getGlobalMarketReport and tracks summary counts", async () => {

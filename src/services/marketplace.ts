@@ -255,7 +255,8 @@ export function extractProductPageDetails(html: string): ExtractedProductDetails
 export function evaluatePriceFairness(
   priceNumeric: number,
   tcgPriceNumeric?: number | null,
-  tcgPrice?: string | null
+  tcgPrice?: string | null,
+  thresholds?: { slightlyOverpriced?: number; heavilyOverpriced?: number } | null
 ): PriceFairnessEvaluation {
   if (
     !tcgPriceNumeric ||
@@ -277,12 +278,10 @@ export function evaluatePriceFairness(
   const ratio = priceNumeric / tcgPriceNumeric;
   const markupPercent = Math.round((ratio - 1) * 100);
 
-  // User rule:
-  // > 2.0x => HEAVILY OVERPRICED
-  // 1.2x to 2.0x => Slightly overpriced
-  // 1.0x to 1.2x (up to 20% higher) => normal
-  // < 1.0x => Below market
-  if (ratio > 2.0) {
+  const slightlyLimit = thresholds?.slightlyOverpriced ?? 1.2;
+  const heavilyLimit = thresholds?.heavilyOverpriced ?? 2.0;
+
+  if (ratio > heavilyLimit) {
     return {
       tier: "HEAVILY_OVERPRICED",
       ratio,
@@ -291,7 +290,7 @@ export function evaluatePriceFairness(
       tcgPriceNumeric,
     };
   }
-  if (ratio > 1.2) {
+  if (ratio > slightlyLimit) {
     return {
       tier: "SLIGHTLY_OVERPRICED",
       ratio,

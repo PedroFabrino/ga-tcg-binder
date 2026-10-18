@@ -12,6 +12,10 @@ export interface SettingsUpdateInput {
   watchlistPolicyHard?: boolean;
   watchlistPolicyShared?: boolean;
   watchlistPolicyStaples?: boolean;
+  superfreteApiKey?: string | null;
+  clearSuperfreteApiKey?: boolean;
+  slightlyOverpricedMultiplier?: number;
+  heavilyOverpricedMultiplier?: number;
 }
 
 export function parseSettingsInput(raw: unknown): ValidationResult<SettingsUpdateInput> {
@@ -82,6 +86,42 @@ export function parseSettingsInput(raw: unknown): ValidationResult<SettingsUpdat
       return { success: false, error: "watchlistPolicyStaples must be a boolean" };
     }
     data.watchlistPolicyStaples = body.watchlistPolicyStaples;
+  }
+
+  if (body.superfreteApiKey !== undefined) {
+    if (body.superfreteApiKey !== null && typeof body.superfreteApiKey !== "string") {
+      return { success: false, error: "superfreteApiKey must be a string or null" };
+    }
+    data.superfreteApiKey = body.superfreteApiKey;
+  }
+
+  if (body.clearSuperfreteApiKey !== undefined) {
+    if (typeof body.clearSuperfreteApiKey !== "boolean") {
+      return { success: false, error: "clearSuperfreteApiKey must be a boolean" };
+    }
+    data.clearSuperfreteApiKey = body.clearSuperfreteApiKey;
+  }
+
+  if (body.slightlyOverpricedMultiplier !== undefined) {
+    if (typeof body.slightlyOverpricedMultiplier !== "number" || isNaN(body.slightlyOverpricedMultiplier) || body.slightlyOverpricedMultiplier <= 1.0) {
+      return { success: false, error: "slightlyOverpricedMultiplier must be a number greater than 1.0" };
+    }
+    data.slightlyOverpricedMultiplier = body.slightlyOverpricedMultiplier;
+  }
+
+  if (body.heavilyOverpricedMultiplier !== undefined) {
+    if (typeof body.heavilyOverpricedMultiplier !== "number" || isNaN(body.heavilyOverpricedMultiplier) || body.heavilyOverpricedMultiplier <= 1.0) {
+      return { success: false, error: "heavilyOverpricedMultiplier must be a number greater than 1.0" };
+    }
+    data.heavilyOverpricedMultiplier = body.heavilyOverpricedMultiplier;
+  }
+
+  if (
+    data.slightlyOverpricedMultiplier !== undefined &&
+    data.heavilyOverpricedMultiplier !== undefined &&
+    data.heavilyOverpricedMultiplier < data.slightlyOverpricedMultiplier
+  ) {
+    return { success: false, error: "heavilyOverpricedMultiplier must be greater than or equal to slightlyOverpricedMultiplier" };
   }
 
   return { success: true, data };

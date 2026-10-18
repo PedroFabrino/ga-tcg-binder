@@ -78,3 +78,6 @@ export function decryptMypPassword(payload: string): string {
 
   return decrypted.toString("utf8");
 }
+
+export const encryptSecret = encryptMypPassword;
+export const decryptSecret = decryptMypPassword;

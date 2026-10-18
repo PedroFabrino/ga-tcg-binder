@@ -18,6 +18,9 @@ export const users = sqliteTable("users", {
   mypLogin: text("myp_login"),
   mypPasswordEncrypted: text("myp_password_encrypted"),
   mypAutoWatchlistEnabled: integer("myp_auto_watchlist_enabled", { mode: "boolean" }).notNull().default(false),
+  superfreteApiKeyEncrypted: text("superfrete_api_key_encrypted"),
+  slightlyOverpricedMultiplier: real("slightly_overpriced_multiplier").notNull().default(1.2),
+  heavilyOverpricedMultiplier: real("heavily_overpriced_multiplier").notNull().default(2.0),
   watchlistSyncToken: text("watchlist_sync_token"),
   createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });

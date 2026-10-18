@@ -102,4 +102,57 @@ describe("Settings API Route (src/app/api/settings/route.ts)", () => {
     expect(json.user.hasSavedMypCredentials).toBe(false);
     expect(json.user.mypLogin).toBeNull();
   });
+
+  it("POST saves and encrypts Superfrete API key and updates price fairness multipliers", async () => {
+    const req = new NextRequest("http://localhost:3000/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        superfreteApiKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test-superfrete-token",
+        slightlyOverpricedMultiplier: 1.3,
+        heavilyOverpricedMultiplier: 2.2,
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.user.hasSavedSuperfreteApiKey).toBe(true);
+    expect(json.user.superfreteApiKeyEncrypted).toBeUndefined();
+    expect(json.user.slightlyOverpricedMultiplier).toBe(1.3);
+    expect(json.user.heavilyOverpricedMultiplier).toBe(2.2);
+
+    const userInDb = (await testDb.select().from(users))[0];
+    expect(userInDb.superfreteApiKeyEncrypted).toBeDefined();
+    expect(decryptMypPassword(userInDb.superfreteApiKeyEncrypted)).toBe("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test-superfrete-token");
+  });
+
+  it("POST clears saved Superfrete API key when clearSuperfreteApiKey is true", async () => {
+    await POST(
+      new NextRequest("http://localhost:3000/api/settings", {
+        method: "POST",
+        body: JSON.stringify({
+          superfreteApiKey: "token-to-be-cleared",
+        }),
+      })
+    );
+
+    const clearReq = new NextRequest("http://localhost:3000/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clearSuperfreteApiKey: true,
+      }),
+    });
+
+    const res = await POST(clearReq);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.user.hasSavedSuperfreteApiKey).toBe(false);
+
+    const userInDb = (await testDb.select().from(users))[0];
+    expect(userInDb.superfreteApiKeyEncrypted).toBeNull();
+  });
 });

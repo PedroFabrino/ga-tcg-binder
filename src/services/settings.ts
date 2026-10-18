@@ -10,16 +10,18 @@ import { normalizePolicyFlags } from "./watchlist-policy";
 import type { SettingsUpdateInput } from "@/lib/validation/watchlist-schemas";
 import crypto from "crypto";
 
-export interface SafeUser extends Omit<UserRow, "mypPasswordEncrypted"> {
+export interface SafeUser extends Omit<UserRow, "mypPasswordEncrypted" | "superfreteApiKeyEncrypted"> {
   hasSavedMypCredentials: boolean;
+  hasSavedSuperfreteApiKey: boolean;
 }
 
 export function sanitizeUser(user: UserRow | undefined): SafeUser | null {
   if (!user) return null;
-  const { mypPasswordEncrypted, ...safeUser } = user;
+  const { mypPasswordEncrypted, superfreteApiKeyEncrypted, ...safeUser } = user;
   return {
     ...safeUser,
     hasSavedMypCredentials: Boolean(mypPasswordEncrypted),
+    hasSavedSuperfreteApiKey: Boolean(superfreteApiKeyEncrypted),
   };
 }
 
@@ -87,6 +89,24 @@ export async function updateUserSettingsService(
     if (input.mypLogin !== undefined && input.mypLogin !== null) {
       updateData.mypLogin = input.mypLogin.trim();
     }
+  }
+
+  // Superfrete API Key update
+  if (input.clearSuperfreteApiKey) {
+    updateData.superfreteApiKeyEncrypted = null;
+  } else if (input.superfreteApiKey !== undefined && input.superfreteApiKey !== null) {
+    const trimmed = input.superfreteApiKey.trim();
+    if (trimmed) {
+      updateData.superfreteApiKeyEncrypted = encryptMypPassword(trimmed);
+    }
+  }
+
+  // Price fairness multipliers
+  if (input.slightlyOverpricedMultiplier !== undefined) {
+    updateData.slightlyOverpricedMultiplier = input.slightlyOverpricedMultiplier;
+  }
+  if (input.heavilyOverpricedMultiplier !== undefined) {
+    updateData.heavilyOverpricedMultiplier = input.heavilyOverpricedMultiplier;
   }
 
   // Ensure user has a watchlistSyncToken for Browser Userscript Bridge

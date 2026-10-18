@@ -16,6 +16,8 @@ import {
   Store,
   Trash2,
   ShieldCheck,
+  Truck,
+  TrendingUp,
 } from "lucide-react";
 import type { SettingsUpdateInput } from "@/lib/validation/watchlist-schemas";
 
@@ -38,9 +40,14 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   const [mypPassword, setMypPassword] = useState<string>("");
   const [mypAutoWatchlistEnabled, setMypAutoWatchlistEnabled] = useState<boolean>(false);
   const [hasSavedMypCredentials, setHasSavedMypCredentials] = useState<boolean>(false);
+  const [hasSavedSuperfreteApiKey, setHasSavedSuperfreteApiKey] = useState<boolean>(false);
+  const [superfreteApiKey, setSuperfreteApiKey] = useState<string>("");
+  const [slightlyOverpriced, setSlightlyOverpriced] = useState<number>(1.2);
+  const [heavilyOverpriced, setHeavilyOverpriced] = useState<number>(2.0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [clearingCreds, setClearingCreds] = useState(false);
+  const [clearingSuperfrete, setClearingSuperfrete] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -53,6 +60,9 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
           setMypUsername(data.user.mypUsername ?? "");
           setMypLogin(data.user.mypLogin ?? "");
           setHasSavedMypCredentials(Boolean(data.user.hasSavedMypCredentials));
+          setHasSavedSuperfreteApiKey(Boolean(data.user.hasSavedSuperfreteApiKey));
+          setSlightlyOverpriced(data.user.slightlyOverpricedMultiplier ?? 1.2);
+          setHeavilyOverpriced(data.user.heavilyOverpricedMultiplier ?? 2.0);
           setMypAutoWatchlistEnabled(Boolean(data.user.mypAutoWatchlistEnabled));
         }
       })
@@ -96,6 +106,28 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
     }
   };
 
+  const handleClearSuperfrete = async () => {
+    setClearingSuperfrete(true);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clearSuperfreteApiKey: true,
+          userId: session?.user?.id,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      setHasSavedSuperfreteApiKey(false);
+      setSuperfreteApiKey("");
+      showToast(t("settings.superfreteClearedToast"), "success");
+    } catch {
+      showToast(t("common.error"), "error");
+    } finally {
+      setClearingSuperfrete(false);
+    }
+  };
+
   const save = async () => {
     setSaving(true);
     try {
@@ -103,7 +135,13 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         lowPopThreshold: threshold,
         mypUsername: mypUsername.trim() || null,
         mypAutoWatchlistEnabled,
+        slightlyOverpricedMultiplier: slightlyOverpriced,
+        heavilyOverpricedMultiplier: heavilyOverpriced,
       };
+
+      if (superfreteApiKey.trim()) {
+        body.superfreteApiKey = superfreteApiKey.trim();
+      }
 
       if (mypPassword.trim()) {
         body.mypPassword = mypPassword.trim();
@@ -118,9 +156,10 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error();
-      const json = (await res.json()) as { user?: { hasSavedMypCredentials?: boolean } };
+      const json = (await res.json()) as { user?: { hasSavedMypCredentials?: boolean; hasSavedSuperfreteApiKey?: boolean } };
       if (json.user) {
         setHasSavedMypCredentials(Boolean(json.user.hasSavedMypCredentials));
+        setHasSavedSuperfreteApiKey(Boolean(json.user.hasSavedSuperfreteApiKey));
       }
       showToast(t("settings.savedToast"), "success");
       onClose();
@@ -322,6 +361,129 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
             <div className="rounded-lg bg-slate-900/60 border border-white/[0.04] p-2.5 text-[11px] text-slate-400 flex items-start gap-2">
               <Lock className="h-3.5 w-3.5 text-slate-500 shrink-0 mt-0.5" />
               <span>{t("settings.mypCredentialsDesc")}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Superfrete Shipping Credentials */}
+        <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Truck className="h-4 w-4 text-emerald-400" />
+              <h4 className="text-sm font-semibold text-white">{t("settings.superfreteTitle")}</h4>
+            </div>
+            {hasSavedSuperfreteApiKey ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                <ShieldCheck className="h-3 w-3" /> {t("settings.superfreteConfigured")}
+              </span>
+            ) : (
+              <span className="text-[10px] text-slate-500 font-mono">Token</span>
+            )}
+          </div>
+
+          <p className="text-xs text-slate-400 leading-relaxed">
+            {t("settings.superfreteDesc")}
+          </p>
+
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1">
+                {t("settings.superfreteApiKeyLabel")}
+              </label>
+              <Input
+                type="password"
+                placeholder={hasSavedSuperfreteApiKey ? "••••••••••••••••••••••••" : t("settings.superfreteApiKeyPlaceholder")}
+                value={superfreteApiKey}
+                onChange={(e) => setSuperfreteApiKey(e.target.value)}
+                disabled={loading}
+                autoComplete="off"
+                className="text-xs font-mono"
+              />
+              {hasSavedSuperfreteApiKey && (
+                <p className="text-[11px] text-emerald-400/90 mt-1">{t("settings.superfreteConfiguredDesc")}</p>
+              )}
+            </div>
+
+            {hasSavedSuperfreteApiKey && (
+              <div className="flex justify-end pt-1">
+                <Button
+                  type="button"
+                  onClick={handleClearSuperfrete}
+                  disabled={clearingSuperfrete}
+                  variant="outline"
+                  size="sm"
+                  className="text-rose-400 border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-300 text-xs gap-1.5"
+                >
+                  {clearingSuperfrete ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                  {t("settings.clearSuperfreteBtn")}
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Price Fairness Multipliers (Marketplace & Deck Shortages) */}
+        <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 space-y-4">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-purple-400" />
+            <h4 className="text-sm font-semibold text-white">{t("settings.overpricedTitle")}</h4>
+          </div>
+
+          <p className="text-xs text-slate-400 leading-relaxed">
+            {t("settings.overpricedDesc")}
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-slate-300">
+                  {t("settings.slightlyOverpricedLabel")}
+                </label>
+                <span className="font-mono text-xs font-bold text-amber-400">
+                  {slightlyOverpriced.toFixed(1)}x
+                </span>
+              </div>
+              <input
+                type="range"
+                min="1.1"
+                max="2.5"
+                step="0.1"
+                value={slightlyOverpriced}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setSlightlyOverpriced(val);
+                  if (val > heavilyOverpriced) setHeavilyOverpriced(val);
+                }}
+                disabled={loading}
+                className="w-full accent-amber-400 cursor-pointer"
+              />
+              <p className="text-[10px] text-slate-500 mt-1">{t("settings.slightlyOverpricedHelp")}</p>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-slate-300">
+                  {t("settings.heavilyOverpricedLabel")}
+                </label>
+                <span className="font-mono text-xs font-bold text-rose-400">
+                  {heavilyOverpriced.toFixed(1)}x
+                </span>
+              </div>
+              <input
+                type="range"
+                min="1.5"
+                max="5.0"
+                step="0.1"
+                value={heavilyOverpriced}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setHeavilyOverpriced(val);
+                  if (val < slightlyOverpriced) setSlightlyOverpriced(val);
+                }}
+                disabled={loading}
+                className="w-full accent-rose-400 cursor-pointer"
+              />
+              <p className="text-[10px] text-slate-500 mt-1">{t("settings.heavilyOverpricedHelp")}</p>
             </div>
           </div>
         </div>
