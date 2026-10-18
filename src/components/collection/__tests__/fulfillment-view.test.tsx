@@ -174,4 +174,17 @@ describe("Fulfillment UI Components", () => {
     expect(html).toContain("No active fulfillment batch");
     expect(html).toContain("Open MyP Vendas");
   });
+
+  it("renders persistent commentary field below each card in Pick List and Buyer Packs", () => {
+    const notes = { water_item: "didnt find 4, only 3, is it ok?" };
+    const pickHtml = renderWithProviders(
+      <FulfillmentPickList report={mockReport} cardNotes={notes} />
+    );
+    const buyerHtml = renderWithProviders(
+      <FulfillmentBuyerPacks report={mockReport} cardNotes={notes} />
+    );
+
+    expect(pickHtml).toContain("didnt find 4, only 3, is it ok?");
+    expect(buyerHtml).toContain("didnt find 4, only 3, is it ok?");
+  });
 });

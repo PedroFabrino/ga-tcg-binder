@@ -20,6 +20,7 @@ export default function FulfillmentView({ mypUsername }: FulfillmentViewProps = 
 
   const [report, setReport] = useState<FulfillmentReport | null>(null);
   const [activeTab, setActiveTab] = useState<"pick" | "buyer">("pick");
+  const [cardNotes, setCardNotes] = useState<Record<string, string>>({});
 
   const cleanUser = mypUsername?.trim();
   const baseVendasUrl = cleanUser
@@ -46,8 +47,18 @@ export default function FulfillmentView({ mypUsername }: FulfillmentViewProps = 
   };
 
   const loadBatch = useCallback(() => {
-    // 1. Check URL hash
     if (typeof window !== "undefined") {
+      // Load persisted card commentary notes
+      const rawNotes = localStorage.getItem("ga_fulfillment_notes");
+      if (rawNotes) {
+        try {
+          setCardNotes(JSON.parse(rawNotes));
+        } catch (e) {
+          localStorage.removeItem("ga_fulfillment_notes");
+        }
+      }
+
+      // 1. Check URL hash
       const hash = window.location.hash || "";
       const prefix = "#ga_fulfillment=";
       if (hash.startsWith(prefix)) {
@@ -102,9 +113,22 @@ export default function FulfillmentView({ mypUsername }: FulfillmentViewProps = 
     };
   }, [loadBatch]);
 
+  const handleUpdateNote = useCallback((itemKey: string, note: string) => {
+    setCardNotes((prev) => {
+      const next = { ...prev };
+      if (note) {
+        next[itemKey] = note;
+      } else {
+        delete next[itemKey];
+      }
+      localStorage.setItem("ga_fulfillment_notes", JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   const handleCopyText = async () => {
     if (!report) return;
-    const text = formatFulfillmentTextReport(report);
+    const text = formatFulfillmentTextReport(report, cardNotes);
     try {
       await navigator.clipboard.writeText(text);
       showToast(t("fulfillment.copiedToast"));
@@ -115,6 +139,8 @@ export default function FulfillmentView({ mypUsername }: FulfillmentViewProps = 
 
   const handleClearBatch = () => {
     localStorage.removeItem("ga_fulfillment_batch");
+    localStorage.removeItem("ga_fulfillment_notes");
+    setCardNotes({});
     setReport(null);
     showToast(t("fulfillment.batchClearedToast"));
   };
@@ -255,9 +281,17 @@ export default function FulfillmentView({ mypUsername }: FulfillmentViewProps = 
 
       {/* Tab Panels */}
       {activeTab === "pick" ? (
-        <FulfillmentPickList report={report} />
+        <FulfillmentPickList
+          report={report}
+          cardNotes={cardNotes}
+          onUpdateNote={handleUpdateNote}
+        />
       ) : (
-        <FulfillmentBuyerPacks report={report} />
+        <FulfillmentBuyerPacks
+          report={report}
+          cardNotes={cardNotes}
+          onUpdateNote={handleUpdateNote}
+        />
       )}
     </div>
   );

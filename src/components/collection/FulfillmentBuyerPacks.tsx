@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { ExternalLink, Check, Camera } from "lucide-react";
+import { ExternalLink, Check, Camera, MessageSquare } from "lucide-react";
 import { FulfillmentReport } from "@ga/contracts";
 import { ElementBadge, FoilBadge, CardArt } from "@/components/common";
 import { CardPreviewTrigger } from "@/components/CardHoverPreview";
@@ -10,9 +10,15 @@ import { useToast } from "@/components/ToastProvider";
 
 interface FulfillmentBuyerPacksProps {
   report: FulfillmentReport;
+  cardNotes?: Record<string, string>;
+  onUpdateNote?: (itemKey: string, note: string) => void;
 }
 
-export default function FulfillmentBuyerPacks({ report }: FulfillmentBuyerPacksProps) {
+export default function FulfillmentBuyerPacks({
+  report,
+  cardNotes = {},
+  onUpdateNote,
+}: FulfillmentBuyerPacksProps) {
   const { t } = useTranslation();
   const { showToast } = useToast();
 
@@ -151,61 +157,87 @@ export default function FulfillmentBuyerPacks({ report }: FulfillmentBuyerPacksP
                         const compositeKey = `${subOrder.orderId}_${item.itemKey}`;
                         const isChecked = Boolean(checkedItems[compositeKey]);
                         const colNum = item.collectorNumber ? ` #${item.collectorNumber}` : "";
+                        const noteValue = cardNotes[item.itemKey] || "";
 
                         return (
                           <div
                             key={compositeKey}
                             onClick={() => toggleItemCheck(subOrder.orderId, item.itemKey)}
-                            className={`flex items-center justify-between rounded border p-2.5 transition-colors cursor-pointer ${
+                            className={`rounded border p-2.5 transition-colors cursor-pointer ${
                               isChecked
                                 ? "border-emerald-500/30 bg-emerald-950/20 opacity-60"
                                 : "border-slate-800/80 bg-slate-900/40 hover:bg-slate-900/70"
                             }`}
                           >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div
-                                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                                  isChecked
-                                    ? "border-emerald-500 bg-emerald-600 text-white"
-                                    : "border-slate-600 bg-slate-900"
-                                }`}
-                              >
-                                {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
-                              </div>
-
-                              <ElementBadge element={item.element} />
-
-                              <CardPreviewTrigger
-                                name={item.cardName}
-                                element={item.element}
-                                slug={item.cardSlug || undefined}
-                                imageUrl={item.imageUrl || undefined}
-                                className="flex items-center gap-2.5 min-w-0"
-                              >
-                                <CardArt
-                                  src={item.imageUrl}
-                                  alt={item.cardName}
-                                  className="h-11 w-8 shrink-0 rounded border border-slate-700/80 object-cover shadow-sm"
-                                />
-                                <span
-                                  className={`truncate text-xs font-medium ${
-                                    isChecked ? "line-through text-slate-400" : "text-slate-200"
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div
+                                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                                    isChecked
+                                      ? "border-emerald-500 bg-emerald-600 text-white"
+                                      : "border-slate-600 bg-slate-900"
                                   }`}
                                 >
-                                  {item.cardName}
+                                  {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
+                                </div>
+
+                                <ElementBadge element={item.element} />
+
+                                <CardPreviewTrigger
+                                  name={item.cardName}
+                                  element={item.element}
+                                  slug={item.cardSlug || undefined}
+                                  imageUrl={item.imageUrl || undefined}
+                                  className="flex items-center gap-2.5 min-w-0"
+                                >
+                                  <CardArt
+                                    src={item.imageUrl}
+                                    alt={item.cardName}
+                                    className="h-11 w-8 shrink-0 rounded border border-slate-700/80 object-cover shadow-sm"
+                                  />
+                                  <span
+                                    className={`truncate text-xs font-medium ${
+                                      isChecked ? "line-through text-slate-400" : "text-slate-200"
+                                    }`}
+                                  >
+                                    {item.cardName}
+                                  </span>
+                                </CardPreviewTrigger>
+
+                                <span className="shrink-0 text-[11px] text-slate-400 font-mono">
+                                  [{item.setPrefix}{colNum} · {item.condition}]
                                 </span>
-                              </CardPreviewTrigger>
 
-                              <span className="shrink-0 text-[11px] text-slate-400 font-mono">
-                                [{item.setPrefix}{colNum} · {item.condition}]
+                                {item.isFoil && <FoilBadge />}
+                              </div>
+
+                              <span className="shrink-0 ml-3 text-xs font-bold text-sky-400">
+                                x{item.quantity}
                               </span>
-
-                              {item.isFoil && <FoilBadge />}
                             </div>
 
-                            <span className="shrink-0 ml-3 text-xs font-bold text-sky-400">
-                              x{item.quantity}
-                            </span>
+                            <div
+                              className="mt-2 flex items-center gap-2 border-t border-slate-800/60 pt-2"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MessageSquare
+                                className={`h-3.5 w-3.5 shrink-0 ${
+                                  noteValue ? "text-amber-400" : "text-slate-500"
+                                }`}
+                              />
+                              <input
+                                type="text"
+                                value={noteValue}
+                                onChange={(e) => onUpdateNote?.(item.itemKey, e.target.value)}
+                                placeholder={t("fulfillment.cardNotePlaceholder")}
+                                aria-label={t("fulfillment.cardNotePlaceholder")}
+                                className={`w-full rounded border px-2 py-1 text-xs transition-colors focus:outline-none ${
+                                  noteValue
+                                    ? "border-amber-500/40 bg-amber-950/20 text-amber-200 placeholder:text-amber-400/50 focus:border-amber-400"
+                                    : "border-slate-800 bg-slate-900/60 text-slate-200 placeholder:text-slate-500 focus:border-sky-500/50"
+                                }`}
+                              />
+                            </div>
                           </div>
                         );
                       })}

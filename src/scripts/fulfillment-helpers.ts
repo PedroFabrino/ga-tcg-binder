@@ -8,7 +8,10 @@ import {
  * Formats a clean clipboard-ready text summary of the Fulfillment Report.
  * Groups by Element for the Pick List, followed by Buyer Packs with sub-grouped orders.
  */
-export function formatFulfillmentTextReport(report: FulfillmentReport): string {
+export function formatFulfillmentTextReport(
+  report: FulfillmentReport,
+  cardNotes: Record<string, string> = {}
+): string {
   const lines: string[] = [];
   lines.push("=== GRAND ARCHIVE TCG - PICK LIST (POR ELEMENTO) ===");
   lines.push(
@@ -28,6 +31,10 @@ export function formatFulfillmentTextReport(report: FulfillmentReport): string {
       lines.push(
         `  [ ] ${entry.cardName} [${entry.setPrefix}${colNum} · ${entry.condition}]${foilTag} x${entry.totalQuantity} (Pedidos: ${refs})`
       );
+      const note = cardNotes[entry.itemKey]?.trim();
+      if (note) {
+        lines.push(`      💬 Obs: ${note}`);
+      }
     }
     lines.push("");
   }
@@ -56,6 +63,10 @@ export function formatFulfillmentTextReport(report: FulfillmentReport): string {
         lines.push(
           `    [ ] ${item.cardName} [${item.setPrefix}${colNum} · ${item.condition}]${foilTag} x${item.quantity}`
         );
+        const note = cardNotes[item.itemKey]?.trim();
+        if (note) {
+          lines.push(`        💬 Obs: ${note}`);
+        }
       }
     }
     lines.push("");

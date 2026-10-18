@@ -157,6 +157,7 @@ export const enCatalog = {
     totalPrice: "Unit: {price}",
     cardsToPull: "{count} cards to pull",
     shippingDefault: "Standard",
+    cardNotePlaceholder: "Add commentary (e.g. didn't find 4, only 3, is it ok?)...",
   },
 };
 
@@ -312,6 +313,7 @@ export const ptBRCatalog: TranslationCatalog = {
     totalPrice: "Unitário: {price}",
     cardsToPull: "{count} cartas para pegar",
     shippingDefault: "Padrão",
+    cardNotePlaceholder: "Adicionar observação (ex: só achei 3 de 4, tudo bem?)...",
   },
 };
 
