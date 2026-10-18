@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { FEATURES } from "@/lib/features";
+import { useTranslation } from "@/lib/i18n";
 
 const NAV_ITEMS = [
   { href: "/collection", label: "Collection", icon: Layers },
@@ -32,6 +33,7 @@ export default function Navbar() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const { showToast } = useToast();
+  const { t } = useTranslation();
   const [showQrModal, setShowQrModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -138,6 +140,20 @@ export default function Navbar() {
               </Button>
             )}
 
+            <a
+              href="/settings"
+              aria-label={t("settings.navLink")}
+              title={t("settings.title")}
+              className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all ${
+                pathname.startsWith("/settings")
+                  ? "border-white/[0.08] bg-white/[0.06] text-white"
+                  : "border-white/[0.06] bg-white/[0.02] text-slate-400 hover:bg-white/[0.05] hover:text-slate-200"
+              }`}
+            >
+              <SettingsIcon className="h-3.5 w-3.5" />
+              <span className="hidden xl:inline">{t("settings.navLink")}</span>
+            </a>
+
             {session?.user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -169,9 +185,11 @@ export default function Navbar() {
                       <Copy className="text-slate-400" />
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuItem onSelect={() => setShowSettingsModal(true)} className="text-xs">
-                    <SettingsIcon />
-                    Collector Preferences
+                  <DropdownMenuItem asChild className="text-xs">
+                    <a href="/settings" className="flex items-center gap-2 cursor-pointer">
+                      <SettingsIcon className="h-3.5 w-3.5" />
+                      {t("settings.title")}
+                    </a>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
@@ -185,9 +203,6 @@ export default function Navbar() {
               </DropdownMenu>
             ) : (
               <>
-                <Button onClick={() => setShowSettingsModal(true)} variant="ghost" size="icon" className="hidden sm:inline-flex" aria-label="Preferences">
-                  <SettingsIcon className="h-4 w-4" />
-                </Button>
                 <Button onClick={() => setShowLoginModal(true)} variant="outline" size="sm">
                   <LogIn className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">Sign In</span>
@@ -206,7 +221,11 @@ export default function Navbar() {
                   <SheetTitle className="label-caps">Navigate</SheetTitle>
                 </div>
                 <nav className="flex flex-col gap-1 p-3" aria-label="Mobile navigation">
-                  {[{ href: "/", label: "Dashboard", icon: Home }, ...NAV_ITEMS].map(({ href, label, icon: Icon }) => {
+                  {[
+                    { href: "/", label: "Dashboard", icon: Home },
+                    ...NAV_ITEMS,
+                    { href: "/settings", label: t("settings.navLink"), icon: SettingsIcon },
+                  ].map(({ href, label, icon: Icon }) => {
                     const active = href === "/" ? pathname === "/" : isActive(href);
                     return (
                       <a
@@ -224,9 +243,13 @@ export default function Navbar() {
                   })}
                 </nav>
                 <div className="mt-auto space-y-2 border-t border-white/[0.06] p-4">
-                  <Button onClick={() => { setMobileOpen(false); setShowSettingsModal(true); }} variant="outline" className="w-full">
-                    <SettingsIcon className="h-4 w-4" /> Preferences
-                  </Button>
+                  <a
+                    href="/settings"
+                    onClick={() => setMobileOpen(false)}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 py-2 text-sm font-medium text-slate-200 hover:bg-white/10"
+                  >
+                    <SettingsIcon className="h-4 w-4" /> {t("settings.title")}
+                  </a>
                 </div>
               </SheetContent>
             </Sheet>

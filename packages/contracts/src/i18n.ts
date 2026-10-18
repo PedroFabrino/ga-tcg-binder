@@ -76,6 +76,9 @@ export const enCatalog = {
     savedToast: "Settings saved successfully",
     clearedToast: "Saved credentials removed",
     tokenMasked: "•••••••••••••••• (Configured)",
+    pageEyebrow: "Configuration",
+    backLink: "Back",
+    navLink: "Settings",
   },
   shortages: {
     title: "Cartas Necessárias (Shortages)",
@@ -290,6 +293,9 @@ export const ptBRCatalog: TranslationCatalog = {
     savedToast: "Configurações salvas com sucesso",
     clearedToast: "Credenciais salvas removidas",
     tokenMasked: "•••••••••••••••• (Configurado)",
+    pageEyebrow: "Configurações",
+    backLink: "Voltar",
+    navLink: "Configurações",
   },
   shortages: {
     title: "Cartas Necessárias (Shortages)",

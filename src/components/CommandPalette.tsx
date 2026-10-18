@@ -45,7 +45,7 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
     ...(FEATURES.scanner
       ? [{ label: "Scan with Phone", icon: QrCode, action: () => { window.dispatchEvent(new CustomEvent("open-scanner")); }, group: "Actions" }]
       : []),
-    { label: "Open Settings", icon: SettingsIcon, action: () => { window.dispatchEvent(new CustomEvent("open-settings")); }, group: "Actions" },
+    { label: "Collector Settings & Superfrete API", icon: SettingsIcon, action: () => router.push("/settings"), group: "Navigation", keywords: "settings superfrete api key shipping credentials token preferences low pop" },
     { label: "Sign In", icon: LogIn, action: () => router.push("/login"), group: "Actions" },
   ];
 
