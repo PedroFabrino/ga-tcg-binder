@@ -225,19 +225,27 @@ export default function FulfillmentView({
       quotedPriceBrl?: number;
     }>
   ) => {
-    const res = await fetch("/api/marketplace/fulfillment/shipping/create-tickets", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ packs: selectedPacks }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || "Failed to create shipping tickets");
-    }
+    try {
+      const res = await fetch("/api/marketplace/fulfillment/shipping/create-tickets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ packs: selectedPacks }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const errorMsg = data.error || t("fulfillment.generateTicketsError");
+        showToast(errorMsg);
+        throw new Error(errorMsg);
+      }
 
-    showToast(t("fulfillment.ticketsCreatedToast", { count: data.tickets?.length || selectedPacks.length }));
-    setIsShippingModalOpen(false);
-    setLifecycleTab("processed");
+      showToast(t("fulfillment.ticketsCreatedToast", { count: data.tickets?.length || selectedPacks.length }));
+      setIsShippingModalOpen(false);
+      setLifecycleTab("processed");
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : t("fulfillment.generateTicketsError");
+      showToast(errorMsg);
+      throw err;
+    }
   };
 
   if (!report) {

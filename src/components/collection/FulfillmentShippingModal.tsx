@@ -41,8 +41,10 @@ export default function FulfillmentShippingModal({
   // Map of buyerNick -> selectedServiceCode
   const [selectedServices, setSelectedServices] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
+    setSubmitError(null);
     const initialSelected: Record<string, boolean> = {};
     const initialServices: Record<string, string> = {};
 
@@ -63,6 +65,7 @@ export default function FulfillmentShippingModal({
   if (!isOpen) return null;
 
   const togglePackSelection = (buyerNick: string) => {
+    setSubmitError(null);
     setSelectedPackNicks((prev) => ({
       ...prev,
       [buyerNick]: !prev[buyerNick],
@@ -70,6 +73,7 @@ export default function FulfillmentShippingModal({
   };
 
   const handleServiceChange = (buyerNick: string, serviceCode: string) => {
+    setSubmitError(null);
     setSelectedServices((prev) => ({
       ...prev,
       [buyerNick]: serviceCode,
@@ -99,8 +103,12 @@ export default function FulfillmentShippingModal({
     if (packsToCreate.length === 0) return;
 
     setIsSubmitting(true);
+    setSubmitError(null);
     try {
       await onConfirm(packsToCreate);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : t("fulfillment.generateTicketsError");
+      setSubmitError(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -239,6 +247,17 @@ export default function FulfillmentShippingModal({
             );
           })}
         </div>
+ 
+        {/* Error notification banner */}
+        {submitError && (
+          <div className="mx-5 mb-2 flex items-start gap-3 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-rose-400 mt-0.5" />
+            <div className="flex-1">
+              <strong className="font-semibold block">{t("fulfillment.generateTicketsErrorTitle")}:</strong>
+              <p className="mt-0.5 whitespace-pre-wrap">{submitError}</p>
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="flex items-center justify-between border-t border-slate-800 bg-slate-900/80 p-4">

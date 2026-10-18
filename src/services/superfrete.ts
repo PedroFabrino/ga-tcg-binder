@@ -311,87 +311,99 @@ export async function createShippingTicketsService(
   }
 
   const createdTickets = [];
+  const errors: string[] = [];
 
   for (const packReq of packsToCreate) {
     const pack = packsMap.get(normalizeBuyerNick(packReq.buyerNick));
     if (!pack || pack.orders.length === 0) continue;
     const orders = pack.orders;
 
-    const primaryOrder = orders[0];
-    const subtotalCents = orders.reduce((sum, o) => sum + o.subtotalCents, 0);
-    const shippingCents = orders.reduce((sum, o) => sum + o.shippingCents, 0);
-    const insuranceValueBrl = calculateInsuranceValue(
-      subtotalCents,
-      shippingCents,
-      packReq.selectedServiceCode
-    );
+    try {
+      const primaryOrder = orders[0];
+      const subtotalCents = orders.reduce((sum, o) => sum + o.subtotalCents, 0);
+      const shippingCents = orders.reduce((sum, o) => sum + o.shippingCents, 0);
+      const insuranceValueBrl = calculateInsuranceValue(
+        subtotalCents,
+        shippingCents,
+        packReq.selectedServiceCode
+      );
 
-    const allPrintings = orders.flatMap((o) => o.printings);
-    const products = buildSuperfreteProducts(allPrintings, insuranceValueBrl);
+      const allPrintings = orders.flatMap((o) => o.printings);
+      const products = buildSuperfreteProducts(allPrintings, insuranceValueBrl);
 
-    const carrier = toCarrierCode(packReq.selectedServiceCode, packReq.selectedServiceName);
-    const serviceName = packReq.selectedServiceName || `Service ${packReq.selectedServiceCode}`;
+      const carrier = toCarrierCode(packReq.selectedServiceCode, packReq.selectedServiceName);
+      const serviceName = packReq.selectedServiceName || `Service ${packReq.selectedServiceCode}`;
 
-    const cartPayload = {
-      from: {
-        name: primaryOrder.senderFullName,
-        postal_code: primaryOrder.senderPostalCode.replace(/\D/g, ""),
-        address: primaryOrder.senderStreet,
-        number: primaryOrder.senderNumber,
-        complement: primaryOrder.senderComplement || "",
-        district: primaryOrder.senderDistrict,
-        city: primaryOrder.senderCity,
-        state_code: primaryOrder.senderStateAbbr,
-      },
-      to: {
-        name: primaryOrder.buyerFullName,
-        postal_code: primaryOrder.buyerPostalCode.replace(/\D/g, ""),
-        address: primaryOrder.buyerStreet,
-        number: primaryOrder.buyerNumber,
-        complement: primaryOrder.buyerComplement || "",
-        district: primaryOrder.buyerDistrict,
-        city: primaryOrder.buyerCity,
-        state_code: primaryOrder.buyerStateAbbr,
-      },
-      service: Number(packReq.selectedServiceCode),
-      package: A4_ENVELOPE_PACKAGE,
-      options: {
-        non_commercial: true,
-        own_hand: false,
-        receipt: false,
-        insurance_value: insuranceValueBrl,
-      },
-      products,
-      platform: "GA TCG Binder",
-    };
+      const cartPayload = {
+        from: {
+          name: primaryOrder.senderFullName,
+          ...(primaryOrder.senderDocument ? { document: primaryOrder.senderDocument.replace(/\D/g, "") } : {}),
+          postal_code: primaryOrder.senderPostalCode.replace(/\D/g, ""),
+          address: primaryOrder.senderStreet,
+          number: primaryOrder.senderNumber,
+          complement: primaryOrder.senderComplement || "",
+          district: primaryOrder.senderDistrict,
+          city: primaryOrder.senderCity,
+          state_code: primaryOrder.senderStateAbbr,
+        },
+        to: {
+          name: primaryOrder.buyerFullName,
+          ...(primaryOrder.buyerDocument ? { document: primaryOrder.buyerDocument.replace(/\D/g, "") } : {}),
+          postal_code: primaryOrder.buyerPostalCode.replace(/\D/g, ""),
+          address: primaryOrder.buyerStreet,
+          number: primaryOrder.buyerNumber,
+          complement: primaryOrder.buyerComplement || "",
+          district: primaryOrder.buyerDistrict,
+          city: primaryOrder.buyerCity,
+          state_code: primaryOrder.buyerStateAbbr,
+        },
+        service: Number(packReq.selectedServiceCode),
+        package: A4_ENVELOPE_PACKAGE,
+        options: {
+          non_commercial: true,
+          own_hand: false,
+          receipt: false,
+          insurance_value: insuranceValueBrl,
+        },
+        products,
+        platform: "GA TCG Binder",
+      };
 
-    const cartResponse = await createSuperfreteCartOrder(apiToken, cartPayload, customFetch);
+      const cartResponse = await createSuperfreteCartOrder(apiToken, cartPayload, customFetch);
 
-    const orderIds = orders.map((o) => o.id);
-    const quotedPriceCents = packReq.quotedPriceBrl
-      ? Math.round(packReq.quotedPriceBrl * 100)
-      : cartResponse.price
-      ? Math.round(Number(cartResponse.price) * 100)
-      : null;
+      const orderIds = orders.map((o) => o.id);
+      const quotedPriceCents = packReq.quotedPriceBrl
+        ? Math.round(packReq.quotedPriceBrl * 100)
+        : cartResponse.price
+        ? Math.round(Number(cartResponse.price) * 100)
+        : null;
 
-    const ticket = await createShippingTicketWithOrders(
-      userId,
-      {
-        superfreteOrderId: String(cartResponse.id),
-        buyerNick: packReq.buyerNick,
-        status: "pending",
-        carrier,
-        serviceCode: packReq.selectedServiceCode,
-        serviceName,
-        quotedPriceCents,
-        insuranceValueCents: Math.round(insuranceValueBrl * 100),
-        providerPayloadJson: JSON.stringify(cartResponse),
-      },
-      orderIds,
-      dbParam
-    );
+      const ticket = await createShippingTicketWithOrders(
+        userId,
+        {
+          superfreteOrderId: String(cartResponse.id),
+          buyerNick: packReq.buyerNick,
+          status: "pending",
+          carrier,
+          serviceCode: packReq.selectedServiceCode,
+          serviceName,
+          quotedPriceCents,
+          insuranceValueCents: Math.round(insuranceValueBrl * 100),
+          providerPayloadJson: JSON.stringify(cartResponse),
+        },
+        orderIds,
+        dbParam
+      );
 
-    createdTickets.push(ticket);
+      createdTickets.push(ticket);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error creating ticket in Superfrete";
+      errors.push(`${packReq.buyerNick}: ${msg}`);
+    }
+  }
+
+  if (createdTickets.length === 0 && errors.length > 0) {
+    throw new Error(errors.join(" | "));
   }
 
   return createdTickets;
