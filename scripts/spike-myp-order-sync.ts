@@ -117,6 +117,13 @@ async function runFeasibilitySpike(): Promise<SpikeReport> {
     });
 
     const loginHtml = loginPage.solution?.response || "";
+    const cookies = loginPage.solution?.cookies || [];
+    console.log("   └─ Cookies from GET /login:", cookies.map((c) => c.name));
+
+    const hasTurnstile = /turnstile/i.test(loginHtml);
+    const hasRecaptcha = /recaptcha/i.test(loginHtml);
+    const hasHcaptcha = /hcaptcha/i.test(loginHtml);
+    console.log(`   └─ Captcha detectors: turnstile=${hasTurnstile}, recaptcha=${hasRecaptcha}, hcaptcha=${hasHcaptcha}`);
     // Extract the specific login form block (avoiding top navbar search forms)
     const loginFormBlockMatch =
       loginHtml.match(/<form[^>]*id=["']login-form["'][\s\S]*?<\/form>/i) ||
