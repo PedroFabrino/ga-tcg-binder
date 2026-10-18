@@ -117,21 +117,31 @@ async function runFeasibilitySpike(): Promise<SpikeReport> {
     });
 
     const loginHtml = loginPage.solution?.response || "";
+    // Extract the specific login form block (avoiding top navbar search forms)
+    const loginFormBlockMatch =
+      loginHtml.match(/<form[^>]*id=["']login-form["'][\s\S]*?<\/form>/i) ||
+      loginHtml.match(/<form[^>]*>[\s\S]*?LoginForm[\s\S]*?<\/form>/i);
+    const loginFormHtml = loginFormBlockMatch ? loginFormBlockMatch[0] : loginHtml;
+
     const csrfMatch =
-      loginHtml.match(/name="_csrf(?:-frontend)?"\s+value="([^"]+)"/) ||
-      loginHtml.match(/value="([^"]+)"\s+name="_csrf(?:-frontend)?"/);
+      loginFormHtml.match(/name="_csrf(?:-frontend)?"\s+value="([^"]+)"/) ||
+      loginHtml.match(/value="([^"]+)"\s+name="_csrf(?:-frontend)?"/) ||
+      loginHtml.match(/name="_csrf(?:-frontend)?"\s+value="([^"]+)"/);
     const csrfToken = csrfMatch ? csrfMatch[1] : "";
 
     if (!csrfToken) {
       throw new Error("Could not extract CSRF token from https://mypcards.com/login");
     }
 
-    const inputNames = Array.from(loginHtml.matchAll(/<input[^>]*name=["']([^"']+)["']/gi)).map((m) => m[1]);
+    const inputNames = Array.from(loginFormHtml.matchAll(/<input[^>]*name=["']([^"']+)["']/gi)).map((m) => m[1]);
     console.log("   └─ Detected login input fields:", inputNames.filter((n) => !n.includes("csrf")));
 
-    const formActionMatch = loginHtml.match(/<form[^>]*action=["']([^"']+)["']/i);
-    const formAction = formActionMatch ? formActionMatch[1] : "/site/login";
-    const postUrl = formAction.startsWith("http") ? formAction : `https://mypcards.com${formAction.startsWith("/") ? "" : "/"}${formAction}`;
+    const formActionMatch = loginFormHtml.match(/action=["']([^"']+)["']/i);
+    let formAction = formActionMatch ? formActionMatch[1] : "/login";
+    if (formAction === "#" || !formAction) formAction = "/login";
+    const postUrl = formAction.startsWith("http")
+      ? formAction
+      : `https://mypcards.com${formAction.startsWith("/") ? "" : "/"}${formAction}`;
     console.log(`   └─ Submitting credentials to: ${postUrl}`);
 
     // Map username field dynamically if named LoginForm[username] or LoginForm[login]
