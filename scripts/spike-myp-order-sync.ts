@@ -126,16 +126,28 @@ async function runFeasibilitySpike(): Promise<SpikeReport> {
       throw new Error("Could not extract CSRF token from https://mypcards.com/login");
     }
 
+    const inputNames = Array.from(loginHtml.matchAll(/<input[^>]*name=["']([^"']+)["']/gi)).map((m) => m[1]);
+    console.log("   └─ Detected login input fields:", inputNames.filter((n) => !n.includes("csrf")));
+
+    const formActionMatch = loginHtml.match(/<form[^>]*action=["']([^"']+)["']/i);
+    const formAction = formActionMatch ? formActionMatch[1] : "/site/login";
+    const postUrl = formAction.startsWith("http") ? formAction : `https://mypcards.com${formAction.startsWith("/") ? "" : "/"}${formAction}`;
+    console.log(`   └─ Submitting credentials to: ${postUrl}`);
+
+    // Map username field dynamically if named LoginForm[username] or LoginForm[login]
+    const userField = inputNames.find((n) => /LoginForm\[(username|login)\]/i.test(n)) || "LoginForm[username]";
+    const passField = inputNames.find((n) => /LoginForm\[password\]/i.test(n)) || "LoginForm[password]";
+
     const loginForm = new URLSearchParams({
       _csrf: csrfToken,
-      "LoginForm[username]": creds.login,
-      "LoginForm[password]": creds.passwordPlaintext,
+      [userField]: creds.login,
+      [passField]: creds.passwordPlaintext,
       "LoginForm[rememberMe]": "1",
     });
 
     const loginSubmitRes = await transport.request({
       method: "POST",
-      url: "https://mypcards.com/site/login",
+      url: postUrl,
       session: sessionId,
       postData: loginForm.toString(),
       headers: {
@@ -143,15 +155,17 @@ async function runFeasibilitySpike(): Promise<SpikeReport> {
       },
     });
 
-    const solutionStatus = loginSubmitRes.solution?.status;
-    const isSuccess =
-      loginSubmitRes.status === "ok" ||
-      loginSubmitRes.status === 200 ||
-      solutionStatus === 200 ||
-      solutionStatus === 302;
+    const submitHtml = loginSubmitRes.solution?.response || "";
+    const submitUrl = loginSubmitRes.solution?.url || "";
+    console.log(`   └─ Post-login landing URL: ${submitUrl}`);
 
-    if (!isSuccess) {
-      throw new Error(`MyP authentication failed: ${loginSubmitRes.message || loginSubmitRes.status}`);
+    const errorMatch =
+      submitHtml.match(/class=["'][^"']*help-block-error[^"']*["'][^>]*>([^<]+)/i) ||
+      submitHtml.match(/class=["'][^"']*alert-danger[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+
+    if (errorMatch) {
+      const cleanError = errorMatch[1].replace(/<[^>]+>/g, " ").trim();
+      throw new Error(`MyP login rejected with message: "${cleanError}"`);
     }
 
     report.authenticated = true;
