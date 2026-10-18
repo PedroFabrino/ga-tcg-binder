@@ -59,6 +59,7 @@ describe("Confirm Sent API Route (/api/marketplace/fulfillment/confirm-sent)", (
       shippingCents: 1000,
       totalCents: 6000,
       status: "processed",
+      shippingTicketId: "st-test-1",
       importedAt: new Date().toISOString(),
     });
   });

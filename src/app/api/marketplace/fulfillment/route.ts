@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { parseFulfillmentRequest } from "@/lib/validation/fulfillment-schemas";
+import { parseFulfillmentRequest, safeParseTogglePhotographedInput } from "@/lib/validation/fulfillment-schemas";
 import { buildFulfillmentReport, persistFulfillmentOrdersService, getFulfillmentOrdersService, toggleOrderPhotographedService } from "@/services/fulfillment";
 import { auth } from "@/auth";
-import { DEFAULT_USER_ID, ensureDefaultUserAndSeed } from "@/services/seed";
-import type { FulfillmentOrderStatus } from "@/db/schema";
+import { ensureDefaultUserAndSeed } from "@/services/seed";
+import type { FulfillmentOrderStatus } from "@ga/contracts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,7 +22,14 @@ export async function GET(req: NextRequest) {
   try {
     await ensureDefaultUserAndSeed();
     const session = await auth();
-    const userId = session?.user?.id || DEFAULT_USER_ID;
+    const userId = session?.user?.id;
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unauthorized: authentication required" },
+        { status: 401, headers: corsHeaders }
+      );
+    }
 
     const { searchParams } = new URL(req.url);
     const status = (searchParams.get("status") as FulfillmentOrderStatus) || undefined;
@@ -39,7 +46,14 @@ export async function POST(req: NextRequest) {
   try {
     await ensureDefaultUserAndSeed();
     const session = await auth();
-    const userId = session?.user?.id || DEFAULT_USER_ID;
+    const userId = session?.user?.id;
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unauthorized: authentication required" },
+        { status: 401, headers: corsHeaders }
+      );
+    }
 
     const rawBody = await req.json();
     const validation = parseFulfillmentRequest(rawBody);
@@ -76,17 +90,26 @@ export async function PATCH(req: NextRequest) {
   try {
     await ensureDefaultUserAndSeed();
     const session = await auth();
-    const userId = session?.user?.id || DEFAULT_USER_ID;
+    const userId = session?.user?.id;
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unauthorized: authentication required" },
+        { status: 401, headers: corsHeaders }
+      );
+    }
 
     const body = await req.json();
-    if (!body || typeof body.orderId !== "string" || typeof body.isPhotographed !== "boolean") {
+    const parsed = safeParseTogglePhotographedInput(body);
+
+    if (!parsed.success) {
       return NextResponse.json(
         { error: "orderId string and isPhotographed boolean are required" },
         { status: 400, headers: corsHeaders }
       );
     }
 
-    await toggleOrderPhotographedService(userId, body.orderId, body.isPhotographed);
+    await toggleOrderPhotographedService(userId, parsed.data.orderId, parsed.data.isPhotographed);
     return NextResponse.json({ success: true }, { status: 200, headers: corsHeaders });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Internal Server Error";

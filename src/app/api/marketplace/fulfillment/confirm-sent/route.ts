@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { DEFAULT_USER_ID, ensureDefaultUserAndSeed } from "@/services/seed";
-import { markOrdersAsSent } from "@/db/repositories/fulfillment-repository";
+import { ensureDefaultUserAndSeed } from "@/services/seed";
+import { markOrdersAsSentService } from "@/services/fulfillment";
+import { safeParseConfirmSentInput } from "@/lib/validation/fulfillment-schemas";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,13 +21,29 @@ export async function POST(req: NextRequest) {
   try {
     await ensureDefaultUserAndSeed();
     const session = await auth();
-    const userId = session?.user?.id || DEFAULT_USER_ID;
+    const userId = session?.user?.id;
 
-    const body = await req.json();
-    const orderIds: string[] = Array.isArray(body?.orderIds)
-      ? body.orderIds
-      : typeof body?.orderId === "string"
-      ? [body.orderId]
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unauthorized: authentication required" },
+        { status: 401, headers: corsHeaders }
+      );
+    }
+
+    const rawBody = await req.json();
+    const parsed = safeParseConfirmSentInput(rawBody);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid payload format" },
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
+    const orderIds: string[] = parsed.data.orderIds
+      ? parsed.data.orderIds
+      : parsed.data.orderId
+      ? [parsed.data.orderId]
       : [];
 
     if (orderIds.length === 0) {
@@ -36,7 +53,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await markOrdersAsSent(userId, orderIds);
+    await markOrdersAsSentService(userId, orderIds);
     return NextResponse.json({ success: true, count: orderIds.length }, { status: 200, headers: corsHeaders });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Internal Server Error";

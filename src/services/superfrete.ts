@@ -4,6 +4,7 @@ import {
   type FulfillmentOrderWithPrintings,
 } from "@/db/repositories/fulfillment-repository";
 import { getUserById } from "@/db/repositories/settings-repository";
+import { normalizeBuyerNick } from "@ga/contracts";
 import { decryptSecret } from "@/lib/crypto";
 import {
   A4_ENVELOPE_PACKAGE,
@@ -87,12 +88,19 @@ export function calculateInsuranceValue(
   return Math.max(rawBrl, 24.5);
 }
 
+function quotePrice(q: SuperfreteCalculatorQuote): number {
+  return typeof q.price === "number" ? q.price : parseFloat(String(q.price)) || 0;
+}
+
+const quotePriceAscending = (a: SuperfreteCalculatorQuote, b: SuperfreteCalculatorQuote): number =>
+  quotePrice(a) - quotePrice(b);
+
 export function selectBestCarrierQuote(
   quotes: SuperfreteCalculatorQuote[]
 ): SuperfreteCalculatorQuote | null {
   const validQuotes = quotes.filter((q) => {
     if (q.has_error) return false;
-    const priceNum = typeof q.price === "number" ? q.price : parseFloat(String(q.price));
+    const priceNum = quotePrice(q);
     return !isNaN(priceNum) && priceNum > 0;
   });
 
@@ -105,11 +113,7 @@ export function selectBestCarrierQuote(
   });
 
   if (preferred.length > 0) {
-    preferred.sort((a, b) => {
-      const priceA = typeof a.price === "number" ? a.price : parseFloat(String(a.price));
-      const priceB = typeof b.price === "number" ? b.price : parseFloat(String(b.price));
-      return priceA - priceB;
-    });
+    preferred.sort(quotePriceAscending);
     return preferred[0];
   }
 
@@ -120,19 +124,11 @@ export function selectBestCarrierQuote(
   });
 
   if (fallback.length > 0) {
-    fallback.sort((a, b) => {
-      const priceA = typeof a.price === "number" ? a.price : parseFloat(String(a.price));
-      const priceB = typeof b.price === "number" ? b.price : parseFloat(String(b.price));
-      return priceA - priceB;
-    });
+    fallback.sort(quotePriceAscending);
     return fallback[0];
   }
 
-  validQuotes.sort((a, b) => {
-    const priceA = typeof a.price === "number" ? a.price : parseFloat(String(a.price));
-    const priceB = typeof b.price === "number" ? b.price : parseFloat(String(b.price));
-    return priceA - priceB;
-  });
+  validQuotes.sort(quotePriceAscending);
   return validQuotes[0];
 }
 
@@ -215,16 +211,20 @@ export async function quoteOpenBuyerPacksService(
   const openOrders = await getFulfillmentOrdersByStatus(userId, "open", dbParam);
   if (openOrders.length === 0) return [];
 
-  const packsMap = new Map<string, FulfillmentOrderWithPrintings[]>();
+  const packsMap = new Map<string, { buyerNick: string; orders: FulfillmentOrderWithPrintings[] }>();
   for (const o of openOrders) {
-    const list = packsMap.get(o.buyerNick) || [];
-    list.push(o);
-    packsMap.set(o.buyerNick, list);
+    const key = normalizeBuyerNick(o.buyerNick);
+    const existing = packsMap.get(key);
+    if (existing) {
+      existing.orders.push(o);
+    } else {
+      packsMap.set(key, { buyerNick: o.buyerNick, orders: [o] });
+    }
   }
 
   const result: QuotedBuyerPack[] = [];
 
-  for (const [buyerNick, orders] of packsMap.entries()) {
+  for (const { buyerNick, orders } of packsMap.values()) {
     const subtotalCents = orders.reduce((sum, o) => sum + o.subtotalCents, 0);
     const shippingCents = orders.reduce((sum, o) => sum + o.shippingCents, 0);
     const insuranceValueBrl = calculateInsuranceValue(subtotalCents, shippingCents);
@@ -299,18 +299,23 @@ export async function createShippingTicketsService(
   const apiToken = decryptSecret(user.superfreteApiKeyEncrypted);
   const openOrders = await getFulfillmentOrdersByStatus(userId, "open", dbParam);
 
-  const packsMap = new Map<string, FulfillmentOrderWithPrintings[]>();
+  const packsMap = new Map<string, { buyerNick: string; orders: FulfillmentOrderWithPrintings[] }>();
   for (const o of openOrders) {
-    const list = packsMap.get(o.buyerNick) || [];
-    list.push(o);
-    packsMap.set(o.buyerNick, list);
+    const key = normalizeBuyerNick(o.buyerNick);
+    const existing = packsMap.get(key);
+    if (existing) {
+      existing.orders.push(o);
+    } else {
+      packsMap.set(key, { buyerNick: o.buyerNick, orders: [o] });
+    }
   }
 
   const createdTickets = [];
 
   for (const packReq of packsToCreate) {
-    const orders = packsMap.get(packReq.buyerNick);
-    if (!orders || orders.length === 0) continue;
+    const pack = packsMap.get(normalizeBuyerNick(packReq.buyerNick));
+    if (!pack || pack.orders.length === 0) continue;
+    const orders = pack.orders;
 
     const primaryOrder = orders[0];
     const subtotalCents = orders.reduce((sum, o) => sum + o.subtotalCents, 0);

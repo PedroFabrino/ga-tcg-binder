@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { DEFAULT_USER_ID, ensureDefaultUserAndSeed } from "@/services/seed";
+import { ensureDefaultUserAndSeed } from "@/services/seed";
 import { quoteOpenBuyerPacksService } from "@/services/superfrete";
 
 const corsHeaders = {
@@ -20,7 +20,14 @@ export async function POST() {
   try {
     await ensureDefaultUserAndSeed();
     const session = await auth();
-    const userId = session?.user?.id || DEFAULT_USER_ID;
+    const userId = session?.user?.id;
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unauthorized: authentication required" },
+        { status: 401, headers: corsHeaders }
+      );
+    }
 
     const quotedPacks = await quoteOpenBuyerPacksService(userId);
     return NextResponse.json(quotedPacks, { status: 200, headers: corsHeaders });

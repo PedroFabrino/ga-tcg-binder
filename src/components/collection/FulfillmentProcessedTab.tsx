@@ -17,7 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/lib/i18n";
 import { useToast } from "@/components/ToastProvider";
-import type { ShippingTicketWithOrders } from "@/db/repositories/fulfillment-repository";
+import type { ShippingTicketDTO } from "@ga/contracts";
 
 const SUPERFRETE_PANEL_URL = "https://web.superfrete.com/#/minhas-etiquetas";
 
@@ -25,7 +25,7 @@ export default function FulfillmentProcessedTab() {
   const { t } = useTranslation();
   const { showToast } = useToast();
 
-  const [tickets, setTickets] = useState<ShippingTicketWithOrders[]>([]);
+  const [tickets, setTickets] = useState<ShippingTicketDTO[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [confirmationMode, setConfirmationMode] = useState<"assisted" | "batch">("assisted");
@@ -102,7 +102,11 @@ export default function FulfillmentProcessedTab() {
     order: { mypOrderId: string },
     ticket: { carrier: string; trackingCode: string | null }
   ) => {
+    // Spec: explicit versioned browser-safe payload: version, mode, correlationId, orderId, carrier, trackingCode
     const payload = {
+      version: "1.0",
+      mode: confirmationMode,
+      correlationId: crypto.randomUUID(),
       orderId: order.mypOrderId,
       carrier: ticket.carrier,
       trackingCode: ticket.trackingCode || "",
@@ -114,8 +118,10 @@ export default function FulfillmentProcessedTab() {
   };
 
   const handleBatchConfirm = async () => {
+    // Spec: Batch Auto-Submit Mode operates only on Processed orders with a released or posted ticket and a non-empty tracking code
     const eligibleOrders = tickets
-      .flatMap((t) => (t.trackingCode ? t.orders.map((o) => ({ order: o, ticket: t })) : []));
+      .filter((t) => (t.status === "released" || t.status === "posted") && t.trackingCode)
+      .flatMap((t) => (t.orders || []).map((o) => ({ order: o, ticket: t })));
 
     if (eligibleOrders.length === 0) return;
 
@@ -129,10 +135,9 @@ export default function FulfillmentProcessedTab() {
     }
   };
 
-  const totalEligibleToConfirm = tickets.reduce(
-    (sum, t) => sum + (t.trackingCode ? t.orders.length : 0),
-    0
-  );
+  const totalEligibleToConfirm = tickets
+    .filter((t) => (t.status === "released" || t.status === "posted") && t.trackingCode)
+    .reduce((sum, t) => sum + (t.orders ? t.orders.length : 0), 0);
 
   const renderStatusBadge = (status: string) => {
     if (status === "pending") {
@@ -300,7 +305,7 @@ export default function FulfillmentProcessedTab() {
                           type="button"
                           onClick={() => handleCopyTracking(ticket.trackingCode!)}
                           className="text-slate-400 hover:text-slate-200"
-                          title="Copiar rastreio"
+                          title={t("fulfillment.copyTracking")}
                         >
                           <Copy className="h-3.5 w-3.5" />
                         </button>

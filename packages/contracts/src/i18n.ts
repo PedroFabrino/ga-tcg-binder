@@ -75,6 +75,7 @@ export const enCatalog = {
     savingBtn: "Saving...",
     savedToast: "Settings saved successfully",
     clearedToast: "Saved credentials removed",
+    tokenMasked: "•••••••••••••••• (Configured)",
   },
   shortages: {
     title: "Cartas Necessárias (Shortages)",
@@ -214,6 +215,7 @@ export const enCatalog = {
     batchAutoMode: "Batch Auto-Submit Mode",
     confirmedAt: "Confirmed on {date}",
     trackingNumber: "Tracking: {code}",
+    copyTracking: "Copy tracking code",
   },
 };
 
@@ -287,6 +289,7 @@ export const ptBRCatalog: TranslationCatalog = {
     savingBtn: "Salvando...",
     savedToast: "Configurações salvas com sucesso",
     clearedToast: "Credenciais salvas removidas",
+    tokenMasked: "•••••••••••••••• (Configurado)",
   },
   shortages: {
     title: "Cartas Necessárias (Shortages)",
@@ -426,6 +429,7 @@ export const ptBRCatalog: TranslationCatalog = {
     batchAutoMode: "Modo Automático em Lote",
     confirmedAt: "Confirmado em {date}",
     trackingNumber: "Rastreio: {code}",
+    copyTracking: "Copiar código de rastreio",
   },
 };
 

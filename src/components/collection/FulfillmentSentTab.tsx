@@ -3,11 +3,11 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { CheckCircle2, ExternalLink, RefreshCw, PackageCheck } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
-import type { FulfillmentOrderWithPrintings } from "@/db/repositories/fulfillment-repository";
+import type { FulfillmentOrderDTO } from "@ga/contracts";
 
 export default function FulfillmentSentTab() {
   const { t } = useTranslation();
-  const [orders, setOrders] = useState<FulfillmentOrderWithPrintings[]>([]);
+  const [orders, setOrders] = useState<FulfillmentOrderDTO[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const loadSentOrders = useCallback(async () => {

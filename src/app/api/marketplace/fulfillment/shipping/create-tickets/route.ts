@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { DEFAULT_USER_ID, ensureDefaultUserAndSeed } from "@/services/seed";
+import { ensureDefaultUserAndSeed } from "@/services/seed";
 import {
   createShippingTicketsService,
-  type CreateShippingTicketRequest,
 } from "@/services/superfrete";
+import { safeParseCreateTicketsInput } from "@/lib/validation/fulfillment-schemas";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,23 +23,27 @@ export async function POST(req: NextRequest) {
   try {
     await ensureDefaultUserAndSeed();
     const session = await auth();
-    const userId = session?.user?.id || DEFAULT_USER_ID;
+    const userId = session?.user?.id;
 
-    const body = await req.json();
-    const packs: CreateShippingTicketRequest[] = Array.isArray(body)
-      ? body
-      : Array.isArray(body?.packs)
-      ? body.packs
-      : [];
-
-    if (packs.length === 0) {
+    if (!userId) {
       return NextResponse.json(
-        { error: "No buyer packs provided for shipping ticket creation" },
+        { error: "Unauthorized: authentication required" },
+        { status: 401, headers: corsHeaders }
+      );
+    }
+
+    const rawBody = await req.json();
+    const normalizedInput = Array.isArray(rawBody) ? { packs: rawBody } : rawBody;
+    const parsed = safeParseCreateTicketsInput(normalizedInput);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid payload format: packs array required" },
         { status: 400, headers: corsHeaders }
       );
     }
 
-    const createdTickets = await createShippingTicketsService(userId, packs);
+    const createdTickets = await createShippingTicketsService(userId, parsed.data.packs);
     return NextResponse.json({ success: true, tickets: createdTickets }, { status: 200, headers: corsHeaders });
   } catch (error: unknown) {
     if (error instanceof Error && error.message === "SUPERFRETE_API_KEY_NOT_CONFIGURED") {

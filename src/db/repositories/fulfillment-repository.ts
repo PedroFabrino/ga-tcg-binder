@@ -5,7 +5,8 @@ import {
   shippingTickets,
   type FulfillmentOrderStatus,
 } from "../schema";
-import { eq, and, sql, desc, inArray } from "drizzle-orm";
+import { eq, and, sql, desc, inArray, isNotNull } from "drizzle-orm";
+import { normalizeBuyerNick } from "@ga/contracts";
 
 export type FulfillmentOrderRow = typeof fulfillmentOrders.$inferSelect;
 export type FulfillmentOrderInsert = typeof fulfillmentOrders.$inferInsert;
@@ -66,22 +67,33 @@ export async function upsertFulfillmentOrder(
     .where(and(eq(fulfillmentOrders.userId, userId), eq(fulfillmentOrders.mypOrderId, orderData.mypOrderId)))
     .limit(1);
 
+  if (existing.length > 0 && existing[0].status !== "open") {
+    // Spec: Re-importing Processed or Sent orders must not clear ticket linkage, tracking, confirmation timestamps, or lifecycle status.
+    // Return existing record and printings untouched.
+    const existingPrintings = await database
+      .select()
+      .from(fulfillmentOrderPrintings)
+      .where(eq(fulfillmentOrderPrintings.fulfillmentOrderId, existing[0].id));
+
+    return {
+      ...existing[0],
+      printings: existingPrintings,
+    };
+  }
+
   let orderId: string;
   if (existing.length > 0) {
     orderId = existing[0].id;
-    // Only update order details if not already sent
-    if (existing[0].status !== "sent") {
-      await database
-        .update(fulfillmentOrders)
-        .set({
-          ...orderData,
-          status: existing[0].status, // preserve status (processed stays processed)
-          isPhotographed: existing[0].isPhotographed, // preserve photo checkbox
-          shippingTicketId: existing[0].shippingTicketId,
-          updatedAt: sql`(strftime('%s', 'now'))`,
-        })
-        .where(eq(fulfillmentOrders.id, orderId));
-    }
+    await database
+      .update(fulfillmentOrders)
+      .set({
+        ...orderData,
+        status: "open",
+        isPhotographed: existing[0].isPhotographed,
+        shippingTicketId: existing[0].shippingTicketId,
+        updatedAt: sql`(strftime('%s', 'now'))`,
+      })
+      .where(eq(fulfillmentOrders.id, orderId));
   } else {
     orderId = crypto.randomUUID();
     await database.insert(fulfillmentOrders).values({
@@ -93,7 +105,7 @@ export async function upsertFulfillmentOrder(
     });
   }
 
-  // Replace printings transactionally / idempotently
+  // Replace printings transactionally / idempotently for open orders
   await database
     .delete(fulfillmentOrderPrintings)
     .where(eq(fulfillmentOrderPrintings.fulfillmentOrderId, orderId));
@@ -163,6 +175,45 @@ export async function createShippingTicketWithOrders(
   orderIds: string[],
   database = db
 ): Promise<ShippingTicketRow> {
+  if (orderIds.length === 0) {
+    throw new Error("Cannot create a shipping ticket without order IDs");
+  }
+
+  const existingOrders = await database
+    .select()
+    .from(fulfillmentOrders)
+    .where(
+      and(
+        eq(fulfillmentOrders.userId, userId),
+        inArray(fulfillmentOrders.id, orderIds)
+      )
+    );
+
+  const ordersById = new Map(existingOrders.map((order) => [order.id, order]));
+
+  const ordersAreEligible = orderIds.every((orderId) => {
+    const order = ordersById.get(orderId);
+    return (
+      order !== undefined &&
+      order.status === "open" &&
+      order.shippingTicketId === null
+    );
+  });
+
+  if (!ordersAreEligible) {
+    throw new Error(
+      "One or more orders are not eligible for shipping ticket creation"
+    );
+  }
+
+  const buyerNicks = new Set(
+    existingOrders.map((order) => normalizeBuyerNick(order.buyerNick))
+  );
+
+  if (buyerNicks.size > 1) {
+    throw new Error("Orders in ticket must share the same buyerNick");
+  }
+
   const ticketId = crypto.randomUUID();
   await database.insert(shippingTickets).values({
     ...ticketData,
@@ -171,16 +222,20 @@ export async function createShippingTicketWithOrders(
     status: ticketData.status || "pending",
   });
 
-  if (orderIds.length > 0) {
-    await database
-      .update(fulfillmentOrders)
-      .set({
-        status: "processed",
-        shippingTicketId: ticketId,
-        updatedAt: sql`(strftime('%s', 'now'))`,
-      })
-      .where(and(eq(fulfillmentOrders.userId, userId), inArray(fulfillmentOrders.id, orderIds)));
-  }
+  await database
+    .update(fulfillmentOrders)
+    .set({
+      status: "processed",
+      shippingTicketId: ticketId,
+      updatedAt: sql`(strftime('%s', 'now'))`,
+    })
+    .where(
+      and(
+        eq(fulfillmentOrders.userId, userId),
+        inArray(fulfillmentOrders.id, orderIds),
+        eq(fulfillmentOrders.status, "open")
+      )
+    );
 
   const [ticket] = await database
     .select()
@@ -287,7 +342,14 @@ export async function markOrdersAsSent(
       mypConfirmedAt: new Date().toISOString(),
       updatedAt: sql`(strftime('%s', 'now'))`,
     })
-    .where(and(eq(fulfillmentOrders.userId, userId), inArray(fulfillmentOrders.id, orderIds)));
+    .where(
+      and(
+        eq(fulfillmentOrders.userId, userId),
+        inArray(fulfillmentOrders.id, orderIds),
+        eq(fulfillmentOrders.status, "processed"),
+        isNotNull(fulfillmentOrders.shippingTicketId)
+      )
+    );
 
   return true;
 }

@@ -216,16 +216,21 @@ export function parseMypOrderPageHtml(
 
     // Cidade - UF - CEP
     let city = "";
-    let stateAbbr = "SP";
+    let stateAbbr = "";
     let postalCode = "";
     const cidUfCepMatch = boxHtml.match(/<label>\s*Cidade\s*-\s*UF\s*-\s*CEP\s*<\/label>\s*([^<]+)/i);
     if (cidUfCepMatch) {
       const parts = stripTags(cidUfCepMatch[1]).split("-").map((p) => p.trim());
       if (parts.length >= 3) {
-        city = parts[0];
+        city = parts[0] || "";
         stateAbbr = parts[1].toUpperCase().slice(0, 2);
         postalCode = parts.slice(2).join("").replace(/\D/g, "");
       }
+    }
+
+    // Spec: Reject incomplete addresses with actionable import errors; do not invent defaults
+    if (!street || !district || !city || !stateAbbr || !postalCode) {
+      return undefined;
     }
 
     return {
