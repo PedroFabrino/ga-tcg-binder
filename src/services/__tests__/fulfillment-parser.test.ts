@@ -221,5 +221,100 @@ describe("Fulfillment HTML Parsers", () => {
       expect(json).not.toContain("Av. Paulista");
       expect(json).not.toContain("01310-100");
     });
+
+    it("parses comprador-box, vendedor-box, and valores-box when present in order page HTML", () => {
+      const orderHtml = `
+        <div id="comprador-box" class="borda">
+          <h2>Comprador</h2>
+          <div class="view-field">
+            <label>Nome e nick</label>
+            <span class="pedido-nome-nick"><a href="/Dodoka">Brendo de Lima Ferreira (Dodoka)</a></span>
+          </div>
+          <div class="view-field comprador-cpfusuario">
+            <label>CPF</label>
+            180.031.157-52
+          </div>
+          <div class="view-field">
+            <label>Endereço</label>
+            Rua Dona Ana Neri, 721 - Ap 709
+          </div>
+          <div class="view-field">
+            <label>Bairro</label>
+            Cambuci
+          </div>
+          <div class="view-field">
+            <label>Cidade - UF - CEP</label>
+            São Paulo - SP - 01522-000
+          </div>
+        </div>
+
+        <div id="vendedor-box" class="borda">
+          <h2>Vendedor</h2>
+          <div class="view-field">
+            <label>Nome e nick</label>
+            <span class="pedido-nome-nick"><a href="/Fabrino">Pedro Fabrino (Fabrino)</a></span>
+          </div>
+          <div class="view-field">
+            <label>CPF</label>
+            032.083.531-62
+          </div>
+          <div class="view-field">
+            <label>Endereço</label>
+            Rua 8, 11 - 901A
+          </div>
+          <div class="view-field">
+            <label>Bairro</label>
+            Sul (Águas Claras)
+          </div>
+          <div class="view-field">
+            <label>Cidade - UF - CEP</label>
+            Brasília - DF - 71938-180
+          </div>
+        </div>
+
+        <div id="valores-box" class="sticky-container">
+          <div class="carrinho-subtotal">
+            <p>Subtotal <span class="label-destaque">(17 itens)</span>:</p>
+            <p class="carrinho-subtotal-valor">R$ 51,50</p>
+          </div>
+          <div class="carrinho-subtotal">
+            <p>Frete <span class="label-destaque">(Frete Fixo com rastreio)</span>:</p>
+            <p class="carrinho-subtotal-valor">R$ 10,00</p>
+          </div>
+          <div class="carrinho-subtotal total">
+            <p>Total:</p>
+            <p class="carrinho-subtotal-valor">R$ 61,50</p>
+          </div>
+        </div>
+      `;
+
+      const order = parseMypOrderPageHtml(orderHtml, "653380");
+      expect(order.buyer).toBeDefined();
+      expect(order.buyer?.fullName).toBe("Brendo de Lima Ferreira");
+      expect(order.buyer?.document).toBe("180.031.157-52");
+      expect(order.buyer?.street).toBe("Rua Dona Ana Neri");
+      expect(order.buyer?.number).toBe("721");
+      expect(order.buyer?.complement).toBe("Ap 709");
+      expect(order.buyer?.district).toBe("Cambuci");
+      expect(order.buyer?.city).toBe("São Paulo");
+      expect(order.buyer?.stateAbbr).toBe("SP");
+      expect(order.buyer?.postalCode).toBe("01522000");
+
+      expect(order.sender).toBeDefined();
+      expect(order.sender?.fullName).toBe("Pedro Fabrino");
+      expect(order.sender?.document).toBe("032.083.531-62");
+      expect(order.sender?.street).toBe("Rua 8");
+      expect(order.sender?.number).toBe("11");
+      expect(order.sender?.complement).toBe("901A");
+      expect(order.sender?.district).toBe("Sul (Águas Claras)");
+      expect(order.sender?.city).toBe("Brasília");
+      expect(order.sender?.stateAbbr).toBe("DF");
+      expect(order.sender?.postalCode).toBe("71938180");
+
+      expect(order.totals).toBeDefined();
+      expect(order.totals?.subtotalCents).toBe(5150);
+      expect(order.totals?.shippingCents).toBe(1000);
+      expect(order.totals?.totalCents).toBe(6150);
+    });
   });
 });

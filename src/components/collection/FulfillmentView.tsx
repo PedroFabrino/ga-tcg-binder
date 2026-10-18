@@ -19,6 +19,7 @@ export default function FulfillmentView({ mypUsername }: FulfillmentViewProps = 
   const { showToast } = useToast();
 
   const [report, setReport] = useState<FulfillmentReport | null>(null);
+  const [lifecycleTab, setLifecycleTab] = useState<"open" | "processed" | "sent">("open");
   const [activeTab, setActiveTab] = useState<"pick" | "buyer">("pick");
   const [cardNotes, setCardNotes] = useState<Record<string, string>>({});
 
@@ -250,48 +251,100 @@ export default function FulfillmentView({ mypUsername }: FulfillmentViewProps = 
         </div>
       )}
 
-      {/* Mode / Tabs Switcher */}
+      {/* Lifecycle Tabs (Open Orders / Processed / Sent) */}
       <div className="flex border-b border-slate-800 gap-2 pb-2">
         <button
           type="button"
-          onClick={() => setActiveTab("pick")}
+          onClick={() => setLifecycleTab("open")}
           className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-            activeTab === "pick"
-              ? "bg-sky-600 text-white"
+            lifecycleTab === "open"
+              ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
               : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
           }`}
         >
-          <ListChecks className="h-4 w-4" />
-          {t("fulfillment.tabPickList")}
+          <Package className="h-4 w-4" />
+          {t("fulfillment.tabOpenOrders")}
         </button>
 
         <button
           type="button"
-          onClick={() => setActiveTab("buyer")}
+          onClick={() => setLifecycleTab("processed")}
           className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-            activeTab === "buyer"
-              ? "bg-sky-600 text-white"
+            lifecycleTab === "processed"
+              ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
               : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
           }`}
         >
-          <Users className="h-4 w-4" />
-          {t("fulfillment.tabBuyerPacks")}
+          {t("fulfillment.tabProcessed")}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setLifecycleTab("sent")}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+            lifecycleTab === "sent"
+              ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+              : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+          }`}
+        >
+          {t("fulfillment.tabSent")}
         </button>
       </div>
 
-      {/* Tab Panels */}
-      {activeTab === "pick" ? (
-        <FulfillmentPickList
-          report={report}
-          cardNotes={cardNotes}
-          onUpdateNote={handleUpdateNote}
-        />
+      {lifecycleTab === "open" ? (
+        <>
+          {/* Mode / Sub-Tabs Switcher for Open Orders */}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab("pick")}
+              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                activeTab === "pick"
+                  ? "bg-sky-600 text-white"
+                  : "text-slate-400 hover:text-slate-200 bg-slate-800/60"
+              }`}
+            >
+              <ListChecks className="h-3.5 w-3.5" />
+              {t("fulfillment.tabPickList")}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("buyer")}
+              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                activeTab === "buyer"
+                  ? "bg-sky-600 text-white"
+                  : "text-slate-400 hover:text-slate-200 bg-slate-800/60"
+              }`}
+            >
+              <Users className="h-3.5 w-3.5" />
+              {t("fulfillment.tabBuyerPacks")}
+            </button>
+          </div>
+
+          {/* Tab Panels */}
+          {activeTab === "pick" ? (
+            <FulfillmentPickList
+              report={report}
+              cardNotes={cardNotes}
+              onUpdateNote={handleUpdateNote}
+            />
+          ) : (
+            <FulfillmentBuyerPacks
+              report={report}
+              cardNotes={cardNotes}
+              onUpdateNote={handleUpdateNote}
+            />
+          )}
+        </>
       ) : (
-        <FulfillmentBuyerPacks
-          report={report}
-          cardNotes={cardNotes}
-          onUpdateNote={handleUpdateNote}
-        />
+        <div className="rounded-xl border border-dashed border-slate-800 bg-slate-900/30 p-12 text-center text-slate-400">
+          <p className="text-sm font-medium">
+            {lifecycleTab === "processed"
+              ? "Nenhum frete gerado ou em processamento ainda."
+              : "Nenhum pedido enviado registrado ainda."}
+          </p>
+        </div>
       )}
     </div>
   );

@@ -574,6 +574,108 @@
       else if (/frete\s*fixo/i.test(bodyText)) shippingMethod = "Frete Fixo com rastreio";
     }
 
+    // Extract address boxes (#comprador-box, #vendedor-box)
+    function parseDocAddressBox(boxId) {
+      const box = doc.getElementById(boxId);
+      if (!box) return undefined;
+      const bText = box.textContent || "";
+
+      let fullName = "";
+      const nickEl = box.querySelector(".pedido-nome-nick");
+      if (nickEl) {
+        const full = (nickEl.textContent || "").trim();
+        fullName = full.split("(")[0].trim() || full;
+      }
+
+      let document = null;
+      const cpfMatch = bText.match(/(\d{3}\.\d{3}\.\d{3}-\d{2})/);
+      if (cpfMatch) document = cpfMatch[1];
+
+      let street = "";
+      let number = "S/N";
+      let complement = null;
+      const labels = Array.from(box.querySelectorAll(".view-field"));
+      for (const f of labels) {
+        const lbl = (f.querySelector("label")?.textContent || "").toLowerCase();
+        const val = f.textContent?.replace(f.querySelector("label")?.textContent || "", "").trim() || "";
+        if (lbl.includes("endereço") || lbl.includes("endereco")) {
+          const parts = val.split(",");
+          street = parts[0]?.trim() || val;
+          if (parts[1]) {
+            const numAndComp = parts[1].split("-");
+            number = numAndComp[0]?.trim() || "S/N";
+            if (numAndComp[1]) complement = numAndComp.slice(1).join("-").trim();
+          }
+        }
+      }
+
+      let district = "";
+      for (const f of labels) {
+        const lbl = (f.querySelector("label")?.textContent || "").toLowerCase();
+        if (lbl.includes("bairro")) {
+          district = f.textContent?.replace(f.querySelector("label")?.textContent || "", "").trim() || "";
+        }
+      }
+
+      let city = "";
+      let stateAbbr = "SP";
+      let postalCode = "";
+      for (const f of labels) {
+        const lbl = (f.querySelector("label")?.textContent || "").toLowerCase();
+        if (lbl.includes("cidade")) {
+          const val = f.textContent?.replace(f.querySelector("label")?.textContent || "", "").trim() || "";
+          const parts = val.split("-").map((p) => p.trim());
+          if (parts.length >= 3) {
+            city = parts[0];
+            stateAbbr = parts[1].toUpperCase().slice(0, 2);
+            postalCode = parts.slice(2).join("").replace(/\D/g, "");
+          }
+        }
+      }
+
+      return {
+        fullName,
+        document,
+        street,
+        number,
+        complement,
+        district,
+        city,
+        stateAbbr,
+        postalCode,
+      };
+    }
+
+    const buyer = parseDocAddressBox("comprador-box");
+    const sender = parseDocAddressBox("vendedor-box");
+
+    // Totals parsing (#valores-box)
+    let totals = undefined;
+    const valoresBox = doc.getElementById("valores-box");
+    if (valoresBox) {
+      const vText = valoresBox.textContent || "";
+      const parseVal = (re) => {
+        const m = vText.match(re);
+        if (!m) return { cents: 0, brl: "R$ 0,00" };
+        const priceM = m[0].match(/R\$\s*[\d.,]+/i);
+        const brl = priceM ? priceM[0].trim() : "R$ 0,00";
+        const clean = parseFloat(brl.replace(/[^\d,]/g, "").replace(",", ".")) || 0;
+        return { cents: Math.round(clean * 100), brl };
+      };
+      const subtotal = parseVal(/Subtotal[\s\S]*?R\$\s*[\d.,]+/i);
+      const shipping = parseVal(/Frete[\s\S]*?R\$\s*[\d.,]+/i);
+      const total = parseVal(/Total:[\s\S]*?R\$\s*[\d.,]+/i);
+      totals = {
+        subtotalCents: subtotal.cents,
+        shippingCents: shipping.cents,
+        totalCents: total.cents || (subtotal.cents + shipping.cents),
+        subtotalBrl: subtotal.brl,
+        shippingBrl: shipping.brl,
+        totalBrl: total.brl,
+        shippingMethod,
+      };
+    }
+
     // Extract items from the "Itens" section on /pedido/<id>
     // Each item in the Itens panel displays:
     // - Card title link: "Void's Cloak"
@@ -708,6 +810,9 @@
       shippingMethod,
       status: meta.status || "Aguard. envio",
       orderUrl: fullOrderUrl,
+      buyer,
+      sender,
+      totals,
       items,
     };
 

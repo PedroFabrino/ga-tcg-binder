@@ -80,6 +80,10 @@ function parseFulfillmentOrder(raw: unknown, index: number): ValidationResult<Ra
     ? order.orderUrl.trim()
     : `https://mypcards.com/pedido/${order.orderId}`;
 
+  const buyer = order.buyer && typeof order.buyer === "object" ? (order.buyer as any) : undefined;
+  const sender = order.sender && typeof order.sender === "object" ? (order.sender as any) : undefined;
+  const totals = order.totals && typeof order.totals === "object" ? (order.totals as any) : undefined;
+
   return {
     success: true,
     data: {
@@ -89,6 +93,9 @@ function parseFulfillmentOrder(raw: unknown, index: number): ValidationResult<Ra
       shippingMethod,
       status,
       orderUrl,
+      buyer,
+      sender,
+      totals,
       items,
     },
   };

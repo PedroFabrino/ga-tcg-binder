@@ -168,6 +168,113 @@ export function parseMypOrderPageHtml(
     if (envioMatch) shippingMethod = decodeHtmlEntities(envioMatch[1].trim());
   }
 
+  // Helper for address box parsing (#comprador-box, #vendedor-box)
+  const parseAddressBox = (boxId: "comprador-box" | "vendedor-box") => {
+    const boxMatch = html.match(new RegExp(`<div id="${boxId}"[\\s\\S]*?<\\/div>\\s*(?:<div id|$)`, "i"));
+    if (!boxMatch) return undefined;
+    const boxHtml = boxMatch[0];
+
+    // Name & Nick
+    let fullName = "";
+    const nameMatch = boxHtml.match(/pedido-nome-nick[^>]*>([\s\S]*?)<\/span>/i);
+    if (nameMatch) {
+      const fullText = stripTags(nameMatch[1]);
+      fullName = fullText.split("(")[0].trim() || fullText;
+    }
+
+    // CPF
+    let document: string | null = null;
+    const cpfMatch = boxHtml.match(/(\d{3}\.\d{3}\.\d{3}-\d{2})/);
+    if (cpfMatch) {
+      document = cpfMatch[1];
+    }
+
+    // Address lines
+    let street = "";
+    let number = "S/N";
+    let complement: string | null = null;
+    const endMatch = boxHtml.match(/<label>\s*Endereço\s*<\/label>\s*([^<]+)/i);
+    if (endMatch) {
+      const rawEnd = stripTags(endMatch[1]).trim();
+      const parts = rawEnd.split(",");
+      street = parts[0]?.trim() || rawEnd;
+      if (parts[1]) {
+        const numAndComp = parts[1].split("-");
+        number = numAndComp[0]?.trim() || "S/N";
+        if (numAndComp[1]) {
+          complement = numAndComp.slice(1).join("-").trim();
+        }
+      }
+    }
+
+    // Bairro (district)
+    let district = "";
+    const bairroMatch = boxHtml.match(/<label>\s*Bairro\s*<\/label>\s*([^<]+)/i);
+    if (bairroMatch) {
+      district = stripTags(bairroMatch[1]).trim();
+    }
+
+    // Cidade - UF - CEP
+    let city = "";
+    let stateAbbr = "SP";
+    let postalCode = "";
+    const cidUfCepMatch = boxHtml.match(/<label>\s*Cidade\s*-\s*UF\s*-\s*CEP\s*<\/label>\s*([^<]+)/i);
+    if (cidUfCepMatch) {
+      const parts = stripTags(cidUfCepMatch[1]).split("-").map((p) => p.trim());
+      if (parts.length >= 3) {
+        city = parts[0];
+        stateAbbr = parts[1].toUpperCase().slice(0, 2);
+        postalCode = parts.slice(2).join("").replace(/\D/g, "");
+      }
+    }
+
+    return {
+      fullName,
+      document,
+      street,
+      number,
+      complement,
+      district,
+      city,
+      stateAbbr,
+      postalCode,
+    };
+  };
+
+  const buyer = parseAddressBox("comprador-box");
+  const sender = parseAddressBox("vendedor-box");
+
+  // Totals parsing (#valores-box)
+  const parseTotalsBox = () => {
+    const valoresMatch = html.match(/<div id="valores-box"[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/i);
+    const boxHtml = valoresMatch ? valoresMatch[0] : html;
+
+    const parseMoney = (labelRegex: RegExp) => {
+      const m = boxHtml.match(labelRegex);
+      if (!m) return { cents: 0, brl: "R$ 0,00" };
+      const valMatch = m[0].match(/R\$\s*[\d.,]+/i);
+      const brl = valMatch ? valMatch[0].trim() : "R$ 0,00";
+      const cleanNum = parseFloat(brl.replace(/[^\d,]/g, "").replace(",", ".")) || 0;
+      return { cents: Math.round(cleanNum * 100), brl };
+    };
+
+    const subtotal = parseMoney(/Subtotal[\s\S]*?carrinho-subtotal-valor[^>]*>([^<]+)/i);
+    const shipping = parseMoney(/Frete[\s\S]*?carrinho-subtotal-valor[^>]*>([^<]+)/i);
+    const total = parseMoney(/Total:[\s\S]*?carrinho-subtotal-valor[^>]*>([^<]+)/i);
+
+    return {
+      subtotalCents: subtotal.cents,
+      shippingCents: shipping.cents,
+      totalCents: total.cents || (subtotal.cents + shipping.cents),
+      subtotalBrl: subtotal.brl,
+      shippingBrl: shipping.brl,
+      totalBrl: total.brl,
+      shippingMethod,
+    };
+  };
+
+  const totals = parseTotalsBox();
+
   // 6. Items Table Parsing
   const items: RawMypOrderItemInput[] = [];
   const trMatches = html.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
@@ -272,6 +379,9 @@ export function parseMypOrderPageHtml(
     shippingMethod,
     status,
     orderUrl: `https://mypcards.com/pedido/${orderId}`,
+    buyer,
+    sender,
+    totals,
     items,
   };
 }

@@ -47,7 +47,7 @@ export default function FulfillmentBuyerPacks({
     setCheckedItems(itemsMap);
   }, [report]);
 
-  const toggleOrderPhoto = (orderId: string) => {
+  const toggleOrderPhoto = async (orderId: string) => {
     const next = !completedOrders[orderId];
     setCompletedOrders((prev) => ({ ...prev, [orderId]: next }));
     const key = `ga_order_photo_${orderId}`;
@@ -56,6 +56,16 @@ export default function FulfillmentBuyerPacks({
       showToast(t("fulfillment.orderPhotoDoneToast", { orderId }));
     } else {
       localStorage.removeItem(key);
+    }
+
+    try {
+      await fetch("/api/marketplace/fulfillment", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, isPhotographed: next }),
+      });
+    } catch (e) {
+      // Non-fatal background sync
     }
   };
 

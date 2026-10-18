@@ -14,6 +14,28 @@ export interface RawMypOrderItemInput {
   unitPriceBrl: string;      // e.g. "R$ 7,00"
 }
 
+export interface PostalAddress {
+  fullName: string;
+  document: string | null;
+  street: string;
+  number: string;
+  complement: string | null;
+  district: string;
+  city: string;
+  stateAbbr: string;
+  postalCode: string;
+}
+
+export interface OrderTotals {
+  subtotalCents: number;
+  shippingCents: number;
+  totalCents: number;
+  subtotalBrl: string;
+  shippingBrl: string;
+  totalBrl: string;
+  shippingMethod: string | null;
+}
+
 export interface RawMypFulfillmentOrderInput {
   orderId: string;           // e.g. "654326"
   orderDate: string;         // e.g. "17/10/2026"
@@ -21,6 +43,9 @@ export interface RawMypFulfillmentOrderInput {
   shippingMethod: string;    // e.g. "Frete combinado com o vendedor" | "PAC"
   status: string;            // e.g. "Aguard. envio" | "Em separação"
   orderUrl: string;          // e.g. "https://mypcards.com/pedido/654326"
+  buyer?: PostalAddress;
+  sender?: PostalAddress;
+  totals?: OrderTotals;
   items: RawMypOrderItemInput[];
 }
 

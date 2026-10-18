@@ -3,6 +3,10 @@ import { NextRequest } from "next/server";
 
 let testDb: any;
 
+vi.mock("@/auth", () => ({
+  auth: vi.fn().mockResolvedValue({ user: { id: "u-fulfillment" } }),
+}));
+
 vi.mock("@/db", () => ({
   db: new Proxy({}, {
     get: (_, prop) => {
@@ -38,6 +42,14 @@ describe("Fulfillment API Route (/api/marketplace/fulfillment)", () => {
       collectorNumber: "029",
       rarity: 1,
       imageUrl: "https://api.gatcg.com/cards/images/rdo_029.jpg",
+    });
+
+    const { users } = await import("@/db/schema");
+    await testDb.insert(users).values({
+      id: "u-fulfillment",
+      name: "Fulfillment User",
+      email: "fulfill@test.com",
+      friendCode: "GA-FULF",
     });
   });
 
@@ -101,5 +113,29 @@ describe("Fulfillment API Route (/api/marketplace/fulfillment)", () => {
     expect(report.pickListByElement.Norm[0].cardName).toBe("Void's Cloak");
     expect(report.buyerPacks).toHaveLength(1);
     expect(report.buyerPacks[0].buyerNick).toBe("Betinho3");
+
+    // Verify GET retrieves persisted orders
+    const getReq = new NextRequest("http://localhost:3000/api/marketplace/fulfillment");
+    const { GET, PATCH } = await import("../route");
+    const getRes = await GET(getReq);
+    expect(getRes.status).toBe(200);
+    const persisted = await getRes.json();
+    expect(persisted).toHaveLength(1);
+    expect(persisted[0].mypOrderId).toBe("654326");
+    expect(persisted[0].status).toBe("open");
+    expect(persisted[0].isPhotographed).toBe(false);
+
+    // Verify PATCH toggles isPhotographed
+    const patchReq = new NextRequest("http://localhost:3000/api/marketplace/fulfillment", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId: persisted[0].id, isPhotographed: true }),
+    });
+    const patchRes = await PATCH(patchReq);
+    expect(patchRes.status).toBe(200);
+
+    const afterPatchRes = await GET(getReq);
+    const afterPatch = await afterPatchRes.json();
+    expect(afterPatch[0].isPhotographed).toBe(true);
   });
 });

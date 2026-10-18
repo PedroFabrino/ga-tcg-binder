@@ -206,4 +206,86 @@ CREATE TABLE IF NOT EXISTS `myp_watchlist` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS `myp_watchlist_user_printing_idx` ON `myp_watchlist` (`user_id`,`edition_slug`,`collector_number`);
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `fulfillment_orders` (
+	`id` text PRIMARY KEY NOT NULL,
+	`user_id` text NOT NULL,
+	`myp_order_id` text NOT NULL,
+	`order_date` text NOT NULL,
+	`buyer_nick` text NOT NULL,
+	`buyer_full_name` text NOT NULL,
+	`buyer_document` text,
+	`buyer_street` text NOT NULL,
+	`buyer_number` text NOT NULL,
+	`buyer_complement` text,
+	`buyer_district` text NOT NULL,
+	`buyer_city` text NOT NULL,
+	`buyer_state_abbr` text NOT NULL,
+	`buyer_postal_code` text NOT NULL,
+	`sender_full_name` text NOT NULL,
+	`sender_document` text,
+	`sender_street` text NOT NULL,
+	`sender_number` text NOT NULL,
+	`sender_complement` text,
+	`sender_district` text NOT NULL,
+	`sender_city` text NOT NULL,
+	`sender_state_abbr` text NOT NULL,
+	`sender_postal_code` text NOT NULL,
+	`subtotal_cents` integer NOT NULL,
+	`shipping_cents` integer NOT NULL,
+	`total_cents` integer NOT NULL,
+	`shipping_method` text,
+	`status` text DEFAULT 'open' NOT NULL,
+	`is_photographed` integer DEFAULT false NOT NULL,
+	`shipping_ticket_id` text,
+	`myp_confirmed_at` text,
+	`imported_at` text NOT NULL,
+	`created_at` integer DEFAULT (strftime('%s', 'now')),
+	`updated_at` integer DEFAULT (strftime('%s', 'now')),
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS `fulfillment_orders_user_order_idx` ON `fulfillment_orders` (`user_id`,`myp_order_id`);
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `fulfillment_order_printings` (
+	`id` text PRIMARY KEY NOT NULL,
+	`fulfillment_order_id` text NOT NULL,
+	`card_slug` text,
+	`card_name` text NOT NULL,
+	`element` text DEFAULT 'UNMATCHED' NOT NULL,
+	`set_code` text,
+	`collector_number` text,
+	`condition` text DEFAULT 'NM' NOT NULL,
+	`language` text DEFAULT 'EN' NOT NULL,
+	`is_foil` integer DEFAULT false NOT NULL,
+	`quantity` integer DEFAULT 1 NOT NULL,
+	`unit_price_brl` text DEFAULT 'R$ 0,00' NOT NULL,
+	`myp_code` text NOT NULL,
+	`image_url` text,
+	`created_at` integer DEFAULT (strftime('%s', 'now')),
+	`updated_at` integer DEFAULT (strftime('%s', 'now')),
+	FOREIGN KEY (`fulfillment_order_id`) REFERENCES `fulfillment_orders`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `shipping_tickets` (
+	`id` text PRIMARY KEY NOT NULL,
+	`user_id` text NOT NULL,
+	`superfrete_order_id` text NOT NULL,
+	`buyer_nick` text NOT NULL,
+	`status` text DEFAULT 'pending' NOT NULL,
+	`carrier` text NOT NULL,
+	`service_code` text NOT NULL,
+	`service_name` text NOT NULL,
+	`quoted_price_cents` integer,
+	`insurance_value_cents` integer NOT NULL,
+	`tracking_code` text,
+	`print_url` text,
+	`provider_payload_json` text,
+	`synchronized_at` text,
+	`created_at` integer DEFAULT (strftime('%s', 'now')),
+	`updated_at` integer DEFAULT (strftime('%s', 'now')),
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS `shipping_tickets_user_ticket_idx` ON `shipping_tickets` (`user_id`,`superfrete_order_id`);
 
