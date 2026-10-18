@@ -205,6 +205,7 @@ export const enCatalog = {
     ticketStatusReleased: "Label Released",
     ticketStatusPosted: "Posted",
     ticketStatusUnknown: "Unknown",
+    awaitingTracking: "Awaiting postal tracking code...",
   },
 };
 
@@ -408,6 +409,7 @@ export const ptBRCatalog: TranslationCatalog = {
     ticketStatusReleased: "Etiqueta Liberada",
     ticketStatusPosted: "Postado",
     ticketStatusUnknown: "Desconhecido",
+    awaitingTracking: "Aguardando geração de rastreio...",
   },
 };
 

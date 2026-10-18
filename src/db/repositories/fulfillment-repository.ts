@@ -191,3 +191,88 @@ export async function createShippingTicketWithOrders(
   return ticket;
 }
 
+export async function updateShippingTicket(
+  userId: string,
+  ticketId: string,
+  updateData: Partial<Omit<ShippingTicketInsert, "id" | "userId">>,
+  database = db
+): Promise<ShippingTicketRow | undefined> {
+  await database
+    .update(shippingTickets)
+    .set({
+      ...updateData,
+      updatedAt: sql`(strftime('%s', 'now'))`,
+    })
+    .where(and(eq(shippingTickets.userId, userId), eq(shippingTickets.id, ticketId)));
+
+  const [ticket] = await database
+    .select()
+    .from(shippingTickets)
+    .where(and(eq(shippingTickets.userId, userId), eq(shippingTickets.id, ticketId)))
+    .limit(1);
+
+  return ticket;
+}
+
+export interface ShippingTicketWithOrders extends ShippingTicketRow {
+  orders: FulfillmentOrderWithPrintings[];
+}
+
+export async function getShippingTicketsWithOrders(
+  userId: string,
+  database = db
+): Promise<ShippingTicketWithOrders[]> {
+  const tickets = await database
+    .select()
+    .from(shippingTickets)
+    .where(eq(shippingTickets.userId, userId))
+    .orderBy(desc(shippingTickets.createdAt));
+
+  if (tickets.length === 0) return [];
+
+  const ticketIds = tickets.map((t) => t.id);
+  const orders = await database
+    .select()
+    .from(fulfillmentOrders)
+    .where(
+      and(
+        eq(fulfillmentOrders.userId, userId),
+        inArray(fulfillmentOrders.shippingTicketId, ticketIds)
+      )
+    );
+
+  const orderIds = orders.map((o) => o.id);
+  const printings =
+    orderIds.length > 0
+      ? await database
+          .select()
+          .from(fulfillmentOrderPrintings)
+          .where(inArray(fulfillmentOrderPrintings.fulfillmentOrderId, orderIds))
+      : [];
+
+  const printingsByOrder = new Map<string, FulfillmentOrderPrintingRow[]>();
+  for (const p of printings) {
+    const list = printingsByOrder.get(p.fulfillmentOrderId) || [];
+    list.push(p);
+    printingsByOrder.set(p.fulfillmentOrderId, list);
+  }
+
+  const ordersByTicket = new Map<string, FulfillmentOrderWithPrintings[]>();
+  for (const o of orders) {
+    if (!o.shippingTicketId) continue;
+    const list = ordersByTicket.get(o.shippingTicketId) || [];
+    list.push({
+      ...o,
+      printings: printingsByOrder.get(o.id) || [],
+    });
+    ordersByTicket.set(o.shippingTicketId, list);
+  }
+
+  return tickets.map((t) => ({
+    ...t,
+    orders: ordersByTicket.get(t.id) || [],
+  }));
+}
+
+
+

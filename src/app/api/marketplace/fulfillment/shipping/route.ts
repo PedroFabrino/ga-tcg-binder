@@ -24,6 +24,13 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status") || undefined;
+    const withOrders = searchParams.get("withOrders") === "true";
+
+    if (withOrders) {
+      const { getShippingTicketsWithOrdersService } = await import("@/services/superfrete-sync");
+      const ticketsWithOrders = await getShippingTicketsWithOrdersService(userId);
+      return NextResponse.json(ticketsWithOrders, { status: 200, headers: corsHeaders });
+    }
 
     const tickets = await getShippingTickets(userId, status);
     return NextResponse.json(tickets, { status: 200, headers: corsHeaders });

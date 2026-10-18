@@ -12,6 +12,7 @@ import FulfillmentBuyerPacks from "./FulfillmentBuyerPacks";
 import FulfillmentShippingModal from "./FulfillmentShippingModal";
 import FulfillmentEmptyState from "./FulfillmentEmptyState";
 import FulfillmentNonGaBanner from "./FulfillmentNonGaBanner";
+import FulfillmentProcessedTab from "./FulfillmentProcessedTab";
 import type { QuotedBuyerPack } from "@/services/superfrete";
 
 interface FulfillmentViewProps {
@@ -360,13 +361,11 @@ export default function FulfillmentView({ mypUsername }: FulfillmentViewProps = 
             />
           )}
         </>
+      ) : lifecycleTab === "processed" ? (
+        <FulfillmentProcessedTab />
       ) : (
         <div className="rounded-xl border border-dashed border-slate-800 bg-slate-900/30 p-12 text-center text-slate-400">
-          <p className="text-sm font-medium">
-            {lifecycleTab === "processed"
-              ? t("fulfillment.noProcessedOrders")
-              : t("fulfillment.noSentOrders")}
-          </p>
+          <p className="text-sm font-medium">{t("fulfillment.noSentOrders")}</p>
         </div>
       )}
 
