@@ -159,14 +159,18 @@ async function runFeasibilitySpike(): Promise<SpikeReport> {
     const hiddenInputs = Array.from(
       loginFormHtml.matchAll(/<input[^>]*type=["']hidden["'][^>]*name=["']([^"']+)["'][^>]*value=["']([^"']*)["']/gi)
     );
+    console.log(
+      "   └─ Form hidden inputs:",
+      hiddenInputs.map((h) => `${h[1]}=${h[2].slice(0, 8)}...`)
+    );
+
     const loginForm = new URLSearchParams();
     for (const h of hiddenInputs) {
       loginForm.set(h[1], h[2]);
     }
 
-    if (csrfToken) {
+    if (csrfToken && !loginForm.has("_csrf")) {
       loginForm.set("_csrf", csrfToken);
-      loginForm.set("_csrf-frontend", csrfToken);
     }
     loginForm.set(userField, creds.login);
     loginForm.set(passField, creds.passwordPlaintext);
@@ -174,20 +178,40 @@ async function runFeasibilitySpike(): Promise<SpikeReport> {
 
     console.log("   └─ Sending form params:", Array.from(loginForm.keys()));
 
-    const loginSubmitRes = await transport.request({
-      method: "POST",
-      url: postUrl,
-      session: sessionId,
-      postData: loginForm.toString(),
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Referer": "https://mypcards.com/login",
-      },
-    });
+    const candidateUrls = ["https://mypcards.com/login", "https://mypcards.com/site/login"];
+    let loginSubmitRes: any = null;
+    let submitHtml = "";
+    let submitUrl = "";
 
-    const submitHtml = loginSubmitRes.solution?.response || "";
-    const submitUrl = loginSubmitRes.solution?.url || "";
-    console.log(`   └─ Post-login landing URL: ${submitUrl}`);
+    for (const targetUrl of candidateUrls) {
+      console.log(`   └─ Testing POST ${targetUrl}...`);
+      const res = await transport.request({
+        method: "POST",
+        url: targetUrl,
+        session: sessionId,
+        postData: loginForm.toString(),
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Origin": "https://mypcards.com",
+          "Referer": "https://mypcards.com/login",
+        },
+      });
+
+      const html = res.solution?.response || "";
+      const is400 = html.includes("Problema Encontrado!") || res.solution?.status === 400;
+      loginSubmitRes = res;
+      submitHtml = html;
+      submitUrl = res.solution?.url || "";
+
+      if (!is400) {
+        console.log(`   └─ POST ${targetUrl} did not return 400! Landing URL: ${submitUrl}`);
+        break;
+      } else {
+        console.log(`   └─ POST ${targetUrl} returned 400 Problema Encontrado.`);
+      }
+    }
+
+    console.log(`   └─ Final landing URL: ${submitUrl}`);
 
     if (submitUrl.includes("login") || submitHtml.includes("LoginForm[password]")) {
       const titleMatch = submitHtml.match(/<title>([^<]+)<\/title>/i);
