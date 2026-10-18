@@ -145,9 +145,9 @@ The quantitative evaluation comparing a Market Listing's asking price against it
 _Avoid_: Price rating, deal score
 
 **Overpriced Listing**:
-A Market Listing whose asking price exceeds 1.2x (more than 20% above) its Preço TCG Player baseline, subdivided into:
-- **Heavily Overpriced**: Asking price is over double (> 2.0x) the Preço TCG Player baseline.
-- **Slightly Overpriced**: Asking price is between 1.2x and 2.0x (20% to 100% higher than) the Preço TCG Player baseline.
+A Market Listing whose asking price exceeds the Collector's configured Slightly Overpriced threshold (default `1.2x`, or 20% above its Preço TCG Player baseline), subdivided into:
+- **Heavily Overpriced**: Asking price exceeds the Collector's configured Heavily Overpriced threshold (default `2.0x`, or over double the Preço TCG Player baseline).
+- **Slightly Overpriced**: Asking price is between the Slightly Overpriced and Heavily Overpriced thresholds (default `1.2x` to `2.0x` of the Preço TCG Player baseline).
 _Avoid_: Expensive card, bad deal, markup tier
 
 **Fair Price**:
@@ -183,7 +183,7 @@ Official Grand Archive TCG gameplay terms—including Card names, Elements (`Nor
 _Avoid_: Translated element names, translated rarity tiers, translated deck zones
 
 **Fulfillment Order**:
-A customer purchase on the Collector's external marketplace store awaiting shipment or currently in separation, containing one or more sold Printings that must be pulled, verified per order, and packed.
+A customer purchase on the Collector's external marketplace store containing one or more sold Printings and recipient shipping details, progressing through three lifecycle stages: `Open` (imported and in card separation/photography), `Processed` (linked to a generated Shipping Ticket awaiting payment or tracking confirmation), and `Sent` (tracking code confirmed on the marketplace).
 _Avoid_: Sale row, invoice, pending shipment
 
 **Pick List**:
@@ -191,8 +191,12 @@ The aggregated list of sold Printings across selected Fulfillment Orders, groupe
 _Avoid_: Pull sheet, element batch, shopping list
 
 **Buyer Pack**:
-The post-pick grouping of Fulfillment Orders organized first by buyer nickname to consolidate physical parcels and then sub-grouped by individual Fulfillment Order so each order's items can be staged and photographed separately before shipping together.
+The post-pick grouping of Fulfillment Orders organized first by buyer nickname to consolidate physical parcels into a single Shipping Ticket, and sub-grouped by individual Fulfillment Order so each order's items can be staged and photographed separately before shipping together.
 _Avoid_: Customer bundle, shipment stack, order merge
+
+**Shipping Ticket**:
+A freight shipment registered in the external shipping aggregator (Superfrete) for a consolidated Buyer Pack, progressing from `pending` (awaiting payment in the aggregator panel) to `released` (paid, with an assigned postal tracking code) and `posted`.
+_Avoid_: Shipping label, cart row, freight order
 
 **Repository**:
 A module in `src/db/repositories/` that owns all database queries for one aggregate; the only layer allowed to touch Drizzle/libSQL.
