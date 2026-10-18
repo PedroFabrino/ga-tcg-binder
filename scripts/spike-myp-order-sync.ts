@@ -143,8 +143,15 @@ async function runFeasibilitySpike(): Promise<SpikeReport> {
       },
     });
 
-    if (loginSubmitRes.status !== 200 && loginSubmitRes.status !== 302) {
-      throw new Error(`MyP authentication failed with status ${loginSubmitRes.status}`);
+    const solutionStatus = loginSubmitRes.solution?.status;
+    const isSuccess =
+      loginSubmitRes.status === "ok" ||
+      loginSubmitRes.status === 200 ||
+      solutionStatus === 200 ||
+      solutionStatus === 302;
+
+    if (!isSuccess) {
+      throw new Error(`MyP authentication failed: ${loginSubmitRes.message || loginSubmitRes.status}`);
     }
 
     report.authenticated = true;
@@ -159,7 +166,17 @@ async function runFeasibilitySpike(): Promise<SpikeReport> {
     });
 
     const vendasHtml = vendasRes.solution?.response || "";
-    report.vendasPageFetched = vendasRes.status === 200;
+    const isVendasSuccess =
+      (vendasRes.status === "ok" || vendasRes.status === 200 || vendasRes.solution?.status === 200) &&
+      !vendasHtml.includes("LoginForm[username]");
+
+    report.vendasPageFetched = isVendasSuccess;
+    if (!isVendasSuccess) {
+      if (vendasHtml.includes("LoginForm[username]")) {
+        throw new Error("Session was redirected to login. MyP credentials may be incorrect or session expired.");
+      }
+      throw new Error(`Failed to load vendas page: status ${vendasRes.status} (solution ${vendasRes.solution?.status})`);
+    }
 
     const discovered = parseMypVendasHtml(vendasHtml, { includeEmSeparacao: true });
     report.ordersDiscoveredCount = discovered.length;

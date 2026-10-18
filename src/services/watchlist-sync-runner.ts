@@ -15,7 +15,7 @@ export interface FlareSolverrRequestOptions {
 }
 
 export interface FlareSolverrResponse {
-  status: number;
+  status: string | number;
   message?: string;
   solution?: {
     url: string;
