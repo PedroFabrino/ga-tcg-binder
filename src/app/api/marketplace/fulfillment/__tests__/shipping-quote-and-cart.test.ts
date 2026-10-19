@@ -261,4 +261,104 @@ describe("Shipping Quote and Cart API Routes", () => {
 
     fetchSpy.mockRestore();
   });
+
+  it("handles partial failure: reports error for failed pack while keeping it open and completing valid tickets", async () => {
+    // Add second open order for FailedBuyer
+    await testDb.insert(fulfillmentOrders).values({
+      id: "ord-fail",
+      userId: "u-fulfillment-shipping",
+      mypOrderId: "653462",
+      orderDate: "18/10/2026",
+      buyerNick: "FailedBuyer",
+      buyerFullName: "Destinatario com Erro",
+      buyerStreet: "Rua Inexistente",
+      buyerNumber: "999",
+      buyerDistrict: "Bairro",
+      buyerCity: "Sao Paulo",
+      buyerStateAbbr: "SP",
+      buyerPostalCode: "01001000",
+      senderFullName: "Vendedor TCG",
+      senderStreet: "Av Paulista",
+      senderNumber: "1000",
+      senderDistrict: "Bela Vista",
+      senderCity: "Sao Paulo",
+      senderStateAbbr: "SP",
+      senderPostalCode: "01310100",
+      subtotalCents: 3000,
+      shippingCents: 1500,
+      totalCents: 4500,
+      shippingMethod: "PAC",
+      status: "open",
+      importedAt: new Date().toISOString(),
+    });
+
+    const encryptedKey = encryptSecret("superfrete-test-token-xyz");
+    await testDb
+      .update(users)
+      .set({ superfreteApiKeyEncrypted: encryptedKey })
+      .where(eq(users.id, "u-fulfillment-shipping"));
+
+    const fetchSpy = vi.spyOn(global, "fetch").mockImplementation(async (url: any, init: any) => {
+      const urlStr = String(url);
+      if (urlStr.includes("/api/v0/cart")) {
+        const payload = JSON.parse(init.body);
+        if (payload.to.name.includes("Destinatario com Erro")) {
+          return new Response(
+            JSON.stringify({ message: "Limite de 10 pedidos no carrinho excedido no Superfrete" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        return new Response(
+          JSON.stringify({ id: 112233, status: "pending", price: 15.0 }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      return new Response(JSON.stringify({ error: "not found" }), { status: 404 });
+    });
+
+    const createReq = new NextRequest(
+      "http://localhost:3000/api/marketplace/fulfillment/shipping/create-tickets",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          packs: [
+            {
+              buyerNick: "GrandBuyer",
+              selectedServiceCode: "31",
+              selectedServiceName: "Loggi Express",
+              quotedPriceBrl: 15.0,
+            },
+            {
+              buyerNick: "FailedBuyer",
+              selectedServiceCode: "1",
+              selectedServiceName: "PAC",
+              quotedPriceBrl: 18.0,
+            },
+          ],
+        }),
+      }
+    );
+
+    const createRes = await createTicketsPost(createReq);
+    expect(createRes.status).toBe(200);
+    const data = await createRes.json();
+
+    expect(data.success).toBe(true);
+    expect(data.tickets).toHaveLength(1);
+    expect(data.tickets[0].buyerNick).toBe("GrandBuyer");
+    expect(data.errors).toHaveLength(1);
+    expect(data.errors[0].buyerNick).toBe("FailedBuyer");
+    expect(data.errors[0].error).toContain("Limite de 10 pedidos");
+
+    // Verify FailedBuyer order is still in open status in DB
+    const getOpenReq = new NextRequest(
+      "http://localhost:3000/api/marketplace/fulfillment?status=open"
+    );
+    const openRes = await getFulfillmentOrders(getOpenReq);
+    const openOrders = await openRes.json();
+    expect(openOrders.some((o: any) => o.id === "ord-fail")).toBe(true);
+
+    fetchSpy.mockRestore();
+  });
 });
+

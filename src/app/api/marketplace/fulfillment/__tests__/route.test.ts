@@ -17,7 +17,7 @@ vi.mock("@/db", () => ({
 
 import { createTestDb } from "@/db/test-utils";
 import { cards, cardEditions } from "@/db/schema";
-import { OPTIONS, POST } from "../route";
+import { OPTIONS, POST, GET } from "../route";
 
 describe("Fulfillment API Route (/api/marketplace/fulfillment)", () => {
   beforeEach(async () => {
@@ -248,5 +248,50 @@ describe("Fulfillment API Route (/api/marketplace/fulfillment)", () => {
     const body = await res.json();
     expect(body.error).toContain("Unauthorized");
   });
+
+  it("reconstructs fulfillment report from open DB orders with format=report", async () => {
+    // 1. Post orders so they are persisted to DB
+    const payload = [
+      {
+        orderId: "888111",
+        orderDate: "18/10/2026",
+        buyerNick: "PersistedBuyer",
+        shippingMethod: "PAC",
+        status: "Aguard. envio",
+        orderUrl: "https://mypcards.com/pedido/888111",
+        items: [
+          {
+            rawTitle: "Void's Cloak",
+            mypCode: "grandarchive_rdo_029",
+            condition: "NM",
+            language: "EN",
+            isFoil: false,
+            quantity: 3,
+            unitPriceBrl: "R$ 15,00",
+          },
+        ],
+      },
+    ];
+
+    const postReq = new NextRequest("http://localhost:3000/api/marketplace/fulfillment", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    await POST(postReq);
+
+    // 2. Call GET with format=report
+    const getReq = new NextRequest("http://localhost:3000/api/marketplace/fulfillment?format=report");
+    const getRes = await GET(getReq);
+    expect(getRes.status).toBe(200);
+
+    const report = await getRes.json();
+    expect(report.totalGrandArchiveOrders).toBe(1);
+    expect(report.totalGrandArchiveCopies).toBe(3);
+    expect(report.buyerPacks).toHaveLength(1);
+    expect(report.buyerPacks[0].buyerNick).toBe("PersistedBuyer");
+    expect(report.pickListByElement.Norm).toBeDefined();
+    expect(report.pickListByElement.Norm[0].totalQuantity).toBe(3);
+  });
 });
+
 

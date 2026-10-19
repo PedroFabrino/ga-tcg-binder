@@ -4,6 +4,7 @@ import {
   getShippingTicketById,
   cancelShippingTicketById,
   type FulfillmentOrderWithPrintings,
+  type ShippingTicketRow,
 } from "@/db/repositories/fulfillment-repository";
 import { getUserById } from "@/db/repositories/settings-repository";
 import { normalizeBuyerNick } from "@ga/contracts";
@@ -164,12 +165,22 @@ export async function quoteOpenBuyerPacksService(
   return result;
 }
 
+export interface CreateShippingTicketError {
+  buyerNick: string;
+  error: string;
+}
+
+export interface CreateShippingTicketsResult {
+  tickets: ShippingTicketRow[];
+  errors: CreateShippingTicketError[];
+}
+
 export async function createShippingTicketsService(
   userId: string,
   packsToCreate: CreateShippingTicketRequest[],
   database?: unknown,
   customFetch: typeof fetch = fetch
-) {
+): Promise<CreateShippingTicketsResult> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- repository parameter
   const dbParam = database as any;
   const user = await getUserById(userId, dbParam);
@@ -191,8 +202,8 @@ export async function createShippingTicketsService(
     }
   }
 
-  const createdTickets = [];
-  const errors: string[] = [];
+  const createdTickets: ShippingTicketRow[] = [];
+  const errors: CreateShippingTicketError[] = [];
 
   for (const packReq of packsToCreate) {
     const pack = packsMap.get(normalizeBuyerNick(packReq.buyerNick));
@@ -296,15 +307,18 @@ export async function createShippingTicketsService(
       createdTickets.push(ticket);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Error creating ticket in Superfrete";
-      errors.push(`${packReq.buyerNick}: ${msg}`);
+      if (process.env.NODE_ENV !== "production") {
+        console.error(`[Superfrete Cart Error] for buyer ${packReq.buyerNick}:`, err);
+      }
+      errors.push({ buyerNick: packReq.buyerNick, error: msg });
     }
   }
 
   if (createdTickets.length === 0 && errors.length > 0) {
-    throw new Error(errors.join(" | "));
+    throw new Error(errors.map((e) => `${e.buyerNick}: ${e.error}`).join(" | "));
   }
 
-  return createdTickets;
+  return { tickets: createdTickets, errors };
 }
 
 export async function cancelShippingTicketService(

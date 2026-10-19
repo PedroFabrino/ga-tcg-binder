@@ -39,6 +39,62 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
+    const format = searchParams.get("format");
+    if (format === "report") {
+      const openOrders = await getFulfillmentOrdersService(userId, "open");
+      const rawOrders = openOrders.map((o) => ({
+        orderId: o.mypOrderId,
+        orderDate: o.orderDate,
+        buyerNick: o.buyerNick,
+        shippingMethod: o.shippingMethod || "Padrão",
+        status: o.status,
+        orderUrl: `https://mypcards.com/pedido/${o.mypOrderId}`,
+        buyer: {
+          fullName: o.buyerFullName,
+          document: o.buyerDocument,
+          street: o.buyerStreet,
+          number: o.buyerNumber,
+          complement: o.buyerComplement,
+          district: o.buyerDistrict,
+          city: o.buyerCity,
+          stateAbbr: o.buyerStateAbbr,
+          postalCode: o.buyerPostalCode,
+        },
+        sender: {
+          fullName: o.senderFullName,
+          document: o.senderDocument,
+          street: o.senderStreet,
+          number: o.senderNumber,
+          complement: o.senderComplement,
+          district: o.senderDistrict,
+          city: o.senderCity,
+          stateAbbr: o.senderStateAbbr,
+          postalCode: o.senderPostalCode,
+        },
+        totals: {
+          subtotalCents: o.subtotalCents,
+          shippingCents: o.shippingCents,
+          totalCents: o.totalCents,
+          subtotalBrl: `R$ ${(o.subtotalCents / 100).toFixed(2).replace(".", ",")}`,
+          shippingBrl: `R$ ${(o.shippingCents / 100).toFixed(2).replace(".", ",")}`,
+          totalBrl: `R$ ${(o.totalCents / 100).toFixed(2).replace(".", ",")}`,
+          shippingMethod: o.shippingMethod,
+        },
+        items: o.printings.map((p) => ({
+          rawTitle: p.cardName,
+          mypCode: p.mypCode,
+          condition: p.condition,
+          language: p.language,
+          isFoil: p.isFoil,
+          quantity: p.quantity,
+          unitPriceBrl: p.unitPriceBrl,
+        })),
+      }));
+
+      const report = await buildFulfillmentReport(rawOrders);
+      return NextResponse.json(report, { status: 200, headers: corsHeaders });
+    }
+
     const status = (searchParams.get("status") as FulfillmentOrderStatus) || undefined;
 
     const data = await getFulfillmentOrdersService(userId, status);

@@ -43,8 +43,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const createdTickets = await createShippingTicketsService(userId, parsed.data.packs);
-    return NextResponse.json({ success: true, tickets: createdTickets }, { status: 200, headers: corsHeaders });
+    const result = await createShippingTicketsService(userId, parsed.data.packs);
+    return NextResponse.json(
+      { success: true, tickets: result.tickets, errors: result.errors },
+      { status: 200, headers: corsHeaders }
+    );
   } catch (error: unknown) {
     if (error instanceof Error && error.message === "SUPERFRETE_API_KEY_NOT_CONFIGURED") {
       return NextResponse.json(

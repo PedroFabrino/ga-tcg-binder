@@ -71,7 +71,7 @@ export default function FulfillmentView({
     [sanitizeReportAgainstDb]
   );
 
-  const loadBatch = useCallback(() => {
+  const loadBatch = useCallback(async () => {
     if (typeof window !== "undefined") {
       // Load persisted card commentary notes
       const rawNotes = localStorage.getItem("ga_fulfillment_notes");
@@ -103,11 +103,27 @@ export default function FulfillmentView({
       if (cached) {
         try {
           const parsed: FulfillmentReport = JSON.parse(cached);
-          applyBatch(parsed);
-          return;
+          if (parsed && parsed.buyerPacks && parsed.buyerPacks.length > 0) {
+            applyBatch(parsed);
+            return;
+          }
         } catch (e) {
           localStorage.removeItem("ga_fulfillment_batch");
         }
+      }
+
+      // 3. Fallback: Check if user has open orders in the database
+      try {
+        const dbRes = await fetch("/api/marketplace/fulfillment?format=report");
+        if (dbRes.ok) {
+          const dbReport: FulfillmentReport = await dbRes.json();
+          if (dbReport && dbReport.buyerPacks && dbReport.buyerPacks.length > 0) {
+            applyBatch(dbReport);
+            return;
+          }
+        }
+      } catch {
+        // ignore offline / unauth
       }
     }
   }, [applyBatch]);
@@ -212,11 +228,14 @@ export default function FulfillmentView({
         throw new Error(errorMsg);
       }
 
-      const confirmedBuyerNicks = new Set(selectedPacks.map((p) => p.buyerNick));
+      // Only prune orders whose tickets were ACTUALLY created in Superfrete
+      const createdTickets: Array<{ buyerNick: string }> = data.tickets || [];
+      const succeededBuyerNicks = new Set(createdTickets.map((t) => t.buyerNick));
+
       const confirmedOrderIds = new Set<string>();
       if (report) {
         for (const bp of report.buyerPacks) {
-          if (confirmedBuyerNicks.has(bp.buyerNick)) {
+          if (succeededBuyerNicks.has(bp.buyerNick)) {
             for (const o of bp.orders) {
               confirmedOrderIds.add(o.orderId);
             }
@@ -230,9 +249,24 @@ export default function FulfillmentView({
         localStorage.setItem("ga_fulfillment_batch", JSON.stringify(nextReport));
       }
 
-      showToast(t("fulfillment.ticketsCreatedToast", { count: data.tickets?.length || selectedPacks.length }));
+      if (createdTickets.length > 0) {
+        showToast(t("fulfillment.ticketsCreatedToast", { count: createdTickets.length }));
+      }
+
+      // If any orders errored, show the error toast so the user knows what happened
+      if (data.errors && data.errors.length > 0) {
+        const errorDetails = data.errors
+          .map((e: { buyerNick: string; error: string }) => `${e.buyerNick}: ${e.error}`)
+          .join("\n");
+        showToast(errorDetails);
+      }
+
       setIsShippingModalOpen(false);
-      setLifecycleTab("processed");
+
+      // Only switch to processed tab if all succeeded without errors
+      if (!data.errors || data.errors.length === 0) {
+        setLifecycleTab("processed");
+      }
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : t("fulfillment.generateTicketsError");
       showToast(errorMsg);
@@ -256,6 +290,7 @@ export default function FulfillmentView({
       <FulfillmentHeader
         report={report}
         lifecycleTab={lifecycleTab}
+        onSelectTab={setLifecycleTab}
         isQuotingShipping={isQuotingShipping}
         onOpenShippingModal={handleOpenShippingModal}
         onCopyText={handleCopyText}
@@ -264,46 +299,6 @@ export default function FulfillmentView({
 
       {/* Non-GA Orders Banner */}
       <FulfillmentNonGaBanner orders={report.nonGrandArchiveOrders || []} />
-
-      {/* Lifecycle Tabs (Open Orders / Processed / Sent) */}
-      <div className="flex border-b border-slate-800 gap-2 pb-2">
-        <button
-          type="button"
-          onClick={() => setLifecycleTab("open")}
-          className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-            lifecycleTab === "open"
-              ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-              : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
-          }`}
-        >
-          <Package className="h-4 w-4" />
-          {t("fulfillment.tabOpenOrders")}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setLifecycleTab("processed")}
-          className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-            lifecycleTab === "processed"
-              ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-              : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
-          }`}
-        >
-          {t("fulfillment.tabProcessed")}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setLifecycleTab("sent")}
-          className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-            lifecycleTab === "sent"
-              ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-              : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
-          }`}
-        >
-          {t("fulfillment.tabSent")}
-        </button>
-      </div>
 
       {lifecycleTab === "open" ? (
         report.buyerPacks.length === 0 ? (
