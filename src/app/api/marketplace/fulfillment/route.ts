@@ -85,13 +85,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Build enriched report
-    const report = await buildFulfillmentReport(validation.data);
-
-    // 2. Persist to database if authenticated and orders are present
+    let ordersForReport = validation.data;
     if (userId && validation.data.length > 0) {
       await persistFulfillmentOrdersService(userId, validation.data);
+      const existingOrders = await getFulfillmentOrdersService(userId);
+      const nonOpenOrderIds = new Set(
+        existingOrders.filter((o) => o.status !== "open").map((o) => o.mypOrderId)
+      );
+      if (nonOpenOrderIds.size > 0) {
+        ordersForReport = validation.data.filter((o) => !nonOpenOrderIds.has(o.orderId));
+      }
     }
+
+    // Build enriched report with only open orders
+    const report = await buildFulfillmentReport(ordersForReport);
 
     return NextResponse.json(report, { status: 200, headers: corsHeaders });
   } catch (error: unknown) {

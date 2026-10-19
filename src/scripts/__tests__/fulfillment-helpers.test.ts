@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatFulfillmentTextReport } from "../fulfillment-helpers";
+import { formatFulfillmentTextReport, filterReportExcludingOrders } from "../fulfillment-helpers";
 import { FulfillmentReport } from "@ga/contracts";
 
 describe("Userscript Fulfillment Helpers", () => {
@@ -128,4 +128,157 @@ describe("Userscript Fulfillment Helpers", () => {
     expect(text).toContain("Pedido #654317 (PAC):");
     expect(text).toContain("Pedido #654326 (Frete combinado com o vendedor):");
   });
+
+  describe("filterReportExcludingOrders", () => {
+    const baseReport: FulfillmentReport = {
+      generatedAt: 1234567890,
+      totalGrandArchiveOrders: 2,
+      totalGrandArchiveCopies: 3,
+      pickListByElement: {
+        Norm: [
+          {
+            itemKey: "norm_item",
+            cardSlug: "voids-cloak",
+            cardName: "Void's Cloak",
+            element: "Norm",
+            setPrefix: "RDO",
+            collectorNumber: "029",
+            rarity: 1,
+            imageUrl: null,
+            condition: "NM",
+            isFoil: false,
+            totalQuantity: 1,
+            orderReferences: [{ orderId: "654326", buyerNick: "Betinho3", quantity: 1 }],
+          },
+        ],
+        Water: [
+          {
+            itemKey: "water_item",
+            cardSlug: "creative-shock",
+            cardName: "Creative Shock",
+            element: "Water",
+            setPrefix: "DOA",
+            collectorNumber: "001",
+            rarity: 2,
+            imageUrl: null,
+            condition: "NM",
+            isFoil: true,
+            totalQuantity: 2,
+            orderReferences: [{ orderId: "654317", buyerNick: "Betinho3", quantity: 2 }],
+          },
+        ],
+      },
+      buyerPacks: [
+        {
+          buyerNick: "Betinho3",
+          totalOrders: 2,
+          totalItems: 3,
+          shippingMethods: ["Frete combinado com o vendedor", "PAC"],
+          primaryShippingMethod: "PAC",
+          orders: [
+            {
+              orderId: "654317",
+              orderDate: "16/10/2026",
+              shippingMethod: "PAC",
+              status: "Aguard. envio",
+              orderUrl: "https://mypcards.com/pedido/654317",
+              items: [
+                {
+                  itemKey: "water_item",
+                  isGrandArchive: true,
+                  cardSlug: "creative-shock",
+                  cardName: "Creative Shock",
+                  element: "Water",
+                  setPrefix: "DOA",
+                  collectorNumber: "001",
+                  rarity: 2,
+                  imageUrl: null,
+                  condition: "NM",
+                  isFoil: true,
+                  quantity: 2,
+                  unitPriceBrl: "R$ 40,00",
+                  mypCode: "grandarchive_doa_001",
+                },
+              ],
+            },
+            {
+              orderId: "654326",
+              orderDate: "17/10/2026",
+              shippingMethod: "Frete combinado com o vendedor",
+              status: "Aguard. envio",
+              orderUrl: "https://mypcards.com/pedido/654326",
+              items: [
+                {
+                  itemKey: "norm_item",
+                  isGrandArchive: true,
+                  cardSlug: "voids-cloak",
+                  cardName: "Void's Cloak",
+                  element: "Norm",
+                  setPrefix: "RDO",
+                  collectorNumber: "029",
+                  rarity: 1,
+                  imageUrl: null,
+                  condition: "NM",
+                  isFoil: false,
+                  quantity: 1,
+                  unitPriceBrl: "R$ 7,00",
+                  mypCode: "grandarchive_rdo_029",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      nonGrandArchiveOrders: [
+        {
+          orderId: "654999",
+          orderDate: "14/10/2026",
+          buyerNick: "PokeCollector",
+          orderUrl: "https://mypcards.com/pedido/654999",
+          detectedTcg: "pokemon",
+          itemCount: 1,
+        },
+      ],
+    };
+
+    it("returns original report when excluded set is empty", () => {
+      const result = filterReportExcludingOrders(baseReport, new Set());
+      expect(result).toBe(baseReport);
+    });
+
+    it("prunes emitted order from buyer packs and pick list and updates totals", () => {
+      const result = filterReportExcludingOrders(baseReport, ["654326"]);
+
+      expect(result.totalGrandArchiveOrders).toBe(1);
+      expect(result.totalGrandArchiveCopies).toBe(2);
+
+      // Buyer pack check: only 654317 remains
+      expect(result.buyerPacks).toHaveLength(1);
+      expect(result.buyerPacks[0].orders).toHaveLength(1);
+      expect(result.buyerPacks[0].orders[0].orderId).toBe("654317");
+      expect(result.buyerPacks[0].totalOrders).toBe(1);
+      expect(result.buyerPacks[0].totalItems).toBe(2);
+
+      // Pick list check: Norm element was dropped because all refs were removed
+      expect(result.pickListByElement.Norm).toBeUndefined();
+      expect(result.pickListByElement.Water).toBeDefined();
+      expect(result.pickListByElement.Water[0].totalQuantity).toBe(2);
+      expect(result.pickListByElement.Water[0].orderReferences).toHaveLength(1);
+    });
+
+    it("removes buyer pack completely when all orders are excluded", () => {
+      const result = filterReportExcludingOrders(baseReport, new Set(["654317", "654326"]));
+
+      expect(result.totalGrandArchiveOrders).toBe(0);
+      expect(result.totalGrandArchiveCopies).toBe(0);
+      expect(result.buyerPacks).toHaveLength(0);
+      expect(result.pickListByElement).toEqual({});
+    });
+
+    it("filters out non-Grand Archive notices if their order is excluded", () => {
+      const result = filterReportExcludingOrders(baseReport, ["654999"]);
+      expect(result.nonGrandArchiveOrders).toHaveLength(0);
+    });
+  });
 });
+

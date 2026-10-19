@@ -2,6 +2,8 @@ import {
   FulfillmentReport,
   RawMypFulfillmentOrderInput,
   RawMypOrderItemInput,
+  PickListEntry,
+  BuyerPackGroup,
 } from "@ga/contracts";
 
 /**
@@ -250,5 +252,73 @@ export function fillAndValidateConfirmarEnvioForm(
   }
 
   return { success: true, mappedCarrier, submitted };
+}
+
+/**
+ * Removes orders that are no longer open (e.g. shipping ticket emitted or sent)
+ * from a FulfillmentReport, updating buyer packs, pick lists, and totals accordingly.
+ */
+export function filterReportExcludingOrders(
+  report: FulfillmentReport,
+  excludedOrderIds: Set<string> | string[]
+): FulfillmentReport {
+  const excluded = excludedOrderIds instanceof Set ? excludedOrderIds : new Set(excludedOrderIds);
+  if (excluded.size === 0) return report;
+
+  const nextBuyerPacks: BuyerPackGroup[] = [];
+  for (const group of report.buyerPacks) {
+    const remainingOrders = group.orders.filter((o) => !excluded.has(o.orderId));
+    if (remainingOrders.length === 0) continue;
+
+    const totalOrders = remainingOrders.length;
+    const totalItems = remainingOrders.reduce(
+      (sum, o) => sum + o.items.reduce((itemSum, it) => itemSum + it.quantity, 0),
+      0
+    );
+    const shippingMethods = Array.from(new Set(remainingOrders.map((o) => o.shippingMethod).filter(Boolean)));
+    const primaryShippingMethod =
+      shippingMethods.find((m) => !/combinado/i.test(m)) || shippingMethods[0] || "Padrão";
+
+    nextBuyerPacks.push({
+      ...group,
+      orders: remainingOrders,
+      totalOrders,
+      totalItems,
+      shippingMethods,
+      primaryShippingMethod,
+    });
+  }
+
+  const nextPickList: Record<string, PickListEntry[]> = {};
+  for (const [element, entries] of Object.entries(report.pickListByElement || {})) {
+    const filteredEntries: PickListEntry[] = [];
+    for (const entry of entries) {
+      const remainingRefs = entry.orderReferences.filter((r) => !excluded.has(r.orderId));
+      if (remainingRefs.length === 0) continue;
+      const totalQuantity = remainingRefs.reduce((s, r) => s + r.quantity, 0);
+      filteredEntries.push({
+        ...entry,
+        orderReferences: remainingRefs,
+        totalQuantity,
+      });
+    }
+    if (filteredEntries.length > 0) {
+      nextPickList[element] = filteredEntries;
+    }
+  }
+
+  const nextNonGa = (report.nonGrandArchiveOrders || []).filter((o) => !excluded.has(o.orderId));
+
+  const totalGrandArchiveOrders = nextBuyerPacks.reduce((s, g) => s + g.totalOrders, 0);
+  const totalGrandArchiveCopies = nextBuyerPacks.reduce((s, g) => s + g.totalItems, 0);
+
+  return {
+    ...report,
+    buyerPacks: nextBuyerPacks,
+    pickListByElement: nextPickList,
+    nonGrandArchiveOrders: nextNonGa,
+    totalGrandArchiveOrders,
+    totalGrandArchiveCopies,
+  };
 }
 

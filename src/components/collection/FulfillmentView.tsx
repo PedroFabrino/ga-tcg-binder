@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Package, Copy, Trash2, ExternalLink, AlertTriangle, ListChecks, Users, Truck, Loader2 } from "lucide-react";
+import { Package, ListChecks, Users } from "lucide-react";
 import { FulfillmentReport } from "@ga/contracts";
-import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/lib/i18n";
 import { useToast } from "@/components/ToastProvider";
-import { formatFulfillmentTextReport } from "@/scripts/fulfillment-helpers";
+import { formatFulfillmentTextReport, filterReportExcludingOrders } from "@/scripts/fulfillment-helpers";
+import FulfillmentHeader from "./FulfillmentHeader";
 import FulfillmentPickList from "./FulfillmentPickList";
 import FulfillmentBuyerPacks from "./FulfillmentBuyerPacks";
 import FulfillmentShippingModal from "./FulfillmentShippingModal";
@@ -31,25 +31,6 @@ export default function FulfillmentView({
   const { t } = useTranslation();
   const { showToast } = useToast();
 
-  const [resolvedUserId, setResolvedUserId] = useState<string | null>(propUserId || null);
-  const [resolvedSyncToken, setResolvedSyncToken] = useState<string | null>(propSyncToken || null);
-
-  useEffect(() => {
-    if (propUserId && !resolvedUserId) setResolvedUserId(propUserId);
-    if (propSyncToken && !resolvedSyncToken) setResolvedSyncToken(propSyncToken);
-
-    if (!resolvedSyncToken || !resolvedUserId) {
-      fetch("/api/settings")
-        .then((r) => r.json())
-        .then((data) => {
-          if (data?.user?.id && !resolvedUserId) setResolvedUserId(data.user.id);
-          if (data?.user?.watchlistSyncToken && !resolvedSyncToken) setResolvedSyncToken(data.user.watchlistSyncToken);
-        })
-        .catch(() => {});
-    }
-  }, [resolvedSyncToken, resolvedUserId, propUserId, propSyncToken]);
-
-
   const [report, setReport] = useState<FulfillmentReport | null>(null);
   const [lifecycleTab, setLifecycleTab] = useState<"open" | "processed" | "sent">("open");
   const [activeTab, setActiveTab] = useState<"pick" | "buyer">("pick");
@@ -58,41 +39,37 @@ export default function FulfillmentView({
   const [quotedPacks, setQuotedPacks] = useState<QuotedBuyerPack[]>([]);
   const [isQuotingShipping, setIsQuotingShipping] = useState(false);
 
-  const cleanUser = mypUsername?.trim();
-  const baseVendasUrl = cleanUser
-    ? `https://mypcards.com/${encodeURIComponent(cleanUser)}/vendas`
-    : "https://mypcards.com/Fabrino/vendas";
-
-  const handleOpenVendas = () => {
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    let targetUrl = baseVendasUrl;
-    if (origin) {
-      if (resolvedUserId && resolvedSyncToken) {
-        const bridge = {
-          version: 1,
-          appUrl: origin,
-          userId: resolvedUserId,
-          token: resolvedSyncToken,
-        };
-        targetUrl = `${baseVendasUrl}#ga_fulfillment_bridge=${encodeURIComponent(JSON.stringify(bridge))}`;
-      } else {
-        targetUrl = `${baseVendasUrl}#ga_app_url=${encodeURIComponent(origin)}`;
-      }
-    }
-    window.open(targetUrl, "_blank");
-  };
-
-
-  const handleCopyUserscript = async () => {
+  const sanitizeReportAgainstDb = useCallback(async (currentReport: FulfillmentReport) => {
     try {
-      const res = await fetch("/scripts/myp-watchlist-sync.user.js");
-      const code = await res.text();
-      await navigator.clipboard.writeText(code);
-      showToast(t("securityModal.copiedToast"));
-    } catch (e) {
-      console.error("Failed to copy userscript:", e);
+      const res = await fetch("/api/marketplace/fulfillment");
+      if (!res.ok) return currentReport;
+      const dbOrders: Array<{ mypOrderId: string; status: string }> = await res.json();
+      const nonOpenOrderIds = new Set(
+        dbOrders
+          .filter((o) => o.status !== "open")
+          .map((o) => o.mypOrderId)
+      );
+      if (nonOpenOrderIds.size > 0) {
+        const cleaned = filterReportExcludingOrders(currentReport, nonOpenOrderIds);
+        localStorage.setItem("ga_fulfillment_batch", JSON.stringify(cleaned));
+        return cleaned;
+      }
+    } catch {
+      // offline or unauthenticated
     }
-  };
+    return currentReport;
+  }, []);
+
+  const applyBatch = useCallback(
+    (incoming: FulfillmentReport) => {
+      setReport(incoming);
+      localStorage.setItem("ga_fulfillment_batch", JSON.stringify(incoming));
+      sanitizeReportAgainstDb(incoming).then((cleaned) => {
+        setReport(cleaned);
+      });
+    },
+    [sanitizeReportAgainstDb]
+  );
 
   const loadBatch = useCallback(() => {
     if (typeof window !== "undefined") {
@@ -113,9 +90,8 @@ export default function FulfillmentView({
         try {
           const jsonStr = decodeURIComponent(hash.slice(prefix.length));
           const parsed: FulfillmentReport = JSON.parse(jsonStr);
-          setReport(parsed);
-          localStorage.setItem("ga_fulfillment_batch", JSON.stringify(parsed));
           history.replaceState(null, document.title, window.location.pathname + window.location.search);
+          applyBatch(parsed);
           return;
         } catch (e) {
           console.error("Failed to parse fulfillment hash payload:", e);
@@ -127,23 +103,21 @@ export default function FulfillmentView({
       if (cached) {
         try {
           const parsed: FulfillmentReport = JSON.parse(cached);
-          setReport(parsed);
+          applyBatch(parsed);
           return;
         } catch (e) {
           localStorage.removeItem("ga_fulfillment_batch");
         }
       }
     }
-  }, []);
+  }, [applyBatch]);
 
   useEffect(() => {
     loadBatch();
 
     const handleMessage = (event: MessageEvent) => {
       if (event.data && event.data.type === "GA_FULFILLMENT_BATCH" && event.data.report) {
-        const incoming: FulfillmentReport = event.data.report;
-        setReport(incoming);
-        localStorage.setItem("ga_fulfillment_batch", JSON.stringify(incoming));
+        applyBatch(event.data.report);
       }
     };
 
@@ -159,7 +133,7 @@ export default function FulfillmentView({
       window.removeEventListener("hashchange", handleHashOrStorage);
       window.removeEventListener("storage", handleHashOrStorage);
     };
-  }, [loadBatch]);
+  }, [loadBatch, applyBatch]);
 
   const handleUpdateNote = useCallback((itemKey: string, note: string) => {
     setCardNotes((prev) => {
@@ -238,6 +212,24 @@ export default function FulfillmentView({
         throw new Error(errorMsg);
       }
 
+      const confirmedBuyerNicks = new Set(selectedPacks.map((p) => p.buyerNick));
+      const confirmedOrderIds = new Set<string>();
+      if (report) {
+        for (const bp of report.buyerPacks) {
+          if (confirmedBuyerNicks.has(bp.buyerNick)) {
+            for (const o of bp.orders) {
+              confirmedOrderIds.add(o.orderId);
+            }
+          }
+        }
+      }
+
+      if (report && confirmedOrderIds.size > 0) {
+        const nextReport = filterReportExcludingOrders(report, confirmedOrderIds);
+        setReport(nextReport);
+        localStorage.setItem("ga_fulfillment_batch", JSON.stringify(nextReport));
+      }
+
       showToast(t("fulfillment.ticketsCreatedToast", { count: data.tickets?.length || selectedPacks.length }));
       setIsShippingModalOpen(false);
       setLifecycleTab("processed");
@@ -251,8 +243,9 @@ export default function FulfillmentView({
   if (!report) {
     return (
       <FulfillmentEmptyState
-        onOpenVendas={handleOpenVendas}
-        onCopyUserscript={handleCopyUserscript}
+        mypUsername={mypUsername}
+        userId={propUserId}
+        syncToken={propSyncToken}
       />
     );
   }
@@ -260,64 +253,14 @@ export default function FulfillmentView({
   return (
     <div className="space-y-6">
       {/* Header bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-800 bg-slate-900/80 p-5 shadow-sm">
-        <div>
-          <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-            <Package className="h-5 w-5 text-sky-400" />
-            {t("fulfillment.title")}
-          </h2>
-          <p className="text-xs text-slate-400 mt-0.5">
-            {t("fulfillment.subtitle")}
-          </p>
-          <div className="mt-2 inline-flex items-center gap-2 rounded-md bg-sky-500/10 border border-sky-500/20 px-2.5 py-1 text-xs font-semibold text-sky-400">
-            {t("fulfillment.summaryHeader", {
-              orders: report.totalGrandArchiveOrders,
-              copies: report.totalGrandArchiveCopies,
-            })}
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {lifecycleTab === "open" && (
-            <Button
-              size="sm"
-              onClick={handleOpenShippingModal}
-              disabled={isQuotingShipping}
-              className="gap-1.5 text-xs bg-sky-600 hover:bg-sky-500 text-white font-semibold"
-            >
-              {isQuotingShipping ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  {t("fulfillment.generateShippingLoading")}
-                </>
-              ) : (
-                <>
-                  <Truck className="h-3.5 w-3.5" />
-                  {t("fulfillment.generateShippingBtn")}
-                </>
-              )}
-            </Button>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleCopyText}
-            className="gap-1.5 text-xs"
-          >
-            <Copy className="h-3.5 w-3.5" />
-            {t("fulfillment.copyTextBtn")}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleClearBatch}
-            className="gap-1.5 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-950/20"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            {t("fulfillment.clearBatchBtn")}
-          </Button>
-        </div>
-      </div>
+      <FulfillmentHeader
+        report={report}
+        lifecycleTab={lifecycleTab}
+        isQuotingShipping={isQuotingShipping}
+        onOpenShippingModal={handleOpenShippingModal}
+        onCopyText={handleCopyText}
+        onClearBatch={handleClearBatch}
+      />
 
       {/* Non-GA Orders Banner */}
       <FulfillmentNonGaBanner orders={report.nonGrandArchiveOrders || []} />
@@ -363,51 +306,57 @@ export default function FulfillmentView({
       </div>
 
       {lifecycleTab === "open" ? (
-        <>
-          {/* Mode / Sub-Tabs Switcher for Open Orders */}
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setActiveTab("pick")}
-              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
-                activeTab === "pick"
-                  ? "bg-sky-600 text-white"
-                  : "text-slate-400 hover:text-slate-200 bg-slate-800/60"
-              }`}
-            >
-              <ListChecks className="h-3.5 w-3.5" />
-              {t("fulfillment.tabPickList")}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("buyer")}
-              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
-                activeTab === "buyer"
-                  ? "bg-sky-600 text-white"
-                  : "text-slate-400 hover:text-slate-200 bg-slate-800/60"
-              }`}
-            >
-              <Users className="h-3.5 w-3.5" />
-              {t("fulfillment.tabBuyerPacks")}
-            </button>
+        report.buyerPacks.length === 0 ? (
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-8 text-center text-slate-400">
+            <p className="text-sm">{t("fulfillment.noOpenOrders")}</p>
           </div>
+        ) : (
+          <>
+            {/* Mode / Sub-Tabs Switcher for Open Orders */}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab("pick")}
+                className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                  activeTab === "pick"
+                    ? "bg-sky-600 text-white"
+                    : "text-slate-400 hover:text-slate-200 bg-slate-800/60"
+                }`}
+              >
+                <ListChecks className="h-3.5 w-3.5" />
+                {t("fulfillment.tabPickList")}
+              </button>
 
-          {/* Tab Panels */}
-          {activeTab === "pick" ? (
-            <FulfillmentPickList
-              report={report}
-              cardNotes={cardNotes}
-              onUpdateNote={handleUpdateNote}
-            />
-          ) : (
-            <FulfillmentBuyerPacks
-              report={report}
-              cardNotes={cardNotes}
-              onUpdateNote={handleUpdateNote}
-            />
-          )}
-        </>
+              <button
+                type="button"
+                onClick={() => setActiveTab("buyer")}
+                className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                  activeTab === "buyer"
+                    ? "bg-sky-600 text-white"
+                    : "text-slate-400 hover:text-slate-200 bg-slate-800/60"
+                }`}
+              >
+                <Users className="h-3.5 w-3.5" />
+                {t("fulfillment.tabBuyerPacks")}
+              </button>
+            </div>
+
+            {/* Tab Panels */}
+            {activeTab === "pick" ? (
+              <FulfillmentPickList
+                report={report}
+                cardNotes={cardNotes}
+                onUpdateNote={handleUpdateNote}
+              />
+            ) : (
+              <FulfillmentBuyerPacks
+                report={report}
+                cardNotes={cardNotes}
+                onUpdateNote={handleUpdateNote}
+              />
+            )}
+          </>
+        )
       ) : lifecycleTab === "processed" ? (
         <FulfillmentProcessedTab />
       ) : (
