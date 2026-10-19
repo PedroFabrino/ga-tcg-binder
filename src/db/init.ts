@@ -395,7 +395,22 @@ FROM \`myp_market_cards\`;
 DROP TABLE IF EXISTS \`myp_market_cards\`;
 `;
 
-export async function runMigrations(customClient = client) {
+let defaultClientMigrationsPromise: Promise<void> | null = null;
+
+export async function runMigrations(customClient?: any) {
+  if (customClient) {
+    return doRunMigrations(customClient);
+  }
+  if (!defaultClientMigrationsPromise) {
+    defaultClientMigrationsPromise = doRunMigrations(client).catch((err) => {
+      defaultClientMigrationsPromise = null;
+      throw err;
+    });
+  }
+  return defaultClientMigrationsPromise;
+}
+
+async function doRunMigrations(customClient: typeof client) {
   let sqlContent = EMBEDDED_MIGRATION_SQL;
   try {
     const sqlPath = path.join(process.cwd(), "drizzle", "0000_thankful_tinkerer.sql");

@@ -611,6 +611,8 @@ export function resolveMypItem(
 }
 
 export interface MarketItemLike {
+  storeId?: string | null;
+  storePlatform?: string | null;
   mypItemId?: string | null;
   editionId?: string | null;
   cardSlug?: string | null;
@@ -659,12 +661,22 @@ export function calculateNetMarketStock(
   userStoreItems: MarketItemLike[]
 ): { personalStoreQuantity: number; netExternalStock: number } {
   let personalStoreQuantity = 0;
-  for (const userItem of userStoreItems) {
-    if (isSameMyPListing(marketItem, userItem)) {
-      personalStoreQuantity += Number(userItem.quantity) || 0;
+  // Personal store collision only applies to the same store platform (MyP)
+  const isMyP =
+    !marketItem.storePlatform ||
+    marketItem.storePlatform === "myp" ||
+    marketItem.storeId === "myp";
+
+  if (isMyP) {
+    for (const userItem of userStoreItems) {
+      if (isSameMyPListing(marketItem, userItem)) {
+        personalStoreQuantity += Number(userItem.quantity) || 0;
+      }
     }
   }
-  const globalQty = Number(marketItem.quantity) || 0;
+
+  const rawQty = Number(marketItem.quantity);
+  const globalQty = Number.isFinite(rawQty) && rawQty > 0 ? rawQty : 1;
   const netExternalStock = Math.max(0, globalQty - personalStoreQuantity);
   return { personalStoreQuantity, netExternalStock };
 }

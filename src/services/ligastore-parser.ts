@@ -200,7 +200,7 @@ function extractPlainOrSpritePrice(
 }
 
 function extractQuantity(cardHtml: string, spriteClasses: Map<string, string>): number {
-  const plainMatch = stripHtml(cardHtml).match(/\b(\d+)\s*unid\.?/i);
+  const plainMatch = stripHtml(cardHtml).match(/\b(\d+)\s*(?:unid|un)\.?/i);
   if (plainMatch) {
     return Number(plainMatch[1]);
   }
@@ -401,7 +401,7 @@ export function parseLigaStoreSearchPage(html: string): ParsedLigaStoreSearchRes
       imageUrl,
       price,
       priceNumeric: priceToNumeric(price),
-      quantity: extractQuantity(cardHtml, spriteClasses),
+      quantity: extractQuantity(cardHtml, spriteClasses) || 1,
     };
   });
 

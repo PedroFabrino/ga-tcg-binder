@@ -257,7 +257,7 @@ export async function syncLigaStore(options?: {
       rawName: workingItem.rawTitle,
       cardName: workingItem.cardName,
       setPrefix: resolved.setPrefix,
-      quantity: workingItem.quantity,
+      quantity: workingItem.quantity > 0 ? workingItem.quantity : 1,
       price: workingItem.price,
       priceNumeric: workingItem.priceNumeric,
       quality: workingItem.condition || "NM",

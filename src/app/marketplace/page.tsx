@@ -216,6 +216,50 @@ export default function MarketplacePage() {
 
   const summary = report?.summary;
 
+  const selectedStore = useMemo(() => {
+    if (!selectedStoreId || !summary?.stores) return null;
+    return summary.stores.find((s) => s.id === selectedStoreId) || null;
+  }, [selectedStoreId, summary?.stores]);
+
+  const storeScopedCards = useMemo(() => {
+    if (!report?.cards) return [];
+    if (!selectedStoreId) return report.cards;
+    return report.cards.filter((c) => c.storeId === selectedStoreId);
+  }, [report?.cards, selectedStoreId]);
+
+  const activeHardCount = useMemo(() => {
+    if (!selectedStoreId) return summary?.hardShortagesCount || 0;
+    return storeScopedCards.filter((c) => c.shortageTier === "HARD" && c.netExternalStock > 0).length;
+  }, [selectedStoreId, summary?.hardShortagesCount, storeScopedCards]);
+
+  const activeSharedCount = useMemo(() => {
+    if (!selectedStoreId) return summary?.sharedShortagesCount || 0;
+    return storeScopedCards.filter((c) => c.shortageTier === "SHARED" && c.netExternalStock > 0).length;
+  }, [selectedStoreId, summary?.sharedShortagesCount, storeScopedCards]);
+
+  const activeTotalListings = useMemo(() => {
+    if (!selectedStoreId) return summary?.totalListings || 0;
+    return storeScopedCards.length;
+  }, [selectedStoreId, summary?.totalListings, storeScopedCards]);
+
+  const handleSelectStore = (storeId: string | null) => {
+    const next = selectedStoreId === storeId ? null : storeId;
+    setSelectedStoreId(next);
+    if (next) {
+      const storeCards = report?.cards.filter((c) => c.storeId === next) || [];
+      const matchesCurrentFilter = storeCards.some((c) => {
+        if (shortageFilter === "ALL_MARKET") return true;
+        if (shortageFilter === "HARD_ONLY") return c.shortageTier === "HARD" && c.netExternalStock > 0;
+        if (shortageFilter === "SHARED_ONLY") return c.shortageTier === "SHARED" && c.netExternalStock > 0;
+        if (shortageFilter === "STAPLES_ONLY") return c.isMetaStaple && c.netExternalStock > 0;
+        return c.shortageTier !== "NONE" && c.netExternalStock > 0;
+      });
+      if (!matchesCurrentFilter) {
+        setShortageFilter("ALL_MARKET");
+      }
+    }
+  };
+
   return (
     <div className="pb-14 space-y-6">
       <PageHeader
@@ -238,7 +282,7 @@ export default function MarketplacePage() {
               className="gap-2 border-amber-400/40 text-amber-200 hover:bg-amber-400/10 font-semibold"
             >
               <RefreshCw className={`h-4 w-4 ${enrichingTcg ? "animate-spin" : ""}`} />
-              {enrichingTcg ? "Checking TCG..." : "Check TCG Prices"}
+              {enrichingTcg ? t("marketplace.checkingTcg") : t("marketplace.checkTcgPrices")}
             </Button>
 
             <Button
@@ -248,10 +292,10 @@ export default function MarketplacePage() {
             >
               <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
               {syncing
-                ? "Scanning Market..."
-                : selectedStoreId
-                ? `Sync ${summary?.stores?.find((s) => s.id === selectedStoreId)?.name || "Store"}`
-                : "Sync Market Stores"}
+                ? t("marketplace.scanningMarket")
+                : selectedStore
+                ? t("marketplace.syncStore", { store: selectedStore.name })
+                : t("marketplace.syncMarketStores")}
             </Button>
           </div>
         }
@@ -268,20 +312,20 @@ export default function MarketplacePage() {
             className={`cursor-pointer rounded-2xl p-4 transition-all ${
               shortageFilter === "HARD_ONLY"
                 ? "border-2 border-rose-400 bg-rose-500/[0.12] shadow-[0_0_25px_-5px_rgba(244,63,94,0.4)]"
-                : summary.hardShortagesCount > 0
+                : activeHardCount > 0
                 ? "glass border border-rose-400/40 bg-rose-500/[0.06] hover:border-rose-400/70"
                 : "glass"
             }`}
           >
             <div className="flex items-center justify-between">
-              <div className="label-caps text-rose-300 font-bold">Hard Shortages</div>
+              <div className="label-caps text-rose-300 font-bold">{t("marketplace.hardShortagesTitle")}</div>
               <AlertTriangle className="h-4 w-4 text-rose-400" />
             </div>
             <div className="mt-1 font-mono text-2xl font-bold text-rose-300">
-              {summary.hardShortagesCount}
+              {activeHardCount}
             </div>
             <p className="mt-0.5 text-[11px] text-slate-400">
-              Single-deck shortages available on market
+              {t("marketplace.hardShortagesDesc")}
             </p>
           </div>
 
@@ -293,20 +337,20 @@ export default function MarketplacePage() {
             className={`cursor-pointer rounded-2xl p-4 transition-all ${
               shortageFilter === "SHARED_ONLY"
                 ? "border-2 border-amber-400 bg-amber-500/[0.12] shadow-[0_0_25px_-5px_rgba(251,191,36,0.4)]"
-                : summary.sharedShortagesCount > 0
+                : activeSharedCount > 0
                 ? "glass border border-amber-400/40 bg-amber-500/[0.06] hover:border-amber-400/70"
                 : "glass"
             }`}
           >
             <div className="flex items-center justify-between">
-              <div className="label-caps text-amber-300 font-bold">Shared Shortages</div>
+              <div className="label-caps text-amber-300 font-bold">{t("marketplace.sharedShortagesTitle")}</div>
               <Sparkles className="h-4 w-4 text-amber-400" />
             </div>
             <div className="mt-1 font-mono text-2xl font-bold text-amber-300">
-              {summary.sharedShortagesCount}
+              {activeSharedCount}
             </div>
             <p className="mt-0.5 text-[11px] text-slate-400">
-              Extra copies to eliminate swapping
+              {t("marketplace.sharedShortagesDesc")}
             </p>
           </div>
 
@@ -320,22 +364,26 @@ export default function MarketplacePage() {
             }`}
           >
             <div className="flex items-center justify-between">
-              <div className="label-caps text-cyan-300">Unique Printings</div>
+              <div className="label-caps text-cyan-300">{t("marketplace.uniquePrintingsTitle")}</div>
               <Store className="h-4 w-4 text-cyan-400" />
             </div>
             <div className="mt-1 font-mono text-2xl font-bold text-white">
-              {summary.totalListings}
+              {activeTotalListings}
             </div>
-            <p className="mt-0.5 text-[11px] text-slate-500">In stock on MyP Cards</p>
+            <p className="mt-0.5 text-[11px] text-slate-500">
+              {selectedStore
+                ? t("marketplace.inStockOn", { store: selectedStore.name })
+                : t("marketplace.inStockAcrossStores")}
+            </p>
           </div>
 
           {/* Total Copies Card */}
           <div className="rounded-2xl glass p-4">
-            <div className="label-caps text-slate-400">Total Market Copies</div>
+            <div className="label-caps text-slate-400">{t("marketplace.totalMarketCopiesTitle")}</div>
             <div className="mt-1 font-mono text-2xl font-bold text-emerald-300">
               {summary.totalMarketCopies}
             </div>
-            <p className="mt-0.5 text-[11px] text-slate-500">Combined stock across sellers</p>
+            <p className="mt-0.5 text-[11px] text-slate-500">{t("marketplace.totalMarketCopiesDesc")}</p>
           </div>
         </div>
       )}
@@ -346,7 +394,7 @@ export default function MarketplacePage() {
           <button
             key="all-stores"
             type="button"
-            onClick={() => setSelectedStoreId(null)}
+            onClick={() => handleSelectStore(null)}
             className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
               selectedStoreId === null
                 ? "bg-white/[0.12] text-white shadow-sm ring-1 ring-white/20"
@@ -365,7 +413,7 @@ export default function MarketplacePage() {
               <button
                 key={s.id}
                 type="button"
-                onClick={() => setSelectedStoreId(active ? null : s.id)}
+                onClick={() => handleSelectStore(s.id)}
                 className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
                   active
                     ? "bg-cyan-500/20 text-cyan-200 shadow-sm ring-1 ring-cyan-400/40"
@@ -389,10 +437,16 @@ export default function MarketplacePage() {
           {/* Quick Filter Pill Buttons */}
           <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-2xl glass" role="group" aria-label="Shortage Priority Filters">
             {[
-              { id: "ALL_SHORTAGES" as const, label: "All Deck Shortages (🔴 + 🟡)", count: (summary?.hardShortagesCount || 0) + (summary?.sharedShortagesCount || 0) },
-              { id: "HARD_ONLY" as const, label: "Hard Shortages (🔴)", count: summary?.hardShortagesCount || 0 },
-              { id: "SHARED_ONLY" as const, label: "Shared Shortages (🟡)", count: summary?.sharedShortagesCount || 0 },
-              { id: "ALL_MARKET" as const, label: "All MyP Listings (🌐)", count: summary?.totalListings || 0 },
+              { id: "ALL_SHORTAGES" as const, label: t("marketplace.allDeckShortagesTab"), count: activeHardCount + activeSharedCount },
+              { id: "HARD_ONLY" as const, label: t("marketplace.hardShortagesTab"), count: activeHardCount },
+              { id: "SHARED_ONLY" as const, label: t("marketplace.sharedShortagesTab"), count: activeSharedCount },
+              {
+                id: "ALL_MARKET" as const,
+                label: selectedStore
+                  ? t("marketplace.allSpecificStoreListingsTab", { store: selectedStore.name })
+                  : t("marketplace.allStoreListingsTab"),
+                count: activeTotalListings,
+              },
             ].map((tab) => {
               const active = shortageFilter === tab.id;
               return (
@@ -420,7 +474,7 @@ export default function MarketplacePage() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search by card name, set prefix, or deck..."
+              placeholder={t("marketplace.searchPlaceholder")}
               className="min-w-0 flex-1 bg-transparent py-1 text-sm text-white placeholder:text-slate-500 outline-none"
             />
             {query && (
@@ -537,12 +591,12 @@ export default function MarketplacePage() {
 
           {/* Price Fairness Filter */}
           <div className="flex flex-wrap items-center gap-1.5 border-t border-white/[0.04] pt-2">
-            <span className="text-[11px] font-medium text-slate-500 mr-1">Price Check:</span>
+            <span className="text-[11px] font-medium text-slate-500 mr-1">{t("marketplace.priceCheck")}</span>
             {[
-              { id: "ALL" as const, label: "All Prices" },
-              { id: "FAIR_ONLY" as const, label: "Fair Price Only (≤ 1.2x)" },
-              { id: "OVERPRICED_ONLY" as const, label: "Overpriced (> 1.2x)", count: summary?.overpricedCount },
-              { id: "HEAVILY_OVERPRICED_ONLY" as const, label: "🚨 Heavily Overpriced (> 2.0x)", count: summary?.heavilyOverpricedCount, alert: true },
+              { id: "ALL" as const, label: t("marketplace.allPrices") },
+              { id: "FAIR_ONLY" as const, label: t("marketplace.fairPricesOnly") },
+              { id: "OVERPRICED_ONLY" as const, label: t("marketplace.overpriced"), count: summary?.overpricedCount },
+              { id: "HEAVILY_OVERPRICED_ONLY" as const, label: t("marketplace.heavilyOverpriced"), count: summary?.heavilyOverpricedCount, alert: true },
             ].map((p) => {
               const active = priceFilter === p.id;
               return (
@@ -601,7 +655,12 @@ export default function MarketplacePage() {
       ) : filteredCards.length === 0 ? (
         <div className="rounded-2xl glass p-10 text-center">
           <AlertTriangle className="mx-auto mb-2 h-8 w-8 text-cyan-400/80" />
-          <p className="text-sm font-medium text-white">No listings match the current filters</p>
+          <p className="text-sm font-medium text-white">{t("marketplace.noListingsMatch")}</p>
+          {selectedStoreId && shortageFilter !== "ALL_MARKET" && (
+            <p className="mt-1 text-xs text-slate-400">
+              {t("marketplace.storeNoShortagesHint", { store: selectedStore?.name || "Store" })}
+            </p>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -613,7 +672,9 @@ export default function MarketplacePage() {
             }}
             className="mt-4"
           >
-            Reset Filters
+            {selectedStoreId && shortageFilter !== "ALL_MARKET"
+              ? t("marketplace.viewAllStoreListings", { store: selectedStore?.name || "Store" })
+              : t("marketplace.resetFilters")}
           </Button>
         </div>
       ) : (

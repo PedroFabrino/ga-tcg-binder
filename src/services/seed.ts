@@ -129,7 +129,22 @@ export async function seedMarketStores(database = db) {
   }
 }
 
-export async function ensureDefaultUserAndSeed(database = db) {
+let defaultSeedPromise: Promise<void> | null = null;
+
+export async function ensureDefaultUserAndSeed(database?: any) {
+  if (database) {
+    return doEnsureDefaultUserAndSeed(database);
+  }
+  if (!defaultSeedPromise) {
+    defaultSeedPromise = doEnsureDefaultUserAndSeed(db).catch((err) => {
+      defaultSeedPromise = null;
+      throw err;
+    });
+  }
+  return defaultSeedPromise;
+}
+
+async function doEnsureDefaultUserAndSeed(database = db) {
   try {
     await doSeed(database);
   } catch (err: any) {
