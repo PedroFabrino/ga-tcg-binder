@@ -58,4 +58,25 @@ describe("Omnidex Decklist Parser & Serializer", () => {
     expect(reparsed.main).toEqual(deck.main);
     expect(reparsed.side).toEqual(deck.side);
   });
+
+  it("decodes HTML entities in card names and champions during parseOmnidexText", () => {
+    const rawDeck = `
+# Material Deck
+1 Tristan, Shadow&#39;s Stalker
+
+# Main Deck
+3 Bloom: Summer&#39;s Glow
+3 Season&#39;s End
+2 Bloom: Winter&#39;s Chill
+1 Assassin&#x27;s Ripper
+`;
+
+    const parsed = parseOmnidexText(rawDeck);
+    expect(parsed.champion).toBe("Tristan, Shadow's Stalker");
+    expect(parsed.material[0].name).toBe("Tristan, Shadow's Stalker");
+    expect(parsed.main[0].name).toBe("Bloom: Summer's Glow");
+    expect(parsed.main[1].name).toBe("Season's End");
+    expect(parsed.main[2].name).toBe("Bloom: Winter's Chill");
+    expect(parsed.main[3].name).toBe("Assassin's Ripper");
+  });
 });

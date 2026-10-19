@@ -18,8 +18,9 @@ export function parseOmnidexText(rawText: string): ParsedDecklist {
     side: [],
   };
 
+  const decodedText = decodeHtmlEntities(rawText || "");
   let currentZone: "main" | "material" | "side" = "main";
-  const lines = rawText.split(/\r?\n/);
+  const lines = decodedText.split(/\r?\n/);
 
   for (let line of lines) {
     line = line.trim();
@@ -53,7 +54,7 @@ export function parseOmnidexText(rawText: string): ParsedDecklist {
     const match = line.match(/^(\d+)[xX]?\s+(.+)$/);
     if (match) {
       const quantity = parseInt(match[1], 10);
-      let cardName = match[2].trim();
+      let cardName = decodeHtmlEntities(match[2].trim());
       let collectorCode: string | undefined = undefined;
 
       // Extract collector code if in brackets or parens
@@ -63,15 +64,17 @@ export function parseOmnidexText(rawText: string): ParsedDecklist {
         cardName = cardName.replace(/[\(\[][A-Za-z0-9\s\-]+[\)\]]$/, "").trim();
       }
 
+      const cleanName = decodeHtmlEntities(cardName);
+
       result[currentZone].push({
-        name: cardName,
+        name: cleanName,
         quantity,
         collectorCode,
       });
 
       // If champion is not set and this is in material deck with level or champion type, can infer
       if (!result.champion && currentZone === "material") {
-        result.champion = cardName;
+        result.champion = cleanName;
       }
     }
   }
@@ -113,6 +116,7 @@ export function serializeOmnidexText(deck: {
 }
 
 export function decodeHtmlEntities(text: string): string {
+  if (!text) return "";
   return text
     .replace(/&#39;/g, "'")
     .replace(/&apos;/g, "'")
@@ -120,7 +124,8 @@ export function decodeHtmlEntities(text: string): string {
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
-    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)));
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
 }
 
 export async function fetchDeckFromUrl(url: string): Promise<{

@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { decks, deckCards, cards } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { DEFAULT_USER_ID, ensureDefaultUserAndSeed, migrateDefaultUserDataToUser } from "@/services/seed";
-import { parseOmnidexText } from "@/services/omnidex";
+import { parseOmnidexText, decodeHtmlEntities } from "@/services/omnidex";
 import { auth } from "@/auth";
 
 export async function GET(req: NextRequest) {
@@ -63,10 +63,10 @@ export async function POST(req: NextRequest) {
     const session = await auth();
     const body = await req.json();
     const userId = body.userId || session?.user?.id || DEFAULT_USER_ID;
-    const name = body.name?.trim();
-    const champion = body.champion?.trim() || "";
+    const name = decodeHtmlEntities(body.name?.trim() || "");
+    const champion = decodeHtmlEntities(body.champion?.trim() || "");
     const format = body.format || "standard";
-    const omnidexText = body.omnidexText;
+    const omnidexText = body.omnidexText ? decodeHtmlEntities(body.omnidexText) : undefined;
 
     if (!name) {
       return NextResponse.json({ error: "Deck name is required" }, { status: 400 });

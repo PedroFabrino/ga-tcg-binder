@@ -9,7 +9,7 @@ import {
   mypCards,
   mypMarketCards,
 } from "../db/schema";
-import { parseOmnidexText, fetchDeckFromUrl } from "./omnidex";
+import { parseOmnidexText, fetchDeckFromUrl, decodeHtmlEntities } from "./omnidex";
 import { calculateDeckShortage, DeckShortageReport } from "./shortage";
 
 export interface MetaArchetypeSummary {
@@ -461,7 +461,7 @@ export async function syncMetaArchetypes(
                   deckHtml.match(/<textarea[^>]*id=["']omnidex-src["'][^>]*>([\s\S]*?)<\/textarea>/i) ||
                   deckHtml.match(/<textarea[^>]*class=["'][^"']*omnidex-src[^"']*["'][^>]*>([\s\S]*?)<\/textarea>/i);
                 if (textareaMatch) {
-                  decklist = textareaMatch[1].trim();
+                  decklist = decodeHtmlEntities(textareaMatch[1].trim());
                   sampleEventDeckUrl = targetDeckUrl;
                   decklistsFetched++;
                 }
@@ -739,16 +739,16 @@ export async function compareMetaDeckAgainstCollection(
       .get();
 
     if (metaRow) {
-      decklistText = metaRow.decklist;
-      deckTitle = `Meta: ${metaRow.name}`;
-      champion = metaRow.champion;
+      decklistText = decodeHtmlEntities(metaRow.decklist);
+      deckTitle = decodeHtmlEntities(`Meta: ${metaRow.name}`);
+      champion = decodeHtmlEntities(metaRow.champion);
     }
   }
 
   // Parse Omnidex deck
   const parsed = parseOmnidexText(decklistText);
   if (!champion) {
-    champion = parsed.champion || "Unknown Champion";
+    champion = decodeHtmlEntities(parsed.champion || "Unknown Champion");
   }
 
   // Create temporary in-memory or ephemeral deck entry for shortage analysis
