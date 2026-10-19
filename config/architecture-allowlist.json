@@ -12,10 +12,6 @@
     "src/services/ligastore-parser.ts"
   ],
   "restrictedImports": [
-    "src/app/api/catalog/route.ts",
-    "src/app/api/catalog/sync/route.ts",
-    "src/app/api/collection/bulk/route.ts",
-    "src/app/api/collection/route.ts",
     "src/app/api/decks/route.ts",
     "src/app/api/decks/shortages/route.ts",
     "src/app/api/decks/[id]/route.ts",
@@ -39,9 +35,6 @@
     "src/app/api/scanner/submit/route.ts",
     "src/app/api/sync/pipeline/route.ts",
     "src/auth.ts",
-    "src/services/catalog-sync.ts",
-    "src/services/catalog.ts",
-    "src/services/collection.ts",
     "src/services/ligastore-sync.ts",
     "src/services/marketplace.ts",
     "src/services/meta-staples.ts",

@@ -1,5 +1,11 @@
-import { and, eq, like, or, inArray } from "drizzle-orm";
-import { cards, cardEditions, cardCirculations, decks, deckCards, metaStaples } from "../db/schema";
+import {
+  queryCatalogCards,
+  queryMetaStaplesByCardSlugs,
+  queryEditionsByCardSlugs,
+  queryCirculationsByEditionIds,
+  queryDeckUsageForUserCards,
+  type CardRow,
+} from "@/db/repositories/catalog-repository";
 
 export interface CatalogSearchFilters {
   query?: string;
@@ -64,116 +70,53 @@ export interface CatalogCardResult {
 
 export async function searchCatalog(
   filters: CatalogSearchFilters,
-  database: any
+  database?: any
 ): Promise<{ cards: CatalogCardResult[]; total: number }> {
   const threshold = filters.lowPopThreshold ?? 1000;
   const limit = filters.limit ?? 50;
   const offset = filters.offset ?? 0;
 
-  // Build conditions for cards
-  const conditions = [];
-
-  if (filters.query && filters.query.trim().length > 0) {
-    const q = `%${filters.query.trim()}%`;
-    conditions.push(or(like(cards.name, q), like(cards.slug, q)));
-  }
-
-  if (filters.element && filters.element !== "ALL") {
-    const el = filters.element.toUpperCase().trim();
-    if (el === "EARTH" || el === "TERA") {
-      conditions.push(or(eq(cards.element, "TERA"), eq(cards.element, "EARTH")));
-    } else if (el === "LUMEN" || el === "LUXEM") {
-      conditions.push(or(eq(cards.element, "LUXEM"), eq(cards.element, "LUMEN")));
-    } else if (el === "ARCANA" || el === "ARCANE") {
-      conditions.push(or(eq(cards.element, "ARCANE"), eq(cards.element, "ARCANA")));
-    } else {
-      conditions.push(eq(cards.element, el));
-    }
-  }
-
-  if (filters.class && filters.class !== "ALL") {
-    conditions.push(eq(cards.class, filters.class));
-  }
-
-  if (filters.type && filters.type !== "ALL") {
-    conditions.push(eq(cards.type, filters.type));
-  }
-
-  // Base cards query
-  let baseQuery = database.select().from(cards);
-  if (conditions.length > 0) {
-    baseQuery = baseQuery.where(and(...conditions));
-  }
-
-  const matchingCards = await baseQuery;
+  const matchingCards: CardRow[] = await queryCatalogCards(
+    {
+      query: filters.query,
+      element: filters.element,
+      class: filters.class,
+      type: filters.type,
+    },
+    database
+  );
 
   if (matchingCards.length === 0) {
     return { cards: [], total: 0 };
   }
 
-  const matchingSlugs = matchingCards.map((c: any) => c.slug);
+  const matchingSlugs = matchingCards.map((c) => c.slug);
 
   // Fetch meta staples for matching cards
-  let staplesData: any[] = [];
-  if (matchingSlugs.length > 0) {
-    staplesData = await database
-      .select()
-      .from(metaStaples)
-      .where(inArray(metaStaples.cardSlug, matchingSlugs));
-  }
+  const staplesData = await queryMetaStaplesByCardSlugs(matchingSlugs, database);
   const staplesBySlug = new Map<string, any>();
   for (const s of staplesData) {
     staplesBySlug.set(s.cardSlug, s);
   }
 
   // Fetch editions for these cards
-  let editionQuery = database
-    .select()
-    .from(cardEditions)
-    .where(inArray(cardEditions.cardSlug, matchingSlugs));
-
-  if (filters.setPrefix && filters.setPrefix !== "ALL") {
-    editionQuery = database
-      .select()
-      .from(cardEditions)
-      .where(
-        and(
-          inArray(cardEditions.cardSlug, matchingSlugs),
-          eq(cardEditions.setPrefix, filters.setPrefix)
-        )
-      );
-  }
-
-  const editionsData = await editionQuery;
+  const editionsData = await queryEditionsByCardSlugs(
+    matchingSlugs,
+    filters.setPrefix,
+    database
+  );
   const editionIds = editionsData.map((e: any) => e.id);
 
-  let circulationsData: any[] = [];
-  if (editionIds.length > 0) {
-    circulationsData = await database
-      .select()
-      .from(cardCirculations)
-      .where(inArray(cardCirculations.editionId, editionIds));
-  }
+  const circulationsData = await queryCirculationsByEditionIds(editionIds, database);
 
   // Fetch deck usage if userId is provided
   let deckUsageData: any[] = [];
   if (filters.userId && matchingSlugs.length > 0) {
-    deckUsageData = await database
-      .select({
-        cardSlug: deckCards.cardSlug,
-        deckId: deckCards.deckId,
-        deckName: decks.name,
-        quantity: deckCards.quantity,
-        zone: deckCards.zone,
-      })
-      .from(deckCards)
-      .innerJoin(decks, eq(deckCards.deckId, decks.id))
-      .where(
-        and(
-          eq(decks.userId, filters.userId),
-          inArray(deckCards.cardSlug, matchingSlugs)
-        )
-      );
+    deckUsageData = await queryDeckUsageForUserCards(
+      filters.userId,
+      matchingSlugs,
+      database
+    );
   }
 
   // Group editions and circulations by card slug

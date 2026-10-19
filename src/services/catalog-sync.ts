@@ -1,6 +1,8 @@
-import { db } from "../db";
-import { cards, cardEditions, cardCirculations } from "../db/schema";
-import { sql } from "drizzle-orm";
+import {
+  upsertCatalogCard,
+  upsertCatalogCardEdition,
+  upsertCatalogCardCirculation,
+} from "@/db/repositories/catalog-repository";
 
 export interface GatcgApiCirculation {
   uuid?: string;
@@ -71,7 +73,7 @@ export async function syncCatalogFromApi(
     onProgress?: (progress: { page: number; totalPages: number; cardsCount: number }) => void;
   } = {}
 ): Promise<SyncStats> {
-  const database = options.targetDb || db;
+  const database = options.targetDb;
   const startTime = Date.now();
   let currentPage = 1;
   let totalPages = 1;
@@ -100,9 +102,8 @@ export async function syncCatalogFromApi(
       const subtypes = JSON.stringify(card.subtypes || []);
       const effect = card.effect || card.effect_raw || "";
 
-      await database
-        .insert(cards)
-        .values({
+      await upsertCatalogCard(
+        {
           slug: card.slug,
           name: card.name,
           element,
@@ -114,23 +115,9 @@ export async function syncCatalogFromApi(
           costMemory: card.cost_memory ?? null,
           level: card.level ?? null,
           speed: card.speed ? true : false,
-        })
-        .onConflictDoUpdate({
-          target: cards.slug,
-          set: {
-            name: card.name,
-            element,
-            class: cardClass,
-            type: cardType,
-            subtypes,
-            effect,
-            costReserve: card.cost_reserve ?? null,
-            costMemory: card.cost_memory ?? null,
-            level: card.level ?? null,
-            speed: card.speed ? true : false,
-            updatedAt: sql`(strftime('%s', 'now'))`,
-          },
-        });
+        },
+        database
+      );
       totalCardsCount++;
 
       const editionsList = card.editions || card.result_editions || [];
@@ -146,9 +133,8 @@ export async function syncCatalogFromApi(
             : `https://api.gatcg.com${edition.image}`
           : "";
 
-        await database
-          .insert(cardEditions)
-          .values({
+        await upsertCatalogCardEdition(
+          {
             id: edition.uuid,
             cardSlug: card.slug,
             setPrefix,
@@ -156,18 +142,9 @@ export async function syncCatalogFromApi(
             collectorNumber,
             rarity,
             imageUrl,
-          })
-          .onConflictDoUpdate({
-            target: cardEditions.id,
-            set: {
-              cardSlug: card.slug,
-              setPrefix,
-              setName,
-              collectorNumber,
-              rarity,
-              imageUrl,
-            },
-          });
+          },
+          database
+        );
         totalEditionsCount++;
 
         const circulationsList = edition.circulations || [];
@@ -178,25 +155,17 @@ export async function syncCatalogFromApi(
           const foil = Boolean(circ.foil);
           const printing = Boolean(circ.printing);
 
-          await database
-            .insert(cardCirculations)
-            .values({
+          await upsertCatalogCardCirculation(
+            {
               id: circId,
               editionId: edition.uuid,
               kind,
               population,
               foil,
               printing,
-            })
-            .onConflictDoUpdate({
-              target: cardCirculations.id,
-              set: {
-                kind,
-                population,
-                foil,
-                printing,
-              },
-            });
+            },
+            database
+          );
           totalCirculationsCount++;
         }
       }
@@ -228,7 +197,7 @@ export async function syncCatalogFromApi(
  */
 export async function syncSingleCardFromApi(
   query: string,
-  targetDb: any = db
+  targetDb?: any
 ): Promise<{ cardSlug: string; editionId: string } | null> {
   try {
     const res = await fetch(`https://api.gatcg.com/cards/search?name=${encodeURIComponent(query)}`);
@@ -243,9 +212,8 @@ export async function syncSingleCardFromApi(
     const subtypes = JSON.stringify(cardData.subtypes || []);
     const effect = cardData.effect || cardData.effect_raw || "";
 
-    await targetDb
-      .insert(cards)
-      .values({
+    await upsertCatalogCard(
+      {
         slug: cardData.slug,
         name: cardData.name,
         element,
@@ -257,23 +225,9 @@ export async function syncSingleCardFromApi(
         costMemory: cardData.cost_memory ?? null,
         level: cardData.level ?? null,
         speed: cardData.speed ? true : false,
-      })
-      .onConflictDoUpdate({
-        target: cards.slug,
-        set: {
-          name: cardData.name,
-          element,
-          class: cardClass,
-          type: cardType,
-          subtypes,
-          effect,
-          costReserve: cardData.cost_reserve ?? null,
-          costMemory: cardData.cost_memory ?? null,
-          level: cardData.level ?? null,
-          speed: cardData.speed ? true : false,
-          updatedAt: sql`(strftime('%s', 'now'))`,
-        },
-      });
+      },
+      targetDb
+    );
 
     const editionsList = cardData.editions || cardData.result_editions || [];
     let firstEditionId = "";
@@ -291,9 +245,8 @@ export async function syncSingleCardFromApi(
           : `https://api.gatcg.com${edition.image}`
         : "";
 
-      await targetDb
-        .insert(cardEditions)
-        .values({
+      await upsertCatalogCardEdition(
+        {
           id: edition.uuid,
           cardSlug: cardData.slug,
           setPrefix,
@@ -301,18 +254,9 @@ export async function syncSingleCardFromApi(
           collectorNumber,
           rarity,
           imageUrl,
-        })
-        .onConflictDoUpdate({
-          target: cardEditions.id,
-          set: {
-            cardSlug: cardData.slug,
-            setPrefix,
-            setName,
-            collectorNumber,
-            rarity,
-            imageUrl,
-          },
-        });
+        },
+        targetDb
+      );
 
       const circulationsList = edition.circulations || [];
       for (const circ of circulationsList) {
@@ -322,25 +266,17 @@ export async function syncSingleCardFromApi(
         const foil = Boolean(circ.foil);
         const printing = Boolean(circ.printing);
 
-        await targetDb
-          .insert(cardCirculations)
-          .values({
+        await upsertCatalogCardCirculation(
+          {
             id: circId,
             editionId: edition.uuid,
             kind,
             population,
             foil,
             printing,
-          })
-          .onConflictDoUpdate({
-            target: cardCirculations.id,
-            set: {
-              kind,
-              population,
-              foil,
-              printing,
-            },
-          });
+          },
+          targetDb
+        );
       }
     }
 

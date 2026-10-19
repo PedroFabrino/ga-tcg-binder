@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { syncCatalogFromApi } from "@/services/catalog-sync";
-import { db } from "@/db";
 
 export async function POST(req: NextRequest) {
   try {
@@ -8,7 +7,6 @@ export async function POST(req: NextRequest) {
     const maxPages = body.maxPages ? parseInt(body.maxPages, 10) : undefined;
 
     const stats = await syncCatalogFromApi({
-      targetDb: db,
       maxPages,
     });
 

@@ -4,7 +4,6 @@ import {
   addOrUpdateCollectionItem,
   SmartViewType,
 } from "@/services/collection";
-import { db } from "@/db";
 import { DEFAULT_USER_ID, ensureDefaultUserAndSeed, migrateDefaultUserDataToUser } from "@/services/seed";
 import { auth } from "@/auth";
 
@@ -17,10 +16,10 @@ export async function GET(req: NextRequest) {
     const userId = url.searchParams.get("userId") || session?.user?.id || DEFAULT_USER_ID;
 
     if (userId !== DEFAULT_USER_ID) {
-      await migrateDefaultUserDataToUser(userId, db);
+      await migrateDefaultUserDataToUser(userId);
     }
 
-    const items = await getCollectionSmartView(userId, view, db);
+    const items = await getCollectionSmartView(userId, view);
     return NextResponse.json({ items });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -42,16 +41,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "editionId and quantity are required" }, { status: 400 });
     }
 
-    await addOrUpdateCollectionItem(
-      {
-        userId,
-        editionId,
-        foil,
-        quantity,
-        isDedicated,
-      },
-      db
-    );
+    await addOrUpdateCollectionItem({
+      userId,
+      editionId,
+      foil,
+      quantity,
+      isDedicated,
+    });
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

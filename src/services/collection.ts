@@ -1,14 +1,16 @@
-import { eq, and, inArray, sql } from "drizzle-orm";
 import {
-  collectionItems,
-  cardEditions,
-  cardCirculations,
-  cards,
-  deckCards,
-  decks,
-  users,
-  metaStaples,
-} from "../db/schema";
+  findCollectionItem,
+  deleteCollectionItem,
+  updateCollectionItemQuantity,
+  insertCollectionItem,
+  findCardByNameCaseInsensitive,
+  findEditionsByCardSlug,
+  getUserLowPopThreshold,
+  getUserCollectionItems,
+  getCirculationsForEditions,
+  getUserDeckCardUsages,
+  getAllMetaStaples,
+} from "@/db/repositories/collection-repository";
 
 export interface AddCollectionItemParams {
   userId: string;
@@ -49,45 +51,41 @@ export type SmartViewType = "ALL" | "STAPLES" | "LOW_POP" | "IDLE";
 
 export async function addOrUpdateCollectionItem(
   params: AddCollectionItemParams,
-  database: any
+  database?: any
 ): Promise<void> {
-  const existing = await database
-    .select()
-    .from(collectionItems)
-    .where(
-      and(
-        eq(collectionItems.userId, params.userId),
-        eq(collectionItems.editionId, params.editionId),
-        eq(collectionItems.foil, params.foil)
-      )
-    )
-    .get();
+  const existing = await findCollectionItem(
+    params.userId,
+    params.editionId,
+    params.foil,
+    database
+  );
 
   if (existing) {
     const newQty = existing.quantity + params.quantity;
     if (newQty <= 0) {
-      await database.delete(collectionItems).where(eq(collectionItems.id, existing.id));
+      await deleteCollectionItem(existing.id, database);
     } else {
-      await database
-        .update(collectionItems)
-        .set({
-          quantity: newQty,
-          isDedicated: params.isDedicated !== undefined ? params.isDedicated : existing.isDedicated,
-          updatedAt: sql`(strftime('%s', 'now'))`,
-        })
-        .where(eq(collectionItems.id, existing.id));
+      await updateCollectionItemQuantity(
+        existing.id,
+        newQty,
+        params.isDedicated !== undefined ? params.isDedicated : existing.isDedicated,
+        database
+      );
     }
   } else {
     if (params.quantity > 0) {
       const id = `col-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-      await database.insert(collectionItems).values({
-        id,
-        userId: params.userId,
-        editionId: params.editionId,
-        foil: params.foil,
-        quantity: params.quantity,
-        isDedicated: params.isDedicated ?? false,
-      });
+      await insertCollectionItem(
+        {
+          id,
+          userId: params.userId,
+          editionId: params.editionId,
+          foil: params.foil,
+          quantity: params.quantity,
+          isDedicated: params.isDedicated ?? false,
+        },
+        database
+      );
     }
   }
 }
@@ -95,7 +93,7 @@ export async function addOrUpdateCollectionItem(
 export async function importBulkCollectionText(
   userId: string,
   rawText: string,
-  database: any
+  database?: any
 ): Promise<{ addedCount: number; errors: string[] }> {
   const lines = rawText.split(/\r?\n/);
   let addedCount = 0;
@@ -133,23 +131,16 @@ export async function importBulkCollectionText(
       cardPart = cardPart.replace(/[\(\[][A-Za-z0-9\s\-]+[\)\]]$/, "").trim();
     }
 
-    // Find card in database
-    const cardMatch = await database
-      .select()
-      .from(cards)
-      .where(sql`lower(${cards.name}) = lower(${cardPart})`)
-      .get();
+    // Find card in database via repository
+    const cardMatch = await findCardByNameCaseInsensitive(cardPart, database);
 
     if (!cardMatch) {
       errors.push(`Card not found in catalog: "${cardPart}"`);
       continue;
     }
 
-    // Find matching edition
-    const eds = await database
-      .select()
-      .from(cardEditions)
-      .where(eq(cardEditions.cardSlug, cardMatch.slug));
+    // Find matching edition via repository
+    const eds = await findEditionsByCardSlug(cardMatch.slug, database);
 
     if (eds.length === 0) {
       errors.push(`No editions found for card: "${cardMatch.name}"`);
@@ -186,55 +177,22 @@ export async function importBulkCollectionText(
 export async function getCollectionSmartView(
   userId: string,
   view: SmartViewType,
-  database: any
+  database?: any
 ): Promise<CollectionItemView[]> {
-  // Fetch user settings
-  const user = await database.select().from(users).where(eq(users.id, userId)).get();
-  const threshold = user?.lowPopThreshold ?? 1000;
+  // Fetch user settings threshold via repository
+  const threshold = await getUserLowPopThreshold(userId, database);
 
-  // Fetch all user collection items
-  const items = await database
-    .select({
-      id: collectionItems.id,
-      editionId: collectionItems.editionId,
-      foil: collectionItems.foil,
-      quantity: collectionItems.quantity,
-      isDedicated: collectionItems.isDedicated,
-      cardSlug: cardEditions.cardSlug,
-      setPrefix: cardEditions.setPrefix,
-      setName: cardEditions.setName,
-      collectorNumber: cardEditions.collectorNumber,
-      rarity: cardEditions.rarity,
-      imageUrl: cardEditions.imageUrl,
-      cardName: cards.name,
-      element: cards.element,
-      class: cards.class,
-      type: cards.type,
-    })
-    .from(collectionItems)
-    .innerJoin(cardEditions, eq(collectionItems.editionId, cardEditions.id))
-    .innerJoin(cards, eq(cardEditions.cardSlug, cards.slug))
-    .where(eq(collectionItems.userId, userId));
+  // Fetch all user collection items via repository
+  const items = await getUserCollectionItems(userId, database);
 
   if (items.length === 0) return [];
 
   // Fetch circulations for population
-  const editionIds = items.map((i: any) => i.editionId);
-  const circs = await database
-    .select()
-    .from(cardCirculations)
-    .where(inArray(cardCirculations.editionId, editionIds));
+  const editionIds = items.map((i) => i.editionId);
+  const circs = await getCirculationsForEditions(editionIds, database);
 
   // Fetch user active deck card usages to compute multi-deck staples & idle binder counts
-  const userDecks = await database
-    .select({
-      deckId: decks.id,
-      cardSlug: deckCards.cardSlug,
-      quantity: deckCards.quantity,
-    })
-    .from(deckCards)
-    .innerJoin(decks, eq(deckCards.deckId, decks.id))
-    .where(eq(decks.userId, userId));
+  const userDecks = await getUserDeckCardUsages(userId, database);
 
   // Count how many different decks use each cardSlug, and total copies used
   const deckUsageBySlug = new Map<string, { deckCount: number; maxUsage: number }>();
@@ -246,7 +204,7 @@ export async function getCollectionSmartView(
   }
 
   // Load all format meta staples to support format-wide staple tagging & smart view
-  const allStaples = await database.select().from(metaStaples).all();
+  const allStaples = await getAllMetaStaples(database);
   const staplesBySlug = new Map<string, any>();
   for (const s of allStaples) {
     staplesBySlug.set(s.cardSlug, s);
@@ -313,7 +271,6 @@ export async function getCollectionSmartView(
     };
 
     // Filter by Smart View:
-    // STAPLES view displays cards that are either verified format meta staples OR multi-deck staples (used in >= 2 user decks)
     if (view === "STAPLES" && !isMetaStaple && usageInfo.deckCount < 2) {
       continue;
     }

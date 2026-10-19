@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchCatalog } from "@/services/catalog";
 import { syncSingleCardFromApi } from "@/services/catalog-sync";
-import { db } from "@/db";
 import { ensureDefaultUserAndSeed, DEFAULT_USER_ID } from "@/services/seed";
 import { auth } from "@/auth";
 
@@ -28,36 +27,30 @@ export async function GET(req: NextRequest) {
       ? parseInt(url.searchParams.get("offset")!, 10)
       : 0;
 
-    let result = await searchCatalog(
-      {
-        query,
-        element,
-        class: cardClass,
-        type: cardType,
-        setPrefix,
-        lowPopOnly,
-        staplesOnly,
-        lowPopThreshold,
-        userId,
-        limit,
-        offset,
-      },
-      db
-    );
+    let result = await searchCatalog({
+      query,
+      element,
+      class: cardClass,
+      type: cardType,
+      setPrefix,
+      lowPopOnly,
+      staplesOnly,
+      lowPopThreshold,
+      userId,
+      limit,
+      offset,
+    });
 
     // If no results for a specific query, try on-demand single card sync from official API
     if (result.cards.length === 0 && query && query.trim().length > 1) {
-      const synced = await syncSingleCardFromApi(query.trim(), db);
+      const synced = await syncSingleCardFromApi(query.trim());
       if (synced) {
-        result = await searchCatalog(
-          {
-            query: synced.cardSlug,
-            userId,
-            limit,
-            offset: 0,
-          },
-          db
-        );
+        result = await searchCatalog({
+          query: synced.cardSlug,
+          userId,
+          limit,
+          offset: 0,
+        });
       }
     }
 
