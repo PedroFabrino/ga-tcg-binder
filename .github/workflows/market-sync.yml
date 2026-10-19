@@ -35,10 +35,29 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Start FlareSolverr Container
+        run: |
+          docker run -d \
+            --name=flaresolverr \
+            -p 8191:8191 \
+            -e LOG_LEVEL=info \
+            ghcr.io/flaresolverr/flaresolverr:latest
+          
+          # Wait up to 60s for FlareSolverr to become ready
+          for i in {1..30}; do
+            if curl -s http://localhost:8191/ | grep -q "FlareSolverr"; then
+              echo "FlareSolverr is ready!"
+              break
+            fi
+            echo "Waiting for FlareSolverr... ($i/30)"
+            sleep 2
+          done
+
       - name: Run Market Sync Script
         env:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          FLARESOLVERR_URL: "http://localhost:8191"
           STORE_ID: ${{ inputs.store_id }}
         run: |
           if [ -n "$STORE_ID" ]; then
@@ -46,3 +65,7 @@ jobs:
           else
             pnpm tsx scripts/sync-market.ts
           fi
+
+      - name: Stop FlareSolverr
+        if: always()
+        run: docker stop flaresolverr || true

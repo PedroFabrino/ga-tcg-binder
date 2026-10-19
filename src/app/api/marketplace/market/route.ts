@@ -46,13 +46,26 @@ export async function POST(req: NextRequest) {
     }
 
     let stats: any = {};
+    let warning: string | undefined;
+
     if (requestedStoreId === "brandao") {
-      stats = await syncLigaStore({ storeId: "brandao", database: db });
+      try {
+        stats = await syncLigaStore({ storeId: "brandao", database: db });
+      } catch (err: unknown) {
+        console.warn("[LigaStore Sync Blocked / Failed]", err);
+        warning = "LIGASTORE_CLOUDFLARE_BLOCKED";
+      }
     } else if (requestedStoreId === "myp") {
       stats = await syncGlobalMarketplace(db);
     } else {
       const mypStats = await syncGlobalMarketplace(db);
-      const ligaStats = await syncLigaStore({ storeId: "brandao", database: db });
+      let ligaStats: any = {};
+      try {
+        ligaStats = await syncLigaStore({ storeId: "brandao", database: db });
+      } catch (err: unknown) {
+        console.warn("[LigaStore Sync Blocked / Failed in All Stores]", err);
+        warning = "LIGASTORE_CLOUDFLARE_BLOCKED";
+      }
       stats = {
         totalSynced: (mypStats.totalSynced || 0) + (ligaStats.totalSynced || 0),
         matchedCount: (mypStats.matchedCount || 0) + (ligaStats.matchedCount || 0),
@@ -65,6 +78,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       stats,
+      warning,
       report: updatedReport,
     });
   } catch (error: any) {

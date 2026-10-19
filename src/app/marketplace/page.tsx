@@ -99,10 +99,17 @@ export default function MarketplacePage() {
       if (!res.ok) throw new Error(data.error || "Market sync failed");
 
       setReport(data.report);
-      showToast(
-        `Scanned ${data.stats.totalSynced} items across marketplace stores!`,
-        "success"
-      );
+      if (data.warning === "LIGASTORE_CLOUDFLARE_BLOCKED") {
+        showToast(
+          t("marketplace.ligaStoreCloudflareNotice"),
+          "info"
+        );
+      } else {
+        showToast(
+          `Scanned ${data.stats?.totalSynced ?? 0} items across marketplace stores!`,
+          "success"
+        );
+      }
     } catch (err: any) {
       showToast(err.message || "Failed to scan marketplace stores", "error");
     } finally {

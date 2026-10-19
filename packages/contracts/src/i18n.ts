@@ -73,6 +73,7 @@ export const enCatalog = {
     fairPricesOnly: "Fair Price Only (≤ 1.2x)",
     overpriced: "Overpriced (> 1.2x)",
     heavilyOverpriced: "🚨 Heavily Overpriced (> 2.0x)",
+    ligaStoreCloudflareNotice: "Live refresh for Brandão Card Game was protected by Cloudflare bot security. Displaying latest saved listings. Periodic refresh runs via GitHub Actions.",
   },
   settings: {
     title: "Collector Settings",
@@ -369,6 +370,7 @@ export const ptBRCatalog: TranslationCatalog = {
     fairPricesOnly: "Preço Justo (≤ 1.2x)",
     overpriced: "Acima do Mercado (> 1.2x)",
     heavilyOverpriced: "🚨 Muito Acima (> 2.0x)",
+    ligaStoreCloudflareNotice: "A sincronização ao vivo da Brandão Card Game foi retida pela proteção Cloudflare da loja. Exibindo os últimos anúncios salvos. A atualização periódica ocorre via GitHub Actions.",
   },
   settings: {
     title: "Configurações do Colecionador",
