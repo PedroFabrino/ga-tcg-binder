@@ -41,10 +41,11 @@ function buildLigaStoreSearchUrl(store: EnabledMarketStore): string | null {
 
   const baseUrl = store.baseUrl.replace(/\/+$/, "");
   const tcgId = store.tcgId ?? "21";
+  const storeIdParam = store.id === "brandao" ? "&id=207836" : `&id=${encodeURIComponent(store.id)}`;
 
   return (
-    `${baseUrl}/?view=ecom/itens&page=1&tcg=${encodeURIComponent(tcgId)}` +
-    "&txt_order=6&txt_limit=30&txt_estoque=1&btFiltrar=Filtrar"
+    `${baseUrl}/?view=ecom/itens&page=1&tcg=${encodeURIComponent(tcgId)}${storeIdParam}` +
+    "&ultimas=1&txt_order=6&txt_limit=30&txt_estoque=1&btFiltrar=Filtrar"
   );
 }
 

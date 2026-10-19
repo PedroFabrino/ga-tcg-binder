@@ -133,7 +133,7 @@ export async function syncLigaStore(options?: {
   const buildPageUrl = (page: number) =>
     `${storeData.baseUrl}/?view=ecom/itens&page=${page}&id=${
       storeData.id === "brandao" ? "207836" : storeData.id
-    }&tcg=21&txt_estoque=1`;
+    }&tcg=${encodeURIComponent(storeData.tcgId || "21")}&ultimas=1&txt_order=6&txt_limit=30&txt_estoque=1&btFiltrar=Filtrar`;
 
   async function fetchText(url: string): Promise<string> {
     const fullUrl = url.startsWith("http")

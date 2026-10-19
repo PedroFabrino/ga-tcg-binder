@@ -90,18 +90,21 @@ export default function MarketplacePage() {
       const res = await fetch("/api/marketplace/market", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: session?.user?.id }),
+        body: JSON.stringify({
+          userId: session?.user?.id,
+          storeId: selectedStoreId || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Market sync failed");
 
       setReport(data.report);
       showToast(
-        `Scanned ${data.stats.totalSynced} items across MyP Cards Grand Archive market!`,
+        `Scanned ${data.stats.totalSynced} items across marketplace stores!`,
         "success"
       );
     } catch (err: any) {
-      showToast(err.message || "Failed to scan MyP Cards market", "error");
+      showToast(err.message || "Failed to scan marketplace stores", "error");
     } finally {
       setSyncing(false);
     }
@@ -244,7 +247,11 @@ export default function MarketplacePage() {
               className="gap-2 bg-cyan-500 text-slate-950 hover:bg-cyan-400 font-semibold shadow-[0_0_20px_-5px_rgba(34,211,238,0.4)]"
             >
               <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
-              {syncing ? "Scanning MyP..." : "Sync MyP Market"}
+              {syncing
+                ? "Scanning Market..."
+                : selectedStoreId
+                ? `Sync ${summary?.stores?.find((s) => s.id === selectedStoreId)?.name || "Store"}`
+                : "Sync Market Stores"}
             </Button>
           </div>
         }

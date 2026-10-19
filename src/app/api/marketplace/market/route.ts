@@ -7,6 +7,7 @@ import {
   getGlobalMarketReport,
   syncGlobalMarketplace,
 } from "@/services/marketplace";
+import { syncLigaStore } from "@/services/ligastore-sync";
 
 export async function GET(req: NextRequest) {
   try {
@@ -34,16 +35,32 @@ export async function POST(req: NextRequest) {
     const session = await auth();
     const url = new URL(req.url);
     let userId = session?.user?.id || url.searchParams.get("userId") || DEFAULT_USER_ID;
+    let requestedStoreId: string | undefined;
 
     try {
       const body = await req.json();
       if (body?.userId) userId = body.userId;
+      if (body?.storeId) requestedStoreId = body.storeId;
     } catch {
       // Body may be empty
     }
 
-    const stats = await syncGlobalMarketplace(db);
-    const updatedReport = await getGlobalMarketReport(userId, db);
+    let stats: any = {};
+    if (requestedStoreId === "brandao") {
+      stats = await syncLigaStore({ storeId: "brandao", database: db });
+    } else if (requestedStoreId === "myp") {
+      stats = await syncGlobalMarketplace(db);
+    } else {
+      const mypStats = await syncGlobalMarketplace(db);
+      const ligaStats = await syncLigaStore({ storeId: "brandao", database: db });
+      stats = {
+        totalSynced: (mypStats.totalSynced || 0) + (ligaStats.totalSynced || 0),
+        matchedCount: (mypStats.matchedCount || 0) + (ligaStats.matchedCount || 0),
+        unmatchedCount: (mypStats.unmatchedCount || 0) + (ligaStats.unmatchedCount || 0),
+      };
+    }
+
+    const updatedReport = await getGlobalMarketReport(userId, db, requestedStoreId);
 
     return NextResponse.json({
       success: true,
