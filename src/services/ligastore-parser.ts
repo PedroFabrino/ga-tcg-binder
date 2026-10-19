@@ -226,10 +226,26 @@ function extractQuantity(cardHtml: string, spriteClasses: Map<string, string>): 
 export function parseLigaStoreTotalCount(html: string): number {
   const match =
     html.match(
-      /<td[^>]*class=(['"])[^"']*\btextoMaior\b[^"']*\1[^>]*>[\s\S]*?\bde\s*<b>\s*(\d+)\s*<\/b>/i
-    ) ?? html.match(/\bde\s+<b>\s*(\d+)\s*<\/b>/i);
+      /<td[^>]*class=(['"])[^"']*\btextoMaior\b[^"']*\1[^>]*>[\s\S]*?\bde\s*<b>\s*([\d.,]+)\s*<\/b>/i
+    ) ?? html.match(/\bde\s+<b>\s*([\d.,]+)\s*<\/b>/i);
 
-  return Number(match?.[2] ?? match?.[1] ?? 0);
+  if (match) {
+    const rawDigits = (match[2] ?? match[1]).replace(/[.,]/g, "");
+    const count = Number(rawDigits);
+    if (Number.isFinite(count) && count > 0) {
+      return count;
+    }
+  }
+
+  const itensTotalMatch = decodeHtml(html).match(/[?&]itens_total=(\d+)/i);
+  if (itensTotalMatch) {
+    const count = Number(itensTotalMatch[1]);
+    if (Number.isFinite(count)) {
+      return count;
+    }
+  }
+
+  return 0;
 }
 
 /**
@@ -355,11 +371,16 @@ export function parseLigaStoreSearchPage(html: string): ParsedLigaStoreSearchRes
 
   const items = extractCardBlocks(html).map((cardHtml): ParsedLigaStoreItem => {
     const anchors = [...cardHtml.matchAll(/<a\b[^>]*\bhref=(['"])(.*?)\1[^>]*>([\s\S]*?)<\/a>/gi)];
+    const titleAnchor =
+      anchors.find((anchor) => stripHtml(anchor[3]).length > 0 && /[?&]refid=/i.test(anchor[2])) ??
+      anchors.find((anchor) => stripHtml(anchor[3]).length > 0);
     const productAnchor =
-      anchors.find((anchor) => /[?&]refid=/i.test(anchor[2])) ?? anchors[0];
+      titleAnchor ?? anchors.find((anchor) => /[?&]refid=/i.test(anchor[2])) ?? anchors[0];
 
     const productUrl = decodeHtml(productAnchor?.[2] ?? "");
     const rawTitle =
+      stripHtml(titleAnchor?.[3] ?? "") ||
+      getAttribute(titleAnchor?.[0] ?? "", "title") ||
       stripHtml(productAnchor?.[3] ?? "") ||
       getAttribute(productAnchor?.[0] ?? "", "title");
     const title = extractTitle(rawTitle);

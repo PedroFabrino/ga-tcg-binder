@@ -31,6 +31,30 @@ describe("parseLigaStoreTotalCount", () => {
     ).toBe(14);
   });
 
+  it("extracts count with comma thousands separator (e.g. 2,059)", () => {
+    expect(
+      parseLigaStoreTotalCount(`
+        <td align='left' class='textoMaior'> 1-30 de <b>2,059</b></td>
+      `)
+    ).toBe(2059);
+  });
+
+  it("extracts count with dot thousands separator (e.g. 2.059)", () => {
+    expect(
+      parseLigaStoreTotalCount(`
+        <td align='left' class='textoMaior'> 1-30 de <b>2.059</b></td>
+      `)
+    ).toBe(2059);
+  });
+
+  it("falls back to itens_total from pagination links", () => {
+    expect(
+      parseLigaStoreTotalCount(`
+        <a href="./?view=ecom/itens&tcg=11&amp;itens_total=2059&amp;page=2">2</a>
+      `)
+    ).toBe(2059);
+  });
+
   it("supports the generic de <b>count</b> fallback", () => {
     expect(parseLigaStoreTotalCount("<span>Resultados de <b>42</b></span>")).toBe(42);
   });
@@ -171,5 +195,26 @@ describe("parseLigaStoreSearchPage", () => {
       ["Frostbind", "28b"],
       ["Level One", "1"],
     ]);
+  });
+
+  it("uses the title anchor instead of image thumbnail anchor for rawTitle", () => {
+    const result = parseLigaStoreSearchPage(`
+      <div class="card-item">
+        <div class="card-img">
+          <a href="./?view=ecom/item&id=123&refid=thumbnail">
+            <img src="/images/shanks.jpg" alt="Shanks image" />
+          </a>
+        </div>
+        <div class="title">
+          <a href="./?view=ecom/item&id=123&refid=product">
+            Shanks (022) (Manga) (#OP17-022-MA)
+          </a>
+        </div>
+      </div>
+    `);
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].rawTitle).toBe("Shanks (022) (Manga) (#OP17-022-MA)");
+    expect(result.items[0].collectorNumber).toBe("OP17-022-MA");
   });
 });
