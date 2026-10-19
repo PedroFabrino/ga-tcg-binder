@@ -5,15 +5,19 @@ WORKDIR /app
 RUN apk add --no-cache curl \
   && corepack enable && corepack prepare pnpm@latest --activate \
   && addgroup -S app \
-  && adduser -S app -G app
+  && adduser -S app -G app \
+  && chown -R app:app /app
 
-COPY . .
+USER app
+
+COPY --chown=app:app package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY --chown=app:app apps/mobile/package.json ./apps/mobile/
+COPY --chown=app:app packages/contracts/package.json ./packages/contracts/
+COPY --chown=app:app services/ws-gateway/package.json ./services/ws-gateway/
 
 RUN pnpm install --frozen-lockfile
 
-RUN chown -R app:app /app
-
-USER app
+COPY --chown=app:app . .
 
 ENV NODE_ENV=production
 

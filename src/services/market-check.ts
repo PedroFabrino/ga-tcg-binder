@@ -69,19 +69,43 @@ export function parseMypTotalCount(html: string): number | null {
   return null;
 }
 
-async function fetchHtml(url: string, customFetch = fetch): Promise<string> {
-  const response = await customFetch(url, {
-    headers: {
-      Accept: "text/html,application/xhtml+xml",
-    },
-    signal: AbortSignal.timeout(15_000),
-  });
+const BROWSER_USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
-  if (!response.ok) {
-    throw new Error(`Marketplace returned HTTP ${response.status}`);
+async function fetchHtml(url: string, customFetch = fetch): Promise<string> {
+  try {
+    const response = await customFetch(url, {
+      headers: {
+        "User-Agent": BROWSER_USER_AGENT,
+        Accept: "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
+      },
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    if (response.ok) {
+      return await response.text();
+    }
+  } catch {
+    // Fallback to curl below
   }
 
-  return response.text();
+  if (customFetch !== fetch) {
+    throw new Error(`Marketplace request failed for ${url}`);
+  }
+
+  const { execFileSync } = await import("node:child_process");
+  const curlBin = process.platform === "win32" ? "curl.exe" : "curl";
+  const stdout = execFileSync(
+    curlBin,
+    ["-s", "-L", "--max-time", "15", "-A", BROWSER_USER_AGENT, url],
+    { encoding: "utf-8", maxBuffer: 5 * 1024 * 1024 }
+  );
+
+  if (!stdout || stdout.trim().length === 0) {
+    throw new Error(`Empty response from ${url}`);
+  }
+
+  return stdout;
 }
 
 async function fetchStoreCount(
