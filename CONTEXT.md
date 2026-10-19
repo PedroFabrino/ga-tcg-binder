@@ -206,6 +206,46 @@ _Avoid_: Order bot, background scraper, sync daemon
 The synchronization state comparison between external marketplace orders and local Fulfillment Orders, detecting status modifications and buyer cancellation requests, and cross-referencing them against Shipping Ticket payment status to alert the Collector whether an order is safe to cancel or requires freight intervention.
 _Avoid_: State sync, diff check, order auditor
 
+**Marketplace Platform**:
+The external marketplace commerce system or technical integration adapter (such as `myp` or `liga_store`) used to discover and crawl listings.
+_Avoid_: Shop engine, site type, crawler adapter
+
+**Marketplace Store**:
+A specific configured external storefront or seller source (such as MyP Cards or Brandão Card Game) tracked with its own identity, base URL, platform, external TCG identifier, enabled state, listing count, and sync timestamps.
+_Avoid_: Vendor, shop profile, site account
+
+**LigaStore**:
+The integration adapter for external stores powered by the LigaMagic/lmcorp e-commerce engine, operating strictly as a buy-side listing source for Buyable Shortages and marketplace browsing without selling, cart, or fulfillment write-backs.
+_Avoid_: LigaMagic bot, Liga scraper
+
+**Marketplace Listing**:
+The current observed external product offer for a card from a Marketplace Store, capturing price, quantity, condition, finish, vendor data, source URL, and observation timestamps.
+_Avoid_: Shop item, external card, store offer
+
+**Canonical Listing Data**:
+The normalized local card identity associated with a Marketplace Listing, derived from the official Grand Archive Card Catalog and represented by canonical card and edition linkages (`card_slug`, `edition_id`).
+_Avoid_: Mapped product, verified card
+
+**Listing Resolver**:
+The domain process that matches raw external marketplace titles and collector numbers against the canonical Card Catalog to establish card and edition links.
+_Avoid_: Title matcher, card linker
+
+**Unlinked Listing**:
+A crawled Marketplace Listing successfully ingested from an external store but not yet confidently resolved to a canonical card or edition in the local Card Catalog, retained for operational diagnostics without distorting shortage calculations.
+_Avoid_: Orphan card, unknown item, broken listing
+
+**Count Poll** (_or_ **Lightweight Poll**):
+A low-overhead periodic HTTP check retrieving only a Marketplace Store's reported total listing count (e.g., `1-14 de 14` on LigaStore or `N itens` on MyP) to detect inventory changes before dispatching an expensive rescan.
+_Avoid_: Quick scrape, count ping, header check
+
+**Full Rescan**:
+A complete catalog crawl of an active Marketplace Store that extracts listing prices and quantities across all pages and reconciles the store's current active listing snapshot.
+_Avoid_: Deep crawl, total sync, hard refresh
+
+**Listing Reconciliation**:
+The synchronization phase following a successful Full Rescan that refreshes observed listings, updates `last_seen_at`, and marks previously active listings absent from the scan as out-of-stock or inactive without deleting history.
+_Avoid_: Stale cleanup, inventory purge, listing diff
+
 **Repository**:
 A module in `src/db/repositories/` that owns all database queries for one aggregate; the only layer allowed to touch Drizzle/libSQL.
 _Avoid_: DAO, data layer, db helper
