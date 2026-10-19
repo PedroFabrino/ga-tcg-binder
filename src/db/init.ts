@@ -345,6 +345,54 @@ CREATE UNIQUE INDEX IF NOT EXISTS \`market_cards_store_item_idx\` ON \`market_ca
 CREATE INDEX IF NOT EXISTS \`market_cards_store_card_slug_idx\` ON \`market_cards\` (\`store_id\`,\`card_slug\`);
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS \`market_cards_store_edition_idx\` ON \`market_cards\` (\`store_id\`,\`edition_id\`);
+--> statement-breakpoint
+INSERT OR IGNORE INTO \`market_stores\` (\`id\`, \`platform\`, \`name\`, \`base_url\`, \`tcg_id\`, \`enabled\`)
+VALUES ('myp', 'myp', 'MyP Cards', 'https://mypcards.com', 'grandarchive', 1);
+--> statement-breakpoint
+INSERT OR IGNORE INTO \`market_cards\` (
+	\`id\`,
+	\`store_id\`,
+	\`card_slug\`,
+	\`edition_id\`,
+	\`raw_name\`,
+	\`card_name\`,
+	\`set_prefix\`,
+	\`quantity\`,
+	\`price\`,
+	\`price_numeric\`,
+	\`tcg_price\`,
+	\`tcg_price_numeric\`,
+	\`quality\`,
+	\`is_foil\`,
+	\`item_id\`,
+	\`product_url\`,
+	\`vendor_name\`,
+	\`vendor_url\`,
+	\`updated_at\`
+)
+SELECT
+	\`id\`,
+	'myp',
+	\`card_slug\`,
+	\`edition_id\`,
+	\`raw_name\`,
+	\`card_name\`,
+	\`set_prefix\`,
+	\`quantity\`,
+	\`price\`,
+	\`price_numeric\`,
+	\`tcg_price\`,
+	\`tcg_price_numeric\`,
+	'NM',
+	\`is_foil\`,
+	\`myp_item_id\`,
+	\`myp_product_url\`,
+	\`vendor_name\`,
+	\`vendor_url\`,
+	\`updated_at\`
+FROM \`myp_market_cards\`;
+--> statement-breakpoint
+DROP TABLE IF EXISTS \`myp_market_cards\`;
 `;
 
 export async function runMigrations(customClient = client) {

@@ -9,7 +9,7 @@ import {
   collectionItems,
   decks,
   deckCards,
-  mypMarketCards,
+  marketCards,
   mypWatchlist,
 } from "../../db/schema";
 import {
@@ -123,8 +123,9 @@ describe("Watchlist Ledger & Quota Reconciliation (src/services/watchlist.ts)", 
     });
 
     // Seed Market Card price data for DOA standard
-    await testDb.insert(mypMarketCards).values({
+    await testDb.insert(marketCards).values({
       id: "mkt-doa-001",
+      storeId: "myp",
       cardSlug: "fracturize",
       editionId: "ed-doa-norm",
       rawName: "Fracturize",
@@ -136,8 +137,8 @@ describe("Watchlist Ledger & Quota Reconciliation (src/services/watchlist.ts)", 
       tcgPrice: "R$ 4,50",
       tcgPriceNumeric: 4.5,
       isFoil: false,
-      mypItemId: "ga_doa_001",
-      mypProductUrl: "https://mypcards.com/produto/fracturize-doa",
+      itemId: "ga_doa_001",
+      productUrl: "https://mypcards.com/produto/fracturize-doa",
     });
   });
 

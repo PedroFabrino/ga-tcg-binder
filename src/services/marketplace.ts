@@ -8,7 +8,7 @@ import {
   decks,
   deckCards,
   mypCards,
-  mypMarketCards,
+  marketCards,
   metaStaples,
 } from "../db/schema";
 import { DEFAULT_USER_ID } from "./seed";
@@ -1271,45 +1271,46 @@ export async function syncGlobalMarketplace(
   let matchedCount = 0;
   let unmatchedCount = 0;
 
-  // Atomically replace myp_market_cards rows, preserving existing cached TCGPlayer prices and vendor details
+  // Atomically replace market_cards rows for 'myp', preserving existing cached TCGPlayer prices and vendor details
   const existingTcgMap = new Map<string, { tcgPrice: string; tcgPriceNumeric: number }>();
   const existingVendorMap = new Map<string, { vendorName: string; vendorUrl: string | null }>();
   try {
     const existingRows = await database
       .select({
-        mypItemId: mypMarketCards.mypItemId,
-        mypProductUrl: mypMarketCards.mypProductUrl,
-        tcgPrice: mypMarketCards.tcgPrice,
-        tcgPriceNumeric: mypMarketCards.tcgPriceNumeric,
-        vendorName: mypMarketCards.vendorName,
-        vendorUrl: mypMarketCards.vendorUrl,
+        itemId: marketCards.itemId,
+        productUrl: marketCards.productUrl,
+        tcgPrice: marketCards.tcgPrice,
+        tcgPriceNumeric: marketCards.tcgPriceNumeric,
+        vendorName: marketCards.vendorName,
+        vendorUrl: marketCards.vendorUrl,
       })
-      .from(mypMarketCards);
+      .from(marketCards)
+      .where(eq(marketCards.storeId, "myp"));
 
     for (const r of existingRows) {
       if (r.tcgPriceNumeric !== null && r.tcgPriceNumeric !== undefined && r.tcgPrice) {
-        if (r.mypProductUrl) {
-          existingTcgMap.set(r.mypProductUrl, {
+        if (r.productUrl) {
+          existingTcgMap.set(r.productUrl, {
             tcgPrice: r.tcgPrice,
             tcgPriceNumeric: Number(r.tcgPriceNumeric),
           });
         }
-        if (r.mypItemId) {
-          existingTcgMap.set(r.mypItemId, {
+        if (r.itemId) {
+          existingTcgMap.set(r.itemId, {
             tcgPrice: r.tcgPrice,
             tcgPriceNumeric: Number(r.tcgPriceNumeric),
           });
         }
       }
       if (r.vendorName) {
-        if (r.mypProductUrl) {
-          existingVendorMap.set(r.mypProductUrl, {
+        if (r.productUrl) {
+          existingVendorMap.set(r.productUrl, {
             vendorName: r.vendorName,
             vendorUrl: r.vendorUrl || null,
           });
         }
-        if (r.mypItemId) {
-          existingVendorMap.set(r.mypItemId, {
+        if (r.itemId) {
+          existingVendorMap.set(r.itemId, {
             vendorName: r.vendorName,
             vendorUrl: r.vendorUrl || null,
           });
@@ -1320,7 +1321,7 @@ export async function syncGlobalMarketplace(
     // If table didn't have tcg/vendor columns yet, safe ignore
   }
 
-  await database.delete(mypMarketCards);
+  await database.delete(marketCards).where(eq(marketCards.storeId, "myp"));
 
   const rowsToInsert: any[] = [];
   const batchTimestamp = Date.now();
@@ -1346,6 +1347,7 @@ export async function syncGlobalMarketplace(
 
     rowsToInsert.push({
       id: item.mypItemId ? `mkt-${item.mypItemId}` : `mkt-${idx}-${batchTimestamp}`,
+      storeId: "myp",
       cardSlug: matchedCard?.slug || null,
       editionId,
       rawName: item.rawName,
@@ -1358,15 +1360,16 @@ export async function syncGlobalMarketplace(
       tcgPriceNumeric: cachedTcg?.tcgPriceNumeric || null,
       vendorName: item.vendorName || cachedVendor?.vendorName || null,
       vendorUrl: item.vendorUrl || cachedVendor?.vendorUrl || null,
+      quality: item.quality || "NM",
       isFoil: item.isFoil,
-      mypItemId: item.mypItemId,
-      mypProductUrl: item.mypProductUrl,
+      itemId: item.mypItemId,
+      productUrl: item.mypProductUrl,
     });
   }
 
   const chunkSize = 50;
   for (let i = 0; i < rowsToInsert.length; i += chunkSize) {
-    await database.insert(mypMarketCards).values(rowsToInsert.slice(i, i + chunkSize));
+    await database.insert(marketCards).values(rowsToInsert.slice(i, i + chunkSize));
   }
 
   return {
@@ -1391,19 +1394,25 @@ export async function enrichMarketplaceTcgPrices(
   let candidateRows: { id: string; mypProductUrl: string | null }[] = [];
 
   if (options.cardIds && options.cardIds.length > 0) {
-    candidateRows = await database
+    const rawCandidates = await database
       .select({
-        id: mypMarketCards.id,
-        mypProductUrl: mypMarketCards.mypProductUrl,
+        id: marketCards.id,
+        productUrl: marketCards.productUrl,
       })
-      .from(mypMarketCards)
+      .from(marketCards)
       .where(
         and(
-          isNotNull(mypMarketCards.mypProductUrl),
-          inArray(mypMarketCards.id, options.cardIds)
+          eq(marketCards.storeId, "myp"),
+          isNotNull(marketCards.productUrl),
+          inArray(marketCards.id, options.cardIds)
         )
       )
       .limit(limit);
+
+    candidateRows = rawCandidates.map((r: { id: string; productUrl: string | null }) => ({
+      id: r.id,
+      mypProductUrl: r.productUrl,
+    }));
   } else if (options.onlyShortages) {
     // Find all card slugs required across user's decks
     let userDecksQuery = database.select({ id: decks.id }).from(decks);
@@ -1423,43 +1432,55 @@ export async function enrichMarketplaceTcgPrices(
       );
 
       if (neededSlugs.length > 0) {
-        candidateRows = await database
+        const rawCandidates = await database
           .select({
-            id: mypMarketCards.id,
-            mypProductUrl: mypMarketCards.mypProductUrl,
+            id: marketCards.id,
+            productUrl: marketCards.productUrl,
           })
-          .from(mypMarketCards)
+          .from(marketCards)
           .where(
             and(
-              isNotNull(mypMarketCards.mypProductUrl),
+              eq(marketCards.storeId, "myp"),
+              isNotNull(marketCards.productUrl),
               or(
-                isNull(mypMarketCards.tcgPriceNumeric),
-                isNull(mypMarketCards.vendorName)
+                isNull(marketCards.tcgPriceNumeric),
+                isNull(marketCards.vendorName)
               ),
-              inArray(mypMarketCards.cardSlug, neededSlugs)
+              inArray(marketCards.cardSlug, neededSlugs)
             )
           )
           .limit(limit);
+
+        candidateRows = rawCandidates.map((r: { id: string; productUrl: string | null }) => ({
+          id: r.id,
+          mypProductUrl: r.productUrl,
+        }));
       }
     }
   } else {
     // General fallback: prioritize cards that have a product URL and lack a tcgPriceNumeric or vendorName
-    candidateRows = await database
+    const rawCandidates = await database
       .select({
-        id: mypMarketCards.id,
-        mypProductUrl: mypMarketCards.mypProductUrl,
+        id: marketCards.id,
+        productUrl: marketCards.productUrl,
       })
-      .from(mypMarketCards)
+      .from(marketCards)
       .where(
         and(
-          isNotNull(mypMarketCards.mypProductUrl),
+          eq(marketCards.storeId, "myp"),
+          isNotNull(marketCards.productUrl),
           or(
-            isNull(mypMarketCards.tcgPriceNumeric),
-            isNull(mypMarketCards.vendorName)
+            isNull(marketCards.tcgPriceNumeric),
+            isNull(marketCards.vendorName)
           )
         )
       )
       .limit(limit);
+
+    candidateRows = rawCandidates.map((r: { id: string; productUrl: string | null }) => ({
+      id: r.id,
+      mypProductUrl: r.productUrl,
+    }));
   }
 
   let enrichedCount = 0;
@@ -1487,20 +1508,20 @@ export async function enrichMarketplaceTcgPrices(
               updates.vendorUrl = details.lowestVendorUrl;
             }
             await database
-              .update(mypMarketCards)
+              .update(marketCards)
               .set(updates)
-              .where(eq(mypMarketCards.id, row.id));
+              .where(eq(marketCards.id, row.id));
             enrichedCount++;
           } else {
             // Mark checked with -1 so we don't query repeatedly
             await database
-              .update(mypMarketCards)
+              .update(marketCards)
               .set({
                 tcgPrice: "N/A",
                 tcgPriceNumeric: -1,
                 updatedAt: sql`(strftime('%s', 'now'))`,
               })
-              .where(eq(mypMarketCards.id, row.id));
+              .where(eq(marketCards.id, row.id));
             failedCount++;
           }
         } catch {
@@ -1522,32 +1543,39 @@ export async function getGlobalMarketReport(
     database
   );
 
-  const marketRows = await database
+  const rawMarketRows = await database
     .select({
-      id: mypMarketCards.id,
-      cardSlug: mypMarketCards.cardSlug,
-      editionId: mypMarketCards.editionId,
-      rawName: mypMarketCards.rawName,
-      cardName: mypMarketCards.cardName,
-      setPrefix: mypMarketCards.setPrefix,
-      quantity: mypMarketCards.quantity,
-      price: mypMarketCards.price,
-      priceNumeric: mypMarketCards.priceNumeric,
-      tcgPrice: mypMarketCards.tcgPrice,
-      tcgPriceNumeric: mypMarketCards.tcgPriceNumeric,
-      isFoil: mypMarketCards.isFoil,
-      mypItemId: mypMarketCards.mypItemId,
-      mypProductUrl: mypMarketCards.mypProductUrl,
-      updatedAt: mypMarketCards.updatedAt,
+      id: marketCards.id,
+      cardSlug: marketCards.cardSlug,
+      editionId: marketCards.editionId,
+      rawName: marketCards.rawName,
+      cardName: marketCards.cardName,
+      setPrefix: marketCards.setPrefix,
+      quantity: marketCards.quantity,
+      price: marketCards.price,
+      priceNumeric: marketCards.priceNumeric,
+      tcgPrice: marketCards.tcgPrice,
+      tcgPriceNumeric: marketCards.tcgPriceNumeric,
+      isFoil: marketCards.isFoil,
+      itemId: marketCards.itemId,
+      productUrl: marketCards.productUrl,
+      updatedAt: marketCards.updatedAt,
       element: cards.element,
       class: cards.class,
       type: cards.type,
       rarity: cardEditions.rarity,
       imageUrl: cardEditions.imageUrl,
     })
-    .from(mypMarketCards)
-    .leftJoin(cards, eq(mypMarketCards.cardSlug, cards.slug))
-    .leftJoin(cardEditions, eq(mypMarketCards.editionId, cardEditions.id));
+    .from(marketCards)
+    .leftJoin(cards, eq(marketCards.cardSlug, cards.slug))
+    .leftJoin(cardEditions, eq(marketCards.editionId, cardEditions.id))
+    .where(eq(marketCards.storeId, "myp"));
+
+  const marketRows = rawMarketRows.map((r: any) => ({
+    ...r,
+    mypItemId: r.itemId,
+    mypProductUrl: r.productUrl,
+  }));
 
   // User decks & deck requirements
   const userDecks = await database

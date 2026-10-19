@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createTestDb } from "../db/test-utils";
-import { cards, cardEditions, users, decks, deckCards, collectionItems, mypCards, mypMarketCards, metaStaples } from "../db/schema";
+import { cards, cardEditions, users, decks, deckCards, collectionItems, mypCards, marketCards, metaStaples } from "../db/schema";
 import {
   parseMypHtml,
   syncUserMarketplace,
@@ -462,7 +462,7 @@ describe("Marketplace (MyPCards) Sync, Shortage Offset & Claim Seam", () => {
     expect(syncResult.totalSynced).toBe(4);
     expect(syncResult.matchedCount).toBe(4);
 
-    const savedMarketRows = await db.select().from(mypMarketCards);
+    const savedMarketRows = await db.select().from(marketCards);
     expect(savedMarketRows).toHaveLength(4);
 
     // 4. Test Global Market Report
@@ -531,7 +531,7 @@ describe("Marketplace (MyPCards) Sync, Shortage Offset & Claim Seam", () => {
     await expect(syncGlobalMarketplace(db, failingFetch)).rejects.toThrow();
 
     // Verify records were NOT wiped
-    const preservedMarketRows = await db.select().from(mypMarketCards);
+    const preservedMarketRows = await db.select().from(marketCards);
     expect(preservedMarketRows).toHaveLength(4);
   });
 
@@ -861,9 +861,10 @@ describe("Marketplace (MyPCards) Sync, Shortage Offset & Claim Seam", () => {
         type: "ALLY",
       });
 
-      await db.insert(mypMarketCards).values([
+      await db.insert(marketCards).values([
         {
           id: "mkt-overpriced",
+          storeId: "myp",
           cardSlug: "slime-card",
           rawName: "Baby Silver Slime",
           cardName: "Baby Silver Slime",
@@ -876,6 +877,7 @@ describe("Marketplace (MyPCards) Sync, Shortage Offset & Claim Seam", () => {
         },
         {
           id: "mkt-slightly",
+          storeId: "myp",
           cardSlug: "slime-card",
           rawName: "Baby Silver Slime (NM)",
           cardName: "Baby Silver Slime",
@@ -888,6 +890,7 @@ describe("Marketplace (MyPCards) Sync, Shortage Offset & Claim Seam", () => {
         },
         {
           id: "mkt-fair",
+          storeId: "myp",
           cardSlug: "slime-card",
           rawName: "Baby Silver Slime (LP)",
           cardName: "Baby Silver Slime",
@@ -918,15 +921,16 @@ describe("Marketplace (MyPCards) Sync, Shortage Offset & Claim Seam", () => {
     it("enriches cards with TCGPlayer prices via enrichMarketplaceTcgPrices", async () => {
       const { db } = await createTestDb();
 
-      await db.insert(mypMarketCards).values({
+      await db.insert(marketCards).values({
         id: "mkt-to-enrich",
+        storeId: "myp",
         rawName: "Liminal Guide",
         cardName: "Liminal Guide",
         setPrefix: "ALC",
         quantity: 1,
         price: "R$ 400,00",
         priceNumeric: 400.0,
-        mypProductUrl: "https://mypcards.com/grandarchive/produto/12345/liminal-guide",
+        productUrl: "https://mypcards.com/grandarchive/produto/12345/liminal-guide",
         tcgPrice: null,
         tcgPriceNumeric: null,
       });
@@ -949,7 +953,7 @@ describe("Marketplace (MyPCards) Sync, Shortage Offset & Claim Seam", () => {
 
       expect(result.enrichedCount).toBe(1);
 
-      const enrichedRows = await db.select().from(mypMarketCards).all();
+      const enrichedRows = await db.select().from(marketCards).all();
       expect(enrichedRows[0].tcgPrice).toBe("R$ 150,00");
       expect(enrichedRows[0].tcgPriceNumeric).toBe(150.0);
     });
@@ -995,15 +999,16 @@ describe("Marketplace (MyPCards) Sync, Shortage Offset & Claim Seam", () => {
     it("enriches both TCG price and vendor details in enrichMarketplaceTcgPrices", async () => {
       const { db } = await createTestDb();
 
-      await db.insert(mypMarketCards).values({
+      await db.insert(marketCards).values({
         id: "mkt-vendor-test",
+        storeId: "myp",
         rawName: "Arcane Sight",
         cardName: "Arcane Sight",
         setPrefix: "DOA",
         quantity: 1,
         price: "R$ 20,00",
         priceNumeric: 20.0,
-        mypProductUrl: "https://mypcards.com/grandarchive/produto/555/arcane-sight",
+        productUrl: "https://mypcards.com/grandarchive/produto/555/arcane-sight",
         tcgPrice: null,
         tcgPriceNumeric: null,
         vendorName: null,
@@ -1034,7 +1039,7 @@ describe("Marketplace (MyPCards) Sync, Shortage Offset & Claim Seam", () => {
 
       expect(result.enrichedCount).toBe(1);
 
-      const enrichedRows = await db.select().from(mypMarketCards).all();
+      const enrichedRows = await db.select().from(marketCards).all();
       const updated = enrichedRows.find((r) => r.id === "mkt-vendor-test");
       expect(updated?.tcgPrice).toBe("R$ 8,00");
       expect(updated?.tcgPriceNumeric).toBe(8.0);

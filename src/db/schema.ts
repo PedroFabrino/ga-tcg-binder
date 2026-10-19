@@ -192,29 +192,6 @@ export const mypCards = sqliteTable("myp_cards", {
 });
 
 // ---------------------------------------------------------------------------
-// Global Marketplace In-Stock Snapshot (MyPCards Grand Archive Catalog)
-// ---------------------------------------------------------------------------
-export const mypMarketCards = sqliteTable("myp_market_cards", {
-  id: text("id").primaryKey(),
-  cardSlug: text("card_slug").references(() => cards.slug, { onDelete: "set null" }),
-  editionId: text("edition_id").references(() => cardEditions.id, { onDelete: "set null" }),
-  rawName: text("raw_name").notNull(),
-  cardName: text("card_name").notNull(),
-  setPrefix: text("set_prefix").notNull(),
-  quantity: integer("quantity").notNull().default(1),
-  price: text("price").notNull().default("R$ 0,00"),
-  priceNumeric: real("price_numeric").notNull().default(0),
-  tcgPrice: text("tcg_price"),
-  tcgPriceNumeric: real("tcg_price_numeric"),
-  isFoil: integer("is_foil", { mode: "boolean" }).notNull().default(false),
-  mypItemId: text("myp_item_id"),
-  mypProductUrl: text("myp_product_url"),
-  vendorName: text("vendor_name"),
-  vendorUrl: text("vendor_url"),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
-});
-
-// ---------------------------------------------------------------------------
 // Multi-Marketplace Stores Registry & Unified Listings (ADR 0015)
 // ---------------------------------------------------------------------------
 export const marketStores = sqliteTable("market_stores", {

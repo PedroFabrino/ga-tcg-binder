@@ -7,7 +7,7 @@ import {
   collectionItems,
   cardEditions,
   cardCirculations,
-  mypMarketCards,
+  marketCards,
   metaStaples,
   cards,
 } from "../schema";
@@ -136,7 +136,25 @@ export interface WatchlistReconciliationData {
     foil: boolean | null;
     kind: string | null;
   }>;
-  marketCards: Array<typeof mypMarketCards.$inferSelect>;
+  marketCards: Array<{
+    id: string;
+    cardSlug: string | null;
+    editionId: string | null;
+    rawName: string;
+    cardName: string;
+    setPrefix: string;
+    quantity: number;
+    price: string;
+    priceNumeric: number;
+    tcgPrice: string | null;
+    tcgPriceNumeric: number | null;
+    isFoil: boolean;
+    mypItemId: string | null;
+    mypProductUrl: string | null;
+    vendorName: string | null;
+    vendorUrl: string | null;
+    updatedAt: Date | null;
+  }>;
   stapleMap: Map<string, number>;
   uniqueSlugs: string[];
 }
@@ -238,13 +256,38 @@ export async function loadWatchlistReconciliationData(
   }
 
   // 6. Fetch market pricing
-  let marketCards: WatchlistReconciliationData["marketCards"] = [];
+  let marketRows: WatchlistReconciliationData["marketCards"] = [];
   if (uniqueSlugs.length > 0) {
     try {
-      marketCards = await database
+      const raw = await database
         .select()
-        .from(mypMarketCards)
-        .where(inArray(mypMarketCards.cardSlug, uniqueSlugs));
+        .from(marketCards)
+        .where(
+          and(
+            eq(marketCards.storeId, "myp"),
+            inArray(marketCards.cardSlug, uniqueSlugs)
+          )
+        );
+
+      marketRows = raw.map((r) => ({
+        id: r.id,
+        cardSlug: r.cardSlug,
+        editionId: r.editionId,
+        rawName: r.rawName,
+        cardName: r.cardName,
+        setPrefix: r.setPrefix,
+        quantity: r.quantity,
+        price: r.price,
+        priceNumeric: r.priceNumeric,
+        tcgPrice: r.tcgPrice,
+        tcgPriceNumeric: r.tcgPriceNumeric,
+        isFoil: r.isFoil,
+        mypItemId: r.itemId,
+        mypProductUrl: r.productUrl,
+        vendorName: r.vendorName,
+        vendorUrl: r.vendorUrl,
+        updatedAt: r.updatedAt,
+      }));
     } catch {
       // market cards table fallback
     }
@@ -256,7 +299,7 @@ export async function loadWatchlistReconciliationData(
     userInventory,
     existingWatchlistRows,
     allCatalogEditions,
-    marketCards,
+    marketCards: marketRows,
     stapleMap,
     uniqueSlugs,
   };

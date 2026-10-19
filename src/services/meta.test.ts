@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { eq } from "drizzle-orm";
 import { createTestDb } from "../db/test-utils";
-import { users, cards, cardEditions, collectionItems, metaArchetypes, mypCards, mypMarketCards } from "../db/schema";
+import { users, cards, cardEditions, collectionItems, metaArchetypes, mypCards, marketCards } from "../db/schema";
 import {
   seedMetaArchetypes,
   getMetaArchetypes,
@@ -242,9 +242,9 @@ describe("Tournament Meta Explorer Seam", () => {
     // 1 Fracturize at R$ 6,00
     // 2 Swift Strike at R$ 2,50 each (total R$ 5,00)
     // (Remaining 2 Swift Strike out of stock)
-    await db.insert(mypMarketCards).values([
-      { id: "mkt-f", cardSlug: "fracturize", editionId: "ed-f", rawName: "Fracturize", cardName: "Fracturize", setPrefix: "DOA", quantity: 1, price: "R$ 6,00", priceNumeric: 6.0, isFoil: false },
-      { id: "mkt-s", cardSlug: "swift-strike", editionId: "ed-s", rawName: "Swift Strike", cardName: "Swift Strike", setPrefix: "DOA", quantity: 2, price: "R$ 2,50", priceNumeric: 2.5, isFoil: false },
+    await db.insert(marketCards).values([
+      { id: "mkt-f", storeId: "myp", cardSlug: "fracturize", editionId: "ed-f", rawName: "Fracturize", cardName: "Fracturize", setPrefix: "DOA", quantity: 1, price: "R$ 6,00", priceNumeric: 6.0, isFoil: false },
+      { id: "mkt-s", storeId: "myp", cardSlug: "swift-strike", editionId: "ed-s", rawName: "Swift Strike", cardName: "Swift Strike", setPrefix: "DOA", quantity: 2, price: "R$ 2,50", priceNumeric: 2.5, isFoil: false },
     ]);
 
     // 5. Meta Archetype

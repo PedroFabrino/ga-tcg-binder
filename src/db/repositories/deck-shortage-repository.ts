@@ -8,7 +8,7 @@ import {
   friendLinks,
   users,
   mypCards,
-  mypMarketCards,
+  marketCards,
 } from "../schema";
 import { eq, inArray, and } from "drizzle-orm";
 
@@ -175,22 +175,29 @@ export async function loadDeckShortageData(
     vendorUrl: string | null;
   }> = [];
   try {
-    marketListings = await database
+    const rawMarketCards = await database
       .select({
-        cardSlug: mypMarketCards.cardSlug,
-        editionId: mypMarketCards.editionId,
-        setPrefix: mypMarketCards.setPrefix,
-        mypItemId: mypMarketCards.mypItemId,
-        quantity: mypMarketCards.quantity,
-        price: mypMarketCards.price,
-        priceNumeric: mypMarketCards.priceNumeric,
-        tcgPrice: mypMarketCards.tcgPrice,
-        tcgPriceNumeric: mypMarketCards.tcgPriceNumeric,
-        mypProductUrl: mypMarketCards.mypProductUrl,
-        vendorName: mypMarketCards.vendorName,
-        vendorUrl: mypMarketCards.vendorUrl,
+        cardSlug: marketCards.cardSlug,
+        editionId: marketCards.editionId,
+        setPrefix: marketCards.setPrefix,
+        itemId: marketCards.itemId,
+        quantity: marketCards.quantity,
+        price: marketCards.price,
+        priceNumeric: marketCards.priceNumeric,
+        tcgPrice: marketCards.tcgPrice,
+        tcgPriceNumeric: marketCards.tcgPriceNumeric,
+        productUrl: marketCards.productUrl,
+        vendorName: marketCards.vendorName,
+        vendorUrl: marketCards.vendorUrl,
       })
-      .from(mypMarketCards);
+      .from(marketCards)
+      .where(eq(marketCards.storeId, "myp"));
+
+    marketListings = rawMarketCards.map((r) => ({
+      ...r,
+      mypItemId: r.itemId,
+      mypProductUrl: r.productUrl,
+    }));
   } catch {
     // fallback
   }

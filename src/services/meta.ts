@@ -7,7 +7,7 @@ import {
   cardEditions,
   collectionItems,
   mypCards,
-  mypMarketCards,
+  marketCards,
 } from "../db/schema";
 import { parseOmnidexText, fetchDeckFromUrl, decodeHtmlEntities } from "./omnidex";
 import { calculateDeckShortage, DeckShortageReport } from "./shortage";
@@ -595,11 +595,12 @@ export async function enrichArchetypesWithRecommendations(
   // 3. Fetch global market inventory for buyable cost-to-complete
   const marketRows = await database
     .select({
-      cardSlug: mypMarketCards.cardSlug,
-      priceNumeric: mypMarketCards.priceNumeric,
-      quantity: mypMarketCards.quantity,
+      cardSlug: marketCards.cardSlug,
+      priceNumeric: marketCards.priceNumeric,
+      quantity: marketCards.quantity,
     })
-    .from(mypMarketCards);
+    .from(marketCards)
+    .where(eq(marketCards.storeId, "myp"));
 
   // Group market cards by slug sorted by lowest price
   const marketBySlug = new Map<string, { price: number; qty: number }[]>();

@@ -8,7 +8,7 @@ import {
   decks,
   deckCards,
   friendLinks,
-  mypMarketCards,
+  marketCards,
 } from "../db/schema";
 import { calculateDeckShortage, calculateAggregatedShortages } from "./shortage";
 
@@ -434,8 +434,9 @@ describe("Shortage Calculation & Friend Idle Discovery Seams", () => {
     });
 
     // Insert heavily overpriced market row (R$ 400 vs TCG R$ 150 -> 2.67x)
-    await db.insert(mypMarketCards).values({
+    await db.insert(marketCards).values({
       id: "mkt-lg",
+      storeId: "myp",
       cardSlug: "liminal-guide",
       rawName: "Liminal Guide",
       cardName: "Liminal Guide",
@@ -445,7 +446,7 @@ describe("Shortage Calculation & Friend Idle Discovery Seams", () => {
       priceNumeric: 400.0,
       tcgPrice: "R$ 150,00",
       tcgPriceNumeric: 150.0,
-      mypProductUrl: "https://mypcards.com/produto/123",
+      productUrl: "https://mypcards.com/produto/123",
     });
 
     const report = await calculateDeckShortage("d-fairness", "u-shortage-fairness", db);
@@ -511,9 +512,10 @@ describe("Shortage Calculation & Friend Idle Discovery Seams", () => {
       },
     ]);
 
-    await db.insert(mypMarketCards).values([
+    await db.insert(marketCards).values([
       {
         id: "mkt-a1",
+        storeId: "myp",
         cardSlug: "card-a",
         rawName: "Card Alpha",
         cardName: "Card Alpha",
@@ -523,10 +525,11 @@ describe("Shortage Calculation & Friend Idle Discovery Seams", () => {
         priceNumeric: 10.0,
         vendorName: "MegaVendor TCG",
         vendorUrl: "https://mypcards.com/megavendor/grandarchive",
-        mypProductUrl: "https://mypcards.com/produto/101",
+        productUrl: "https://mypcards.com/produto/101",
       },
       {
         id: "mkt-b1",
+        storeId: "myp",
         cardSlug: "card-b",
         rawName: "Card Beta",
         cardName: "Card Beta",
@@ -536,7 +539,7 @@ describe("Shortage Calculation & Friend Idle Discovery Seams", () => {
         priceNumeric: 15.0,
         vendorName: "MegaVendor TCG",
         vendorUrl: "https://mypcards.com/megavendor/grandarchive",
-        mypProductUrl: "https://mypcards.com/produto/102",
+        productUrl: "https://mypcards.com/produto/102",
       },
     ]);
 
