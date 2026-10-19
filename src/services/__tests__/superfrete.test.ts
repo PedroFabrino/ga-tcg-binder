@@ -225,14 +225,16 @@ describe("Superfrete Domain Logic (src/services/superfrete.ts)", () => {
         );
         const body = JSON.parse(String(init?.body));
         expect(body.orders).toEqual(["ord-1", "ord-2"]);
-        return new Response(JSON.stringify({ url: "https://superfrete.com/_etiqueta/pdf/a4.pdf" }), {
+        expect(body.mode).toBe("PDF");
+        expect(body.layout).toBe("A5");
+        return new Response(JSON.stringify({ url: "https://superfrete.com/_etiqueta/pdf/a5.pdf" }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         });
       };
 
       const url = await fetchSuperfretePrintUrl("token-123", ["ord-1", "ord-2"], mockFetch as any);
-      expect(url).toBe("https://superfrete.com/_etiqueta/pdf/a4.pdf");
+      expect(url).toBe("https://superfrete.com/_etiqueta/pdf/a5.pdf");
     });
 
     it("throws descriptive error when Superfrete tag print endpoint fails", async () => {

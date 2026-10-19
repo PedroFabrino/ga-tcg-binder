@@ -17,7 +17,8 @@ export async function getPrintableShippingTicketsService(
   userId: string,
   ticketIds?: string[],
   database?: unknown,
-  customFetch: typeof fetch = fetch
+  customFetch: typeof fetch = fetch,
+  layout: "A4" | "A5" | "A6" = "A5"
 ): Promise<PrintableTicketsResult> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- repository parameter
   const dbParam = database as any;
@@ -57,7 +58,7 @@ export async function getPrintableShippingTicketsService(
     new Set(targetTickets.map((t) => t.superfreteOrderId))
   );
 
-  const url = await fetchSuperfretePrintUrl(apiToken, superfreteOrderIds, customFetch);
+  const url = await fetchSuperfretePrintUrl(apiToken, superfreteOrderIds, customFetch, layout);
 
   // Update tickets with printUrl and mark status as released if they were pending
   const updatedTickets: ShippingTicketRow[] = [];

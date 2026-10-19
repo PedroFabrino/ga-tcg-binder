@@ -177,7 +177,8 @@ export interface SuperfretePrintResponse {
 export async function fetchSuperfretePrintUrl(
   apiToken: string,
   orderIds: string[],
-  customFetch: typeof fetch = fetch
+  customFetch: typeof fetch = fetch,
+  layout: "A4" | "A5" | "A6" = "A5"
 ): Promise<string> {
   const response = await customFetch(`${SUPERFRETE_API_BASE}/api/v0/tag/print`, {
     method: "POST",
@@ -189,6 +190,8 @@ export async function fetchSuperfretePrintUrl(
     },
     body: JSON.stringify({
       orders: orderIds,
+      mode: "PDF",
+      layout,
     }),
   });
 

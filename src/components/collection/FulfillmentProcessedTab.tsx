@@ -113,13 +113,13 @@ export default function FulfillmentProcessedTab() {
     }
   };
 
-  const handleDownloadAllA4 = async () => {
+  const handleDownloadAllA5 = async () => {
     setIsPrintingAll(true);
     try {
       const res = await fetch("/api/marketplace/fulfillment/shipping/print", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ layout: "A5" }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -139,7 +139,7 @@ export default function FulfillmentProcessedTab() {
         link.href = data.url;
         link.target = "_blank";
         link.rel = "noreferrer";
-        link.download = "etiquetas-superfrete-a4.pdf";
+        link.download = "etiquetas-superfrete-a5.pdf";
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -295,13 +295,13 @@ export default function FulfillmentProcessedTab() {
 
           <Button
             size="sm"
-            onClick={handleDownloadAllA4}
+            onClick={handleDownloadAllA5}
             disabled={isPrintingAll || tickets.length === 0}
             className="gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
-            title={t("fulfillment.downloadAllA4Btn")}
+            title={t("fulfillment.downloadAllA5Btn")}
           >
             <Printer className={`h-3.5 w-3.5 ${isPrintingAll ? "animate-spin" : ""}`} />
-            {isPrintingAll ? t("fulfillment.downloadingA4Loading") : t("fulfillment.downloadAllA4Btn")}
+            {isPrintingAll ? t("fulfillment.downloadingA5Loading") : t("fulfillment.downloadAllA5Btn")}
           </Button>
 
           {totalEligibleToConfirm > 0 && (

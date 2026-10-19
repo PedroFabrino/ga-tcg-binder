@@ -35,9 +35,11 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const ticketId = searchParams.get("ticketId");
     const download = searchParams.get("download") === "true";
+    const layoutParam = searchParams.get("layout")?.toUpperCase();
+    const layout: "A4" | "A5" | "A6" = layoutParam === "A4" || layoutParam === "A6" ? layoutParam : "A5";
     const ticketIds = ticketId ? [ticketId] : undefined;
 
-    const result = await getPrintableShippingTicketsService(userId, ticketIds);
+    const result = await getPrintableShippingTicketsService(userId, ticketIds, undefined, fetch, layout);
 
     if (download) {
       const { buffer, contentType } = await downloadSuperfretePdfBuffer(result.url);
@@ -46,7 +48,7 @@ export async function GET(request: NextRequest) {
         headers: {
           ...corsHeaders,
           "Content-Type": contentType,
-          "Content-Disposition": 'attachment; filename="etiquetas-superfrete-a4.pdf"',
+          "Content-Disposition": `attachment; filename="etiquetas-superfrete-${layout.toLowerCase()}.pdf"`,
         },
       });
     }
@@ -75,6 +77,7 @@ export async function POST(request: NextRequest) {
 
     let ticketIds: string[] | undefined;
     let download = false;
+    let layout: "A4" | "A5" | "A6" = "A5";
 
     try {
       const body = await request.json();
@@ -86,11 +89,14 @@ export async function POST(request: NextRequest) {
       if (body?.download === true) {
         download = true;
       }
+      if (body?.layout === "A4" || body?.layout === "A6") {
+        layout = body.layout;
+      }
     } catch {
       // Body may be empty, proceed with all eligible tickets
     }
 
-    const result = await getPrintableShippingTicketsService(userId, ticketIds);
+    const result = await getPrintableShippingTicketsService(userId, ticketIds, undefined, fetch, layout);
 
     if (download) {
       const { buffer, contentType } = await downloadSuperfretePdfBuffer(result.url);
@@ -99,7 +105,7 @@ export async function POST(request: NextRequest) {
         headers: {
           ...corsHeaders,
           "Content-Type": contentType,
-          "Content-Disposition": 'attachment; filename="etiquetas-superfrete-a4.pdf"',
+          "Content-Disposition": `attachment; filename="etiquetas-superfrete-${layout.toLowerCase()}.pdf"`,
         },
       });
     }

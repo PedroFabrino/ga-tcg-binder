@@ -71,14 +71,16 @@ describe("Shipping Tag Print API Route (/api/marketplace/fulfillment/shipping/pr
     });
   });
 
-  it("successfully generates consolidated A4 print URL for released tickets and updates DB", async () => {
-    const mockPdfUrl = "https://superfrete.com/_etiqueta/pdf/consolidated-a4-labels.pdf";
+  it("successfully generates consolidated A5 print URL for released tickets and updates DB", async () => {
+    const mockPdfUrl = "https://superfrete.com/_etiqueta/pdf/consolidated-a5-labels.pdf";
 
     vi.spyOn(global, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
       if (url.includes("/api/v0/tag/print")) {
         const body = JSON.parse(String(init?.body));
         expect(body.orders).toEqual(expect.arrayContaining(["sf-order-101", "sf-order-102"]));
+        expect(body.mode).toBe("PDF");
+        expect(body.layout).toBe("A5");
         return new Response(JSON.stringify({ url: mockPdfUrl }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
@@ -132,7 +134,7 @@ describe("Shipping Tag Print API Route (/api/marketplace/fulfillment/shipping/pr
     const res = await printGet(req);
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("application/pdf");
-    expect(res.headers.get("Content-Disposition")).toContain('attachment; filename="etiquetas-superfrete-a4.pdf"');
+    expect(res.headers.get("Content-Disposition")).toContain('attachment; filename="etiquetas-superfrete-a5.pdf"');
 
     const bodyBuffer = await res.arrayBuffer();
     expect(new Uint8Array(bodyBuffer)).toEqual(dummyPdfBytes);
