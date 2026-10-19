@@ -360,5 +360,55 @@ describe("Shipping Quote and Cart API Routes", () => {
 
     fetchSpy.mockRestore();
   });
+
+  it("accepts recipientDocument override, includes it in Superfrete cart, and updates buyerDocument", async () => {
+    const encryptedKey = encryptSecret("superfrete-test-token-xyz");
+    await testDb
+      .update(users)
+      .set({ superfreteApiKeyEncrypted: encryptedKey })
+      .where(eq(users.id, "u-fulfillment-shipping"));
+
+    let capturedToDocument: string | undefined;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (url: string | URL | Request, init?: RequestInit) => {
+      const urlStr = url.toString();
+      if (urlStr.includes("/api/v0/cart")) {
+        const payload = JSON.parse(String(init?.body));
+        capturedToDocument = payload.to?.document;
+        return new Response(JSON.stringify({ id: "sf-cart-doc-123", price: 15.0 }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ error: "not found" }), { status: 404 });
+    });
+
+    const createReq = new NextRequest(
+      "http://localhost:3000/api/marketplace/fulfillment/shipping/create-tickets",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          packs: [
+            {
+              buyerNick: "GrandBuyer",
+              selectedServiceCode: "31",
+              recipientDocument: "65.033.705/0001-99",
+            },
+          ],
+        }),
+      }
+    );
+
+    const res = await createTicketsPost(createReq);
+    expect(res.status).toBe(200);
+    expect(capturedToDocument).toBe("65033705000199");
+
+    const [updatedOrder] = await testDb
+      .select()
+      .from(fulfillmentOrders)
+      .where(eq(fulfillmentOrders.id, "ord-1"));
+    expect(updatedOrder.buyerDocument).toBe("65.033.705/0001-99");
+
+    fetchSpy.mockRestore();
+  });
 });
 

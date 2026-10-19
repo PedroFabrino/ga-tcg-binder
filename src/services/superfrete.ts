@@ -3,6 +3,7 @@ import {
   createShippingTicketWithOrders,
   getShippingTicketById,
   cancelShippingTicketById,
+  updateFulfillmentOrdersBuyerDocument,
   type FulfillmentOrderWithPrintings,
   type ShippingTicketRow,
 } from "@/db/repositories/fulfillment-repository";
@@ -73,6 +74,7 @@ export interface CreateShippingTicketRequest {
   selectedServiceCode: string;
   selectedServiceName?: string;
   quotedPriceBrl?: number;
+  recipientDocument?: string;
 }
 
 export async function quoteOpenBuyerPacksService(
@@ -259,6 +261,18 @@ export async function createShippingTicketsService(
       };
       const packageVolume = buildPackageVolume(totalCards, userPackageConfig);
 
+      const rawRecipientDoc = packReq.recipientDocument || primaryOrder.buyerDocument || "";
+      const recipientDocClean = rawRecipientDoc.replace(/\D/g, "");
+
+      if (packReq.recipientDocument && packReq.recipientDocument !== primaryOrder.buyerDocument) {
+        await updateFulfillmentOrdersBuyerDocument(
+          userId,
+          orders.map((o) => o.id),
+          packReq.recipientDocument,
+          dbParam
+        );
+      }
+
       const cartPayload = {
         from: {
           name: senderName,
@@ -274,7 +288,7 @@ export async function createShippingTicketsService(
         },
         to: {
           name: buyerName,
-          ...(primaryOrder.buyerDocument ? { document: primaryOrder.buyerDocument.replace(/\D/g, "") } : {}),
+          ...(recipientDocClean ? { document: recipientDocClean } : {}),
           postal_code: primaryOrder.buyerPostalCode.replace(/\D/g, "").slice(0, 8),
           address: (primaryOrder.buyerStreet || "Rua").trim().slice(0, 50),
           number: (primaryOrder.buyerNumber || "").trim().slice(0, 10),

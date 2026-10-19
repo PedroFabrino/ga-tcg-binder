@@ -17,15 +17,7 @@ export interface ParseVendasOptions {
 }
 
 function decodeHtmlEntities(str: string): string {
-  return str
-    .replace(/&amp;/g, "&")
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&nbsp;/g, " ")
-    .trim();
+  return str.replace(/&amp;/g, "&").replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ").trim();
 }
 
 function stripTags(html: string): string {
@@ -182,11 +174,23 @@ export function parseMypOrderPageHtml(
       fullName = fullText.split("(")[0].trim() || fullText;
     }
 
-    // CPF
+    // CPF or CNPJ (supports formatted or unformatted 11-digit CPF and 14-digit CNPJ)
     let document: string | null = null;
-    const cpfMatch = boxHtml.match(/(\d{3}\.\d{3}\.\d{3}-\d{2})/);
-    if (cpfMatch) {
-      document = cpfMatch[1];
+    const labeledDocMatch = boxHtml.match(/<label>\s*(?:CPF|CNPJ|Documento)\s*<\/label>\s*([^<]+)/i);
+    if (labeledDocMatch) {
+      const candidate = stripTags(labeledDocMatch[1]).trim();
+      const cleaned = candidate.replace(/\D/g, "");
+      if (cleaned.length === 11 || cleaned.length === 14) {
+        document = candidate;
+      }
+    }
+    if (!document) {
+      const documentPattern =
+        /(?<!\d)(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}|\d{3}\.\d{3}\.\d{3}-\d{2}|\d{14}|\d{11})(?!\d)/;
+      const documentMatch = boxHtml.match(documentPattern);
+      if (documentMatch) {
+        document = documentMatch[1];
+      }
     }
 
     // Address lines

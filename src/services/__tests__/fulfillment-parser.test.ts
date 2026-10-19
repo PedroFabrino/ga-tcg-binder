@@ -316,5 +316,41 @@ describe("Fulfillment HTML Parsers", () => {
       expect(order.totals?.shippingCents).toBe(1000);
       expect(order.totals?.totalCents).toBe(6150);
     });
+
+    it("parses CNPJ document in comprador-box correctly for corporate/MEI buyers", () => {
+      const orderHtml = `
+        <div id="comprador-box" class="borda">
+          <h2>Comprador</h2>
+          <div class="view-field">
+            <label>Nome e nick</label>
+            <span class="pedido-nome-nick">65.033.705 MARIA APARECIDA SOLDERA BIANCALANA (LOOTCARDS)</span>
+          </div>
+          <div class="view-field comprador-cpfusuario">
+            <label>CNPJ</label>
+            65.033.705/0001-99
+          </div>
+          <div class="view-field">
+            <label>Endereço</label>
+            Rua das Acácias, 100
+          </div>
+          <div class="view-field">
+            <label>Bairro</label>
+            Barão Geraldo
+          </div>
+          <div class="view-field">
+            <label>Cidade - UF - CEP</label>
+            Campinas - SP - 13084-776
+          </div>
+        </div>
+      `;
+
+      const order = parseMypOrderPageHtml(orderHtml, "777888");
+      expect(order.buyer).toBeDefined();
+      expect(order.buyer?.fullName).toBe("65.033.705 MARIA APARECIDA SOLDERA BIANCALANA");
+      expect(order.buyer?.document).toBe("65.033.705/0001-99");
+      expect(order.buyer?.city).toBe("Campinas");
+      expect(order.buyer?.stateAbbr).toBe("SP");
+      expect(order.buyer?.postalCode).toBe("13084776");
+    });
   });
 });

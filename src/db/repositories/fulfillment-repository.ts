@@ -375,22 +375,23 @@ export async function cancelShippingTicketById(
 ): Promise<boolean> {
   await database
     .update(fulfillmentOrders)
-    .set({
-      status: "open",
-      shippingTicketId: null,
-      updatedAt: sql`(strftime('%s', 'now'))`,
-    })
-    .where(
-      and(
-        eq(fulfillmentOrders.userId, userId),
-        eq(fulfillmentOrders.shippingTicketId, ticketId)
-      )
-    );
+    .set({ status: "open", shippingTicketId: null, updatedAt: sql`(strftime('%s', 'now'))` })
+    .where(and(eq(fulfillmentOrders.userId, userId), eq(fulfillmentOrders.shippingTicketId, ticketId)));
 
-  await database
-    .delete(shippingTickets)
-    .where(and(eq(shippingTickets.userId, userId), eq(shippingTickets.id, ticketId)));
-
+  await database.delete(shippingTickets).where(and(eq(shippingTickets.userId, userId), eq(shippingTickets.id, ticketId)));
   return true;
 }
 
+export async function updateFulfillmentOrdersBuyerDocument(
+  userId: string,
+  orderIds: string[],
+  buyerDocument: string,
+  database = db
+): Promise<boolean> {
+  if (orderIds.length === 0) return true;
+  await database
+    .update(fulfillmentOrders)
+    .set({ buyerDocument, updatedAt: sql`(strftime('%s', 'now'))` })
+    .where(and(eq(fulfillmentOrders.userId, userId), inArray(fulfillmentOrders.id, orderIds)));
+  return true;
+}

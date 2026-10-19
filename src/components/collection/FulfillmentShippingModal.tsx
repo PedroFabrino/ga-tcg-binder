@@ -24,6 +24,7 @@ interface FulfillmentShippingModalProps {
       selectedServiceCode: string;
       selectedServiceName?: string;
       quotedPriceBrl?: number;
+      recipientDocument?: string;
     }>
   ) => Promise<void>;
 }
@@ -40,6 +41,8 @@ export default function FulfillmentShippingModal({
   const [selectedPackNicks, setSelectedPackNicks] = useState<Record<string, boolean>>({});
   // Map of buyerNick -> selectedServiceCode
   const [selectedServices, setSelectedServices] = useState<Record<string, string>>({});
+  // Map of buyerNick -> document (CPF/CNPJ)
+  const [documents, setDocuments] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -47,10 +50,12 @@ export default function FulfillmentShippingModal({
     setSubmitError(null);
     const initialSelected: Record<string, boolean> = {};
     const initialServices: Record<string, string> = {};
+    const initialDocuments: Record<string, string> = {};
 
     for (const pack of quotedPacks) {
       // Ready packs pre-checked; unphotographed packs unchecked by default
       initialSelected[pack.buyerNick] = pack.isReadyForShipping && Boolean(pack.recommendedQuote);
+      initialDocuments[pack.buyerNick] = pack.recipient.document || "";
       if (pack.recommendedQuote) {
         initialServices[pack.buyerNick] = String(pack.recommendedQuote.id);
       } else if (pack.quotes.length > 0) {
@@ -60,6 +65,7 @@ export default function FulfillmentShippingModal({
 
     setSelectedPackNicks(initialSelected);
     setSelectedServices(initialServices);
+    setDocuments(initialDocuments);
   }, [quotedPacks]);
 
   if (!isOpen) return null;
@@ -81,26 +87,34 @@ export default function FulfillmentShippingModal({
   };
 
   const handleConfirm = async () => {
-    const packsToCreate = quotedPacks
-      .filter((p) => selectedPackNicks[p.buyerNick])
-      .map((p) => {
-        const chosenCode = selectedServices[p.buyerNick] || String(p.recommendedQuote?.id || "31");
-        const foundQuote = p.quotes.find((q) => String(q.id) === chosenCode);
-        const quotedPrice = foundQuote
-          ? typeof foundQuote.price === "number"
-            ? foundQuote.price
-            : parseFloat(String(foundQuote.price))
-          : undefined;
+    const selectedPacks = quotedPacks.filter((p) => selectedPackNicks[p.buyerNick]);
+    if (selectedPacks.length === 0) return;
 
-        return {
-          buyerNick: p.buyerNick,
-          selectedServiceCode: chosenCode,
-          selectedServiceName: foundQuote?.name,
-          quotedPriceBrl: quotedPrice,
-        };
-      });
+    for (const pack of selectedPacks) {
+      const docClean = (documents[pack.buyerNick] || pack.recipient.document || "").replace(/\D/g, "");
+      if (!docClean || (docClean.length !== 11 && docClean.length !== 14)) {
+        setSubmitError(t("fulfillment.documentMissingError", { buyer: pack.buyerNick }));
+        return;
+      }
+    }
 
-    if (packsToCreate.length === 0) return;
+    const packsToCreate = selectedPacks.map((p) => {
+      const chosenCode = selectedServices[p.buyerNick] || String(p.recommendedQuote?.id || "31");
+      const foundQuote = p.quotes.find((q) => String(q.id) === chosenCode);
+      const quotedPrice = foundQuote
+        ? typeof foundQuote.price === "number"
+          ? foundQuote.price
+          : parseFloat(String(foundQuote.price))
+        : undefined;
+
+      return {
+        buyerNick: p.buyerNick,
+        selectedServiceCode: chosenCode,
+        selectedServiceName: foundQuote?.name,
+        quotedPriceBrl: quotedPrice,
+        recipientDocument: (documents[p.buyerNick] || p.recipient.document || "").trim(),
+      };
+    });
 
     setIsSubmitting(true);
     setSubmitError(null);
@@ -150,6 +164,9 @@ export default function FulfillmentShippingModal({
             const isChecked = Boolean(selectedPackNicks[pack.buyerNick]);
             const currentServiceCode = selectedServices[pack.buyerNick];
             const hasValidQuotes = pack.quotes.some((q) => !q.has_error);
+            const currentDoc = documents[pack.buyerNick] ?? pack.recipient.document ?? "";
+            const docClean = currentDoc.replace(/\D/g, "");
+            const hasValidDoc = docClean.length === 11 || docClean.length === 14;
 
             return (
               <div
@@ -161,14 +178,14 @@ export default function FulfillmentShippingModal({
                 }`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-800 pb-3">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-start gap-3">
                     <input
                       type="checkbox"
                       id={`check-${pack.buyerNick}`}
                       checked={isChecked}
                       disabled={!hasValidQuotes || isSubmitting}
                       onChange={() => togglePackSelection(pack.buyerNick)}
-                      className="h-4 w-4 rounded border-slate-700 bg-slate-800 text-sky-600 focus:ring-sky-500"
+                      className="mt-1 h-4 w-4 rounded border-slate-700 bg-slate-800 text-sky-600 focus:ring-sky-500"
                     />
                     <div>
                       <label
@@ -180,6 +197,30 @@ export default function FulfillmentShippingModal({
                       <p className="text-xs text-slate-400">
                         {pack.recipient.city} - {pack.recipient.stateAbbr} · CEP {pack.recipient.postalCode}
                       </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className="text-xs text-slate-400 font-medium">
+                          {t("fulfillment.documentLabel")}:
+                        </span>
+                        <input
+                          type="text"
+                          value={currentDoc}
+                          onChange={(e) => {
+                            setSubmitError(null);
+                            setDocuments((prev) => ({ ...prev, [pack.buyerNick]: e.target.value }));
+                          }}
+                          placeholder={t("fulfillment.documentPlaceholder")}
+                          className={`rounded border px-2 py-0.5 text-xs font-mono bg-slate-900/90 text-slate-100 ${
+                            !hasValidDoc
+                              ? "border-amber-500/80 text-amber-200 ring-1 ring-amber-500/40"
+                              : "border-slate-700"
+                          }`}
+                        />
+                        {!hasValidDoc && (
+                          <span className="text-[11px] text-amber-400 font-medium">
+                            {t("fulfillment.documentInvalidWarning")}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 

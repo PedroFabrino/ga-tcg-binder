@@ -223,7 +223,9 @@ export function safeParseTogglePhotographedInput(input: unknown): ValidationResu
 export interface CreateTicketsPackItem {
   buyerNick: string;
   selectedServiceCode: string;
+  selectedServiceName?: string;
   quotedPriceBrl?: number;
+  recipientDocument?: string;
 }
 
 export interface CreateTicketsInput {
@@ -251,11 +253,16 @@ export function safeParseCreateTicketsInput(input: unknown): ValidationResult<Cr
     if (typeof p.selectedServiceCode !== "string" || !p.selectedServiceCode.trim()) {
       return { success: false, error: `Pack at index ${i} must have a non-empty selectedServiceCode` };
     }
+    const selectedServiceName = typeof p.selectedServiceName === "string" ? p.selectedServiceName.trim() : undefined;
     const quotedPriceBrl = typeof p.quotedPriceBrl === "number" && !isNaN(p.quotedPriceBrl) ? p.quotedPriceBrl : undefined;
+    const recipientDocument = typeof p.recipientDocument === "string" && p.recipientDocument.trim() ? p.recipientDocument.trim() : undefined;
+
     packs.push({
       buyerNick: p.buyerNick.trim(),
       selectedServiceCode: p.selectedServiceCode.trim(),
+      selectedServiceName,
       quotedPriceBrl,
+      recipientDocument,
     });
   }
   return { success: true, data: { packs } };
