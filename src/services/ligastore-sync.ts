@@ -140,11 +140,49 @@ export async function syncLigaStore(options?: {
       ? url
       : new URL(url, storeData.baseUrl).toString();
 
+    const flareUrl = process.env.FLARESOLVERR_URL;
+    if (flareUrl && !options?.customFetch) {
+      try {
+        const solverRes = await fetch(`${flareUrl.replace(/\/$/, "")}/v1`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            cmd: "request.get",
+            url: fullUrl,
+            maxTimeout: 60000,
+          }),
+        });
+        if (solverRes.ok) {
+          const solverJson = await solverRes.json();
+          if (solverJson?.solution?.response) {
+            return solverJson.solution.response;
+          }
+        }
+      } catch {
+        // Fallback to direct fetch
+      }
+    }
+
+    const browserHeaders = {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      "Accept":
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+      "Cache-Control": "no-cache",
+      "Pragma": "no-cache",
+      "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+      "Sec-Ch-Ua-Mobile": "?0",
+      "Sec-Ch-Ua-Platform": '"Windows"',
+      "Sec-Fetch-Dest": "document",
+      "Sec-Fetch-Mode": "navigate",
+      "Sec-Fetch-Site": "none",
+      "Sec-Fetch-User": "?1",
+      "Upgrade-Insecure-Requests": "1",
+    };
+
     const response = await fetchFn(fullUrl, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      },
+      headers: browserHeaders,
     });
 
     if (response.ok === false) {

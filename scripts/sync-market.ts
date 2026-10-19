@@ -51,35 +51,39 @@ async function main() {
     console.log(`\n=== Starting Synchronization for Store: ${store.name} (${store.id}) ===`);
     const startTime = Date.now();
 
-    if (store.platform === "myp") {
-      const stats = await syncGlobalMarketplace(db);
-      const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
-      console.log(`- Total Listings Synced: ${stats.totalSynced}`);
-      console.log(`- Matched Catalog Printings: ${stats.matchedCount}`);
-      console.log(`- Unmatched Listings: ${stats.unmatchedCount}`);
-      console.log(`- Duration: ${durationSec}s`);
-    } else if (store.platform === "liga_store") {
-      if (!store.baseUrl) {
-        throw new Error(`Liga Store "${store.id}" has no baseUrl configured.`);
+    try {
+      if (store.platform === "myp") {
+        const stats = await syncGlobalMarketplace(db);
+        const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
+        console.log(`- Total Listings Synced: ${stats.totalSynced}`);
+        console.log(`- Matched Catalog Printings: ${stats.matchedCount}`);
+        console.log(`- Unmatched Listings: ${stats.unmatchedCount}`);
+        console.log(`- Duration: ${durationSec}s`);
+      } else if (store.platform === "liga_store") {
+        if (!store.baseUrl) {
+          throw new Error(`Liga Store "${store.id}" has no baseUrl configured.`);
+        }
+
+        const stats = await syncLigaStore({
+          storeId: store.id,
+          database: db,
+        });
+        const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
+        console.log(`- Total Synced: ${stats.totalSynced}`);
+        console.log(`- Matched: ${stats.matchedCount}`);
+        console.log(`- Unmatched: ${stats.unmatchedCount}`);
+        console.log(`- Enriched: ${stats.enrichedCount}`);
+        console.log(`- Duration: ${durationSec}s`);
+      } else {
+        console.warn(`Unknown platform ${store.platform} for store ${store.id}, skipping.`);
+        continue;
       }
 
-      const stats = await syncLigaStore({
-        storeId: store.id,
-        database: db,
-      });
-      const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
-      console.log(`- Total Synced: ${stats.totalSynced}`);
-      console.log(`- Matched: ${stats.matchedCount}`);
-      console.log(`- Unmatched: ${stats.unmatchedCount}`);
-      console.log(`- Enriched: ${stats.enrichedCount}`);
-      console.log(`- Duration: ${durationSec}s`);
-    } else {
-      console.warn(`Unknown platform ${store.platform} for store ${store.id}, skipping.`);
-      continue;
+      await updateStoreFullScanAt(store.id, new Date(), db);
+      console.log(`=== Finished Synchronization for ${store.name} ===`);
+    } catch (err: any) {
+      console.error(`Failed to synchronize store "${store.name}" (${store.id}):`, err.message || err);
     }
-
-    await updateStoreFullScanAt(store.id, new Date(), db);
-    console.log(`=== Finished Synchronization for ${store.name} ===`);
   }
 }
 
