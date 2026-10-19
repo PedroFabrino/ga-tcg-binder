@@ -2,17 +2,24 @@ import {
   getShippingTickets,
   updateShippingTicket,
   getShippingTicketsWithOrders,
+  cancelShippingTicketById,
   type ShippingTicketWithOrders,
 } from "@/db/repositories/fulfillment-repository";
 import { getUserById } from "@/db/repositories/settings-repository";
 import { decryptSecret } from "@/lib/crypto";
-import { fetchSuperfreteOrderInfo } from "./superfrete-client";
+import {
+  fetchSuperfreteOrderInfo,
+  type SuperfreteOrderInfoResponse,
+} from "./superfrete-client";
 
 export function normalizeSuperfreteStatus(
   rawStatus?: string | null
-): "pending" | "released" | "posted" | "unknown" {
+): "pending" | "released" | "posted" | "cancelled" | "unknown" {
   if (!rawStatus) return "unknown";
   const s = rawStatus.toLowerCase();
+  if (s.includes("cancel") || s.includes("delet")) {
+    return "cancelled";
+  }
   if (s.includes("pending") || s.includes("pendente") || s.includes("aguardando")) {
     return "pending";
   }
@@ -54,14 +61,36 @@ export async function syncShippingTicketsService(
 
   for (const ticket of tickets) {
     try {
-      const info = await fetchSuperfreteOrderInfo(apiToken, ticket.superfreteOrderId, customFetch);
-      const normalizedStatus = normalizeSuperfreteStatus(info.status);
+      let info: SuperfreteOrderInfoResponse | null = null;
+      let isCancelledOrNotFound = false;
+
+      try {
+        info = await fetchSuperfreteOrderInfo(apiToken, ticket.superfreteOrderId, customFetch);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("404") || msg.toLowerCase().includes("not found")) {
+          isCancelledOrNotFound = true;
+        } else {
+          throw err;
+        }
+      }
+
+      const normalizedStatus = isCancelledOrNotFound
+        ? "cancelled"
+        : normalizeSuperfreteStatus(info?.status);
+
+      if (normalizedStatus === "cancelled") {
+        // Ticket was canceled on Superfrete or removed from cart!
+        // Free associated orders back to 'open' status so seller can re-quote and regenerate.
+        await cancelShippingTicketById(userId, ticket.id, dbParam);
+        continue;
+      }
 
       // Preserve existing tracking or printUrl if provider payload omits them
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- provider payload variations
-      const rawInfo = info as any;
-      const trackingCode = info.tracking || rawInfo.tracking_code || ticket.trackingCode;
-      const printUrl = info.print?.url || rawInfo.print_url || ticket.printUrl;
+      const rawInfo = (info || {}) as any;
+      const trackingCode = info?.tracking || rawInfo.tracking_code || ticket.trackingCode;
+      const printUrl = info?.print?.url || rawInfo.print_url || ticket.printUrl;
 
       const updated = await updateShippingTicket(
         userId,
@@ -70,7 +99,7 @@ export async function syncShippingTicketsService(
           status: normalizedStatus !== "unknown" ? normalizedStatus : (ticket.status as "pending" | "released" | "posted" | "unknown"),
           trackingCode: trackingCode || null,
           printUrl: printUrl || null,
-          providerPayloadJson: JSON.stringify(info),
+          providerPayloadJson: JSON.stringify(info || {}),
           synchronizedAt: new Date().toISOString(),
         },
         dbParam

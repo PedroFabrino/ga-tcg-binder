@@ -178,4 +178,34 @@ describe("Shipping Tracking Sync API Route (/api/marketplace/fulfillment/shippin
 
     fetchSpy.mockRestore();
   });
+
+  it("automatically reverts linked orders to open when ticket is cancelled on Superfrete", async () => {
+    const mockCancelledInfo = {
+      id: 991122,
+      status: "cancelled",
+    };
+
+    const fetchSpy = vi.spyOn(global, "fetch").mockImplementation(async () => {
+      return new Response(JSON.stringify(mockCancelledInfo), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+
+    const res = await syncPost();
+    expect(res.status).toBe(200);
+
+    // Verify ticket was removed
+    const tickets = await testDb.select().from(shippingTickets);
+    expect(tickets).toHaveLength(0);
+
+    // Verify order was reverted to open
+    const orders = await testDb.select().from(fulfillmentOrders);
+    expect(orders).toHaveLength(1);
+    expect(orders[0].status).toBe("open");
+    expect(orders[0].shippingTicketId).toBeNull();
+
+    fetchSpy.mockRestore();
+  });
 });
+

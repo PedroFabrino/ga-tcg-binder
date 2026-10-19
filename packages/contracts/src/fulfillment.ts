@@ -152,6 +152,7 @@ export type ShippingTicketStatus =
   | "pending"
   | "released"
   | "posted"
+  | "cancelled"
   | "unknown";
 
 export type CarrierCode = "correios" | "loggi" | "jadlog" | "outro";
