@@ -1,0 +1,20 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+RUN apk add --no-cache curl \
+  && corepack enable && corepack prepare pnpm@latest --activate \
+  && addgroup -S app \
+  && adduser -S app -G app
+
+COPY . .
+
+RUN pnpm install --frozen-lockfile
+
+RUN chown -R app:app /app
+
+USER app
+
+ENV NODE_ENV=production
+
+CMD ["pnpm", "exec", "tsx", "scripts/sync-daemon.ts"]
