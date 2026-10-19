@@ -13,13 +13,25 @@ import {
   type SuperfreteCalculatorQuote,
 } from "./superfrete-client";
 
-export { A4_ENVELOPE_PACKAGE, type SuperfreteCalculatorQuote };
+import {
+  sanitizeName,
+  toCarrierCode,
+  calculateInsuranceValue,
+  selectBestCarrierQuote,
+  buildSuperfreteProducts,
+  type SuperfreteProductLine,
+} from "./superfrete-helpers";
 
-export interface SuperfreteProductLine {
-  name: string;
-  quantity: number;
-  unitary_value: number;
-}
+export {
+  A4_ENVELOPE_PACKAGE,
+  type SuperfreteCalculatorQuote,
+  sanitizeName,
+  toCarrierCode,
+  calculateInsuranceValue,
+  selectBestCarrierQuote,
+  buildSuperfreteProducts,
+  type SuperfreteProductLine,
+};
 
 export interface QuotedBuyerPack {
   buyerNick: string;
@@ -51,148 +63,6 @@ export interface CreateShippingTicketRequest {
   selectedServiceCode: string;
   selectedServiceName?: string;
   quotedPriceBrl?: number;
-}
-
-export function toCarrierCode(
-  serviceId: number | string,
-  companyName?: string
-): "loggi" | "jadlog" | "correios" | "outro" {
-  const idStr = String(serviceId);
-  const comp = (companyName || "").toLowerCase();
-  if (idStr === "31" || comp.includes("loggi")) return "loggi";
-  if (idStr === "3" || comp.includes("jadlog")) return "jadlog";
-  if (idStr === "1" || idStr === "2" || idStr === "17" || comp.includes("correios")) {
-    return "correios";
-  }
-  return "outro";
-}
-
-export function calculateInsuranceValue(
-  subtotalCents: number,
-  shippingCents: number,
-  serviceCode?: string | number
-): number {
-  const rawBrl = Number(((subtotalCents + shippingCents) / 100).toFixed(2));
-  const sCode = serviceCode !== undefined ? String(serviceCode) : undefined;
-
-  if (sCode === "1" || sCode === "2") {
-    return Math.max(rawBrl, 24.5);
-  }
-  if (sCode === "17") {
-    return Math.max(rawBrl, 12.25);
-  }
-  if (sCode === "3" || sCode === "31") {
-    return Math.max(rawBrl, 1.0);
-  }
-
-  return Math.max(rawBrl, 24.5);
-}
-
-function quotePrice(q: SuperfreteCalculatorQuote): number {
-  return typeof q.price === "number" ? q.price : parseFloat(String(q.price)) || 0;
-}
-
-const quotePriceAscending = (a: SuperfreteCalculatorQuote, b: SuperfreteCalculatorQuote): number =>
-  quotePrice(a) - quotePrice(b);
-
-export function selectBestCarrierQuote(
-  quotes: SuperfreteCalculatorQuote[]
-): SuperfreteCalculatorQuote | null {
-  const validQuotes = quotes.filter((q) => {
-    if (q.has_error) return false;
-    const priceNum = quotePrice(q);
-    return !isNaN(priceNum) && priceNum > 0;
-  });
-
-  if (validQuotes.length === 0) return null;
-
-  // 1. Preferred group: Loggi (31) and Jadlog (3)
-  const preferred = validQuotes.filter((q) => {
-    const carrier = toCarrierCode(q.id, q.company?.name);
-    return carrier === "loggi" || carrier === "jadlog";
-  });
-
-  if (preferred.length > 0) {
-    preferred.sort(quotePriceAscending);
-    return preferred[0];
-  }
-
-  // 2. Fallback group: Correios (1, 2, 17)
-  const fallback = validQuotes.filter((q) => {
-    const carrier = toCarrierCode(q.id, q.company?.name);
-    return carrier === "correios";
-  });
-
-  if (fallback.length > 0) {
-    fallback.sort(quotePriceAscending);
-    return fallback[0];
-  }
-
-  validQuotes.sort(quotePriceAscending);
-  return validQuotes[0];
-}
-
-export function buildSuperfreteProducts(
-  items: Array<{ cardName: string; quantity: number }>,
-  insuranceBrl: number
-): SuperfreteProductLine[] {
-  const totalCents = Math.round(insuranceBrl * 100);
-
-  if (!items || items.length === 0) {
-    return [
-      {
-        name: "Cards Colecionáveis Grand Archive",
-        quantity: 1,
-        unitary_value: Number((totalCents / 100).toFixed(2)),
-      },
-    ];
-  }
-
-  const units: string[] = [];
-  for (const item of items) {
-    const qty = Math.max(1, item.quantity || 1);
-    for (let i = 0; i < qty; i++) {
-      units.push(item.cardName || "Card Grand Archive");
-    }
-  }
-
-  if (units.length === 0) {
-    return [
-      {
-        name: "Cards Colecionáveis Grand Archive",
-        quantity: 1,
-        unitary_value: Number((totalCents / 100).toFixed(2)),
-      },
-    ];
-  }
-
-  const totalCount = units.length;
-  const baseCentsPerUnit = Math.floor(totalCents / totalCount);
-  const remainderCents = totalCents % totalCount;
-
-  const unitCents: number[] = [];
-  for (let i = 0; i < totalCount; i++) {
-    unitCents.push(baseCentsPerUnit + (i < remainderCents ? 1 : 0));
-  }
-
-  const grouped = new Map<string, { name: string; quantity: number; unitCents: number }>();
-  for (let i = 0; i < totalCount; i++) {
-    const name = units[i];
-    const cents = unitCents[i];
-    const key = `${name}:::${cents}`;
-    const existing = grouped.get(key);
-    if (existing) {
-      existing.quantity += 1;
-    } else {
-      grouped.set(key, { name, quantity: 1, unitCents: cents });
-    }
-  }
-
-  return Array.from(grouped.values()).map((g) => ({
-    name: g.name,
-    quantity: g.quantity,
-    unitary_value: Number((g.unitCents / 100).toFixed(2)),
-  }));
 }
 
 export async function quoteOpenBuyerPacksService(
@@ -329,39 +199,53 @@ export async function createShippingTicketsService(
       );
 
       const allPrintings = orders.flatMap((o) => o.printings);
-      const products = buildSuperfreteProducts(allPrintings, insuranceValueBrl);
+      const totalCards = allPrintings.reduce((sum, p) => sum + (p.quantity || 1), 0);
+      const productDescription = totalCards > 1
+        ? `Cards Colecionáveis Grand Archive (${totalCards} un)`
+        : (allPrintings[0]?.cardName || "Cards Colecionáveis Grand Archive");
+
+      const products: SuperfreteProductLine[] = [
+        {
+          name: productDescription.slice(0, 50),
+          quantity: 1,
+          unitary_value: insuranceValueBrl,
+        },
+      ];
 
       const carrier = toCarrierCode(packReq.selectedServiceCode, packReq.selectedServiceName);
       const serviceName = packReq.selectedServiceName || `Service ${packReq.selectedServiceCode}`;
 
+      const senderName = sanitizeName(primaryOrder.senderFullName, "Remetente Colecionador");
+      const buyerName = sanitizeName(primaryOrder.buyerFullName, "Destinatario Colecionador");
+
       const cartPayload = {
         from: {
-          name: primaryOrder.senderFullName,
+          name: senderName,
           ...(primaryOrder.senderDocument ? { document: primaryOrder.senderDocument.replace(/\D/g, "") } : {}),
-          postal_code: primaryOrder.senderPostalCode.replace(/\D/g, ""),
-          address: primaryOrder.senderStreet,
-          number: primaryOrder.senderNumber,
-          complement: primaryOrder.senderComplement || "",
-          district: primaryOrder.senderDistrict,
-          city: primaryOrder.senderCity,
-          state_abbr: primaryOrder.senderStateAbbr.trim().toUpperCase(),
-          state_code: primaryOrder.senderStateAbbr.trim().toUpperCase(),
+          postal_code: primaryOrder.senderPostalCode.replace(/\D/g, "").slice(0, 8),
+          address: (primaryOrder.senderStreet || "Rua").trim().slice(0, 50),
+          number: (primaryOrder.senderNumber || "").trim().slice(0, 10),
+          complement: primaryOrder.senderComplement ? primaryOrder.senderComplement.trim().slice(0, 20) : "",
+          district: (primaryOrder.senderDistrict || "NA").trim().slice(0, 50),
+          city: (primaryOrder.senderCity || "").trim().slice(0, 50),
+          state_abbr: (primaryOrder.senderStateAbbr || "SP").trim().toUpperCase().slice(0, 2),
+          state_code: (primaryOrder.senderStateAbbr || "SP").trim().toUpperCase().slice(0, 2),
         },
         to: {
-          name: primaryOrder.buyerFullName,
+          name: buyerName,
           ...(primaryOrder.buyerDocument ? { document: primaryOrder.buyerDocument.replace(/\D/g, "") } : {}),
-          postal_code: primaryOrder.buyerPostalCode.replace(/\D/g, ""),
-          address: primaryOrder.buyerStreet,
-          number: primaryOrder.buyerNumber,
-          complement: primaryOrder.buyerComplement || "",
-          district: primaryOrder.buyerDistrict,
-          city: primaryOrder.buyerCity,
-          state_abbr: primaryOrder.buyerStateAbbr.trim().toUpperCase(),
-          state_code: primaryOrder.buyerStateAbbr.trim().toUpperCase(),
+          postal_code: primaryOrder.buyerPostalCode.replace(/\D/g, "").slice(0, 8),
+          address: (primaryOrder.buyerStreet || "Rua").trim().slice(0, 50),
+          number: (primaryOrder.buyerNumber || "").trim().slice(0, 10),
+          complement: primaryOrder.buyerComplement ? primaryOrder.buyerComplement.trim().slice(0, 20) : "",
+          district: (primaryOrder.buyerDistrict || "NA").trim().slice(0, 50),
+          city: (primaryOrder.buyerCity || "").trim().slice(0, 50),
+          state_abbr: (primaryOrder.buyerStateAbbr || "SP").trim().toUpperCase().slice(0, 2),
+          state_code: (primaryOrder.buyerStateAbbr || "SP").trim().toUpperCase().slice(0, 2),
         },
         service: Number(packReq.selectedServiceCode),
         package: A4_ENVELOPE_PACKAGE,
-        volumes: [A4_ENVELOPE_PACKAGE],
+        volumes: A4_ENVELOPE_PACKAGE,
         options: {
           non_commercial: true,
           own_hand: false,
