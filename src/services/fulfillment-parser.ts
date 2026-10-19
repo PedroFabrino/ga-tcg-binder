@@ -53,13 +53,8 @@ export function parseMypVendasHtml(
     const isAguard = /aguard\.?\s*envio/i.test(tr);
     const isSeparacao = /em\s*separa[çc][ãa]o/i.test(tr);
 
-    let status = "Outro";
-    if (isAguard) status = "Aguard. envio";
-    else if (isSeparacao) status = "Em separação";
-    else {
-      const badgeMatch = tr.match(/badge[^>]*>([^<]+)<\/span>/i);
-      if (badgeMatch) status = stripTags(badgeMatch[1]);
-    }
+    const badgeMatch = tr.match(/badge[^>]*>([^<]+)<\/span>/i);
+    const status = isAguard ? "Aguard. envio" : isSeparacao ? "Em separação" : (badgeMatch ? stripTags(badgeMatch[1]) : "Outro");
 
     if (!isAguard && !(includeSeparacao && isSeparacao)) {
       continue;
@@ -166,10 +161,13 @@ export function parseMypOrderPageHtml(
     if (!boxMatch) return undefined;
     const boxHtml = boxMatch[0];
 
-    // Name & Nick
+    // Name, Nick & Destinatário (prefers specific Destinatário over corporate name)
     let fullName = "";
+    const destMatch = boxHtml.match(/<label>\s*Destinat[aá]rio\s*<\/label>\s*([^<]+)/i);
     const nameMatch = boxHtml.match(/pedido-nome-nick[^>]*>([\s\S]*?)<\/span>/i);
-    if (nameMatch) {
+    if (destMatch) {
+      fullName = stripTags(destMatch[1]).trim();
+    } else if (nameMatch) {
       const fullText = stripTags(nameMatch[1]);
       fullName = fullText.split("(")[0].trim() || fullText;
     }

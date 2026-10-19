@@ -352,5 +352,53 @@ describe("Fulfillment HTML Parsers", () => {
       expect(order.buyer?.stateAbbr).toBe("SP");
       expect(order.buyer?.postalCode).toBe("13084776");
     });
+
+    it("prefers Destinatário over corporate name when buyer is an MEI/Company with specific recipient person", () => {
+      const orderHtml = `
+        <div id="comprador-box" class="borda">
+          <h2>Comprador</h2>
+          <div class="view-field">
+            <label>Nome e nick</label>
+            <span class="pedido-nome-nick"><a href="/LOOTCARDS">65.033.705 MARIA APARECIDA SOLDERA BIANCALANA (LOOTCARDS)</a></span>
+          </div>
+          <div class="view-field">
+            <label>CNPJ</label>
+            65.033.705/0001-50
+          </div>
+          <div class="view-field">
+            <label>Inscrição Estadual</label>
+            Isento
+          </div>
+          <div class="view-field">
+            <label>Destinatário</label>
+            Leonardo Arantes da silva
+          </div>
+          <div class="view-field">
+            <label>Endereço</label>
+            Rua Germano Casellatto, 44 - Loja
+          </div>
+          <div class="view-field">
+            <label>Bairro</label>
+            Jardim Santa Genebra II (Barão Geraldo)
+          </div>
+          <div class="view-field">
+            <label>Cidade - UF - CEP</label>
+            Campinas - SP - 13084-776
+          </div>
+        </div>
+      `;
+
+      const order = parseMypOrderPageHtml(orderHtml, "654027");
+      expect(order.buyer).toBeDefined();
+      expect(order.buyer?.fullName).toBe("Leonardo Arantes da silva");
+      expect(order.buyer?.document).toBe("65.033.705/0001-50");
+      expect(order.buyer?.street).toBe("Rua Germano Casellatto");
+      expect(order.buyer?.number).toBe("44");
+      expect(order.buyer?.complement).toBe("Loja");
+      expect(order.buyer?.district).toBe("Jardim Santa Genebra II (Barão Geraldo)");
+      expect(order.buyer?.city).toBe("Campinas");
+      expect(order.buyer?.stateAbbr).toBe("SP");
+      expect(order.buyer?.postalCode).toBe("13084776");
+    });
   });
 });
