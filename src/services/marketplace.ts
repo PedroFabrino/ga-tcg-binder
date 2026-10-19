@@ -9,6 +9,7 @@ import {
   deckCards,
   mypCards,
   marketCards,
+  marketStores,
   metaStaples,
 } from "../db/schema";
 import { DEFAULT_USER_ID } from "./seed";
@@ -1142,6 +1143,9 @@ export type ShortageTier = "HARD" | "SHARED" | "NONE";
 
 export interface GlobalMarketplaceCardItem {
   id: string;
+  storeId: string;
+  storeName: string;
+  storePlatform: string;
   cardSlug: string | null;
   editionId: string | null;
   rawName: string;
@@ -1163,6 +1167,7 @@ export interface GlobalMarketplaceCardItem {
   isFoil: boolean;
   mypItemId: string | null;
   mypProductUrl: string | null;
+  productUrl?: string | null;
   deckNeeds: MarketplaceDeckNeed[];
   peakMissing: number;
   concurrentMissing: number;
@@ -1186,6 +1191,12 @@ export interface GlobalMarketSummary {
   overpricedCount?: number;
   heavilyOverpricedCount?: number;
   lastSyncedAt: number | null;
+  stores?: Array<{
+    id: string;
+    name: string;
+    platform: string;
+    count: number;
+  }>;
 }
 
 export interface GlobalMarketReport {
@@ -1536,16 +1547,20 @@ export async function enrichMarketplaceTcgPrices(
 
 export async function getGlobalMarketReport(
   userId?: string,
-  database: any = db
+  database: any = db,
+  storeId?: string
 ): Promise<GlobalMarketReport> {
   const { effectiveUserId } = await resolveEffectiveUser(
     userId || DEFAULT_USER_ID,
     database
   );
 
-  const rawMarketRows = await database
+  let queryBuilder = database
     .select({
       id: marketCards.id,
+      storeId: marketCards.storeId,
+      storeName: marketStores.name,
+      storePlatform: marketStores.platform,
       cardSlug: marketCards.cardSlug,
       editionId: marketCards.editionId,
       rawName: marketCards.rawName,
@@ -1567,9 +1582,43 @@ export async function getGlobalMarketReport(
       imageUrl: cardEditions.imageUrl,
     })
     .from(marketCards)
+    .innerJoin(marketStores, eq(marketCards.storeId, marketStores.id))
     .leftJoin(cards, eq(marketCards.cardSlug, cards.slug))
-    .leftJoin(cardEditions, eq(marketCards.editionId, cardEditions.id))
-    .where(eq(marketCards.storeId, "myp"));
+    .leftJoin(cardEditions, eq(marketCards.editionId, cardEditions.id));
+
+  if (storeId) {
+    queryBuilder = queryBuilder.where(eq(marketCards.storeId, storeId));
+  }
+
+  const rawMarketRows = await queryBuilder;
+
+  // Retrieve enabled stores with listing counts
+  const enabledStores = await database
+    .select({
+      id: marketStores.id,
+      name: marketStores.name,
+      platform: marketStores.platform,
+    })
+    .from(marketStores)
+    .where(eq(marketStores.enabled, true));
+
+  const allMarketCounts = await database
+    .select({
+      storeId: marketCards.storeId,
+    })
+    .from(marketCards);
+
+  const countByStore = new Map<string, number>();
+  for (const row of allMarketCounts) {
+    countByStore.set(row.storeId, (countByStore.get(row.storeId) || 0) + 1);
+  }
+
+  const storeSummaries = enabledStores.map((s: any) => ({
+    id: s.id,
+    name: s.name,
+    platform: s.platform,
+    count: countByStore.get(s.id) || 0,
+  }));
 
   const marketRows = rawMarketRows.map((r: any) => ({
     ...r,
@@ -1781,6 +1830,9 @@ export async function getGlobalMarketReport(
 
     return {
       id: row.id,
+      storeId: row.storeId,
+      storeName: row.storeName,
+      storePlatform: row.storePlatform,
       cardSlug: row.cardSlug || null,
       editionId: row.editionId || null,
       rawName: row.rawName,
@@ -1802,6 +1854,7 @@ export async function getGlobalMarketReport(
       isFoil: Boolean(row.isFoil),
       mypItemId: row.mypItemId || null,
       mypProductUrl: row.mypProductUrl || null,
+      productUrl: row.productUrl || row.mypProductUrl || null,
       deckNeeds,
       peakMissing,
       concurrentMissing,
@@ -1844,6 +1897,7 @@ export async function getGlobalMarketReport(
       overpricedCount,
       heavilyOverpricedCount,
       lastSyncedAt: latestUpdatedAt,
+      stores: storeSummaries,
     },
     cards: enrichedCards,
   };

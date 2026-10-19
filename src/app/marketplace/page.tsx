@@ -26,6 +26,7 @@ import {
 import { CardPreviewTrigger } from "@/components/CardHoverPreview";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ToastProvider";
+import { useTranslation } from "@/lib/i18n";
 import { ALL_ELEMENTS, ELEMENT_COLORS, ELEMENT_LABELS, normalizeElement } from "@/lib/elements";
 import { RARITIES } from "@/lib/rarities";
 import type {
@@ -39,6 +40,7 @@ type PriceFilter = "ALL" | "FAIR_ONLY" | "OVERPRICED_ONLY" | "HEAVILY_OVERPRICED
 export default function MarketplacePage() {
   const { data: session } = useSession();
   const { showToast } = useToast();
+  const { t } = useTranslation();
 
   const [report, setReport] = useState<GlobalMarketReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -48,6 +50,7 @@ export default function MarketplacePage() {
 
   // Filters
   const [query, setQuery] = useState("");
+  const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [shortageFilter, setShortageFilter] = useState<ShortageFilter>("ALL_SHORTAGES");
   const [priceFilter, setPriceFilter] = useState<PriceFilter>("ALL");
   const [selectedElements, setSelectedElements] = useState<string[]>([]);
@@ -152,6 +155,10 @@ export default function MarketplacePage() {
     if (!report?.cards) return [];
     let list = report.cards;
 
+    if (selectedStoreId) {
+      list = list.filter((c) => c.storeId === selectedStoreId);
+    }
+
     if (shortageFilter === "ALL_SHORTAGES") {
       list = list.filter((c) => c.shortageTier !== "NONE" && c.netExternalStock > 0);
     } else if (shortageFilter === "HARD_ONLY") {
@@ -202,16 +209,16 @@ export default function MarketplacePage() {
     }
 
     return list;
-  }, [report?.cards, shortageFilter, priceFilter, selectedElements, selectedRarities, query]);
+  }, [report?.cards, selectedStoreId, shortageFilter, priceFilter, selectedElements, selectedRarities, query]);
 
   const summary = report?.summary;
 
   return (
     <div className="pb-14 space-y-6">
       <PageHeader
-        eyebrow="External Marketplace"
-        title="MyP Market Scanner"
-        description="Scans the entire public Grand Archive catalog on MyP Cards for active in-stock listings, prioritized by your deck shortages."
+        eyebrow={t("common.marketplace")}
+        title={t("marketplace.title")}
+        description={t("marketplace.subtitle")}
         actions={
           <div className="flex flex-wrap items-center gap-2.5">
             {summary?.lastSyncedAt && (
@@ -323,6 +330,49 @@ export default function MarketplacePage() {
             </div>
             <p className="mt-0.5 text-[11px] text-slate-500">Combined stock across sellers</p>
           </div>
+        </div>
+      )}
+
+      {/* Store Filter Tabs */}
+      {summary?.stores && summary.stores.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-2xl glass" role="group" aria-label={t("marketplace.filterByStore")}>
+          <button
+            key="all-stores"
+            type="button"
+            onClick={() => setSelectedStoreId(null)}
+            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+              selectedStoreId === null
+                ? "bg-white/[0.12] text-white shadow-sm ring-1 ring-white/20"
+                : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
+            }`}
+          >
+            <Store className="h-3 w-3 text-cyan-400" />
+            {t("marketplace.allStoresTab")}
+            <span className="ml-0.5 rounded-full bg-white/10 px-1.5 py-0.2 font-mono text-[10px]">
+              {summary.totalListings}
+            </span>
+          </button>
+          {summary.stores.map((s) => {
+            const active = selectedStoreId === s.id;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setSelectedStoreId(active ? null : s.id)}
+                className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                  active
+                    ? "bg-cyan-500/20 text-cyan-200 shadow-sm ring-1 ring-cyan-400/40"
+                    : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
+                }`}
+              >
+                <Store className="h-3 w-3" />
+                {s.name}
+                <span className="ml-0.5 rounded-full bg-white/10 px-1.5 py-0.2 font-mono text-[10px]">
+                  {s.count}
+                </span>
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -618,6 +668,12 @@ export default function MarketplacePage() {
                         {card.setPrefix}
                       </span>
 
+                      {card.storeName && (
+                        <span className="rounded border border-cyan-400/30 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-200">
+                          {card.storeName}
+                        </span>
+                      )}
+
                       {card.isFoil && <FoilBadge />}
                     </div>
 
@@ -802,7 +858,7 @@ export default function MarketplacePage() {
                     </div>
                   </div>
 
-                  {card.mypProductUrl && (
+                  {(card.productUrl || card.mypProductUrl) && (
                     isSelfCollision ? (
                       <Button
                         asChild
@@ -828,13 +884,13 @@ export default function MarketplacePage() {
                         }`}
                       >
                         <a
-                          href={card.mypProductUrl}
+                          href={(card.productUrl || card.mypProductUrl)!}
                           target="_blank"
                           rel="noopener noreferrer"
-                          title="Open product on MyP Cards to buy"
+                          title={t("common.buyOnStore", { store: card.storeName || "Store" })}
                         >
                           <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-                          Buy on MyP
+                          {t("common.buyOnStore", { store: card.storeName || "Store" })}
                         </a>
                       </Button>
                     )

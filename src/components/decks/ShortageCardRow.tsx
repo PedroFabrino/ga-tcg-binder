@@ -91,7 +91,7 @@ export default function ShortageCardRow({
                 className="inline-flex items-center gap-1 text-[11px] text-blue-400 hover:text-blue-300"
               >
                 <ShoppingCart className="h-3 w-3" />
-                MyP
+                {t("common.marketplace")}
                 <ExternalLink className="h-2.5 w-2.5" />
               </a>
             )}

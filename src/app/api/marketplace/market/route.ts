@@ -15,8 +15,9 @@ export async function GET(req: NextRequest) {
     const session = await auth();
     const url = new URL(req.url);
     const userId = session?.user?.id || url.searchParams.get("userId") || DEFAULT_USER_ID;
+    const storeId = url.searchParams.get("storeId") || undefined;
 
-    const report = await getGlobalMarketReport(userId, db);
+    const report = await getGlobalMarketReport(userId, db, storeId);
     return NextResponse.json(report);
   } catch (error: any) {
     return NextResponse.json(
