@@ -188,5 +188,43 @@ describe("Superfrete Domain Logic (src/services/superfrete.ts)", () => {
       });
     });
   });
+
+  describe("fetchSuperfretePrintUrl", () => {
+    it("posts orders array and returns consolidated PDF print url", async () => {
+      const { fetchSuperfretePrintUrl } = await import("../superfrete-client");
+      const mockFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+        expect(String(input)).toContain("/api/v0/tag/print");
+        expect(init?.headers).toEqual(
+          expect.objectContaining({
+            Authorization: "Bearer token-123",
+            "Content-Type": "application/json",
+          })
+        );
+        const body = JSON.parse(String(init?.body));
+        expect(body.orders).toEqual(["ord-1", "ord-2"]);
+        return new Response(JSON.stringify({ url: "https://superfrete.com/_etiqueta/pdf/a4.pdf" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      };
+
+      const url = await fetchSuperfretePrintUrl("token-123", ["ord-1", "ord-2"], mockFetch as any);
+      expect(url).toBe("https://superfrete.com/_etiqueta/pdf/a4.pdf");
+    });
+
+    it("throws descriptive error when Superfrete tag print endpoint fails", async () => {
+      const { fetchSuperfretePrintUrl } = await import("../superfrete-client");
+      const mockFetch = async () => {
+        return new Response(JSON.stringify({ message: "Pedidos não liberados para impressão" }), {
+          status: 400,
+        });
+      };
+
+      await expect(
+        fetchSuperfretePrintUrl("token-123", ["ord-1"], mockFetch as any)
+      ).rejects.toThrow("Superfrete Tag Print error (400)");
+    });
+  });
 });
+
 

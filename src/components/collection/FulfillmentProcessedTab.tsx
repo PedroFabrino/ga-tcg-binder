@@ -10,6 +10,7 @@ import {
   PackageCheck,
   Send,
   Sliders,
+  Printer,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/lib/i18n";
@@ -26,6 +27,7 @@ export default function FulfillmentProcessedTab() {
   const [tickets, setTickets] = useState<ShippingTicketDTO[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isPrintingAll, setIsPrintingAll] = useState(false);
   const [confirmationMode, setConfirmationMode] = useState<"assisted" | "batch">("assisted");
   const [isBatchSubmitting, setIsBatchSubmitting] = useState(false);
 
@@ -111,6 +113,47 @@ export default function FulfillmentProcessedTab() {
     }
   };
 
+  const handleDownloadAllA4 = async () => {
+    setIsPrintingAll(true);
+    try {
+      const res = await fetch("/api/marketplace/fulfillment/shipping/print", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.error === "SUPERFRETE_API_KEY_NOT_CONFIGURED") {
+          showToast(t("fulfillment.superfreteNotConfigured"));
+          return;
+        }
+        if (data.error === "NO_PRINTABLE_TICKETS_FOUND") {
+          showToast(t("fulfillment.noReleasedTicketsToPrint"));
+          return;
+        }
+        throw new Error(data.error || "Failed to generate printable labels");
+      }
+
+      if (data.url) {
+        const link = document.createElement("a");
+        link.href = data.url;
+        link.target = "_blank";
+        link.rel = "noreferrer";
+        link.download = "etiquetas-superfrete-a4.pdf";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        showToast(t("fulfillment.printTicketsSuccessToast"));
+        await loadTickets();
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to generate printable labels";
+      showToast(msg);
+    } finally {
+      setIsPrintingAll(false);
+    }
+  };
 
   const handleOpenMyPConfirm = (
     order: { mypOrderId: string },
@@ -243,6 +286,17 @@ export default function FulfillmentProcessedTab() {
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`} />
             {isSyncing ? t("fulfillment.syncingTrackingLoading") : t("fulfillment.syncTrackingBtn")}
+          </Button>
+
+          <Button
+            size="sm"
+            onClick={handleDownloadAllA4}
+            disabled={isPrintingAll || tickets.length === 0}
+            className="gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
+            title={t("fulfillment.downloadAllA4Btn")}
+          >
+            <Printer className={`h-3.5 w-3.5 ${isPrintingAll ? "animate-spin" : ""}`} />
+            {isPrintingAll ? t("fulfillment.downloadingA4Loading") : t("fulfillment.downloadAllA4Btn")}
           </Button>
 
           {totalEligibleToConfirm > 0 && (

@@ -169,3 +169,40 @@ export async function cancelSuperfreteOrder(
   return { success: true, data };
 }
 
+export interface SuperfretePrintResponse {
+  url: string;
+  [key: string]: unknown;
+}
+
+export async function fetchSuperfretePrintUrl(
+  apiToken: string,
+  orderIds: string[],
+  customFetch: typeof fetch = fetch
+): Promise<string> {
+  const response = await customFetch(`${SUPERFRETE_API_BASE}/api/v0/tag/print`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiToken}`,
+      "User-Agent": SUPERFRETE_USER_AGENT,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      orders: orderIds,
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Superfrete Tag Print error (${response.status}): ${errText}`);
+  }
+
+  const data = (await response.json()) as SuperfretePrintResponse;
+  if (!data?.url) {
+    throw new Error("Superfrete did not return a printable PDF URL");
+  }
+
+  return data.url;
+}
+
+

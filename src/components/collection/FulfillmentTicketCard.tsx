@@ -80,9 +80,9 @@ export function FulfillmentTicketCard({
             </span>
           )}
 
-          {ticket.printUrl && (
+          {(ticket.printUrl || ticket.status === "released" || ticket.status === "posted") && (
             <a
-              href={ticket.printUrl}
+              href={ticket.printUrl || `/api/marketplace/fulfillment/shipping/print?ticketId=${ticket.id}&download=true`}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-950/20 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-950/40"
