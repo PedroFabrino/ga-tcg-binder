@@ -1,9 +1,25 @@
-import type { SuperfreteCalculatorQuote } from "./superfrete-client";
+import type { SuperfreteCalculatorQuote, SuperfretePackageDimensions } from "./superfrete-client";
 
 export interface SuperfreteProductLine {
   name: string;
   quantity: number;
   unitary_value: number;
+}
+
+export function calculatePackageWeightKg(totalCards: number): number {
+  const cards = Math.max(1, totalCards || 1);
+  const totalGrams = 200 + 5 + cards * 3; // 200g base + 5g tape + 2g card + 1g protector
+  return Number((totalGrams / 1000).toFixed(3));
+}
+
+export function buildPackageVolume(totalCards: number = 1): SuperfretePackageDimensions {
+  const weight = calculatePackageWeightKg(totalCards);
+  return {
+    height: 2,
+    width: 21,
+    length: 30,
+    weight,
+  };
 }
 
 export function sanitizeName(name: string, fallback: string): string {

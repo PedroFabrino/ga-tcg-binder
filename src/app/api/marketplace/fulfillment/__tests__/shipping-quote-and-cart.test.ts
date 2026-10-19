@@ -24,7 +24,7 @@ import { eq } from "drizzle-orm";
 import { encryptSecret } from "@/lib/crypto";
 import { POST as quotePost } from "../shipping/quote/route";
 import { POST as createTicketsPost } from "../shipping/create-tickets/route";
-import { GET as getTickets } from "../shipping/route";
+import { GET as getTickets, DELETE as deleteTicket } from "../shipping/route";
 import { GET as getFulfillmentOrders } from "../route";
 
 describe("Shipping Quote and Cart API Routes", () => {
@@ -121,7 +121,7 @@ describe("Shipping Quote and Cart API Routes", () => {
         expect(payload.package.height).toBe(2);
         expect(payload.package.width).toBe(21);
         expect(payload.package.length).toBe(30);
-        expect(payload.package.weight).toBe(1);
+        expect(payload.package.weight).toBe(0.208);
         expect(payload.options.insurance_value).toBe(24.5); // Clamped from 20.00 to 24.50 floor
 
         return new Response(JSON.stringify(mockQuotes), {
@@ -167,7 +167,7 @@ describe("Shipping Quote and Cart API Routes", () => {
       if (urlStr.includes("/api/v0/cart")) {
         const payload = JSON.parse(init.body);
         expect(payload.service).toBe(31);
-        expect(payload.volumes.weight).toBeDefined();
+        expect(payload.volumes.weight).toBe(0.208);
         expect(payload.to.state_abbr).toBe("RJ");
         expect(payload.from.state_abbr).toBe("SP");
         expect(payload.options.insurance_value).toBe(20.0); // For Loggi (service 31), exact value is 20.00
@@ -175,6 +175,12 @@ describe("Shipping Quote and Cart API Routes", () => {
         expect(payload.products[0].unitary_value).toBe(20.0);
 
         return new Response(JSON.stringify(mockCartResponse), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (urlStr.includes("/api/v0/order/cancel")) {
+        return new Response(JSON.stringify({ "987654": { canceled: true } }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         });
@@ -233,6 +239,25 @@ describe("Shipping Quote and Cart API Routes", () => {
     expect(tickets).toHaveLength(1);
     expect(tickets[0].buyerNick).toBe("GrandBuyer");
     expect(tickets[0].superfreteOrderId).toBe("987654");
+
+    // Verify DELETE /api/marketplace/fulfillment/shipping cancels ticket and reverts ord-1 to open
+    const deleteReq = new NextRequest(
+      `http://localhost:3000/api/marketplace/fulfillment/shipping?ticketId=${createData.tickets[0].id}`,
+      { method: "DELETE" }
+    );
+    const deleteRes = await deleteTicket(deleteReq);
+    expect(deleteRes.status).toBe(200);
+    const deleteData = await deleteRes.json();
+    expect(deleteData.success).toBe(true);
+    expect(deleteData.canceledSuperfrete).toBe(true);
+
+    // Verify order is now open again with no shippingTicketId
+    const reopenedRes = await getFulfillmentOrders(getOpenReq);
+    const reopenedOrders = await reopenedRes.json();
+    expect(reopenedOrders).toHaveLength(1);
+    expect(reopenedOrders[0].id).toBe("ord-1");
+    expect(reopenedOrders[0].status).toBe("open");
+    expect(reopenedOrders[0].shippingTicketId).toBeNull();
 
     fetchSpy.mockRestore();
   });

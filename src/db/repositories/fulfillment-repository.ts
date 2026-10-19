@@ -246,6 +246,20 @@ export async function createShippingTicketWithOrders(
   return ticket;
 }
 
+export async function getShippingTicketById(
+  userId: string,
+  ticketId: string,
+  database = db
+): Promise<ShippingTicketRow | undefined> {
+  const [ticket] = await database
+    .select()
+    .from(shippingTickets)
+    .where(and(eq(shippingTickets.userId, userId), eq(shippingTickets.id, ticketId)))
+    .limit(1);
+
+  return ticket;
+}
+
 export async function updateShippingTicket(
   userId: string,
   ticketId: string,
@@ -354,6 +368,29 @@ export async function markOrdersAsSent(
   return true;
 }
 
+export async function cancelShippingTicketById(
+  userId: string,
+  ticketId: string,
+  database = db
+): Promise<boolean> {
+  await database
+    .update(fulfillmentOrders)
+    .set({
+      status: "open",
+      shippingTicketId: null,
+      updatedAt: sql`(strftime('%s', 'now'))`,
+    })
+    .where(
+      and(
+        eq(fulfillmentOrders.userId, userId),
+        eq(fulfillmentOrders.shippingTicketId, ticketId)
+      )
+    );
 
+  await database
+    .delete(shippingTickets)
+    .where(and(eq(shippingTickets.userId, userId), eq(shippingTickets.id, ticketId)));
 
+  return true;
+}
 

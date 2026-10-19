@@ -2,7 +2,7 @@ export const A4_ENVELOPE_PACKAGE = {
   height: 2,
   width: 21,
   length: 30,
-  weight: 1,
+  weight: 0.208,
 } as const;
 
 export const SUPERFRETE_API_BASE = "https://api.superfrete.com";
@@ -41,12 +41,20 @@ export interface SuperfreteOrderInfoResponse {
   [key: string]: unknown;
 }
 
+export interface SuperfretePackageDimensions {
+  height: number;
+  width: number;
+  length: number;
+  weight: number;
+}
+
 export async function fetchSuperfreteQuotes(
   apiToken: string,
   fromCep: string,
   toCep: string,
   insuranceBrl: number,
-  customFetch: typeof fetch = fetch
+  customFetch: typeof fetch = fetch,
+  packageVolume: SuperfretePackageDimensions = A4_ENVELOPE_PACKAGE
 ): Promise<SuperfreteCalculatorQuote[]> {
   const cleanedFrom = fromCep.replace(/\D/g, "");
   const cleanedTo = toCep.replace(/\D/g, "");
@@ -61,7 +69,7 @@ export async function fetchSuperfreteQuotes(
       use_insurance_value: true,
       insurance_value: insuranceBrl,
     },
-    package: A4_ENVELOPE_PACKAGE,
+    package: packageVolume,
   };
 
   const response = await customFetch(`${SUPERFRETE_API_BASE}/api/v0/calculator`, {
@@ -129,3 +137,35 @@ export async function fetchSuperfreteOrderInfo(
 
   return response.json();
 }
+
+export async function cancelSuperfreteOrder(
+  apiToken: string,
+  orderId: string | number,
+  description: string = "Cancelado pelo usuário",
+  customFetch: typeof fetch = fetch
+): Promise<{ success: boolean; data?: unknown }> {
+  const response = await customFetch(`${SUPERFRETE_API_BASE}/api/v0/order/cancel`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiToken}`,
+      "User-Agent": SUPERFRETE_USER_AGENT,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      order: {
+        id: String(orderId),
+        description,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Superfrete Cancel Order error (${response.status}): ${errText}`);
+  }
+
+  const data = await response.json();
+  return { success: true, data };
+}
+

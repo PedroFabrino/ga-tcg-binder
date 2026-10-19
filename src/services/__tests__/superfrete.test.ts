@@ -4,6 +4,8 @@ import {
   selectBestCarrierQuote,
   buildSuperfreteProducts,
   toCarrierCode,
+  calculatePackageWeightKg,
+  buildPackageVolume,
   type SuperfreteCalculatorQuote,
 } from "../superfrete";
 
@@ -160,4 +162,31 @@ describe("Superfrete Domain Logic (src/services/superfrete.ts)", () => {
       expect(Number(total.toFixed(2))).toBe(10.0);
     });
   });
+
+  describe("calculatePackageWeightKg and buildPackageVolume", () => {
+    it("computes 200g base + 5g tape + (2g card + 1g protector) per card in kg", () => {
+      // 1 card: 200 + 5 + 3 = 208g = 0.208 kg
+      expect(calculatePackageWeightKg(1)).toBe(0.208);
+
+      // 10 cards: 200 + 5 + 30 = 235g = 0.235 kg
+      expect(calculatePackageWeightKg(10)).toBe(0.235);
+
+      // 30 cards: 200 + 5 + 90 = 295g = 0.295 kg (eligible for Correios Mini Envios < 0.3kg)
+      expect(calculatePackageWeightKg(30)).toBe(0.295);
+
+      // 35 cards: 200 + 5 + 105 = 310g = 0.310 kg
+      expect(calculatePackageWeightKg(35)).toBe(0.31);
+    });
+
+    it("builds Superfrete package volume object with dynamic weight", () => {
+      const volume = buildPackageVolume(10);
+      expect(volume).toEqual({
+        height: 2,
+        width: 21,
+        length: 30,
+        weight: 0.235,
+      });
+    });
+  });
 });
+

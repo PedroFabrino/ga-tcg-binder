@@ -1,6 +1,8 @@
 import {
   getFulfillmentOrdersByStatus,
   createShippingTicketWithOrders,
+  getShippingTicketById,
+  cancelShippingTicketById,
   type FulfillmentOrderWithPrintings,
 } from "@/db/repositories/fulfillment-repository";
 import { getUserById } from "@/db/repositories/settings-repository";
@@ -10,6 +12,7 @@ import {
   A4_ENVELOPE_PACKAGE,
   fetchSuperfreteQuotes,
   createSuperfreteCartOrder,
+  cancelSuperfreteOrder,
   type SuperfreteCalculatorQuote,
 } from "./superfrete-client";
 
@@ -19,6 +22,8 @@ import {
   calculateInsuranceValue,
   selectBestCarrierQuote,
   buildSuperfreteProducts,
+  calculatePackageWeightKg,
+  buildPackageVolume,
   type SuperfreteProductLine,
 } from "./superfrete-helpers";
 
@@ -30,6 +35,8 @@ export {
   calculateInsuranceValue,
   selectBestCarrierQuote,
   buildSuperfreteProducts,
+  calculatePackageWeightKg,
+  buildPackageVolume,
   type SuperfreteProductLine,
 };
 
@@ -52,6 +59,7 @@ export interface QuotedBuyerPack {
   };
   insuranceValueBrl: number;
   totalCards: number;
+  packageWeightKg: number;
   quotes: SuperfreteCalculatorQuote[];
   recommendedQuote: SuperfreteCalculatorQuote | null;
   selectedServiceCode: string | null;
@@ -106,6 +114,7 @@ export async function quoteOpenBuyerPacksService(
     const isReadyForShipping = orders.every((o) => o.isPhotographed);
     const containsUnphotographedOrders = orders.some((o) => !o.isPhotographed);
     const primaryOrder = orders[0];
+    const packageVolume = buildPackageVolume(totalCards);
 
     let quotes: SuperfreteCalculatorQuote[] = [];
     let recommendedQuote: SuperfreteCalculatorQuote | null = null;
@@ -117,7 +126,8 @@ export async function quoteOpenBuyerPacksService(
         primaryOrder.senderPostalCode,
         primaryOrder.buyerPostalCode,
         insuranceValueBrl,
-        customFetch
+        customFetch,
+        packageVolume
       );
       recommendedQuote = selectBestCarrierQuote(quotes);
     } catch (e: unknown) {
@@ -143,6 +153,7 @@ export async function quoteOpenBuyerPacksService(
       },
       insuranceValueBrl,
       totalCards,
+      packageWeightKg: packageVolume.weight,
       quotes,
       recommendedQuote,
       selectedServiceCode: recommendedQuote ? String(recommendedQuote.id) : null,
@@ -244,8 +255,8 @@ export async function createShippingTicketsService(
           state_code: (primaryOrder.buyerStateAbbr || "SP").trim().toUpperCase().slice(0, 2),
         },
         service: Number(packReq.selectedServiceCode),
-        package: A4_ENVELOPE_PACKAGE,
-        volumes: A4_ENVELOPE_PACKAGE,
+        package: buildPackageVolume(totalCards),
+        volumes: buildPackageVolume(totalCards),
         options: {
           non_commercial: true,
           own_hand: false,
@@ -295,3 +306,38 @@ export async function createShippingTicketsService(
 
   return createdTickets;
 }
+
+export async function cancelShippingTicketService(
+  userId: string,
+  ticketId: string,
+  database?: unknown,
+  customFetch: typeof fetch = fetch
+): Promise<{ success: boolean; canceledSuperfrete: boolean }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- repository parameter
+  const dbParam = database as any;
+  const ticket = await getShippingTicketById(userId, ticketId, dbParam);
+  if (!ticket || ticket.userId !== userId) {
+    throw new Error("Shipping ticket not found");
+  }
+
+  let canceledSuperfrete = false;
+  const user = await getUserById(userId, dbParam);
+  if (user?.superfreteApiKeyEncrypted && ticket.superfreteOrderId) {
+    try {
+      const apiToken = decryptSecret(user.superfreteApiKeyEncrypted);
+      await cancelSuperfreteOrder(
+        apiToken,
+        ticket.superfreteOrderId,
+        "Cancelado para recriação com peso ajustado",
+        customFetch
+      );
+      canceledSuperfrete = true;
+    } catch (e) {
+      console.warn(`[Superfrete] Cancellation warning for order ${ticket.superfreteOrderId}:`, e);
+    }
+  }
+
+  await cancelShippingTicketById(userId, ticketId, dbParam);
+  return { success: true, canceledSuperfrete };
+}
+

@@ -190,6 +190,11 @@ export default function FulfillmentShippingModal({
                     <span className="rounded-md bg-slate-800 border border-slate-700 px-2 py-0.5 text-xs text-slate-300">
                       {t("fulfillment.totalCardsCount", { count: pack.totalCards })}
                     </span>
+                    <span className="rounded-md bg-slate-800 border border-slate-700 px-2 py-0.5 text-xs text-slate-300">
+                      {t("fulfillment.packageWeight", {
+                        grams: Math.round((pack.packageWeightKg || 0.208) * 1000),
+                      })}
+                    </span>
                     <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-xs font-semibold text-emerald-400">
                       <ShieldCheck className="h-3 w-3" />
                       {t("fulfillment.insuredValue", {
