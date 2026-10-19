@@ -8,6 +8,7 @@ import { Loader2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useSettingsManager } from "@/components/settings/useSettingsManager";
 import { SettingsSuperfreteSection } from "@/components/settings/SettingsSuperfreteSection";
+import { SettingsShippingPackageSection } from "@/components/settings/SettingsShippingPackageSection";
 import { SettingsFairnessSection } from "@/components/settings/SettingsFairnessSection";
 import { SettingsMypSection } from "@/components/settings/SettingsMypSection";
 import { SettingsPlaygroupSection } from "@/components/settings/SettingsPlaygroupSection";
@@ -59,6 +60,26 @@ export default function SettingsPage() {
             clearingSuperfrete={mgr.clearingSuperfrete}
             onClearSuperfrete={mgr.handleClearSuperfrete}
           />
+
+          {(mgr.hasSavedSuperfreteApiKey || Boolean(mgr.superfreteApiKey.trim())) && (
+            <SettingsShippingPackageSection
+              shippingPackagePreset={mgr.shippingPackagePreset}
+              onSelectPreset={mgr.handleSelectPackagePreset}
+              shippingPackageHeight={mgr.shippingPackageHeight}
+              setShippingPackageHeight={mgr.setShippingPackageHeight}
+              shippingPackageWidth={mgr.shippingPackageWidth}
+              setShippingPackageWidth={mgr.setShippingPackageWidth}
+              shippingPackageLength={mgr.shippingPackageLength}
+              setShippingPackageLength={mgr.setShippingPackageLength}
+              shippingPackageBaseWeight={mgr.shippingPackageBaseWeight}
+              setShippingPackageBaseWeight={mgr.setShippingPackageBaseWeight}
+              shippingPackageTapeWeight={mgr.shippingPackageTapeWeight}
+              setShippingPackageTapeWeight={mgr.setShippingPackageTapeWeight}
+              shippingCardWeight={mgr.shippingCardWeight}
+              setShippingCardWeight={mgr.setShippingCardWeight}
+              loading={mgr.loading}
+            />
+          )}
 
           <SettingsFairnessSection
             slightlyOverpriced={mgr.slightlyOverpriced}

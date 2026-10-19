@@ -155,4 +155,38 @@ describe("Settings API Route (src/app/api/settings/route.ts)", () => {
     const userInDb = (await testDb.select().from(users))[0];
     expect(userInDb.superfreteApiKeyEncrypted).toBeNull();
   });
+
+  it("POST saves shipping package dimensions and weight formula settings", async () => {
+    const req = new NextRequest("http://localhost:3000/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        shippingPackagePreset: "bubble-mailer",
+        shippingPackageHeight: 3.5,
+        shippingPackageWidth: 16,
+        shippingPackageLength: 22,
+        shippingPackageBaseWeight: 60,
+        shippingPackageTapeWeight: 8,
+        shippingCardWeight: 3.5,
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.user.shippingPackagePreset).toBe("bubble-mailer");
+    expect(json.user.shippingPackageHeight).toBe(3.5);
+    expect(json.user.shippingPackageWidth).toBe(16);
+    expect(json.user.shippingPackageLength).toBe(22);
+    expect(json.user.shippingPackageBaseWeight).toBe(60);
+    expect(json.user.shippingPackageTapeWeight).toBe(8);
+    expect(json.user.shippingCardWeight).toBe(3.5);
+
+    const userInDb = (await testDb.select().from(users))[0];
+    expect(userInDb.shippingPackagePreset).toBe("bubble-mailer");
+    expect(userInDb.shippingPackageHeight).toBe(3.5);
+  });
 });
+

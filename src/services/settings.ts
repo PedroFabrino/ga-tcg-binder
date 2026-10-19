@@ -109,6 +109,29 @@ export async function updateUserSettingsService(
     updateData.heavilyOverpricedMultiplier = input.heavilyOverpricedMultiplier;
   }
 
+  // Shipping package configuration
+  if (input.shippingPackagePreset !== undefined) {
+    updateData.shippingPackagePreset = input.shippingPackagePreset;
+  }
+  if (input.shippingPackageHeight !== undefined) {
+    updateData.shippingPackageHeight = input.shippingPackageHeight;
+  }
+  if (input.shippingPackageWidth !== undefined) {
+    updateData.shippingPackageWidth = input.shippingPackageWidth;
+  }
+  if (input.shippingPackageLength !== undefined) {
+    updateData.shippingPackageLength = input.shippingPackageLength;
+  }
+  if (input.shippingPackageBaseWeight !== undefined) {
+    updateData.shippingPackageBaseWeight = input.shippingPackageBaseWeight;
+  }
+  if (input.shippingPackageTapeWeight !== undefined) {
+    updateData.shippingPackageTapeWeight = input.shippingPackageTapeWeight;
+  }
+  if (input.shippingCardWeight !== undefined) {
+    updateData.shippingCardWeight = input.shippingCardWeight;
+  }
+
   // Ensure user has a watchlistSyncToken for Browser Userscript Bridge
   const currentUser = await getUserById(userId, dbParam);
   if (!currentUser?.watchlistSyncToken && !updateData.watchlistSyncToken) {

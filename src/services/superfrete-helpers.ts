@@ -6,18 +6,74 @@ export interface SuperfreteProductLine {
   unitary_value: number;
 }
 
-export function calculatePackageWeightKg(totalCards: number): number {
+export type ShippingPackagePreset = "standard-box" | "bubble-mailer" | "deck-box" | "custom";
+
+export interface ShippingPackageConfig {
+  preset?: ShippingPackagePreset;
+  heightCm?: number;
+  widthCm?: number;
+  lengthCm?: number;
+  baseWeightG?: number;
+  tapeWeightG?: number;
+  cardWeightG?: number;
+}
+
+export const SHIPPING_PACKAGE_PRESETS: Record<
+  Exclude<ShippingPackagePreset, "custom">,
+  Required<Omit<ShippingPackageConfig, "preset">>
+> = {
+  "standard-box": {
+    heightCm: 2,
+    widthCm: 21,
+    lengthCm: 30,
+    baseWeightG: 200,
+    tapeWeightG: 5,
+    cardWeightG: 3,
+  },
+  "bubble-mailer": {
+    heightCm: 2,
+    widthCm: 15,
+    lengthCm: 20,
+    baseWeightG: 50,
+    tapeWeightG: 5,
+    cardWeightG: 3,
+  },
+  "deck-box": {
+    heightCm: 5,
+    widthCm: 15,
+    lengthCm: 20,
+    baseWeightG: 150,
+    tapeWeightG: 10,
+    cardWeightG: 3,
+  },
+};
+
+export const DEFAULT_SHIPPING_PACKAGE_CONFIG: Required<ShippingPackageConfig> = {
+  preset: "standard-box",
+  ...SHIPPING_PACKAGE_PRESETS["standard-box"],
+};
+
+export function calculatePackageWeightKg(
+  totalCards: number,
+  config?: ShippingPackageConfig
+): number {
   const cards = Math.max(1, totalCards || 1);
-  const totalGrams = 200 + 5 + cards * 3; // 200g base + 5g tape + 2g card + 1g protector
+  const baseWeight = config?.baseWeightG ?? DEFAULT_SHIPPING_PACKAGE_CONFIG.baseWeightG;
+  const tapeWeight = config?.tapeWeightG ?? DEFAULT_SHIPPING_PACKAGE_CONFIG.tapeWeightG;
+  const cardWeight = config?.cardWeightG ?? DEFAULT_SHIPPING_PACKAGE_CONFIG.cardWeightG;
+  const totalGrams = baseWeight + tapeWeight + cards * cardWeight;
   return Number((totalGrams / 1000).toFixed(3));
 }
 
-export function buildPackageVolume(totalCards: number = 1): SuperfretePackageDimensions {
-  const weight = calculatePackageWeightKg(totalCards);
+export function buildPackageVolume(
+  totalCards: number = 1,
+  config?: ShippingPackageConfig
+): SuperfretePackageDimensions {
+  const weight = calculatePackageWeightKg(totalCards, config);
   return {
-    height: 2,
-    width: 21,
-    length: 30,
+    height: config?.heightCm ?? DEFAULT_SHIPPING_PACKAGE_CONFIG.heightCm,
+    width: config?.widthCm ?? DEFAULT_SHIPPING_PACKAGE_CONFIG.widthCm,
+    length: config?.lengthCm ?? DEFAULT_SHIPPING_PACKAGE_CONFIG.lengthCm,
     weight,
   };
 }

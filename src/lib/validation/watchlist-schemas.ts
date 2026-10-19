@@ -14,6 +14,13 @@ export interface SettingsUpdateInput {
   watchlistPolicyStaples?: boolean;
   superfreteApiKey?: string | null;
   clearSuperfreteApiKey?: boolean;
+  shippingPackagePreset?: string;
+  shippingPackageHeight?: number;
+  shippingPackageWidth?: number;
+  shippingPackageLength?: number;
+  shippingPackageBaseWeight?: number;
+  shippingPackageTapeWeight?: number;
+  shippingCardWeight?: number;
   slightlyOverpricedMultiplier?: number;
   heavilyOverpricedMultiplier?: number;
 }
@@ -100,6 +107,55 @@ export function parseSettingsInput(raw: unknown): ValidationResult<SettingsUpdat
       return { success: false, error: "clearSuperfreteApiKey must be a boolean" };
     }
     data.clearSuperfreteApiKey = body.clearSuperfreteApiKey;
+  }
+
+  if (body.shippingPackagePreset !== undefined) {
+    if (typeof body.shippingPackagePreset !== "string") {
+      return { success: false, error: "shippingPackagePreset must be a string" };
+    }
+    data.shippingPackagePreset = body.shippingPackagePreset;
+  }
+
+  if (body.shippingPackageHeight !== undefined) {
+    if (typeof body.shippingPackageHeight !== "number" || isNaN(body.shippingPackageHeight) || body.shippingPackageHeight <= 0) {
+      return { success: false, error: "shippingPackageHeight must be a positive number" };
+    }
+    data.shippingPackageHeight = body.shippingPackageHeight;
+  }
+
+  if (body.shippingPackageWidth !== undefined) {
+    if (typeof body.shippingPackageWidth !== "number" || isNaN(body.shippingPackageWidth) || body.shippingPackageWidth <= 0) {
+      return { success: false, error: "shippingPackageWidth must be a positive number" };
+    }
+    data.shippingPackageWidth = body.shippingPackageWidth;
+  }
+
+  if (body.shippingPackageLength !== undefined) {
+    if (typeof body.shippingPackageLength !== "number" || isNaN(body.shippingPackageLength) || body.shippingPackageLength <= 0) {
+      return { success: false, error: "shippingPackageLength must be a positive number" };
+    }
+    data.shippingPackageLength = body.shippingPackageLength;
+  }
+
+  if (body.shippingPackageBaseWeight !== undefined) {
+    if (typeof body.shippingPackageBaseWeight !== "number" || isNaN(body.shippingPackageBaseWeight) || body.shippingPackageBaseWeight < 0) {
+      return { success: false, error: "shippingPackageBaseWeight must be a non-negative number" };
+    }
+    data.shippingPackageBaseWeight = body.shippingPackageBaseWeight;
+  }
+
+  if (body.shippingPackageTapeWeight !== undefined) {
+    if (typeof body.shippingPackageTapeWeight !== "number" || isNaN(body.shippingPackageTapeWeight) || body.shippingPackageTapeWeight < 0) {
+      return { success: false, error: "shippingPackageTapeWeight must be a non-negative number" };
+    }
+    data.shippingPackageTapeWeight = body.shippingPackageTapeWeight;
+  }
+
+  if (body.shippingCardWeight !== undefined) {
+    if (typeof body.shippingCardWeight !== "number" || isNaN(body.shippingCardWeight) || body.shippingCardWeight < 0) {
+      return { success: false, error: "shippingCardWeight must be a non-negative number" };
+    }
+    data.shippingCardWeight = body.shippingCardWeight;
   }
 
   if (body.slightlyOverpricedMultiplier !== undefined) {

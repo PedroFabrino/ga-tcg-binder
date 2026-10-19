@@ -466,6 +466,13 @@ async function doRunMigrations(customClient: typeof client) {
     "ALTER TABLE `myp_market_cards` ADD COLUMN `vendor_name` text;",
     "ALTER TABLE `myp_market_cards` ADD COLUMN `vendor_url` text;",
     "ALTER TABLE `users` ADD COLUMN `superfrete_api_key_encrypted` text;",
+    "ALTER TABLE `users` ADD COLUMN `shipping_package_preset` text DEFAULT 'standard-box' NOT NULL;",
+    "ALTER TABLE `users` ADD COLUMN `shipping_package_height` real DEFAULT 2 NOT NULL;",
+    "ALTER TABLE `users` ADD COLUMN `shipping_package_width` real DEFAULT 21 NOT NULL;",
+    "ALTER TABLE `users` ADD COLUMN `shipping_package_length` real DEFAULT 30 NOT NULL;",
+    "ALTER TABLE `users` ADD COLUMN `shipping_package_base_weight` real DEFAULT 200 NOT NULL;",
+    "ALTER TABLE `users` ADD COLUMN `shipping_package_tape_weight` real DEFAULT 5 NOT NULL;",
+    "ALTER TABLE `users` ADD COLUMN `shipping_card_weight` real DEFAULT 3 NOT NULL;",
     "ALTER TABLE `users` ADD COLUMN `slightly_overpriced_multiplier` real DEFAULT 1.2 NOT NULL;",
     "ALTER TABLE `users` ADD COLUMN `heavily_overpriced_multiplier` real DEFAULT 2.0 NOT NULL;",
   ];

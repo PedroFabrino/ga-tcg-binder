@@ -26,6 +26,7 @@ import {
   calculatePackageWeightKg,
   buildPackageVolume,
   type SuperfreteProductLine,
+  type ShippingPackageConfig,
 } from "./superfrete-helpers";
 
 export {
@@ -115,7 +116,15 @@ export async function quoteOpenBuyerPacksService(
     const isReadyForShipping = orders.every((o) => o.isPhotographed);
     const containsUnphotographedOrders = orders.some((o) => !o.isPhotographed);
     const primaryOrder = orders[0];
-    const packageVolume = buildPackageVolume(totalCards);
+    const userPackageConfig: ShippingPackageConfig = {
+      heightCm: user.shippingPackageHeight ?? undefined,
+      widthCm: user.shippingPackageWidth ?? undefined,
+      lengthCm: user.shippingPackageLength ?? undefined,
+      baseWeightG: user.shippingPackageBaseWeight ?? undefined,
+      tapeWeightG: user.shippingPackageTapeWeight ?? undefined,
+      cardWeightG: user.shippingCardWeight ?? undefined,
+    };
+    const packageVolume = buildPackageVolume(totalCards, userPackageConfig);
 
     let quotes: SuperfreteCalculatorQuote[] = [];
     let recommendedQuote: SuperfreteCalculatorQuote | null = null;
@@ -240,6 +249,16 @@ export async function createShippingTicketsService(
       const senderName = sanitizeName(primaryOrder.senderFullName, "Remetente Colecionador");
       const buyerName = sanitizeName(primaryOrder.buyerFullName, "Destinatario Colecionador");
 
+      const userPackageConfig: ShippingPackageConfig = {
+        heightCm: user.shippingPackageHeight ?? undefined,
+        widthCm: user.shippingPackageWidth ?? undefined,
+        lengthCm: user.shippingPackageLength ?? undefined,
+        baseWeightG: user.shippingPackageBaseWeight ?? undefined,
+        tapeWeightG: user.shippingPackageTapeWeight ?? undefined,
+        cardWeightG: user.shippingCardWeight ?? undefined,
+      };
+      const packageVolume = buildPackageVolume(totalCards, userPackageConfig);
+
       const cartPayload = {
         from: {
           name: senderName,
@@ -266,8 +285,8 @@ export async function createShippingTicketsService(
           state_code: (primaryOrder.buyerStateAbbr || "SP").trim().toUpperCase().slice(0, 2),
         },
         service: Number(packReq.selectedServiceCode),
-        package: buildPackageVolume(totalCards),
-        volumes: buildPackageVolume(totalCards),
+        package: packageVolume,
+        volumes: packageVolume,
         options: {
           non_commercial: true,
           own_hand: false,

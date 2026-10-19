@@ -9,6 +9,7 @@ import { useSettingsManager } from "./settings/useSettingsManager";
 import { SettingsPlaygroupSection } from "./settings/SettingsPlaygroupSection";
 import { SettingsMypSection } from "./settings/SettingsMypSection";
 import { SettingsSuperfreteSection } from "./settings/SettingsSuperfreteSection";
+import { SettingsShippingPackageSection } from "./settings/SettingsShippingPackageSection";
 import { SettingsFairnessSection } from "./settings/SettingsFairnessSection";
 
 interface SettingsModalProps {
@@ -84,6 +85,27 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
           clearingSuperfrete={mgr.clearingSuperfrete}
           onClearSuperfrete={mgr.handleClearSuperfrete}
         />
+
+        {/* Shipping Package & Dimensions */}
+        {(mgr.hasSavedSuperfreteApiKey || Boolean(mgr.superfreteApiKey.trim())) && (
+          <SettingsShippingPackageSection
+            shippingPackagePreset={mgr.shippingPackagePreset}
+            onSelectPreset={mgr.handleSelectPackagePreset}
+            shippingPackageHeight={mgr.shippingPackageHeight}
+            setShippingPackageHeight={mgr.setShippingPackageHeight}
+            shippingPackageWidth={mgr.shippingPackageWidth}
+            setShippingPackageWidth={mgr.setShippingPackageWidth}
+            shippingPackageLength={mgr.shippingPackageLength}
+            setShippingPackageLength={mgr.setShippingPackageLength}
+            shippingPackageBaseWeight={mgr.shippingPackageBaseWeight}
+            setShippingPackageBaseWeight={mgr.setShippingPackageBaseWeight}
+            shippingPackageTapeWeight={mgr.shippingPackageTapeWeight}
+            setShippingPackageTapeWeight={mgr.setShippingPackageTapeWeight}
+            shippingCardWeight={mgr.shippingCardWeight}
+            setShippingCardWeight={mgr.setShippingCardWeight}
+            loading={mgr.loading}
+          />
+        )}
 
         {/* Price Fairness Multipliers */}
         <SettingsFairnessSection

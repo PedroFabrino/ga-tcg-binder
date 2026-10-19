@@ -187,6 +187,29 @@ describe("Superfrete Domain Logic (src/services/superfrete.ts)", () => {
         weight: 0.235,
       });
     });
+
+    it("respects custom package dimensions and weight formula", () => {
+      const customConfig = {
+        preset: "bubble-mailer" as const,
+        heightCm: 3,
+        widthCm: 15,
+        lengthCm: 20,
+        baseWeightG: 50,
+        tapeWeightG: 5,
+        cardWeightG: 4,
+      };
+
+      // 10 cards: 50 + 5 + 40 = 95g = 0.095 kg
+      expect(calculatePackageWeightKg(10, customConfig)).toBe(0.095);
+
+      const volume = buildPackageVolume(10, customConfig);
+      expect(volume).toEqual({
+        height: 3,
+        width: 15,
+        length: 20,
+        weight: 0.095,
+      });
+    });
   });
 
   describe("fetchSuperfretePrintUrl", () => {
