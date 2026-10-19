@@ -167,6 +167,7 @@ describe("Shipping Quote and Cart API Routes", () => {
       if (urlStr.includes("/api/v0/cart")) {
         const payload = JSON.parse(init.body);
         expect(payload.service).toBe(31);
+        expect(payload.volumes).toHaveLength(1);
         expect(payload.options.insurance_value).toBe(20.0); // For Loggi (service 31), exact value is 20.00
         expect(payload.products).toHaveLength(1);
         expect(payload.products[0].unitary_value).toBe(20.0);

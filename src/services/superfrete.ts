@@ -359,6 +359,7 @@ export async function createShippingTicketsService(
         },
         service: Number(packReq.selectedServiceCode),
         package: A4_ENVELOPE_PACKAGE,
+        volumes: [A4_ENVELOPE_PACKAGE],
         options: {
           non_commercial: true,
           own_hand: false,
