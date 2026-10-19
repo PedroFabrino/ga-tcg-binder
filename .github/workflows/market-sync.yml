@@ -1,16 +1,21 @@
-name: Global MyP Market Sync
+name: Multi-Marketplace Catalog Sync
 
 on:
   schedule:
     # Run every 6 hours (00:00, 06:00, 12:00, 18:00 UTC)
     - cron: "0 */6 * * *"
   workflow_dispatch:
+    inputs:
+      store_id:
+        description: "Optional enabled market store ID to sync (e.g. 'myp' or 'brandao')"
+        required: false
+        type: string
 
 jobs:
   market-sync:
-    name: Sync Global MyP Market Listings
+    name: Sync Marketplace Listings
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout Repository
@@ -34,4 +39,10 @@ jobs:
         env:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
-        run: pnpm sync:market
+          STORE_ID: ${{ inputs.store_id }}
+        run: |
+          if [ -n "$STORE_ID" ]; then
+            pnpm tsx scripts/sync-market.ts --store "$STORE_ID"
+          else
+            pnpm tsx scripts/sync-market.ts
+          fi

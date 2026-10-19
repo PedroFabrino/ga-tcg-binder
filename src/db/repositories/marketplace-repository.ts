@@ -35,6 +35,15 @@ export async function getMarketStores(
 }
 
 /**
+ * Returns all enabled market stores.
+ */
+export async function getEnabledMarketStores(
+  database: MarketplaceDatabase = db
+): Promise<MarketStore[]> {
+  return getMarketStores(database, true);
+}
+
+/**
  * Returns a single market store by its stable registry ID.
  */
 export async function getMarketStoreById(
