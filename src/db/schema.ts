@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, uniqueIndex, index } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
@@ -213,6 +213,60 @@ export const mypMarketCards = sqliteTable("myp_market_cards", {
   vendorUrl: text("vendor_url"),
   updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
+
+// ---------------------------------------------------------------------------
+// Multi-Marketplace Stores Registry & Unified Listings (ADR 0015)
+// ---------------------------------------------------------------------------
+export const marketStores = sqliteTable("market_stores", {
+  id: text("id").primaryKey(), // e.g. 'myp', 'brandao'
+  platform: text("platform").notNull(), // 'myp' | 'liga_store'
+  name: text("name").notNull(),
+  baseUrl: text("base_url").notNull(),
+  tcgId: text("tcg_id"),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  lastCount: integer("last_count"),
+  lastCountCheckedAt: integer("last_count_checked_at", { mode: "timestamp" }),
+  lastFullScanAt: integer("last_full_scan_at", { mode: "timestamp" }),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+});
+
+export const marketCards = sqliteTable(
+  "market_cards",
+  {
+    id: text("id").primaryKey(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => marketStores.id, { onDelete: "cascade" }),
+    cardSlug: text("card_slug").references(() => cards.slug, { onDelete: "set null" }),
+    editionId: text("edition_id").references(() => cardEditions.id, { onDelete: "set null" }),
+    rawName: text("raw_name").notNull(),
+    cardName: text("card_name").notNull(),
+    setPrefix: text("set_prefix").notNull(),
+    quantity: integer("quantity").notNull().default(1),
+    price: text("price").notNull().default("R$ 0,00"),
+    priceNumeric: real("price_numeric").notNull().default(0),
+    tcgPrice: text("tcg_price"),
+    tcgPriceNumeric: real("tcg_price_numeric"),
+    quality: text("quality").notNull().default("NM"),
+    isFoil: integer("is_foil", { mode: "boolean" }).notNull().default(false),
+    itemId: text("item_id"),
+    productUrl: text("product_url"),
+    vendorName: text("vendor_name"),
+    vendorUrl: text("vendor_url"),
+    lastSeenAt: integer("last_seen_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+  },
+  (table) => ({
+    storeItemUnique: uniqueIndex("market_cards_store_item_idx").on(table.storeId, table.itemId),
+    storeCardSlugIdx: index("market_cards_store_card_slug_idx").on(table.storeId, table.cardSlug),
+    storeEditionIdx: index("market_cards_store_edition_idx").on(table.storeId, table.editionId),
+  })
+);
+
+export type MarketStore = typeof marketStores.$inferSelect;
+export type InsertMarketStore = typeof marketStores.$inferInsert;
+export type MarketCard = typeof marketCards.$inferSelect;
+export type InsertMarketCard = typeof marketCards.$inferInsert;
 
 // ---------------------------------------------------------------------------
 // Managed MyPCards Watchlist Ledger

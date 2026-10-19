@@ -300,6 +300,51 @@ CREATE TABLE IF NOT EXISTS \`shipping_tickets\` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS \`shipping_tickets_user_ticket_idx\` ON \`shipping_tickets\` (\`user_id\`,\`superfrete_order_id\`);
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS \`market_stores\` (
+	\`id\` text PRIMARY KEY NOT NULL,
+	\`platform\` text NOT NULL,
+	\`name\` text NOT NULL,
+	\`base_url\` text NOT NULL,
+	\`tcg_id\` text,
+	\`enabled\` integer DEFAULT true NOT NULL,
+	\`last_count\` integer,
+	\`last_count_checked_at\` integer,
+	\`last_full_scan_at\` integer,
+	\`updated_at\` integer DEFAULT (strftime('%s', 'now'))
+);
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS \`market_cards\` (
+	\`id\` text PRIMARY KEY NOT NULL,
+	\`store_id\` text NOT NULL,
+	\`card_slug\` text,
+	\`edition_id\` text,
+	\`raw_name\` text NOT NULL,
+	\`card_name\` text NOT NULL,
+	\`set_prefix\` text NOT NULL,
+	\`quantity\` integer DEFAULT 1 NOT NULL,
+	\`price\` text DEFAULT 'R$ 0,00' NOT NULL,
+	\`price_numeric\` real DEFAULT 0 NOT NULL,
+	\`tcg_price\` text,
+	\`tcg_price_numeric\` real,
+	\`quality\` text DEFAULT 'NM' NOT NULL,
+	\`is_foil\` integer DEFAULT false NOT NULL,
+	\`item_id\` text,
+	\`product_url\` text,
+	\`vendor_name\` text,
+	\`vendor_url\` text,
+	\`last_seen_at\` integer DEFAULT (strftime('%s', 'now')),
+	\`updated_at\` integer DEFAULT (strftime('%s', 'now')),
+	FOREIGN KEY (\`store_id\`) REFERENCES \`market_stores\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (\`card_slug\`) REFERENCES \`cards\`(\`slug\`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (\`edition_id\`) REFERENCES \`card_editions\`(\`id\`) ON UPDATE no action ON DELETE set null
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS \`market_cards_store_item_idx\` ON \`market_cards\` (\`store_id\`,\`item_id\`);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS \`market_cards_store_card_slug_idx\` ON \`market_cards\` (\`store_id\`,\`card_slug\`);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS \`market_cards_store_edition_idx\` ON \`market_cards\` (\`store_id\`,\`edition_id\`);
 `;
 
 export async function runMigrations(customClient = client) {

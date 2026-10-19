@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { users, decks, collectionItems } from "../db/schema";
+import { users, decks, collectionItems, marketStores } from "../db/schema";
 import { runMigrations } from "../db/init";
 import { seedMetaArchetypes } from "./meta";
 import { eq, and, sql } from "drizzle-orm";
@@ -93,6 +93,40 @@ async function doSeed(database = db) {
   }
 
   await seedMetaArchetypes(database);
+  await seedMarketStores(database);
+}
+
+export async function seedMarketStores(database = db) {
+  const stores = [
+    {
+      id: "myp",
+      platform: "myp",
+      name: "MyP Cards",
+      baseUrl: "https://mypcards.com",
+      tcgId: "grandarchive",
+      enabled: true,
+    },
+    {
+      id: "brandao",
+      platform: "liga_store",
+      name: "Brandão Card Game",
+      baseUrl: "https://www.brandaocardgame.com.br",
+      tcgId: "21",
+      enabled: true,
+    },
+  ];
+
+  for (const s of stores) {
+    const existing = await database
+      .select()
+      .from(marketStores)
+      .where(eq(marketStores.id, s.id))
+      .get();
+
+    if (!existing) {
+      await database.insert(marketStores).values(s);
+    }
+  }
 }
 
 export async function ensureDefaultUserAndSeed(database = db) {
