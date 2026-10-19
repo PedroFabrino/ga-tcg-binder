@@ -184,8 +184,13 @@ export default function FulfillmentProcessedTab() {
 
     setIsBatchSubmitting(true);
     try {
-      for (const item of eligibleOrders) {
-        handleOpenMyPConfirm(item.order, item.ticket);
+      if (eligibleOrders.length > 1) {
+        // Modern browsers block opening multiple tabs from a single click event.
+        // Open the first order and inform the user to use the dedicated per-order buttons.
+        handleOpenMyPConfirm(eligibleOrders[0].order, eligibleOrders[0].ticket);
+        showToast(t("fulfillment.batchPopupBlockerNotice"));
+      } else {
+        handleOpenMyPConfirm(eligibleOrders[0].order, eligibleOrders[0].ticket);
       }
     } finally {
       setIsBatchSubmitting(false);
