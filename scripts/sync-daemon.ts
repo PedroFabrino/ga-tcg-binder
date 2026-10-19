@@ -65,8 +65,24 @@ async function performCheck() {
   }
 
   isChecking = true;
+  const startIso = new Date().toISOString();
+  console.log(`[sync-daemon] [${startIso}] Polling marketplace store counts...`);
+
   try {
     const report = await checkMarketStores(db);
+    const summary = report.stores
+      .map((s) => {
+        if (s.error) {
+          return `${s.storeId}: error (${s.error})`;
+        }
+        return `${s.storeId}: ${s.observedCount ?? "?"}${s.changed ? " (changed!)" : ""}`;
+      })
+      .join(", ");
+
+    console.log(
+      `[sync-daemon] [${new Date().toISOString()}] Poll complete -> [${summary}]`
+    );
+
     for (const change of report.changes) {
       console.log(
         `[sync-daemon] Count change detected for store "${change.storeId}": ${
