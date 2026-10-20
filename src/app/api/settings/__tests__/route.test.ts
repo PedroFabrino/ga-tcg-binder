@@ -161,6 +161,9 @@ describe("Settings API Route (src/app/api/settings/route.ts)", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        sellerModeEnabled: true,
+        mypPassword: "SecretPassword123!",
+        superfreteApiKey: "token",
         shippingPackagePreset: "bubble-mailer",
         shippingPackageHeight: 3.5,
         shippingPackageWidth: 16,

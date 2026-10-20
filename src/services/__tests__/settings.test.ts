@@ -178,6 +178,11 @@ describe("Settings Service (src/services/settings.ts)", () => {
   });
 
   it("saves shipping package preset and dimension properties", async () => {
+    await updateUserSettingsService(
+      userId,
+      { mypPassword: "secret", sellerModeEnabled: true, superfreteApiKey: "token" },
+      db
+    );
     const updated = await updateUserSettingsService(
       userId,
       {
@@ -200,4 +205,18 @@ describe("Settings Service (src/services/settings.ts)", () => {
     expect(updated?.shippingPackageTapeWeight).toBe(8);
     expect(updated?.shippingCardWeight).toBe(3.5);
   });
-});
+
+  it("ignores shipping package updates until the user has Shipping Capability", async () => {
+    await updateUserSettingsService(userId, { shippingPackageHeight: 9 }, db);
+    let [row] = await db.select().from(users).where(eq(users.id, userId));
+    expect(row.shippingPackageHeight).not.toBe(9);
+
+    await updateUserSettingsService(
+      userId,
+      { mypPassword: "secret", sellerModeEnabled: true, superfreteApiKey: "token" },
+      db
+    );
+    await updateUserSettingsService(userId, { shippingPackageHeight: 9 }, db);
+    [row] = await db.select().from(users).where(eq(users.id, userId));
+    expect(row.shippingPackageHeight).toBe(9);
+  });});
