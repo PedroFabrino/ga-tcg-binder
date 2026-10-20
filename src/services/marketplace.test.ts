@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createTestDb } from "../db/test-utils";
-import { cards, cardEditions, users, decks, deckCards, collectionItems, mypCards, marketCards, metaStaples } from "../db/schema";
+import { cards, cardEditions, users, decks, deckCards, collectionItems, mypCards, marketCards, marketStores, metaStaples } from "../db/schema";
 import {
   parseMypHtml,
   syncUserMarketplace,
@@ -1046,6 +1046,100 @@ describe("Marketplace (MyPCards) Sync, Shortage Offset & Claim Seam", () => {
       expect(updated?.vendorName).toBe("Top Seller Brasil");
       expect(updated?.vendorUrl).toBe("https://mypcards.com/top-seller/grandarchive");
     });
+  });
+
+  it("excludes zero-quantity market_cards rows from getGlobalMarketReport and stores report counts in sync with the daemon reconcile step", async () => {
+    const { db } = await createTestDb();
+
+    await db.insert(users).values({
+      id: "u-reconcile",
+      name: "Reconcile Test",
+      friendCode: "GA-RECON1",
+    });
+
+    await db.insert(marketStores).values({
+      id: "brandao",
+      name: "Brandão",
+      platform: "liga_store",
+      baseUrl: "https://www.brandaocardgame.com.br",
+      enabled: true,
+      lastCount: 3,
+    });
+
+    // "myp" is already seeded by the migration
+
+    await db.insert(cards).values({
+      slug: "dungeon-guide",
+      name: "Dungeon Guide",
+      element: "NORM",
+      class: "WARRIOR",
+      type: "ALLY",
+    });
+
+    // Three brandao rows: two active, one reconciled (qty=0)
+    await db.insert(marketCards).values([
+      {
+        id: "mkt-br-active1",
+        storeId: "brandao",
+        cardSlug: "dungeon-guide",
+        rawName: "Dungeon Guide",
+        cardName: "Dungeon Guide",
+        setPrefix: "ALC",
+        quantity: 1,
+        price: "R$ 5,00",
+        priceNumeric: 5.0,
+      },
+      {
+        id: "mkt-br-active2",
+        storeId: "brandao",
+        cardSlug: "dungeon-guide",
+        rawName: "Dungeon Guide (NM)",
+        cardName: "Dungeon Guide",
+        setPrefix: "ALC",
+        quantity: 2,
+        price: "R$ 6,00",
+        priceNumeric: 6.0,
+      },
+      {
+        id: "mkt-br-sold",
+        storeId: "brandao",
+        cardSlug: "dungeon-guide",
+        rawName: "Dungeon Guide (GD)",
+        cardName: "Dungeon Guide",
+        setPrefix: "ALC",
+        quantity: 0, // reconciled — daemon set this to 0 after it disappeared from the page
+        price: "R$ 0,00",
+        priceNumeric: 0,
+      },
+    ]);
+
+    // One active myp row
+    await db.insert(marketCards).values({
+      id: "mkt-myp-active",
+      storeId: "myp",
+      cardSlug: "dungeon-guide",
+      rawName: "Dungeon Guide",
+      cardName: "Dungeon Guide",
+      setPrefix: "ALC",
+      quantity: 3,
+      price: "R$ 4,00",
+      priceNumeric: 4.0,
+    });
+
+    const report = await getGlobalMarketReport("u-reconcile", db);
+
+    // Zero-qty row must not appear
+    expect(report.cards.length).toBe(3);
+    expect(report.cards.every((c) => c.id !== "mkt-br-sold")).toBe(true);
+
+    // Brandão count: 2 (excludes sold), MyP count: 1
+    const brRow = report.summary.stores.find((s: any) => s.id === "brandao");
+    expect(brRow?.count).toBe(2);
+    const mypRow = report.summary.stores.find((s: any) => s.id === "myp");
+    expect(mypRow?.count).toBe(1);
+
+    // Total copies: 1 + 2 + 3 = 6 (not 7 with the sold row)
+    expect(report.summary.totalMarketCopies).toBe(6);
   });
 });
 

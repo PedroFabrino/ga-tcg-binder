@@ -1,4 +1,4 @@
-import { eq, and, or, inArray, sql, isNull, isNotNull } from "drizzle-orm";
+import { eq, and, or, inArray, sql, isNull, isNotNull, gt } from "drizzle-orm";
 import { db } from "../db";
 import {
   users,
@@ -1602,6 +1602,8 @@ export async function getGlobalMarketReport(
     queryBuilder = queryBuilder.where(eq(marketCards.storeId, storeId));
   }
 
+  queryBuilder = queryBuilder.where(gt(marketCards.quantity, 0));
+
   const rawMarketRows = await queryBuilder;
 
   // Retrieve enabled stores with listing counts
@@ -1618,7 +1620,8 @@ export async function getGlobalMarketReport(
     .select({
       storeId: marketCards.storeId,
     })
-    .from(marketCards);
+    .from(marketCards)
+    .where(gt(marketCards.quantity, 0));
 
   const countByStore = new Map<string, number>();
   for (const row of allMarketCounts) {
@@ -1764,7 +1767,7 @@ export async function getGlobalMarketReport(
   let latestUpdatedAt: number | null = null;
 
   const enrichedCards: GlobalMarketplaceCardItem[] = marketRows.map((row: any) => {
-    const qty = Number(row.quantity) || 1;
+    const qty = Number(row.quantity);
     totalMarketCopies += qty;
 
     const rowUpdatedAtMs =
