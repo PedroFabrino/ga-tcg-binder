@@ -14,6 +14,7 @@ import {
 import { Modal, PageHeader } from "@/components/common";
 import { SkeletonGrid, EmptyState } from "@/components/Skeletons";
 import { useToast } from "@/components/ToastProvider";
+import { useTranslation } from "@/lib/i18n";
 import ShortageTable, {
   FeasibilityBanner,
   type ShortageReport,
@@ -222,8 +223,9 @@ function ArchetypeCard({
 }
 
 export default function MetaExplorerPage() {
-  const { data: session } = useSession();
-  const { showToast } = useToast();
+const { t } = useTranslation();
+const { data: session } = useSession();
+const { showToast } = useToast();
   const [archetypes, setArchetypes] = useState<MetaArchetype[]>([]);
   const [recommended, setRecommended] = useState<MetaArchetype[]>([]);
   const [loading, setLoading] = useState(true);
@@ -274,7 +276,7 @@ export default function MetaExplorerPage() {
       }
       setReport(data);
     } catch (err: any) {
-      showToast(err.message || "Couldn't compare that decklist", "error");
+      showToast(err.message || t("meta.compareError"), "error");
       setCompareTitle(null);
     } finally {
       setComparing(false);
@@ -283,7 +285,7 @@ export default function MetaExplorerPage() {
 
   const importArchetype = async (m: MetaArchetype) => {
     if (!m.decklist) {
-      showToast("No decklist available for this archetype.", "error");
+      showToast(t("meta.noDecklistError"), "error");
       return;
     }
     setImportingId(m.id);
@@ -303,17 +305,17 @@ export default function MetaExplorerPage() {
       if (data.success && data.id) {
         if ((m.mypStoreCardsOwned || 0) > 0) {
           showToast(
-            `Imported "${m.name}"! Note: ${m.mypStoreCardsOwned} copies are in your MyP Store. Click MyP Store tab to claim them.`,
+            t("meta.importWithMypNote", { name: m.name, count: m.mypStoreCardsOwned ?? 0 }),
             "success"
           );
         } else {
-          showToast(`Imported "${m.name}" to your Decks!`, "success");
+          showToast(t("meta.importSuccess", { name: m.name }), "success");
         }
       } else {
         throw new Error(data.error || "Failed to import deck");
       }
     } catch (err: any) {
-      showToast(err.message || "Failed to import archetype", "error");
+      showToast(err.message || t("meta.saveError", { error: "Unknown" }), "error");
     } finally {
       setImportingId(null);
     }
@@ -337,12 +339,12 @@ export default function MetaExplorerPage() {
       const data = await res.json();
       if (data.success && data.id) {
         setSavedDeckId(data.id);
-        showToast("Deck saved to your collection!", "success");
+        showToast(t("meta.saveSuccess"), "success");
       } else if (data.error) {
-        showToast("Failed to save deck: " + data.error, "error");
+        showToast(t("meta.saveError", { error: data.error }), "error");
       }
     } catch (err: any) {
-      showToast("Failed to save deck: " + err.message, "error");
+      showToast(t("meta.saveError", { error: err.message }), "error");
     } finally {
       setSavingDeck(false);
     }

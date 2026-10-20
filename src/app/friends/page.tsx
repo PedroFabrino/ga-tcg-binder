@@ -11,6 +11,7 @@ import { getElementClass } from "@/lib/elements";
 import { CardPreviewTrigger } from "@/components/CardHoverPreview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useTranslation } from "@/lib/i18n";
 
 interface Friend { id: string; name: string; friendCode: string; createdAt: string }
 interface IdleCard {
@@ -163,8 +164,9 @@ function IdleBinderModal({ friend, onClose }: { friend: Friend; onClose: () => v
 }
 
 export default function FriendsPage() {
-  const { data: session } = useSession();
-  const { showToast } = useToast();
+const { t } = useTranslation();
+const { data: session } = useSession();
+const { showToast } = useToast();
   const [code, setCode] = useState<string | null>(null);
   const [friends, setFriends] = useState<Friend[]>([]);
   const [loading, setLoading] = useState(true);
@@ -181,7 +183,7 @@ export default function FriendsPage() {
       setCode(data.currentUser?.friendCode ?? null);
       setFriends(Array.isArray(data.friends) ? data.friends : []);
     } catch {
-      showToast("Couldn't load your playgroup", "error");
+      showToast(t("friends.loadError"), "error");
     } finally {
       setLoading(false);
     }
@@ -205,11 +207,11 @@ export default function FriendsPage() {
       });
       const data = await res.json();
       if (!res.ok || !(data.success || data.friend)) throw new Error(data.error);
-      showToast(`Connected with ${data.friend?.name || "your friend"}`, "success");
+      showToast(t("friends.connected", { name: data.friend?.name || "your friend" }), "success");
       setInput("");
       load();
     } catch (err: any) {
-      showToast(err?.message || "That friend code didn't work", "error");
+      showToast(err?.message || t("friends.connectError"), "error");
     } finally {
       setConnecting(false);
     }

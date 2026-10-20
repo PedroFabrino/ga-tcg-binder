@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import {
-  BookOpen,
-  Plus,
-  Upload,
-  ArrowRight,
-  CheckCircle2,
-  AlertTriangle,
-  Trash2,
-  Crown,
+BookOpen,
+Plus,
+Upload,
+ArrowRight,
+CheckCircle2,
+AlertTriangle,
+Trash2,
+Crown,
 } from "lucide-react";
 import { PageHeader, ConfirmModal, Tabs } from "@/components/common";
 import { SkeletonCard, EmptyState } from "@/components/Skeletons";
@@ -19,6 +19,7 @@ import DeckFormModal from "@/components/decks/DeckFormModal";
 import AllShortagesView from "@/components/decks/AllShortagesView";
 import { Button } from "@/components/ui/button";
 import type { AggregatedShortageReport } from "@/services/shortage";
+import { useTranslation } from "@/lib/i18n";
 
 interface DeckSummary {
   id: string;
@@ -34,8 +35,9 @@ interface DeckSummary {
 type DecksViewTab = "decks" | "shortages";
 
 export default function DecksPage() {
-  const { data: session } = useSession();
-  const { showToast } = useToast();
+const { t } = useTranslation();
+const { data: session } = useSession();
+const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<DecksViewTab>("decks");
   const [decks, setDecks] = useState<DeckSummary[]>([]);
   const [shortages, setShortages] = useState<Record<string, number | null>>({});
@@ -150,25 +152,25 @@ export default function DecksPage() {
   const totalShortageCopies = aggregatedReport?.summary.totalShortageCopies || 0;
 
   const TABS = [
-    { id: "decks" as const, label: `My Decks (${decks.length})`, icon: BookOpen },
+    { id: "decks" as const, label: `${t("decks.decksTab")} (${decks.length})`, icon: BookOpen },
     {
-      id: "shortages" as const,
-      label: totalShortageCopies > 0 ? `All Shortages (${totalShortageCopies})` : "All Shortages",
-      icon: AlertTriangle,
+    id: "shortages" as const,
+    label: totalShortageCopies > 0 ? `${t("decks.shortagesTab")} (${totalShortageCopies})` : t("decks.shortagesTab"),
+    icon: AlertTriangle,
     },
   ];
 
   return (
     <div className="space-y-6 pb-12">
       <PageHeader
-        eyebrow="Decks & Shortage Engine"
-        title="Deck Management"
-        description="Every constructed list, checked live against your binder with shared and dedicated copy rules."
+        eyebrow={t("decks.title")}
+        title={t("decks.title")}
+        description={t("decks.subtitle")}
         actions={
           <>
             {totalShortageCopies > 0 ? (
               <span className="rounded-full border border-rose-400/30 bg-rose-500/10 px-3 py-1.5 font-mono text-xs text-rose-300">
-                {totalShortageCopies} total missing
+                {totalShortageCopies} {t("common.missing")}
               </span>
             ) : decks.length > 0 ? (
               <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1.5 font-mono text-xs text-emerald-300">

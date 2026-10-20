@@ -12,12 +12,14 @@ import DeckList, { type DeckCard } from "@/components/decks/DeckList";
 import DeckCardGrid from "@/components/decks/DeckCardGrid";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { useTranslation } from "@/lib/i18n";
 
 export default function DeckDetailPage() {
-  const params = useParams();
-  const deckId = params?.id as string;
-  const { data: session } = useSession();
-  const { showToast } = useToast();
+const { t } = useTranslation();
+const params = useParams();
+const deckId = params?.id as string;
+const { data: session } = useSession();
+const { showToast } = useToast();
 
   const [deck, setDeck] = useState<any>(null);
   const [cards, setCards] = useState<{ material: DeckCard[]; main: DeckCard[]; side: DeckCard[] }>({ material: [], main: [], side: [] });
@@ -57,7 +59,7 @@ export default function DeckDetailPage() {
       }
       if (Array.isArray(shortageData?.items)) setShortage(shortageData);
     } catch {
-      showToast("Couldn't load this deck", "error");
+      showToast(t("decks.loadError"), "error");
     } finally {
       setLoading(false);
     }
@@ -71,10 +73,10 @@ export default function DeckDetailPage() {
     try {
       await navigator.clipboard.writeText(omnidexText);
       setCopied(true);
-      showToast("Omnidex decklist copied", "success");
+      showToast(t("decks.copied"), "success");
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      showToast("Could not access clipboard", "error");
+      showToast(t("friends.clipboardError"), "error");
     }
   };
 
@@ -179,7 +181,7 @@ export default function DeckDetailPage() {
   };
 
   if (notFound) {
-    return <EmptyState icon={BookOpen} title="Deck not found" description="It may have been deleted." action={<Button asChild variant="outline"><a href="/decks">Back to Decks</a></Button>} />;
+    return <EmptyState icon={BookOpen} title={t("decks.deleteDeck")} description={t("decks.deleteConfirm")} action={<Button asChild variant="outline"><a href="/decks">{t("settings.backLink")}</a></Button>} />;
   }
 
   return (
