@@ -44,7 +44,6 @@ export default function MarketplacePage() {
 
   const [report, setReport] = useState<GlobalMarketReport | null>(null);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
   const [enrichingTcg, setEnrichingTcg] = useState(false);
   const [enrichingIds, setEnrichingIds] = useState<Set<string>>(new Set());
 
@@ -84,38 +83,6 @@ export default function MarketplacePage() {
     fetchMarket();
   }, [fetchMarket]);
 
-  const handleSyncMarket = async () => {
-    setSyncing(true);
-    try {
-      const res = await fetch("/api/marketplace/market", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: session?.user?.id,
-          storeId: selectedStoreId || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Market sync failed");
-
-      setReport(data.report);
-      if (data.warning === "LIGASTORE_CLOUDFLARE_BLOCKED") {
-        showToast(
-          t("marketplace.ligaStoreCloudflareNotice"),
-          "info"
-        );
-      } else {
-        showToast(
-          `Scanned ${data.stats?.totalSynced ?? 0} items across marketplace stores!`,
-          "success"
-        );
-      }
-    } catch (err: any) {
-      showToast(err.message || "Failed to scan marketplace stores", "error");
-    } finally {
-      setSyncing(false);
-    }
-  };
 
   const handleEnrichTcg = async (targetCardIds?: string[]) => {
     if (enrichingTcg) return;
@@ -284,7 +251,7 @@ export default function MarketplacePage() {
 
             <Button
               onClick={() => handleEnrichTcg()}
-              disabled={enrichingTcg || syncing}
+              disabled={enrichingTcg}
               variant="outline"
               className="gap-2 border-amber-400/40 text-amber-200 hover:bg-amber-400/10 font-semibold"
             >
@@ -292,18 +259,7 @@ export default function MarketplacePage() {
               {enrichingTcg ? t("marketplace.checkingTcg") : t("marketplace.checkTcgPrices")}
             </Button>
 
-            <Button
-              onClick={() => handleSyncMarket()}
-              disabled={syncing || enrichingTcg}
-              className="gap-2 bg-cyan-500 text-slate-950 hover:bg-cyan-400 font-semibold shadow-[0_0_20px_-5px_rgba(34,211,238,0.4)]"
-            >
-              <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
-              {syncing
-                ? t("marketplace.scanningMarket")
-                : selectedStore
-                ? t("marketplace.syncStore", { store: selectedStore.name })
-                : t("marketplace.syncMarketStores")}
-            </Button>
+
           </div>
         }
       />
@@ -641,23 +597,16 @@ export default function MarketplacePage() {
       {loading ? (
         <div className="flex flex-col items-center justify-center rounded-2xl glass py-16">
           <Loader2 className="h-7 w-7 animate-spin text-cyan-400 mb-3" />
-          <p className="text-sm text-slate-400">Loading Grand Archive market listings...</p>
+          <p className="text-sm text-slate-400">{t("marketplace.loadingMarketListings")}</p>
         </div>
       ) : !report || report.cards.length === 0 ? (
         <div className="rounded-2xl glass p-12 text-center">
           <Store className="mx-auto mb-3 h-10 w-10 text-slate-500" />
-          <h3 className="text-base font-semibold text-white">No market data available</h3>
+          <h3 className="text-base font-semibold text-white">{t("marketplace.noMarketDataAvailable")}</h3>
           <p className="mt-1 text-xs text-slate-400 max-w-md mx-auto">
-            Click "Sync MyP Market" to crawl the active Grand Archive catalog from MyP Cards.
+            {t("marketplace.marketDataRefreshesAutomatically")}
           </p>
-          <Button
-            onClick={() => handleSyncMarket()}
-            disabled={syncing}
-            className="mt-4 bg-cyan-500 text-slate-950 hover:bg-cyan-400 font-semibold"
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
-            Sync MyP Market Now
-          </Button>
+
         </div>
       ) : filteredCards.length === 0 ? (
         <div className="rounded-2xl glass p-10 text-center">
