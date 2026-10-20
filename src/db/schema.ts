@@ -17,6 +17,7 @@ export const users = sqliteTable("users", {
   watchlistPolicyStaples: integer("watchlist_policy_staples", { mode: "boolean" }).notNull().default(false),
   mypLogin: text("myp_login"),
   mypPasswordEncrypted: text("myp_password_encrypted"),
+  sellerModeEnabled: integer("seller_mode_enabled", { mode: "boolean" }).notNull().default(false),
   mypAutoWatchlistEnabled: integer("myp_auto_watchlist_enabled", { mode: "boolean" }).notNull().default(false),
   superfreteApiKeyEncrypted: text("superfrete_api_key_encrypted"),
   shippingPackagePreset: text("shipping_package_preset").notNull().default("standard-box"),

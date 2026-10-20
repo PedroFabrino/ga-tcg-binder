@@ -58,18 +58,34 @@ export default function CollectionPage() {
   const [error, setError] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [hasVendorCapability, setHasVendorCapability] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/settings")
+      .then((response) => response.json())
+      .then((settings: { hasVendorCapability?: boolean }) => {
+        if (active) setHasVendorCapability(settings.hasVendorCapability === true);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const v = params.get("view") as View | null;
     const tab = params.get("tab");
     const isFulfillment = params.get("fulfillment") === "1" || window.location.hash.startsWith("#ga_fulfillment=");
-    if (isFulfillment || tab === "myp-store") {
+    if (hasVendorCapability && (isFulfillment || tab === "myp-store" || v === "MYP_STORE")) {
       setActiveTab("MYP_STORE");
-    } else if (v && VIEWS.includes(v)) {
+    } else if (v && VIEWS.includes(v) && v !== "MYP_STORE") {
       setActiveTab(v);
+    } else {
+      setActiveTab("ALL");
     }
-  }, []);
+  }, [hasVendorCapability]);
 
   const fetchCollection = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -142,6 +158,7 @@ export default function CollectionPage() {
   const totalCopies = items.reduce((s, i) => s + i.quantity, 0);
   const filteredCopies = filteredItems.reduce((s, i) => s + i.quantity, 0);
   const isFiltered = searchQuery.trim().length > 0;
+  const visibleTabs = TABS.filter((tab) => tab.id !== "MYP_STORE" || hasVendorCapability);
 
   return (
     <div className="space-y-6 pb-12">
@@ -182,7 +199,7 @@ export default function CollectionPage() {
       )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
+        <Tabs tabs={visibleTabs} active={activeTab} onChange={setActiveTab} />
         {activeTab !== "MYP_STORE" && (
           <div className="inline-flex self-start rounded-xl border border-white/[0.06] bg-white/[0.02] p-1" role="group" aria-label="View mode">
             {[
@@ -202,7 +219,7 @@ export default function CollectionPage() {
         )}
       </div>
 
-      {activeTab === "MYP_STORE" ? (
+      {activeTab === "MYP_STORE" && hasVendorCapability ? (
         <MypStoreView />
       ) : error && !loading ? (
         <EmptyState icon={Layers} title="We couldn't load your binder" description="Check your connection and try again." action={<Button variant="outline" onClick={() => fetchCollection()}>Retry</Button>} />

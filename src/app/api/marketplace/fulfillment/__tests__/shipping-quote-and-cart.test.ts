@@ -38,6 +38,9 @@ describe("Shipping Quote and Cart API Routes", () => {
       name: "Shipping Tester",
       email: "shipping@test.com",
       friendCode: "GA-SHIP",
+      mypUsername: "shipping-seller",
+      mypPasswordEncrypted: "configured-password",
+      sellerModeEnabled: true,
     });
 
     // Seed open fulfillment order
@@ -79,11 +82,10 @@ describe("Shipping Quote and Cart API Routes", () => {
     });
   });
 
-  it("returns 400 when user has not configured Superfrete API key", async () => {
+  it("returns 404 when the seller has not configured a Superfrete API key", async () => {
     const res = await quotePost();
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.error).toBe("SUPERFRETE_API_KEY_NOT_CONFIGURED");
+    expect(res.status).toBe(404);
+    expect(res.headers.get("access-control-allow-origin")).toBe("*");
   });
 
   it("quotes open Buyer Packs and selects preferred Loggi quote", async () => {

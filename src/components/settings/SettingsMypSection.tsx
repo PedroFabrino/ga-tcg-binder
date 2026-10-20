@@ -15,6 +15,8 @@ interface SettingsMypSectionProps {
   setMypPassword: (val: string) => void;
   mypAutoWatchlistEnabled: boolean;
   setMypAutoWatchlistEnabled: (val: boolean) => void;
+  sellerModeEnabled: boolean;
+  setSellerModeEnabled: (val: boolean) => void;
   hasSavedMypCredentials: boolean;
   loading: boolean;
   clearingCreds: boolean;
@@ -30,6 +32,8 @@ export function SettingsMypSection({
   setMypPassword,
   mypAutoWatchlistEnabled,
   setMypAutoWatchlistEnabled,
+  sellerModeEnabled,
+  setSellerModeEnabled,
   hasSavedMypCredentials,
   loading,
   clearingCreds,
@@ -103,6 +107,17 @@ export function SettingsMypSection({
             />
           </div>
         </div>
+
+        <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-300">
+          <input
+            type="checkbox"
+            checked={sellerModeEnabled}
+            onChange={(e) => setSellerModeEnabled(e.target.checked)}
+            disabled={loading}
+            className="rounded border-slate-700 bg-slate-800 text-cyan-600 focus:ring-cyan-500"
+          />
+          <span>{t("settings.sellerModeEnabled")}</span>
+        </label>
 
         {hasSavedMypCredentials && (
           <div className="flex items-center justify-between pt-1">

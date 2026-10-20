@@ -452,6 +452,7 @@ async function doRunMigrations(customClient: typeof client) {
     "ALTER TABLE `users` ADD COLUMN `watchlist_policy_staples` integer DEFAULT 0 NOT NULL;",
     "ALTER TABLE `users` ADD COLUMN `myp_login` text;",
     "ALTER TABLE `users` ADD COLUMN `myp_password_encrypted` text;",
+    "ALTER TABLE `users` ADD COLUMN `seller_mode_enabled` integer DEFAULT 0 NOT NULL;",
     "ALTER TABLE `users` ADD COLUMN `myp_auto_watchlist_enabled` integer DEFAULT 0 NOT NULL;",
     "ALTER TABLE `users` ADD COLUMN `watchlist_sync_token` text;",
     "ALTER TABLE `myp_watchlist` ADD COLUMN `myp_wishlist_item_id` text;",

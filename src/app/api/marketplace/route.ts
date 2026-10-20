@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { runMigrations } from "@/db/init";
-import { DEFAULT_USER_ID, ensureDefaultUserAndSeed } from "@/services/seed";
+import { ensureDefaultUserAndSeed } from "@/services/seed";
 import { auth } from "@/auth";
+import { userHasCapability } from "@/services/settings";
 import {
   getUserMarketplaceReport,
   syncUserMarketplace,
@@ -14,8 +15,11 @@ export async function GET(req: NextRequest) {
     await runMigrations();
     await ensureDefaultUserAndSeed();
     const session = await auth();
-    const url = new URL(req.url);
-    const userId = session?.user?.id || url.searchParams.get("userId") || DEFAULT_USER_ID;
+    const userId = session?.user?.id;
+
+    if (!userId || !(await userHasCapability(userId, "hasVendorCapability"))) {
+      return new NextResponse(null, { status: 404 });
+    }
 
     const report = await getUserMarketplaceReport(userId, db);
     return NextResponse.json(report);
@@ -30,8 +34,12 @@ export async function POST(req: NextRequest) {
     await ensureDefaultUserAndSeed();
     const session = await auth();
     const body = await req.json();
-    const userId = session?.user?.id || body.userId || DEFAULT_USER_ID;
+    const userId = session?.user?.id;
     const action = body.action || "sync";
+
+    if (!userId || !(await userHasCapability(userId, "hasVendorCapability"))) {
+      return new NextResponse(null, { status: 404 });
+    }
 
     if (action === "sync") {
       const currentReport = await getUserMarketplaceReport(userId, db);

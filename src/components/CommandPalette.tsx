@@ -31,14 +31,24 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [selectedIdx, setSelectedIdx] = useState(0);
+  const [hasVendorCapability, setHasVendorCapability] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    void fetch("/api/settings")
+      .then((response) => response.json())
+      .then((settings: { hasVendorCapability?: boolean }) => {
+        setHasVendorCapability(settings.hasVendorCapability === true);
+      })
+      .catch(() => undefined);
+  }, []);
 
   const commands: CommandItem[] = [
     { label: "Go to Dashboard", icon: Home, action: () => router.push("/"), group: "Navigation" },
     { label: "Open My Binder", icon: Layers, action: () => router.push("/collection"), group: "Navigation", keywords: "collection inventory" },
     { label: "Deck Builder", icon: BookOpen, action: () => router.push("/decks"), group: "Navigation", keywords: "shortage decks" },
     { label: "MyP Marketplace", icon: Store, action: () => router.push("/marketplace"), group: "Navigation", keywords: "myp mypcards store listings shortage market" },
-    { label: "MyP Store (Personal)", icon: Store, action: () => router.push("/collection?view=MYP_STORE"), group: "Navigation", keywords: "myp store sales selling binder sync" },
+    ...(hasVendorCapability ? [{ label: "MyP Store (Personal)", icon: Store, action: () => router.push("/collection?view=MYP_STORE"), group: "Navigation", keywords: "myp store sales selling binder sync" }] : []),
     { label: "Card Catalog", icon: Sparkles, action: () => router.push("/catalog"), group: "Navigation", keywords: "search cards" },
     { label: "Tournament Meta Explorer", icon: Trophy, action: () => router.push("/meta"), group: "Navigation", keywords: "archetypes grandarchivestats" },
     { label: "Playgroup Friends", icon: Users, action: () => router.push("/friends"), group: "Navigation", keywords: "friend code idle" },

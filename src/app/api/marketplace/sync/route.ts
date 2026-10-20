@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { runMigrations } from "@/db/init";
-import { DEFAULT_USER_ID, ensureDefaultUserAndSeed } from "@/services/seed";
+import { ensureDefaultUserAndSeed } from "@/services/seed";
 import { auth } from "@/auth";
+import { userHasCapability } from "@/services/settings";
 import {
   getUserMarketplaceReport,
   syncUserMarketplace,
@@ -14,7 +15,11 @@ export async function POST(req: NextRequest) {
     await ensureDefaultUserAndSeed();
     const session = await auth();
     const body = await req.json();
-    const userId = session?.user?.id || body.userId || DEFAULT_USER_ID;
+    const userId = session?.user?.id;
+
+    if (!userId || !(await userHasCapability(userId, "hasVendorCapability"))) {
+      return new NextResponse(null, { status: 404 });
+    }
 
     const currentReport = await getUserMarketplaceReport(userId, db);
     const usernameToSync = body.username || currentReport.mypUsername;

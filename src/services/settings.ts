@@ -10,9 +10,22 @@ import { normalizePolicyFlags } from "./watchlist-policy";
 import type { SettingsUpdateInput } from "@/lib/validation/watchlist-schemas";
 import crypto from "crypto";
 
-export interface SafeUser extends Omit<UserRow, "mypPasswordEncrypted" | "superfreteApiKeyEncrypted"> {
+export interface UserCapabilities {
+  hasVendorCapability: boolean;
+  hasShippingCapability: boolean;
+}
+
+export interface SafeUser extends Omit<UserRow, "mypPasswordEncrypted" | "superfreteApiKeyEncrypted">, UserCapabilities {
   hasSavedMypCredentials: boolean;
   hasSavedSuperfreteApiKey: boolean;
+}
+
+export function getUserCapabilities(user: Pick<UserRow, "sellerModeEnabled" | "mypUsername" | "mypPasswordEncrypted" | "superfreteApiKeyEncrypted">): UserCapabilities {
+  const hasVendorCapability = Boolean(user.sellerModeEnabled && user.mypUsername?.trim() && user.mypPasswordEncrypted);
+  return {
+    hasVendorCapability,
+    hasShippingCapability: hasVendorCapability && Boolean(user.superfreteApiKeyEncrypted),
+  };
 }
 
 export function sanitizeUser(user: UserRow | undefined): SafeUser | null {
@@ -22,7 +35,13 @@ export function sanitizeUser(user: UserRow | undefined): SafeUser | null {
     ...safeUser,
     hasSavedMypCredentials: Boolean(mypPasswordEncrypted),
     hasSavedSuperfreteApiKey: Boolean(superfreteApiKeyEncrypted),
+    ...getUserCapabilities(user),
   };
+}
+
+export async function userHasCapability(userId: string, capability: keyof UserCapabilities): Promise<boolean> {
+  const user = await getUserById(userId);
+  return Boolean(user && getUserCapabilities(user)[capability]);
 }
 
 export async function getUserSettings(userId: string, database?: unknown): Promise<SafeUser | null> {
@@ -50,6 +69,13 @@ export async function updateUserSettingsService(
   if (input.mypUsername !== undefined) {
     updateData.mypUsername = input.mypUsername?.trim() || null;
   }
+  if (input.sellerModeEnabled !== undefined) {
+    updateData.sellerModeEnabled = input.sellerModeEnabled;
+  }
+  if (input.mypUsername !== undefined && !input.mypUsername?.trim()) {
+    updateData.sellerModeEnabled = false;
+    updateData.mypAutoWatchlistEnabled = false;
+  }
   if (input.mypAutoWatchlistEnabled !== undefined) {
     updateData.mypAutoWatchlistEnabled = input.mypAutoWatchlistEnabled;
   }
@@ -76,6 +102,7 @@ export async function updateUserSettingsService(
   if (input.clearMypCredentials) {
     updateData.mypLogin = null;
     updateData.mypPasswordEncrypted = null;
+    updateData.sellerModeEnabled = false;
     updateData.mypAutoWatchlistEnabled = false;
   } else {
     if (input.mypPassword && input.mypPassword.trim()) {
@@ -162,6 +189,10 @@ export async function updateUserSettingsService(
     } catch {
       // Background reconciliation error non-fatal
     }
+  }
+
+  if (updatedUser && (!updatedUser.mypUsername?.trim() || !updatedUser.mypPasswordEncrypted) && updatedUser.sellerModeEnabled) {
+    updatedUser = await updateUserSettings(userId, { sellerModeEnabled: false }, dbParam);
   }
 
   return sanitizeUser(updatedUser);

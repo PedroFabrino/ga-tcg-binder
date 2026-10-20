@@ -19,12 +19,14 @@ import type { QuotedBuyerPack } from "@/services/superfrete";
 interface FulfillmentViewProps {
 
   mypUsername?: string | null;
+  hasShippingCapability?: boolean;
   userId?: string;
   syncToken?: string;
 }
 
 export default function FulfillmentView({
   mypUsername,
+  hasShippingCapability = false,
   userId: propUserId,
   syncToken: propSyncToken,
 }: FulfillmentViewProps = {}) {
@@ -291,6 +293,7 @@ export default function FulfillmentView({
         report={report}
         lifecycleTab={lifecycleTab}
         onSelectTab={setLifecycleTab}
+        hasShippingCapability={hasShippingCapability}
         isQuotingShipping={isQuotingShipping}
         onOpenShippingModal={handleOpenShippingModal}
         onCopyText={handleCopyText}
@@ -358,13 +361,14 @@ export default function FulfillmentView({
         <FulfillmentSentTab />
       )}
 
-      {/* Superfrete Shipping Validation Modal */}
-      <FulfillmentShippingModal
-        isOpen={isShippingModalOpen}
-        onClose={() => setIsShippingModalOpen(false)}
-        quotedPacks={quotedPacks}
-        onConfirm={handleConfirmShippingTickets}
-      />
+      {hasShippingCapability && (
+        <FulfillmentShippingModal
+          isOpen={isShippingModalOpen}
+          onClose={() => setIsShippingModalOpen(false)}
+          quotedPacks={quotedPacks}
+          onConfirm={handleConfirmShippingTickets}
+        />
+      )}
     </div>
   );
 }

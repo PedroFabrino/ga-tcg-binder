@@ -8,6 +8,7 @@ import { FulfillmentReport } from "@ga/contracts";
 import FulfillmentPickList from "../FulfillmentPickList";
 import FulfillmentBuyerPacks from "../FulfillmentBuyerPacks";
 import FulfillmentView from "../FulfillmentView";
+import FulfillmentHeader from "../FulfillmentHeader";
 import { I18nProvider } from "@/lib/i18n";
 import { ToastProvider } from "@/components/ToastProvider";
 
@@ -166,6 +167,40 @@ describe("Fulfillment UI Components", () => {
     expect(html).toContain("#654326");
     expect(html).toContain("https://mypcards.com/pedido/654317");
     expect(html).toContain("https://mypcards.com/pedido/654326");
+  });
+
+  it("hides the shipping action when shipping capability is unavailable", () => {
+    const html = renderWithProviders(
+      <FulfillmentHeader
+        report={mockReport}
+        lifecycleTab="open"
+        hasShippingCapability={false}
+        isQuotingShipping={false}
+        onSelectTab={() => {}}
+        onOpenShippingModal={() => {}}
+        onCopyText={() => {}}
+        onClearBatch={() => {}}
+      />
+    );
+
+    expect(html).not.toContain("Generate Shipping");
+  });
+
+  it("renders the shipping action when shipping capability is available", () => {
+    const html = renderWithProviders(
+      <FulfillmentHeader
+        report={mockReport}
+        lifecycleTab="open"
+        hasShippingCapability
+        isQuotingShipping={false}
+        onSelectTab={() => {}}
+        onOpenShippingModal={() => {}}
+        onCopyText={() => {}}
+        onClearBatch={() => {}}
+      />
+    );
+
+    expect(html).toContain("Generate Shipping");
   });
 
   it("renders FulfillmentView empty state when no batch is loaded", () => {

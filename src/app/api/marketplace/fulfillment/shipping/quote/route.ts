@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { ensureDefaultUserAndSeed } from "@/services/seed";
+import { userHasCapability } from "@/services/settings";
 import { quoteOpenBuyerPacksService } from "@/services/superfrete";
 
 const corsHeaders = {
@@ -27,6 +28,9 @@ export async function POST() {
         { error: "Unauthorized: authentication required" },
         { status: 401, headers: corsHeaders }
       );
+    }
+    if (!(await userHasCapability(userId, "hasShippingCapability"))) {
+      return new NextResponse(null, { status: 404, headers: corsHeaders });
     }
 
     const quotedPacks = await quoteOpenBuyerPacksService(userId);

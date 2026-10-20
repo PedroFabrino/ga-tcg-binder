@@ -9,6 +9,7 @@ import {
 } from "@/services/fulfillment";
 import { auth } from "@/auth";
 import { ensureDefaultUserAndSeed } from "@/services/seed";
+import { userHasCapability } from "@/services/settings";
 import type { FulfillmentOrderStatus } from "@ga/contracts";
 
 const corsHeaders = {
@@ -36,6 +37,9 @@ export async function GET(req: NextRequest) {
         { error: "Unauthorized: authentication required" },
         { status: 401, headers: corsHeaders }
       );
+    }
+    if (!(await userHasCapability(userId, "hasVendorCapability"))) {
+      return new NextResponse(null, { status: 404, headers: corsHeaders });
     }
 
     const { searchParams } = new URL(req.url);
@@ -130,6 +134,9 @@ export async function POST(req: NextRequest) {
         { status: 401, headers: corsHeaders }
       );
     }
+    if (userId && !(await userHasCapability(userId, "hasVendorCapability"))) {
+      return new NextResponse(null, { status: 404, headers: corsHeaders });
+    }
 
     const rawBody = await req.json();
     const validation = parseFulfillmentRequest(rawBody);
@@ -181,6 +188,10 @@ export async function PATCH(req: NextRequest) {
         { error: "Unauthorized: authentication required" },
         { status: 401, headers: corsHeaders }
       );
+    }
+
+    if (!(await userHasCapability(userId, "hasVendorCapability"))) {
+      return new NextResponse(null, { status: 404, headers: corsHeaders });
     }
 
     const body = await req.json();

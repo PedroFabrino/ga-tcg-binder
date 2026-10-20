@@ -8,6 +8,7 @@ export interface SettingsUpdateInput {
   mypLogin?: string | null;
   mypPassword?: string | null;
   clearMypCredentials?: boolean;
+  sellerModeEnabled?: boolean;
   mypAutoWatchlistEnabled?: boolean;
   watchlistPolicyHard?: boolean;
   watchlistPolicyShared?: boolean;
@@ -65,6 +66,13 @@ export function parseSettingsInput(raw: unknown): ValidationResult<SettingsUpdat
       return { success: false, error: "clearMypCredentials must be a boolean" };
     }
     data.clearMypCredentials = body.clearMypCredentials;
+  }
+
+  if (body.sellerModeEnabled !== undefined) {
+    if (typeof body.sellerModeEnabled !== "boolean") {
+      return { success: false, error: "sellerModeEnabled must be a boolean" };
+    }
+    data.sellerModeEnabled = body.sellerModeEnabled;
   }
 
   if (body.mypAutoWatchlistEnabled !== undefined) {

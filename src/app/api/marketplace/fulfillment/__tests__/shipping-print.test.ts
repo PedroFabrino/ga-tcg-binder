@@ -36,6 +36,9 @@ describe("Shipping Tag Print API Route (/api/marketplace/fulfillment/shipping/pr
       name: "Print Tester",
       email: "print@test.com",
       friendCode: "GA-PRINT",
+      mypUsername: "print-seller",
+      mypPasswordEncrypted: "configured-password",
+      sellerModeEnabled: true,
       superfreteApiKeyEncrypted: encryptedKey,
     });
 

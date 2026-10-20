@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { ensureDefaultUserAndSeed } from "@/services/seed";
+import { userHasCapability } from "@/services/settings";
 import {
   createShippingTicketsService,
 } from "@/services/superfrete";
@@ -30,6 +31,9 @@ export async function POST(req: NextRequest) {
         { error: "Unauthorized: authentication required" },
         { status: 401, headers: corsHeaders }
       );
+    }
+    if (!(await userHasCapability(userId, "hasShippingCapability"))) {
+      return new NextResponse(null, { status: 404, headers: corsHeaders });
     }
 
     const rawBody = await req.json();

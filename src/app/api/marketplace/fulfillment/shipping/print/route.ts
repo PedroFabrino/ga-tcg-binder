@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { ensureDefaultUserAndSeed } from "@/services/seed";
+import { userHasCapability } from "@/services/settings";
 import {
   getPrintableShippingTicketsService,
   downloadSuperfretePdfBuffer,
@@ -30,6 +31,9 @@ export async function GET(request: NextRequest) {
         { error: "Unauthorized: authentication required" },
         { status: 401, headers: corsHeaders }
       );
+    }
+    if (!(await userHasCapability(userId, "hasShippingCapability"))) {
+      return new NextResponse(null, { status: 404, headers: corsHeaders });
     }
 
     const { searchParams } = new URL(request.url);
@@ -73,6 +77,9 @@ export async function POST(request: NextRequest) {
         { error: "Unauthorized: authentication required" },
         { status: 401, headers: corsHeaders }
       );
+    }
+    if (!(await userHasCapability(userId, "hasShippingCapability"))) {
+      return new NextResponse(null, { status: 404, headers: corsHeaders });
     }
 
     let ticketIds: string[] | undefined;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { ensureDefaultUserAndSeed } from "@/services/seed";
+import { userHasCapability } from "@/services/settings";
 import { getShippingTicketsService } from "@/services/fulfillment";
 import { cancelShippingTicketService } from "@/services/superfrete";
 
@@ -29,6 +30,9 @@ export async function GET(req: NextRequest) {
         { status: 401, headers: corsHeaders }
       );
     }
+    if (!(await userHasCapability(userId, "hasShippingCapability"))) {
+      return new NextResponse(null, { status: 404, headers: corsHeaders });
+    }
 
     const { searchParams } = new URL(req.url);
     const withOrders = searchParams.get("withOrders") === "true";
@@ -52,6 +56,9 @@ export async function DELETE(req: NextRequest) {
         { error: "Unauthorized: authentication required" },
         { status: 401, headers: corsHeaders }
       );
+    }
+    if (!(await userHasCapability(userId, "hasShippingCapability"))) {
+      return new NextResponse(null, { status: 404, headers: corsHeaders });
     }
 
     const { searchParams } = new URL(req.url);

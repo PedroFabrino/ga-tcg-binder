@@ -52,16 +52,16 @@ export default function SettingsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         {/* Left Column: Fulfillment & Marketplace Pricing */}
         <div className="space-y-6">
-          <SettingsSuperfreteSection
+          {mgr.hasVendorCapability && <SettingsSuperfreteSection
             hasSavedSuperfreteApiKey={mgr.hasSavedSuperfreteApiKey}
             superfreteApiKey={mgr.superfreteApiKey}
             setSuperfreteApiKey={mgr.setSuperfreteApiKey}
             loading={mgr.loading}
             clearingSuperfrete={mgr.clearingSuperfrete}
             onClearSuperfrete={mgr.handleClearSuperfrete}
-          />
+          />}
 
-          {(mgr.hasSavedSuperfreteApiKey || Boolean(mgr.superfreteApiKey.trim())) && (
+          {mgr.hasVendorCapability && (mgr.hasSavedSuperfreteApiKey || Boolean(mgr.superfreteApiKey.trim())) && (
             <SettingsShippingPackageSection
               shippingPackagePreset={mgr.shippingPackagePreset}
               onSelectPreset={mgr.handleSelectPackagePreset}
@@ -101,6 +101,8 @@ export default function SettingsPage() {
             setMypPassword={mgr.setMypPassword}
             mypAutoWatchlistEnabled={mgr.mypAutoWatchlistEnabled}
             setMypAutoWatchlistEnabled={mgr.setMypAutoWatchlistEnabled}
+            sellerModeEnabled={mgr.sellerModeEnabled}
+            setSellerModeEnabled={mgr.setSellerModeEnabled}
             hasSavedMypCredentials={mgr.hasSavedMypCredentials}
             loading={mgr.loading}
             clearingCreds={mgr.clearingCreds}

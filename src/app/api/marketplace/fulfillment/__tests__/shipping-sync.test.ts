@@ -37,6 +37,9 @@ describe("Shipping Tracking Sync API Route (/api/marketplace/fulfillment/shippin
       name: "Sync Tester",
       email: "sync@test.com",
       friendCode: "GA-SYNC",
+      mypUsername: "sync-seller",
+      mypPasswordEncrypted: "configured-password",
+      sellerModeEnabled: true,
       superfreteApiKeyEncrypted: encryptedKey,
     });
 

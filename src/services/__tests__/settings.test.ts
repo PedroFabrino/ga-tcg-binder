@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { users } from "@/db/schema";
 import { createTestDb } from "@/db/test-utils";
 import {
+  getUserCapabilities,
   getUserSettings,
   updateUserSettingsService,
 } from "@/services/settings";
@@ -38,6 +39,35 @@ describe("Settings Service (src/services/settings.ts)", () => {
     expect((settings as any)?.superfreteApiKeyEncrypted).toBeUndefined();
   });
 
+  it("derives vendor and shipping capabilities from seller settings", () => {
+    expect(
+      getUserCapabilities({
+        sellerModeEnabled: false,
+        mypUsername: "seller",
+        mypPasswordEncrypted: "encrypted-password",
+        superfreteApiKeyEncrypted: "encrypted-key",
+      })
+    ).toEqual({ hasVendorCapability: false, hasShippingCapability: false });
+
+    expect(
+      getUserCapabilities({
+        sellerModeEnabled: true,
+        mypUsername: "seller",
+        mypPasswordEncrypted: "encrypted-password",
+        superfreteApiKeyEncrypted: null,
+      })
+    ).toEqual({ hasVendorCapability: true, hasShippingCapability: false });
+
+    expect(
+      getUserCapabilities({
+        sellerModeEnabled: true,
+        mypUsername: "seller",
+        mypPasswordEncrypted: "encrypted-password",
+        superfreteApiKeyEncrypted: "encrypted-key",
+      })
+    ).toEqual({ hasVendorCapability: true, hasShippingCapability: true });
+  });
+
   it("saves and encrypts MyP credentials and generates watchlistSyncToken", async () => {
     const updated = await updateUserSettingsService(
       userId,
@@ -60,6 +90,20 @@ describe("Settings Service (src/services/settings.ts)", () => {
     expect(decryptMypPassword(row.mypPasswordEncrypted!)).toBe("SecretPassword123!");
   });
 
+  it("disables seller mode when the MyP username is cleared", async () => {
+    await updateUserSettingsService(
+      userId,
+      { mypPassword: "SecretPassword123!", sellerModeEnabled: true },
+      db
+    );
+
+    const updated = await updateUserSettingsService(userId, { mypUsername: "" }, db);
+
+    expect(updated?.mypUsername).toBeNull();
+    expect(updated?.sellerModeEnabled).toBe(false);
+    expect(updated?.hasVendorCapability).toBe(false);
+  });
+
   it("clears saved MyP credentials when clearMypCredentials is true", async () => {
     await updateUserSettingsService(
       userId,
@@ -80,6 +124,8 @@ describe("Settings Service (src/services/settings.ts)", () => {
 
     expect(cleared?.hasSavedMypCredentials).toBe(false);
     expect(cleared?.mypLogin).toBeNull();
+    expect(cleared?.sellerModeEnabled).toBe(false);
+    expect(cleared?.hasVendorCapability).toBe(false);
 
     const [row] = await db.select().from(users).where(eq(users.id, userId));
     expect(row.mypPasswordEncrypted).toBeNull();

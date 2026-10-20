@@ -21,6 +21,9 @@ export function useSettingsManager() {
   const [mypLogin, setMypLogin] = useState<string>("");
   const [mypPassword, setMypPassword] = useState<string>("");
   const [mypAutoWatchlistEnabled, setMypAutoWatchlistEnabled] = useState<boolean>(false);
+  const [sellerModeEnabled, setSellerModeEnabled] = useState<boolean>(false);
+  const [hasVendorCapability, setHasVendorCapability] = useState<boolean>(false);
+  const [hasShippingCapability, setHasShippingCapability] = useState<boolean>(false);
   const [hasSavedMypCredentials, setHasSavedMypCredentials] = useState<boolean>(false);
   const [hasSavedSuperfreteApiKey, setHasSavedSuperfreteApiKey] = useState<boolean>(false);
   const [superfreteApiKey, setSuperfreteApiKey] = useState<string>("");
@@ -60,6 +63,9 @@ export function useSettingsManager() {
           setSlightlyOverpriced(data.user.slightlyOverpricedMultiplier ?? 1.2);
           setHeavilyOverpriced(data.user.heavilyOverpricedMultiplier ?? 2.0);
           setMypAutoWatchlistEnabled(Boolean(data.user.mypAutoWatchlistEnabled));
+          setSellerModeEnabled(Boolean(data.user.sellerModeEnabled));
+          setHasVendorCapability(Boolean(data.user.hasVendorCapability));
+          setHasShippingCapability(Boolean(data.user.hasShippingCapability));
         }
       })
       .catch(() => showToast(t("common.error"), "error"))
@@ -144,6 +150,7 @@ export function useSettingsManager() {
         lowPopThreshold: threshold,
         mypUsername: mypUsername.trim() || null,
         mypAutoWatchlistEnabled,
+        sellerModeEnabled,
         slightlyOverpricedMultiplier: slightlyOverpriced,
         heavilyOverpricedMultiplier: heavilyOverpriced,
         shippingPackagePreset,
@@ -173,11 +180,20 @@ export function useSettingsManager() {
       });
       if (!res.ok) throw new Error();
       const json = (await res.json()) as {
-        user?: { hasSavedMypCredentials?: boolean; hasSavedSuperfreteApiKey?: boolean };
+        user?: {
+          hasSavedMypCredentials?: boolean;
+          hasSavedSuperfreteApiKey?: boolean;
+          sellerModeEnabled?: boolean;
+          hasVendorCapability?: boolean;
+          hasShippingCapability?: boolean;
+        };
       };
       if (json.user) {
         setHasSavedMypCredentials(Boolean(json.user.hasSavedMypCredentials));
         setHasSavedSuperfreteApiKey(Boolean(json.user.hasSavedSuperfreteApiKey));
+        setSellerModeEnabled(Boolean(json.user.sellerModeEnabled));
+        setHasVendorCapability(Boolean(json.user.hasVendorCapability));
+        setHasShippingCapability(Boolean(json.user.hasShippingCapability));
       }
       showToast(t("settings.savedToast"), "success");
       onSuccess?.();
@@ -190,6 +206,7 @@ export function useSettingsManager() {
     threshold,
     mypUsername,
     mypAutoWatchlistEnabled,
+    sellerModeEnabled,
     slightlyOverpriced,
     heavilyOverpriced,
     shippingPackagePreset,
@@ -218,6 +235,10 @@ export function useSettingsManager() {
     setMypPassword,
     mypAutoWatchlistEnabled,
     setMypAutoWatchlistEnabled,
+    sellerModeEnabled,
+    setSellerModeEnabled,
+    hasVendorCapability,
+    hasShippingCapability,
     hasSavedMypCredentials,
     hasSavedSuperfreteApiKey,
     superfreteApiKey,

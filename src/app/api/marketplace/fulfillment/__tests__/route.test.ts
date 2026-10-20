@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { eq } from "drizzle-orm";
 
 let testDb: any;
 
@@ -50,6 +51,9 @@ describe("Fulfillment API Route (/api/marketplace/fulfillment)", () => {
       name: "Fulfillment User",
       email: "fulfill@test.com",
       friendCode: "GA-FULF",
+      mypUsername: "fulfillment-seller",
+      mypPasswordEncrypted: "configured-password",
+      sellerModeEnabled: true,
       watchlistSyncToken: "valid-sync-token-123",
     });
   });
@@ -64,6 +68,19 @@ describe("Fulfillment API Route (/api/marketplace/fulfillment)", () => {
     expect(res.headers.get("access-control-allow-headers")).toContain("X-GA-Sync-Token");
   });
 
+
+  it("returns 404 when the authenticated user does not have vendor capability", async () => {
+    const { users } = await import("@/db/schema");
+    await testDb
+      .update(users)
+      .set({ sellerModeEnabled: false })
+      .where(eq(users.id, "u-fulfillment"));
+
+    const res = await GET(new NextRequest("http://localhost:3000/api/marketplace/fulfillment"));
+
+    expect(res.status).toBe(404);
+    expect(res.headers.get("access-control-allow-origin")).toBe("*");
+  });
 
   it("returns 400 when body does not match validation schema", async () => {
     const req = new NextRequest("http://localhost:3000/api/marketplace/fulfillment", {

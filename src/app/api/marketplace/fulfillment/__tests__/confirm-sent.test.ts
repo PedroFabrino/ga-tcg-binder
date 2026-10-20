@@ -33,6 +33,9 @@ describe("Confirm Sent API Route (/api/marketplace/fulfillment/confirm-sent)", (
       name: "Confirm Tester",
       email: "confirm@test.com",
       friendCode: "GA-CONF",
+      mypUsername: "confirm-seller",
+      mypPasswordEncrypted: "configured-password",
+      sellerModeEnabled: true,
     });
 
     await testDb.insert(fulfillmentOrders).values({

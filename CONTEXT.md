@@ -182,6 +182,18 @@ _Avoid_: Sync queue, wantlist cache
 Official Grand Archive TCG gameplay terms—including Card names, Elements (`Norm`, `Fire`, `Water`, `Wind`, `Tera`, `Crux`, `Umbra`, `Luxem`, `Exalted`, `Astra`, `Exia`, `Arcane`, `Neos`), Rarities (`Common`, `Uncommon`, `Rare`, `Super Rare`, `Ultra Rare`, `Collector`), Deck zones (`Main Deck`, `Material Deck`, `Sideboard`), and Finishes (`Foil`, `Normal`)—that remain in their canonical English form across all application locales (`en`, `pt-BR`).
 _Avoid_: Translated element names, translated rarity tiers, translated deck zones
 
+**Seller Mode**:
+An explicit Collector opt-in that enables private external-marketplace selling workflows when complete MyP credentials are saved.
+_Avoid_: Store Mode, vendor account, seller account
+
+**Vendor Capability**:
+The eligibility to access private external-marketplace selling workflows, requiring Seller Mode and complete saved MyP credentials.
+_Avoid_: MyP access, seller permission, vendor access
+
+**Shipping Capability**:
+The eligibility to access shipping workflows, requiring Vendor Capability and a saved SuperFrete API key.
+_Avoid_: Shipping access, SuperFrete mode, delivery permission
+
 **Fulfillment Order**:
 A customer purchase on the Collector's external marketplace store containing one or more sold Printings and recipient shipping details, progressing through three lifecycle stages: `Open` (imported and in card separation/photography), `Processed` (linked to a generated Shipping Ticket awaiting payment or tracking confirmation), and `Sent` (tracking code confirmed on the marketplace).
 _Avoid_: Sale row, invoice, pending shipment

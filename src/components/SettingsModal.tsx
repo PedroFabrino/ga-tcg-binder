@@ -70,6 +70,8 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
           setMypPassword={mgr.setMypPassword}
           mypAutoWatchlistEnabled={mgr.mypAutoWatchlistEnabled}
           setMypAutoWatchlistEnabled={mgr.setMypAutoWatchlistEnabled}
+          sellerModeEnabled={mgr.sellerModeEnabled}
+          setSellerModeEnabled={mgr.setSellerModeEnabled}
           hasSavedMypCredentials={mgr.hasSavedMypCredentials}
           loading={mgr.loading}
           clearingCreds={mgr.clearingCreds}
@@ -77,17 +79,19 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         />
 
         {/* Superfrete Shipping Credentials */}
-        <SettingsSuperfreteSection
-          hasSavedSuperfreteApiKey={mgr.hasSavedSuperfreteApiKey}
-          superfreteApiKey={mgr.superfreteApiKey}
-          setSuperfreteApiKey={mgr.setSuperfreteApiKey}
-          loading={mgr.loading}
-          clearingSuperfrete={mgr.clearingSuperfrete}
-          onClearSuperfrete={mgr.handleClearSuperfrete}
-        />
+        {mgr.hasVendorCapability && (
+          <SettingsSuperfreteSection
+            hasSavedSuperfreteApiKey={mgr.hasSavedSuperfreteApiKey}
+            superfreteApiKey={mgr.superfreteApiKey}
+            setSuperfreteApiKey={mgr.setSuperfreteApiKey}
+            loading={mgr.loading}
+            clearingSuperfrete={mgr.clearingSuperfrete}
+            onClearSuperfrete={mgr.handleClearSuperfrete}
+          />
+        )}
 
         {/* Shipping Package & Dimensions */}
-        {(mgr.hasSavedSuperfreteApiKey || Boolean(mgr.superfreteApiKey.trim())) && (
+        {mgr.hasShippingCapability && (
           <SettingsShippingPackageSection
             shippingPackagePreset={mgr.shippingPackagePreset}
             onSelectPreset={mgr.handleSelectPackagePreset}

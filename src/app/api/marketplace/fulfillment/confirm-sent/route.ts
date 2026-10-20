@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { ensureDefaultUserAndSeed } from "@/services/seed";
 import { markOrdersAsSentService } from "@/services/fulfillment";
 import { safeParseConfirmSentInput } from "@/lib/validation/fulfillment-schemas";
+import { userHasCapability } from "@/services/settings";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,6 +29,10 @@ export async function POST(req: NextRequest) {
         { error: "Unauthorized: authentication required" },
         { status: 401, headers: corsHeaders }
       );
+    }
+
+    if (!(await userHasCapability(userId, "hasVendorCapability"))) {
+      return new NextResponse(null, { status: 404, headers: corsHeaders });
     }
 
     const rawBody = await req.json();

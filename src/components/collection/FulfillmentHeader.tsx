@@ -10,6 +10,7 @@ interface FulfillmentHeaderProps {
   report: FulfillmentReport;
   lifecycleTab: "open" | "processed" | "sent";
   onSelectTab: (tab: "open" | "processed" | "sent") => void;
+  hasShippingCapability: boolean;
   isQuotingShipping: boolean;
   onOpenShippingModal: () => void;
   onCopyText: () => void;
@@ -20,6 +21,7 @@ export default function FulfillmentHeader({
   report,
   lifecycleTab,
   onSelectTab,
+  hasShippingCapability,
   isQuotingShipping,
   onOpenShippingModal,
   onCopyText,
@@ -48,7 +50,7 @@ export default function FulfillmentHeader({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {lifecycleTab === "open" && (
+          {hasShippingCapability && lifecycleTab === "open" && (
             <Button
               size="sm"
               onClick={onOpenShippingModal}

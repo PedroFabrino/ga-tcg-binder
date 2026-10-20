@@ -53,6 +53,7 @@ export default function MypStoreView() {
   const [selectedRarities, setSelectedRarities] = useState<number[]>([]);
 
   const [subView, setSubView] = useState<MypSubView>("listings");
+  const [hasShippingCapability, setHasShippingCapability] = useState(false);
 
   const userIdQuery = session?.user?.id ? `?userId=${session.user.id}` : "";
 
@@ -76,6 +77,15 @@ export default function MypStoreView() {
   useEffect(() => {
     fetchMarketplace();
   }, [fetchMarketplace]);
+
+  useEffect(() => {
+    void fetch("/api/settings")
+      .then((response) => response.json())
+      .then((settings: { hasShippingCapability?: boolean }) => {
+        setHasShippingCapability(settings.hasShippingCapability === true);
+      })
+      .catch(() => undefined);
+  }, []);
 
   const handleSync = async (overrideUsername?: string) => {
     const targetUsername = (overrideUsername ?? usernameInput ?? report?.mypUsername ?? "").trim();
@@ -222,6 +232,7 @@ export default function MypStoreView() {
       {subView === "fulfillment" ? (
         <FulfillmentView
           mypUsername={report?.mypUsername}
+          hasShippingCapability={hasShippingCapability}
           userId={session?.user?.id}
         />
       ) : (
