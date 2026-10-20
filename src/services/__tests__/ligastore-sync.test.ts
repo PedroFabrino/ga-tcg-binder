@@ -293,4 +293,47 @@ describe("ligastore-sync", () => {
     const frostListing = allListings.find((l) => l.itemId === "ref_frost_28b");
     expect(frostListing?.quantity).toBe(0);
   });
+
+  it("syncLigaStore enriches zero-price items from detail pages when search page lacks decodable prices", async () => {
+    // Search page with sprite-encoded prices that the parser can't decode → R$ 0,00
+    const HTML_SPRITE_PRICE = `
+      <table class="ecomresp-tab"><tr><td class="textoMaior"> 1-1 de <b>1</b></td></tr></table>
+      <div class="card-item">
+        <div class="card-desc">
+          <div class="title"><a href="https://store.example.com/?view=ecom/item&refid=ref_flame_136">Flame-Rune Swordsman (#136)</a></div>
+          <div class="qty force-w"><div class="vidgmi"><div class="x">&nbsp;</div></div><div class="vidlbl">un.</div></div>
+          <div class="price force-w"><div class="vidlbl">R$</div><div class="vidgmi"><div class="x">&nbsp;</div></div></div>
+        </div>
+      </div>
+    `;
+
+    const DETAIL_HTML = `
+      <div class="table-cards-body-cell quality">NM</div>
+      <div class="table-cards-body-cell card-preco">R$ 14,00</div>
+    `;
+
+    const requestedUrls: string[] = [];
+    const customFetch = async (input: RequestInfo | URL) => {
+      const url = String(input);
+      requestedUrls.push(url);
+      if (url.includes("refid=ref_flame_136")) {
+        return new Response(DETAIL_HTML, { status: 200 });
+      }
+      return new Response(HTML_SPRITE_PRICE, { status: 200 });
+    };
+
+    const stats = await syncLigaStore({
+      storeId: "brandao",
+      customFetch: customFetch as any,
+      database: testDb,
+    });
+
+    expect(stats.enrichedCount).toBe(1);
+    expect(requestedUrls.some((u) => u.includes("refid=ref_flame_136"))).toBe(true);
+
+    const listings = await getMarketCards({ storeId: "brandao" }, testDb);
+    expect(listings).toHaveLength(1);
+    expect(listings[0].price).toBe("R$ 14,00");
+    expect(listings[0].priceNumeric).toBe(14);
+  });
 });

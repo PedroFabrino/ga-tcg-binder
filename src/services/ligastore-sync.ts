@@ -227,12 +227,16 @@ export async function syncLigaStore(options?: {
     }
 
     if (
-      options?.enrichShortages &&
-      workingItem.productUrl &&
-      resolved.cardSlug &&
-      options.neededSlugs?.has(resolved.cardSlug)
+      (options?.enrichShortages &&
+       workingItem.productUrl &&
+       resolved.cardSlug &&
+       options.neededSlugs?.has(resolved.cardSlug)) ||
+      (workingItem.priceNumeric === 0 && workingItem.productUrl)
     ) {
       try {
+        if (!options?.customFetch) {
+          await new Promise<void>((resolve) => setTimeout(resolve, 250));
+        }
         const detailHtml = await fetchText(workingItem.productUrl);
         const details = parseLigaStoreItemDetails(detailHtml);
 
