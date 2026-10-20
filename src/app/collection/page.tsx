@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Layers, Sparkles, Gem, TrendingUp, Upload, LayoutGrid, Table2, Plus, SearchX, Store } from "lucide-react";
 import { PageHeader, Tabs } from "@/components/common";
+import { isCollectionViewAvailable, resolveCollectionView, type CollectionView } from "@/lib/collection-views";
 import { SkeletonRow, EmptyState } from "@/components/Skeletons";
 import { useToast } from "@/components/ToastProvider";
 import CollectionTable from "@/components/collection/CollectionTable";
@@ -17,8 +18,7 @@ import type { CollectionItem } from "@/components/collection/types";
 import { Button } from "@/components/ui/button";
 import { FEATURES } from "@/lib/features";
 
-type View = "ALL" | "STAPLES" | "LOW_POP" | "IDLE" | "MYP_STORE";
-const VIEWS: View[] = ["ALL", "STAPLES", "LOW_POP", "IDLE", "MYP_STORE"];
+type View = CollectionView;
 
 const TABS: { id: View; label: string; icon: any }[] = [
   { id: "ALL", label: "All Cards", icon: Layers },
@@ -74,17 +74,7 @@ export default function CollectionPage() {
   }, []);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const v = params.get("view") as View | null;
-    const tab = params.get("tab");
-    const isFulfillment = params.get("fulfillment") === "1" || window.location.hash.startsWith("#ga_fulfillment=");
-    if (hasVendorCapability && (isFulfillment || tab === "myp-store" || v === "MYP_STORE")) {
-      setActiveTab("MYP_STORE");
-    } else if (v && VIEWS.includes(v) && v !== "MYP_STORE") {
-      setActiveTab(v);
-    } else {
-      setActiveTab("ALL");
-    }
+    setActiveTab(resolveCollectionView(window.location.search, window.location.hash, hasVendorCapability));
   }, [hasVendorCapability]);
 
   const fetchCollection = useCallback(async (silent = false) => {
@@ -158,7 +148,7 @@ export default function CollectionPage() {
   const totalCopies = items.reduce((s, i) => s + i.quantity, 0);
   const filteredCopies = filteredItems.reduce((s, i) => s + i.quantity, 0);
   const isFiltered = searchQuery.trim().length > 0;
-  const visibleTabs = TABS.filter((tab) => tab.id !== "MYP_STORE" || hasVendorCapability);
+  const visibleTabs = TABS.filter((tab) => isCollectionViewAvailable(tab.id, hasVendorCapability));
 
   return (
     <div className="space-y-6 pb-12">

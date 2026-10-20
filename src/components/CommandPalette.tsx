@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { FEATURES } from "@/lib/features";
+import { getSellerNavCommands } from "@/lib/seller-nav-commands";
 
 interface CommandItem {
   label: string;
@@ -48,7 +49,7 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
     { label: "Open My Binder", icon: Layers, action: () => router.push("/collection"), group: "Navigation", keywords: "collection inventory" },
     { label: "Deck Builder", icon: BookOpen, action: () => router.push("/decks"), group: "Navigation", keywords: "shortage decks" },
     { label: "MyP Marketplace", icon: Store, action: () => router.push("/marketplace"), group: "Navigation", keywords: "myp mypcards store listings shortage market" },
-    ...(hasVendorCapability ? [{ label: "MyP Store (Personal)", icon: Store, action: () => router.push("/collection?view=MYP_STORE"), group: "Navigation", keywords: "myp store sales selling binder sync" }] : []),
+    ...getSellerNavCommands(hasVendorCapability).map((command) => ({ label: command.label, icon: Store, action: () => router.push(command.path), group: "Navigation", keywords: command.keywords })),
     { label: "Card Catalog", icon: Sparkles, action: () => router.push("/catalog"), group: "Navigation", keywords: "search cards" },
     { label: "Tournament Meta Explorer", icon: Trophy, action: () => router.push("/meta"), group: "Navigation", keywords: "archetypes grandarchivestats" },
     { label: "Playgroup Friends", icon: Users, action: () => router.push("/friends"), group: "Navigation", keywords: "friend code idle" },
