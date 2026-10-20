@@ -59,9 +59,12 @@ export async function updateUserSettingsService(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- repositories accept in-memory test database or singleton db
   const dbParam = database as any;
   const updateData: Partial<UserInsert> = {};
-
+  
+  if (input.locale !== undefined) {
+  updateData.locale = input.locale as "en" | "pt-BR";
+  }
   if (input.lowPopThreshold !== undefined) {
-    updateData.lowPopThreshold = input.lowPopThreshold;
+  updateData.lowPopThreshold = input.lowPopThreshold;
   }
   if (input.name !== undefined && input.name.trim()) {
     updateData.name = input.name.trim();

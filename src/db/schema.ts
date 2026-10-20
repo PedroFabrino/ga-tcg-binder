@@ -5,12 +5,13 @@ import { sql } from "drizzle-orm";
 // Users & Auth
 // ---------------------------------------------------------------------------
 export const users = sqliteTable("users", {
-  id: text("id").primaryKey(),
-  name: text("name"),
-  email: text("email").unique(),
-  image: text("image"),
-  friendCode: text("friend_code").unique().notNull(),
-  lowPopThreshold: integer("low_pop_threshold").notNull().default(1000),
+id: text("id").primaryKey(),
+name: text("name"),
+email: text("email").unique(),
+image: text("image"),
+friendCode: text("friend_code").unique().notNull(),
+locale: text("locale").notNull().default("en"),
+lowPopThreshold: integer("low_pop_threshold").notNull().default(1000),
   mypUsername: text("myp_username"),
   watchlistPolicyHard: integer("watchlist_policy_hard", { mode: "boolean" }).notNull().default(true),
   watchlistPolicyShared: integer("watchlist_policy_shared", { mode: "boolean" }).notNull().default(false),

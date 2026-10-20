@@ -1,39 +1,47 @@
 export type ValidationResult<T> =
-  | { success: true; data: T }
-  | { success: false; error: string };
+| { success: true; data: T }
+| { success: false; error: string };
 
 export interface SettingsUpdateInput {
-  lowPopThreshold?: number;
-  mypUsername?: string | null;
-  mypLogin?: string | null;
-  mypPassword?: string | null;
-  clearMypCredentials?: boolean;
-  sellerModeEnabled?: boolean;
-  mypAutoWatchlistEnabled?: boolean;
-  watchlistPolicyHard?: boolean;
-  watchlistPolicyShared?: boolean;
-  watchlistPolicyStaples?: boolean;
-  superfreteApiKey?: string | null;
-  clearSuperfreteApiKey?: boolean;
-  shippingPackagePreset?: string;
-  shippingPackageHeight?: number;
-  shippingPackageWidth?: number;
-  shippingPackageLength?: number;
-  shippingPackageBaseWeight?: number;
-  shippingPackageTapeWeight?: number;
-  shippingCardWeight?: number;
-  slightlyOverpricedMultiplier?: number;
-  heavilyOverpricedMultiplier?: number;
+locale?: string;
+lowPopThreshold?: number;
+mypUsername?: string | null;
+mypLogin?: string | null;
+mypPassword?: string | null;
+clearMypCredentials?: boolean;
+sellerModeEnabled?: boolean;
+mypAutoWatchlistEnabled?: boolean;
+watchlistPolicyHard?: boolean;
+watchlistPolicyShared?: boolean;
+watchlistPolicyStaples?: boolean;
+superfreteApiKey?: string | null;
+clearSuperfreteApiKey?: boolean;
+shippingPackagePreset?: string;
+shippingPackageHeight?: number;
+shippingPackageWidth?: number;
+shippingPackageLength?: number;
+shippingPackageBaseWeight?: number;
+shippingPackageTapeWeight?: number;
+shippingCardWeight?: number;
+slightlyOverpricedMultiplier?: number;
+heavilyOverpricedMultiplier?: number;
 }
 
 export function parseSettingsInput(raw: unknown): ValidationResult<SettingsUpdateInput> {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    return { success: false, error: "Request body must be a JSON object" };
-  }
-  const body = raw as Record<string, unknown>;
-  const data: SettingsUpdateInput = {};
+if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+return { success: false, error: "Request body must be a JSON object" };
+}
+const body = raw as Record<string, unknown>;
+const data: SettingsUpdateInput = {};
 
-  if (body.lowPopThreshold !== undefined) {
+if (body.locale !== undefined) {
+if (typeof body.locale !== "string" || !["en", "pt-BR"].includes(body.locale)) {
+return { success: false, error: "locale must be 'en' or 'pt-BR'" };
+}
+data.locale = body.locale;
+}
+
+if (body.lowPopThreshold !== undefined) {
     if (typeof body.lowPopThreshold !== "number" || isNaN(body.lowPopThreshold) || body.lowPopThreshold < 0) {
       return { success: false, error: "lowPopThreshold must be a non-negative number" };
     }

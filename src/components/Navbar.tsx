@@ -1,11 +1,11 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSession, signOut } from "next-auth/react";
 import {
-  BookOpen, Layers, Sparkles, Trophy, Users, Store, QrCode, Settings as SettingsIcon,
-  LogIn, LogOut, Menu, Search, Command, ChevronDown, Copy, Home,
+BookOpen, Layers, Sparkles, Trophy, Users, Store, QrCode, Settings as SettingsIcon,
+LogIn, LogOut, Menu, Search, Command, ChevronDown, Copy, Home, Globe,
 } from "lucide-react";
 import QrScanModal from "./QrScanModal";
 import SettingsModal from "./SettingsModal";
@@ -14,32 +14,45 @@ import CommandPalette from "./CommandPalette";
 import { useToast } from "./ToastProvider";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { FEATURES } from "@/lib/features";
 import { useTranslation } from "@/lib/i18n";
+import type { SupportedLocale } from "@ga/contracts";
 
 const NAV_ITEMS = [
-  { href: "/collection", label: "Collection", icon: Layers },
-  { href: "/decks", label: "Decks", icon: BookOpen },
-  { href: "/marketplace", label: "Marketplace", icon: Store },
-  { href: "/catalog", label: "Catalog", icon: Sparkles },
-  { href: "/meta", label: "Meta", icon: Trophy },
-  { href: "/friends", label: "Friends", icon: Users },
+{ href: "/collection", tKey: "nav.collection" as const, icon: Layers },
+{ href: "/decks", tKey: "nav.decks" as const, icon: BookOpen },
+{ href: "/marketplace", tKey: "nav.marketplace" as const, icon: Store },
+{ href: "/catalog", tKey: "nav.catalog" as const, icon: Sparkles },
+{ href: "/meta", tKey: "nav.meta" as const, icon: Trophy },
+{ href: "/friends", tKey: "nav.friends" as const, icon: Users },
 ];
 
 export default function Navbar() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const { showToast } = useToast();
-  const { t } = useTranslation();
+  const { t, locale, setLocale } = useTranslation();
   const [showQrModal, setShowQrModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [showCmdk, setShowCmdk] = useState(false);
   const [friendCode, setFriendCode] = useState<string | null>(null);
+  
+  const handleLocaleChange = useCallback(
+  (newLocale: SupportedLocale) => {
+  setLocale(newLocale);
+  fetch("/api/settings", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ locale: newLocale }),
+  }).catch(() => {});
+  },
+  [setLocale]
+  );
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -102,7 +115,7 @@ export default function Navbar() {
             </a>
 
             <nav className="hidden items-center gap-0.5 md:flex" aria-label="Main">
-              {NAV_ITEMS.map(({ href, label, icon: Icon }) => (
+            {NAV_ITEMS.map(({ href, tKey, icon: Icon }) => (
                 <a
                   key={href}
                   href={href}
@@ -114,31 +127,58 @@ export default function Navbar() {
                   }`}
                 >
                   <Icon className="h-3.5 w-3.5" />
-                  {label}
-                </a>
+                  {t(tKey)}
+                  </a>
               ))}
             </nav>
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowCmdk(true)}
-              aria-label="Open quick search"
-              className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-2.5 py-1.5 text-xs text-slate-400 transition-all hover:bg-white/[0.05] hover:text-slate-200"
-            >
-              <Search className="h-3.5 w-3.5" />
-              <span className="hidden lg:inline">Search cards...</span>
-              <kbd className="hidden items-center gap-0.5 rounded border border-white/10 px-1 py-0.5 font-mono text-[10px] text-slate-500 lg:flex">
-                <Command className="h-2.5 w-2.5" />K
-              </kbd>
-            </button>
-
-            {FEATURES.scanner && (
-              <Button onClick={() => setShowQrModal(true)} variant="accent" size="sm" aria-label="Scan cards with phone">
-                <QrCode className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Scan with Phone</span>
-              </Button>
-            )}
+          <button
+          onClick={() => setShowCmdk(true)}
+          aria-label={t("nav.searchPlaceholder")}
+          className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-2.5 py-1.5 text-xs text-slate-400 transition-all hover:bg-white/[0.05] hover:text-slate-200"
+          >
+          <Search className="h-3.5 w-3.5" />
+          <span className="hidden lg:inline">{t("nav.searchCards")}</span>
+          <kbd className="hidden items-center gap-0.5 rounded border border-white/10 px-1 py-0.5 font-mono text-[10px] text-slate-500 lg:flex">
+          <Command className="h-2.5 w-2.5" />K
+          </kbd>
+          </button>
+          
+          {FEATURES.scanner && (
+          <Button onClick={() => setShowQrModal(true)} variant="accent" size="sm" aria-label={t("nav.scanCards")}>
+          <QrCode className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">{t("nav.scanCards")}</span>
+          </Button>
+          )}
+          
+          <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+          <button
+          aria-label={t("nav.language")}
+          title={t("nav.language")}
+          className="flex items-center gap-1 rounded-lg border border-white/[0.06] bg-white/[0.02] px-2 py-1.5 text-xs font-medium text-slate-400 transition-all hover:bg-white/[0.05] hover:text-slate-200"
+          >
+          <Globe className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">{locale === "pt-BR" ? "PT" : "EN"}</span>
+          </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-40">
+          <DropdownMenuItem
+          onSelect={() => handleLocaleChange("en")}
+          className={`text-xs ${locale === "en" ? "bg-white/[0.06] text-white" : ""}`}
+          >
+          {t("nav.english")}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+          onSelect={() => handleLocaleChange("pt-BR")}
+          className={`text-xs ${locale === "pt-BR" ? "bg-white/[0.06] text-white" : ""}`}
+          >
+          {t("nav.portuguese")}
+          </DropdownMenuItem>
+          </DropdownMenuContent>
+          </DropdownMenu>
 
             <a
               href="/settings"
@@ -221,11 +261,11 @@ export default function Navbar() {
                   <SheetTitle className="label-caps">Navigate</SheetTitle>
                 </div>
                 <nav className="flex flex-col gap-1 p-3" aria-label="Mobile navigation">
-                  {[
-                    { href: "/", label: "Dashboard", icon: Home },
-                    ...NAV_ITEMS,
-                    { href: "/settings", label: t("settings.navLink"), icon: SettingsIcon },
-                  ].map(({ href, label, icon: Icon }) => {
+                {[
+                { href: "/", tKey: "nav.home" as const, icon: Home },
+                ...NAV_ITEMS,
+                { href: "/settings", tKey: "settings.navLink" as const, icon: SettingsIcon },
+                ].map(({ href, tKey, icon: Icon }) => {
                     const active = href === "/" ? pathname === "/" : isActive(href);
                     return (
                       <a
@@ -237,8 +277,8 @@ export default function Navbar() {
                         }`}
                       >
                         <Icon className="h-4 w-4" />
-                        {label}
-                      </a>
+                        {t(tKey)}
+                        </a>
                     );
                   })}
                 </nav>

@@ -149,6 +149,7 @@ CREATE TABLE IF NOT EXISTS \`users\` (
 	\`email\` text,
 	\`image\` text,
 	\`friend_code\` text NOT NULL,
+	\`locale\` text DEFAULT 'en' NOT NULL,
 	\`low_pop_threshold\` integer DEFAULT 1000 NOT NULL,
 	\`myp_username\` text,
 	\`created_at\` integer DEFAULT (strftime('%s', 'now'))
@@ -454,6 +455,7 @@ async function doRunMigrations(customClient: typeof client) {
     "ALTER TABLE `users` ADD COLUMN `myp_password_encrypted` text;",
     "ALTER TABLE `users` ADD COLUMN `seller_mode_enabled` integer DEFAULT 0 NOT NULL;",
     "ALTER TABLE `users` ADD COLUMN `myp_auto_watchlist_enabled` integer DEFAULT 0 NOT NULL;",
+    "ALTER TABLE `users` ADD COLUMN `locale` text DEFAULT 'en' NOT NULL;",
     "ALTER TABLE `users` ADD COLUMN `watchlist_sync_token` text;",
     "ALTER TABLE `myp_watchlist` ADD COLUMN `myp_wishlist_item_id` text;",
     "ALTER TABLE `myp_watchlist` ADD COLUMN `synced_quantity` integer;",
