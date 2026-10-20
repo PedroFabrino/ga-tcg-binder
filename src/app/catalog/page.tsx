@@ -110,11 +110,11 @@ export default function CatalogPage() {
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Failed to add card");
-      showToast(`Added 1x ${foil ? "Foil " : ""}${name} to Binder`, "success");
+      if (!res.ok) throw new Error(data.error || t("catalog.loadError"));
+      showToast(t("shortages.quickAddSuccess", { quantity: 1, cardName: `${foil ? "Foil " : ""}${name}` }), "success");
       return true;
     } catch (e: any) {
-      showToast(e.message || `Couldn't add ${name}`, "error");
+      showToast(e.message || t("catalog.loadError"), "error");
       return false;
     }
   };
@@ -134,7 +134,7 @@ export default function CatalogPage() {
   const filters = (
     <div className="space-y-5">
       <div>
-        <p className="label-caps mb-2">Element</p>
+        <p className="label-caps mb-2">{t("catalog.filterElements")}</p>
         <div className="flex flex-wrap gap-1.5">
           {ELEMENTS.map((e) => (
             <Chip key={e} active={element === e} onClick={() => setElement(element === e ? null : e)} color={getElementColor(e)}>
@@ -144,7 +144,7 @@ export default function CatalogPage() {
         </div>
       </div>
       <div>
-        <p className="label-caps mb-2">Class</p>
+        <p className="label-caps mb-2">{t("catalog.filterClasses")}</p>
         <div className="flex flex-wrap gap-1.5">
           {CLASSES.map((c) => (
             <Chip key={c} active={cardClass === c} onClick={() => setCardClass(cardClass === c ? null : c)}>{c.charAt(0) + c.slice(1).toLowerCase()}</Chip>
@@ -186,15 +186,15 @@ export default function CatalogPage() {
   return (
     <div className="pb-12">
       <PageHeader
-        eyebrow="Card Catalog"
-        title="Every Grand Archive Printing"
-        description="Browse cards across DOA, FTC, ALC, MRC and promo sets with rarity, edition and exact circulation counts."
+      eyebrow={t("catalog.title")}
+      title={t("catalog.title")}
+      description={t("catalog.subtitle")}
         actions={
           <>
             <span className="rounded-full border border-white/[0.08] px-3 py-1.5 font-mono text-xs text-slate-300">{total.toLocaleString()} cards</span>
             <Button onClick={handleSync} disabled={syncing} variant="outline" className="relative overflow-hidden">
               <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin text-cyan-300" : ""}`}/>
-              {syncing ? "Syncing..." : "Sync Catalog"}
+              {syncing ? t("common.loading") : t("catalog.title")}
               {syncing && (
                 <span className="absolute inset-x-0 bottom-0 h-0.5 overflow-hidden bg-white/5">
                   <span className="sync-slide block h-full w-1/3 bg-cyan-400" />
@@ -217,12 +217,12 @@ export default function CatalogPage() {
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search Fracturize, Rayne, Beseech the Winds..."
-                aria-label="Search catalog"
+                placeholder={t("catalog.searchPlaceholder")}
+                aria-label={t("catalog.searchPlaceholder")}
                 className="min-w-0 flex-1 bg-transparent py-2.5 text-sm text-white placeholder:text-slate-500 outline-none"
               />
               {query && (
-                <button onClick={() => setQuery("")} aria-label="Clear search" className="text-slate-500 hover:text-white"><X className="h-4 w-4" /></button>
+                <button onClick={() => setQuery("")} aria-label={t("collection.clearFilterAria")} className="text-slate-500 hover:text-white"><X className="h-4 w-4" /></button>
               )}
             </div>
             <Button onClick={() => setShowFilters((v) => !v)} variant="outline" className="lg:hidden" aria-expanded={showFilters}>
@@ -236,11 +236,11 @@ export default function CatalogPage() {
           {loading ? (
             <SkeletonGrid count={8}/>
           ) : error ? (
-            <EmptyState icon={Sparkles} title="We couldn't load the catalog" action={<Button onClick={fetchCards} variant="outline">Retry</Button>} />
+            <EmptyState icon={Sparkles} title={t("catalog.loadError")} action={<Button onClick={fetchCards} variant="outline">{t("common.refresh")}</Button>} />
           ) : cards.length === 0 ? (
             <EmptyState
               icon={Sparkles}
-              title="No cards match these filters"
+              title={t("catalog.noResults")}
               description="Try a different name or clear some filters. If the catalog looks empty, run a sync."
               action={activeCount> 0 ? <Button onClick={clearAll} variant="outline">Clear filters</Button> : <Button onClick={handleSync} variant="outline">Sync Catalog</Button>}
             />

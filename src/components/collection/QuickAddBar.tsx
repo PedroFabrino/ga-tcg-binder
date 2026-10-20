@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { Search, Sparkles, Loader2, Plus, Gem } from "lucide-react";
 import { ElementBadge } from "@/components/common";
 import { CardPreviewTrigger } from "@/components/CardHoverPreview";
+import { useTranslation } from "@/lib/i18n";
 
 export default function QuickAddBar({ onAdd }: { onAdd: (edition: any, cardName: string, foil: boolean) => Promise<void> }) {
-  const [query, setQuery] = useState("");
+const { t } = useTranslation();
+const [query, setQuery] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
   const [foil, setFoil] = useState(false);
@@ -50,8 +52,8 @@ export default function QuickAddBar({ onAdd }: { onAdd: (edition: any, cardName:
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => results.length && setOpen(true)}
-          placeholder="Quick-add a card: Fracturize, Rayne..."
-          aria-label="Quick-add card search"
+          placeholder={t("collection.quickAddPlaceholder")}
+          aria-label={t("collection.quickAddTitle")}
           className="min-w-0 flex-1 bg-transparent py-2 text-sm text-white placeholder:text-slate-500 outline-none"
         />
         {searching && <Loader2 className="h-4 w-4 animate-spin text-slate-500" />}
@@ -63,14 +65,14 @@ export default function QuickAddBar({ onAdd }: { onAdd: (edition: any, cardName:
           }`}
         >
           <Sparkles className="h-3.5 w-3.5" />
-          {foil ? "Foil" : "Non-Foil"}
+          {foil ? t("collection.quickAddFoil") : t("collection.nonFoil")}
         </button>
       </div>
 
       {open && query.trim() && !searching && (
         <div className="absolute inset-x-0 top-full mt-2 overflow-hidden rounded-2xl glass-strong shadow-2xl animate-modal">
           {results.length === 0 ? (
-            <p className="px-4 py-6 text-center text-xs text-slate-500">No cards match &ldquo;{query}&rdquo;.</p>
+            <p className="px-4 py-6 text-center text-xs text-slate-500">{t("collection.quickAddNoResults")}</p>
           ) : (
             <ul className="max-h-[360px] divide-y divide-white/[0.04] overflow-y-auto">
               {results.map((card) => (

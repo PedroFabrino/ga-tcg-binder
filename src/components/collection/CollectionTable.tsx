@@ -4,23 +4,26 @@ import { Lock, Unlock } from "lucide-react";
 import { ElementBadge, FoilBadge, LowPopBadge, QuantityStepper, CardArt } from "@/components/common";
 import { formatPopulation } from "@/lib/elements";
 import { CardPreviewTrigger } from "@/components/CardHoverPreview";
+import { useTranslation } from "@/lib/i18n";
 import type { CollectionItem, CollectionActions } from "./types";
 
 export default function CollectionTable({ items, onQuantity, onToggleDedicated }: { items: CollectionItem[] } & CollectionActions) {
-  return (
-    <div className="overflow-x-auto rounded-2xl glass">
-      <table className="w-full min-w-[860px] text-left text-xs">
-        <thead className="border-b border-white/[0.06] text-[10px] uppercase tracking-[0.12em] text-slate-500">
-          <tr>
-            <th scope="col" className="px-4 py-3 font-semibold">Card</th>
-            <th scope="col" className="px-4 py-3 font-semibold">Edition</th>
-            <th scope="col" className="px-4 py-3 font-semibold">Finish</th>
-            <th scope="col" className="px-4 py-3 text-right font-semibold">Population</th>
-            <th scope="col" className="px-4 py-3 font-semibold">Deck Usage</th>
-            <th scope="col" className="px-4 py-3 font-semibold">Quantity</th>
-            <th scope="col" className="px-4 py-3 text-right font-semibold">Sharing</th>
-          </tr>
-        </thead>
+const { t } = useTranslation();
+
+return (
+<div className="overflow-x-auto rounded-2xl glass">
+<table className="w-full min-w-[860px] text-left text-xs">
+<thead className="border-b border-white/[0.06] text-[10px] uppercase tracking-[0.12em] text-slate-500">
+<tr>
+<th scope="col" className="px-4 py-3 font-semibold">{t("collection.tableHeaderCard")}</th>
+<th scope="col" className="px-4 py-3 font-semibold">{t("collection.tableHeaderEdition")}</th>
+<th scope="col" className="px-4 py-3 font-semibold">{t("collection.tableHeaderFinish")}</th>
+<th scope="col" className="px-4 py-3 text-right font-semibold">{t("collection.tableHeaderPopulation")}</th>
+<th scope="col" className="px-4 py-3 font-semibold">{t("collection.tableHeaderDeckUsage")}</th>
+<th scope="col" className="px-4 py-3 font-semibold">{t("collection.tableHeaderQuantity")}</th>
+<th scope="col" className="px-4 py-3 text-right font-semibold">{t("collection.tableHeaderSharing")}</th>
+</tr>
+</thead>
         <tbody className="divide-y divide-white/[0.04]">
           {items.map((item) => (
             <tr key={item.id} className="group transition-colors hover:bg-white/[0.02]">
@@ -57,7 +60,7 @@ export default function CollectionTable({ items, onQuantity, onToggleDedicated }
                 <div className="text-[10px] text-slate-500">{item.setName}</div>
               </td>
               <td className="px-4 py-3">
-                {item.foil ? <FoilBadge /> : <span className="rounded-full border border-white/[0.08] px-2 py-0.5 text-[10px] text-slate-400">Non-Foil</span>}
+                {item.foil ? <FoilBadge /> : <span className="rounded-full border border-white/[0.08] px-2 py-0.5 text-[10px] text-slate-400">{t("collection.nonFoil")}</span>}
               </td>
               <td className="px-4 py-3 text-right">
                 <div className="flex flex-col items-end gap-1">

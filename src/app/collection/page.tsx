@@ -17,39 +17,46 @@ import { filterCollectionItems } from "@/components/collection/filter";
 import type { CollectionItem } from "@/components/collection/types";
 import { Button } from "@/components/ui/button";
 import { FEATURES } from "@/lib/features";
+import { useTranslation } from "@/lib/i18n";
 
 type View = CollectionView;
 
-const TABS: { id: View; label: string; icon: any }[] = [
-  { id: "ALL", label: "All Cards", icon: Layers },
-  { id: "STAPLES", label: "Staples", icon: TrendingUp },
-  { id: "LOW_POP", label: "Low Pop", icon: Gem },
-  { id: "IDLE", label: "Idle / Trade", icon: Sparkles },
-  { id: "MYP_STORE", label: "MyP Store", icon: Store },
-];
+const TAB_KEYS: Record<View, "collection.allCardsTab" | "collection.staplesTab" | "collection.lowPopTab" | "collection.idleTab" | "collection.mypStoreTab"> = {
+ALL: "collection.allCardsTab",
+STAPLES: "collection.staplesTab",
+LOW_POP: "collection.lowPopTab",
+IDLE: "collection.idleTab",
+MYP_STORE: "collection.mypStoreTab",
+};
 
-const EMPTY_COPY: Record<View, { title: string; description: string }> = {
-  ALL: {
-    title: "Your binder is empty",
-    description: FEATURES.scanner
-      ? "Use the Add Card button above, paste a list with the bulk importer, or scan cards with your phone."
-      : "Use the Add Card button above, or paste a list with the bulk importer.",
-  },
-  STAPLES: {
-    title: "No meta staples yet",
-    description: "Format meta staples from Grand Archive competitive tournaments and cards used across your active decks will appear here.",
-  },
-  LOW_POP: { title: "No collector gems yet", description: "Printings at or below your low-population threshold will be highlighted here." },
-  IDLE: { title: "No idle copies", description: "Copies not needed by any active deck show up here, ready to trade or lend." },
-  MYP_STORE: {
-    title: "No MyP Store listings synced",
-    description: "Connect your MyP username and sync your cards to manage store stock and claim copies into your binder.",
-  },
+const TAB_ICONS: Record<View, any> = {
+ALL: Layers,
+STAPLES: TrendingUp,
+LOW_POP: Gem,
+IDLE: Sparkles,
+MYP_STORE: Store,
+};
+
+const EMPTY_TITLE_KEYS: Record<View, "collection.emptyBinderTitle" | "collection.emptyStaplesTitle" | "collection.emptyLowPopTitle" | "collection.emptyIdleTitle" | "collection.emptyMypStoreTitle"> = {
+ALL: "collection.emptyBinderTitle",
+STAPLES: "collection.emptyStaplesTitle",
+LOW_POP: "collection.emptyLowPopTitle",
+IDLE: "collection.emptyIdleTitle",
+MYP_STORE: "collection.emptyMypStoreTitle",
+};
+
+const EMPTY_DESC_KEYS: Record<View, "collection.emptyBinderDesc" | "collection.emptyBinderDescNoScanner" | "collection.emptyStaplesDesc" | "collection.emptyLowPopDesc" | "collection.emptyIdleDesc" | "collection.emptyMypStoreDesc"> = {
+ALL: FEATURES.scanner ? "collection.emptyBinderDesc" : "collection.emptyBinderDescNoScanner",
+STAPLES: "collection.emptyStaplesDesc",
+LOW_POP: "collection.emptyLowPopDesc",
+IDLE: "collection.emptyIdleDesc",
+MYP_STORE: "collection.emptyMypStoreDesc",
 };
 
 export default function CollectionPage() {
-  const { data: session } = useSession();
-  const { showToast } = useToast();
+const { t } = useTranslation();
+const { data: session } = useSession();
+const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<View>("ALL");
   const [mode, setMode] = useState<"table" | "binder">("table");
   const [items, setItems] = useState<CollectionItem[]>([]);
@@ -148,14 +155,16 @@ export default function CollectionPage() {
   const totalCopies = items.reduce((s, i) => s + i.quantity, 0);
   const filteredCopies = filteredItems.reduce((s, i) => s + i.quantity, 0);
   const isFiltered = searchQuery.trim().length > 0;
-  const visibleTabs = TABS.filter((tab) => isCollectionViewAvailable(tab.id, hasVendorCapability));
+  const visibleTabs = (Object.keys(TAB_KEYS) as View[])
+  .filter((id) => isCollectionViewAvailable(id, hasVendorCapability))
+  .map((id) => ({ id, label: t(TAB_KEYS[id]), icon: TAB_ICONS[id] }));
 
   return (
     <div className="space-y-6 pb-12">
       <PageHeader
-        eyebrow="Physical Collection"
-        title="My Binder"
-        description="Every physical printing you own, with exact circulation, foil finish, deck usage and sharing rules."
+      eyebrow={t("collection.title")}
+      title={t("collection.title")}
+      description={t("collection.subtitle")}
         actions={
           <>
             <span
@@ -171,10 +180,10 @@ export default function CollectionPage() {
               )}
             </span>
             <Button onClick={() => setShowAddModal(true)} variant="default">
-              <Plus className="h-4 w-4" /> Add Card
+            <Plus className="h-4 w-4" /> {t("collection.addCard")}
             </Button>
             <Button onClick={() => setShowBulk(true)} variant="outline">
-              <Upload className="h-4 w-4" /> Bulk Import
+            <Upload className="h-4 w-4" /> {t("collection.bulkImport")}
             </Button>
           </>
         }
@@ -218,12 +227,12 @@ export default function CollectionPage() {
           {Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}
         </div>
       ) : items.length === 0 ? (
-        <EmptyState icon={Layers} {...EMPTY_COPY[activeTab]} />
+        <EmptyState icon={Layers} title={t(EMPTY_TITLE_KEYS[activeTab])} description={t(EMPTY_DESC_KEYS[activeTab])} />
       ) : filteredItems.length === 0 ? (
         <EmptyState
           icon={SearchX}
           title={`No cards match "${searchQuery}"`}
-          description={`None of the cards in your ${TABS.find((t) => t.id === activeTab)?.label || "selected"} view match this search.`}
+          description={`None of the cards in your ${t(TAB_KEYS[activeTab])} view match this search.`}
           action={<Button variant="outline" onClick={() => setSearchQuery("")}>Clear Search</Button>}
         />
       ) : (

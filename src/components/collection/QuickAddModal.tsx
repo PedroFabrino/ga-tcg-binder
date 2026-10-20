@@ -5,6 +5,7 @@ import { Search, Sparkles, Loader2, Plus, Gem } from "lucide-react";
 import { Modal, ElementBadge } from "@/components/common";
 import { CardPreviewTrigger } from "@/components/CardHoverPreview";
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "@/lib/i18n";
 
 interface QuickAddModalProps {
   onClose: () => void;
@@ -12,7 +13,8 @@ interface QuickAddModalProps {
 }
 
 export default function QuickAddModal({ onClose, onAdd }: QuickAddModalProps) {
-  const [query, setQuery] = useState("");
+const { t } = useTranslation();
+const [query, setQuery] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
   const [foil, setFoil] = useState(false);
@@ -50,15 +52,15 @@ export default function QuickAddModal({ onClose, onAdd }: QuickAddModalProps) {
 
   return (
     <Modal
-      title="Quick-Add Cards"
-      subtitle="Search the catalog to add physical card printings directly into your binder."
-      onClose={onClose}
-      size="lg"
-      footer={
-        <Button onClick={onClose} variant="outline">
-          Done
-        </Button>
-      }
+    title={t("collection.quickAddTitle")}
+    subtitle={t("collection.quickAddSubtitle")}
+    onClose={onClose}
+    size="lg"
+    footer={
+    <Button onClick={onClose} variant="outline">
+    {t("collection.quickAddDone")}
+    </Button>
+    }
     >
       <div className="space-y-4">
         {/* Search & Foil control */}
@@ -68,8 +70,8 @@ export default function QuickAddModal({ onClose, onAdd }: QuickAddModalProps) {
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search card by name: Fracturize, Rayne..."
-            aria-label="Search catalog to add cards"
+            placeholder={t("collection.quickAddPlaceholder")}
+            aria-label={t("collection.quickAddTitle")}
             className="min-w-0 flex-1 bg-transparent py-2 text-sm text-white placeholder:text-slate-500 outline-none"
           />
           {searching && <Loader2 className="h-4 w-4 animate-spin text-slate-500" />}
@@ -84,7 +86,7 @@ export default function QuickAddModal({ onClose, onAdd }: QuickAddModalProps) {
             }`}
           >
             <Sparkles className="h-3.5 w-3.5" />
-            {foil ? "Foil" : "Non-Foil"}
+            {foil ? t("collection.quickAddFoil") : t("collection.nonFoil")}
           </button>
         </div>
 

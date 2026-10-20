@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useTranslation } from "@/lib/i18n";
 import {
   Store,
   RefreshCw,
@@ -33,8 +34,9 @@ import FulfillmentView from "./FulfillmentView";
 import MypStoreSubTabs, { type MypSubView } from "./MypStoreSubTabs";
 
 export default function MypStoreView() {
-  const { data: session } = useSession();
-  const { showToast } = useToast();
+const { t } = useTranslation();
+const { data: session } = useSession();
+const { showToast } = useToast();
 
   const [report, setReport] = useState<MarketplaceReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -69,7 +71,7 @@ export default function MypStoreView() {
         setUsernameInput(data.mypUsername);
       }
     } catch (err: any) {
-      showToast(err.message || "Could not load MyP listings", "error");
+      showToast(err.message || t("catalog.loadError"), "error");
     } finally {
       setLoading(false);
     }
@@ -91,7 +93,7 @@ export default function MypStoreView() {
   const handleSync = async (overrideUsername?: string) => {
     const targetUsername = (overrideUsername ?? usernameInput ?? report?.mypUsername ?? "").trim();
     if (!targetUsername) {
-      showToast("Please enter your MyP Cards username first.", "error");
+      showToast(t("mypStore.usernameRequired"), "error");
       setEditingUsername(true);
       return;
     }
@@ -113,11 +115,11 @@ export default function MypStoreView() {
       setUsernameInput(data.report.mypUsername || targetUsername);
       setEditingUsername(false);
       showToast(
-        `Synced ${data.stats.totalSynced} listings from MyP (@${data.stats.username})!`,
+        t("mypStore.syncBtn"),
         "success"
       );
     } catch (err: any) {
-      showToast(err.message || "Failed to sync with MyP Cards", "error");
+      showToast(err.message || t("catalog.loadError"), "error");
     } finally {
       setSyncing(false);
     }
@@ -160,7 +162,7 @@ export default function MypStoreView() {
       });
 
       showToast(
-        `Added ${data.claimedQuantity}x ${card.cardName} to your Binder! Opening MyP listing to delist...`,
+        t("shortages.quickAddSuccess", { quantity: data.claimedQuantity, cardName: card.cardName }),
         "success"
       );
 
@@ -169,7 +171,7 @@ export default function MypStoreView() {
         window.open(urlToOpen, "_blank", "noopener,noreferrer");
       }
     } catch (err: any) {
-      showToast(err.message || "Could not claim card to binder", "error");
+      showToast(err.message || t("catalog.loadError"), "error");
     } finally {
       setClaimingId(null);
     }
@@ -316,7 +318,7 @@ export default function MypStoreView() {
                 type="text"
                 value={usernameInput}
                 onChange={(e) => setUsernameInput(e.target.value)}
-                placeholder="e.g. Fabrino or https://mypcards.com/Fabrino"
+                placeholder={t("mypStore.usernamePlaceholder")}
                 className="flex-1 rounded-xl border border-white/15 bg-slate-950/80 px-3.5 py-2 text-sm text-white placeholder:text-slate-500 focus:border-amber-400 outline-none"
                 autoFocus
               />
@@ -448,7 +450,7 @@ export default function MypStoreView() {
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Filter by card name, edition (PTM, RDO...), or deck name..."
+                placeholder={t("mypStore.searchPlaceholder")}
                 className="min-w-0 flex-1 bg-transparent py-1.5 text-sm text-white placeholder:text-slate-500 outline-none"
               />
               {query && (

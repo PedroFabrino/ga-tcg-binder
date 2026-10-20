@@ -7,6 +7,7 @@ import { Modal } from "@/components/common";
 import { CardPreviewTrigger } from "@/components/CardHoverPreview";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
+import { useTranslation } from "@/lib/i18n";
 
 interface ParsedLine {
   raw: string;
@@ -21,7 +22,7 @@ function parseLine(raw: string): ParsedLine | null {
   let line = raw.trim();
   if (!line || line.startsWith("#") || line.startsWith("//")) return null;
   const m = line.match(/^(\d+)[xX]?\s+(.+)$/);
-  if (!m) return { raw, error: "Missing quantity" };
+  if (!m) return { raw, error: "bulkImportParseError" };
   let name = m[2].trim();
   let foil = false;
   if (/\bnon-?foil\b/i.test(name)) name = name.replace(/\bnon-?foil\b/gi, "").trim();
@@ -39,7 +40,8 @@ function parseLine(raw: string): ParsedLine | null {
 }
 
 export default function BulkImportModal({ onClose, onImported }: { onClose: () => void; onImported: (count: number) => void }) {
-  const { data: session } = useSession();
+const { t } = useTranslation();
+const { data: session } = useSession();
   const [text, setText] = useState("");
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<{ addedCount: number; errors: string[] } | null>(null);
@@ -72,37 +74,37 @@ export default function BulkImportModal({ onClose, onImported }: { onClose: () =
 
   return (
     <Modal
-      title="Bulk Text Importer"
-      subtitle="Paste one card per line. Quantity, set code and foil tags are recognised."
+    title={t("collection.bulkImportTitle")}
+    subtitle={t("collection.bulkImportInstructions")}
       onClose={onClose}
       size="lg"
       footer={
         <>
-          <Button onClick={onClose} variant="outline">Close</Button>
+          <Button onClick={onClose} variant="outline">{t("common.close")}</Button>
           <Button onClick={handleImport} disabled={importing || valid.length === 0}>
-            {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-            {importing ? "Importing..." : `Import ${totalCopies} ${totalCopies === 1 ? "copy" : "copies"}`}
+          {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+          {importing ? t("collection.bulkImportImporting") : t("collection.bulkImportBtn", { count: totalCopies })}
           </Button>
         </>
       }
           >
       <div className="grid gap-5 md:grid-cols-2">
         <div>
-          <label htmlFor="bulk-text" className="label-caps mb-2 block">Raw Text</label>
+          <label htmlFor="bulk-text" className="label-caps mb-2 block">{t("collection.bulkImportTitle")}</label>
           <Textarea
             id="bulk-text"
             rows={12}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder={"4x Fracturize [DOA]\n2 Rayne, Sword of Light\n1 Beseech the Winds Foil"}
+            placeholder={t("collection.bulkImportPlaceholder")}
             className="resize-none font-mono text-xs leading-relaxed"
           />
         </div>
         <div>
-          <p className="label-caps mb-2">Parse Preview</p>
+          <p className="label-caps mb-2">{t("collection.bulkImportValidLines", { count: valid.length })}</p>
           <div className="h-[262px] overflow-y-auto rounded-lg border border-white/[0.06] bg-black/20">
             {parsed.length === 0 ? (
-              <p className="p-6 text-center text-xs text-slate-500">Lines you paste will be previewed here.</p>
+              <p className="p-6 text-center text-xs text-slate-500">{t("collection.bulkImportInstructions")}</p>
             ) : (
               <ul className="divide-y divide-white/[0.04]">
                 {parsed.map((p, i) => (
