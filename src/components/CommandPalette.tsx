@@ -38,8 +38,8 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     void fetch("/api/settings")
       .then((response) => response.json())
-      .then((settings: { hasVendorCapability?: boolean }) => {
-        setHasVendorCapability(settings.hasVendorCapability === true);
+      .then((settings: { user?: { hasVendorCapability?: boolean } | null }) => {
+      setHasVendorCapability(settings.user?.hasVendorCapability === true);
       })
       .catch(() => undefined);
   }, []);

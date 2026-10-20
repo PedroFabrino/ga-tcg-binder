@@ -64,8 +64,8 @@ export default function CollectionPage() {
     let active = true;
     void fetch("/api/settings")
       .then((response) => response.json())
-      .then((settings: { hasVendorCapability?: boolean }) => {
-        if (active) setHasVendorCapability(settings.hasVendorCapability === true);
+      .then((settings: { user?: { hasVendorCapability?: boolean } | null }) => {
+      if (active) setHasVendorCapability(settings.user?.hasVendorCapability === true);
       })
       .catch(() => undefined);
     return () => {
