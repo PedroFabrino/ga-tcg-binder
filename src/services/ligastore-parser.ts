@@ -73,14 +73,35 @@ function hasClass(tag: string, className: string): boolean {
 }
 
 function findDivContentByClasses(html: string, requiredClasses: string[]): string {
-  const expression = /<div\b[^>]*>[\s\S]*?<\/div>/gi;
+  const divStart = /<div\b([^>]*)>/gi;
   let match: RegExpExecArray | null;
 
-  while ((match = expression.exec(html))) {
-    const openingTag = match[0].match(/^<div\b[^>]*>/i)?.[0] ?? "";
-    if (requiredClasses.every((className) => hasClass(openingTag, className))) {
-      return match[0].replace(/^<div\b[^>]*>/i, "").replace(/<\/div>$/i, "");
+  while ((match = divStart.exec(html))) {
+    const openingTag = match[0];
+    if (!requiredClasses.every((className) => hasClass(openingTag, className))) {
+      continue;
     }
+
+    // Track nesting depth to find the matching closing </div>
+    let depth = 1;
+    let pos = match.index + openingTag.length;
+    const tagPattern = /<\/div>|<div\b[^>]*>/gi;
+    tagPattern.lastIndex = pos;
+
+    let tagMatch: RegExpExecArray | null;
+    while ((tagMatch = tagPattern.exec(html))) {
+      if (tagMatch[0].startsWith("</div")) {
+        depth--;
+      } else {
+        depth++;
+      }
+      if (depth === 0) {
+        return html.substring(pos, tagMatch.index);
+      }
+    }
+
+    // No matching closing tag found — return empty
+    return "";
   }
 
   return "";
