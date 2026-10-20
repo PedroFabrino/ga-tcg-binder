@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ToastProvider";
 import { ALL_ELEMENTS, ELEMENT_COLORS, ELEMENT_LABELS, normalizeElement } from "@/lib/elements";
 import { RARITIES } from "@/lib/rarities";
+import { readShippingCapability } from "@/lib/settings-capabilities";
 import type { MarketplaceCardItem, MarketplaceReport } from "@/services/marketplace";
 import FulfillmentView from "./FulfillmentView";
 import MypStoreSubTabs, { type MypSubView } from "./MypStoreSubTabs";
@@ -79,12 +80,12 @@ export default function MypStoreView() {
   }, [fetchMarketplace]);
 
   useEffect(() => {
-    void fetch("/api/settings")
-      .then((response) => response.json())
-      .then((settings: { hasShippingCapability?: boolean }) => {
-        setHasShippingCapability(settings.hasShippingCapability === true);
-      })
-      .catch(() => undefined);
+  void fetch("/api/settings")
+  .then((response) => response.json())
+  .then((settings: unknown) => {
+  setHasShippingCapability(readShippingCapability(settings));
+  })
+  .catch(() => undefined);
   }, []);
 
   const handleSync = async (overrideUsername?: string) => {
