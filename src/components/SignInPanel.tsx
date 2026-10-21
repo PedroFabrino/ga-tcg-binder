@@ -5,11 +5,13 @@ import { signIn } from "next-auth/react";
 import { Loader2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useTranslation } from "@/lib/i18n";
+import type { TranslationKey } from "@ga/contracts";
 
-const DEMO_PROFILES = [
-  { name: "Collector Alex", email: "alex@grandarchive.local", hint: "Seeded binder" },
-  { name: "Collector Sarah", email: "sarah@grandarchive.local", hint: "Fresh binder" },
-  { name: "Bob (Friend)", email: "bob@grandarchive.local", hint: "Playgroup friend" },
+const DEMO_PROFILES: { name: string; email: string; hintKey: TranslationKey }[] = [
+  { name: "Collector Alex", email: "alex@grandarchive.local", hintKey: "auth.demoAlexHint" },
+  { name: "Collector Sarah", email: "sarah@grandarchive.local", hintKey: "auth.demoSarahHint" },
+  { name: "Bob (Friend)", email: "bob@grandarchive.local", hintKey: "auth.demoBobHint" },
 ];
 
 function DiscordIcon() {
@@ -32,6 +34,7 @@ function GoogleIcon() {
 }
 
 export default function SignInPanel({ callbackUrl, onSignedIn }: { callbackUrl: string; onSignedIn?: () => void }) {
+  const { t } = useTranslation();
   const [customName, setCustomName] = useState("");
   const [loading, setLoading] = useState<string | null>(null);
 
@@ -59,15 +62,15 @@ export default function SignInPanel({ callbackUrl, onSignedIn }: { callbackUrl: 
   return (
     <div className="space-y-3">
       <button onClick={() => oauth("discord")} disabled={busy} className="flex w-full items-center justify-center gap-3 rounded-xl bg-[#5865F2] px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#5865F2]/20 transition-all hover:bg-[#4752C4] active:scale-[0.98] disabled:opacity-50">
-        {loading === "discord" ? <Loader2 className="h-4 w-4 animate-spin" /> : <DiscordIcon/>} Continue with Discord
+        {loading === "discord" ? <Loader2 className="h-4 w-4 animate-spin" /> : <DiscordIcon/>} {t("auth.continueWithDiscord")}
       </button>
       <button onClick={() => oauth("google")} disabled={busy} className="flex w-full items-center justify-center gap-3 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 transition-all hover:bg-slate-100 active:scale-[0.98] disabled:opacity-50">
-        {loading === "google" ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon/>} Continue with Google
+        {loading === "google" ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon/>} {t("auth.continueWithGoogle")}
       </button>
 
       <div className="flex items-center gap-3 py-2">
         <span className="h-px flex-1 bg-white/[0.08]" />
-        <span className="label-caps !text-[10px]">Or try a demo collector</span>
+        <span className="label-caps !text-[10px]">{t("auth.demoOrDivider")}</span>
         <span className="h-px flex-1 bg-white/[0.08]" />
       </div>
 
@@ -81,7 +84,7 @@ export default function SignInPanel({ callbackUrl, onSignedIn }: { callbackUrl: 
           >
             <span className="min-w-0">
               <span className="block truncate text-xs font-semibold text-white">{p.name}</span>
-              <span className="block text-[10px] text-slate-500">{p.hint}</span>
+              <span className="block text-[10px] text-slate-500">{t(p.hintKey)}</span>
             </span>
             {loading === p.email ? <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-300" /> : <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-500 transition-transform group-hover:translate-x-0.5 group-hover:text-cyan-300" />}
           </button>
@@ -97,8 +100,8 @@ export default function SignInPanel({ callbackUrl, onSignedIn }: { callbackUrl: 
         }}
         className="flex gap-2"
       >
-        <Input value={customName} onChange={(e) => setCustomName(e.target.value)} placeholder="Or enter any collector name" aria-label="Custom collector name" />
-        <Button type="submit" disabled={busy || !customName.trim()} variant="outline" className="shrink-0">Enter</Button>
+        <Input value={customName} onChange={(e) => setCustomName(e.target.value)} placeholder={t("auth.customNamePlaceholder")} aria-label={t("auth.customNameAria")} />
+        <Button type="submit" disabled={busy || !customName.trim()} variant="outline" className="shrink-0">{t("common.enter")}</Button>
       </form>
     </div>
   );

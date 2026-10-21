@@ -1133,9 +1133,9 @@ describe("Marketplace (MyPCards) Sync, Shortage Offset & Claim Seam", () => {
     expect(report.cards.every((c) => c.id !== "mkt-br-sold")).toBe(true);
 
     // Brandão count: 2 (excludes sold), MyP count: 1
-    const brRow = report.summary.stores.find((s: any) => s.id === "brandao");
+    const brRow = report.summary.stores?.find((s: any) => s.id === "brandao");
     expect(brRow?.count).toBe(2);
-    const mypRow = report.summary.stores.find((s: any) => s.id === "myp");
+    const mypRow = report.summary.stores?.find((s: any) => s.id === "myp");
     expect(mypRow?.count).toBe(1);
 
     // Total copies: 1 + 2 + 3 = 6 (not 7 with the sold row)
