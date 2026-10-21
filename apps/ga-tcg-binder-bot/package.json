@@ -19,7 +19,7 @@
     "clean": "node clean.js",
     "bot": "rootsdk start devhost",
     "package": "rootsdk build package -p . -o ga-tcg-binder-bot.zip",
-    "upload": "rootsdk upload package -f ga-tcg-binder-bot.zip --authToken $ROOT_BOT_AUTH_TOKEN",
+    "upload": "node scripts/upload.js",
     "deploy": "npm run build && npm run package && npm run upload"
   }
 }
