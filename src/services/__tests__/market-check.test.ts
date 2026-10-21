@@ -224,4 +224,53 @@ describe("checkMarketStores dual change detection", () => {
     const latestUrls = requestedUrls.filter((u) => u.includes("txt_order=12"));
     expect(latestUrls).toHaveLength(0);
   });
+  it("detects change when count or latest card changes for Lootcards", async () => {
+    const { db } = await createTestDb();
+
+    await db.update(schema.marketStores).set({ enabled: false });
+
+    await db.insert(schema.marketStores).values({
+      id: "lootcards",
+      platform: "lootcards",
+      name: "Lootcards",
+      baseUrl: "https://lootcards.store",
+      tcgId: "grandarchive",
+      enabled: true,
+      lastCount: 450,
+      lastLatestCardRefId: "ed1:100",
+    });
+
+    const mockResponse = {
+      cards: [
+        {
+          edition_uuid: "ed2",
+          min_price_cents: 250,
+        },
+      ],
+      totalCards: 451,
+      totalPages: 19,
+    };
+
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify(mockResponse),
+    });
+
+    const report = await checkMarketStores(db, mockFetch as any);
+
+    expect(report.stores).toHaveLength(1);
+    const result = report.stores[0];
+    expect(result.storeId).toBe("lootcards");
+    expect(result.changed).toBe(true);
+    expect(result.observedCount).toBe(451);
+    expect(result.latestCardRefId).toBe("ed2:250");
+    expect(result.latestCardChanged).toBe(true);
+
+    const [storeInDb] = await db
+      .select()
+      .from(schema.marketStores)
+      .where(eq(schema.marketStores.id, "lootcards"));
+    expect(storeInDb.lastCount).toBe(451);
+    expect(storeInDb.lastLatestCardRefId).toBe("ed2:250");
+  });
 });

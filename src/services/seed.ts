@@ -67,6 +67,14 @@ export async function seedMarketStores(database?: AuthDatabase) {
       tcgId: "21",
       enabled: true,
     },
+    {
+      id: "lootcards",
+      platform: "lootcards",
+      name: "Lootcards",
+      baseUrl: "https://lootcards.store",
+      tcgId: "grandarchive",
+      enabled: true,
+    },
   ];
 
   for (const s of stores) {

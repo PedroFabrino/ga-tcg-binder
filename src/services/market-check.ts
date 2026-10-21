@@ -5,8 +5,9 @@ updateStoreLatestCardRefId,
 type MarketplaceDatabase,
 } from "../db/repositories/marketplace-repository";
 import { parseLigaStoreTotalCount, parseLigaStoreLatestCardRefId } from "./ligastore-parser";
+import { parseLootcardsTotalCount, parseLootcardsLatestCardRefId } from "./lootcards-parser";
 
-export type MarketStorePlatform = "liga_store" | "myp";
+export type MarketStorePlatform = "liga_store" | "myp" | "lootcards";
 
 export interface EnabledMarketStore {
 id: string;
@@ -126,6 +127,13 @@ async function fetchStoreCount(
     return parseMypTotalCount(html);
   }
 
+  if (store.platform === "lootcards") {
+    const baseUrl = (store.baseUrl ?? "https://lootcards.store").replace(/\/+$/, "");
+    const url = `${baseUrl}/api/cards?ordem=chegaram_agora&so_estoque=1`;
+    const jsonText = await fetchHtml(url, customFetch);
+    return parseLootcardsTotalCount(jsonText);
+  }
+
   const url = buildLigaStoreSearchUrl(store);
 
   if (!url) {
@@ -225,7 +233,25 @@ export async function checkMarketStores(
     let latestCardRefId: string | null = null;
     let latestCardChanged = false;
     
-    if (store.platform === "liga_store") {
+    if (store.platform === "lootcards") {
+      try {
+        const baseUrl = (store.baseUrl ?? "https://lootcards.store").replace(/\/+$/, "");
+        const latestUrl = `${baseUrl}/api/cards?ordem=chegaram_agora&so_estoque=1`;
+        const latestJson = await fetchHtml(latestUrl, customFetch);
+        latestCardRefId = parseLootcardsLatestCardRefId(latestJson);
+        if (latestCardRefId !== null) {
+          latestCardChanged =
+            store.lastLatestCardRefId === null ||
+            latestCardRefId !== store.lastLatestCardRefId;
+          await updateStoreLatestCardRefId(store.id, latestCardRefId, database);
+        }
+      } catch (err) {
+        console.warn(
+          `[market-check] Failed latest card check for ${store.id}:`,
+          err instanceof Error ? err.message : err
+        );
+      }
+    } else if (store.platform === "liga_store") {
       try {
         const latestUrl = buildLigaStoreSearchUrl(store, "latest");
         if (latestUrl) {

@@ -182,6 +182,10 @@ _Avoid_: Normal price, cheap listing
 An external seller or store offering one or more Market Listings, used to group Buyable Shortages into multi-card packages that consolidate shipping costs.
 _Avoid_: Merchant, third-party shop, dealer
 
+**Market Store**:
+A registered external marketplace or singles retail source (such as MyP Cards, Brandão Card Game, or Lootcards) whose public catalog is periodically crawled and matched against the Card Catalog to discover Buyable Shortages and notify of new stock.
+_Avoid_: External shop, merchant platform, store provider
+
 **Quota**:
 The target copy count of a Card that a Collector aims to hold in their active Binder, governed by their configured shortage policy (Hard Shortage, Shared Shortage, or Staple Deficit).
 _Avoid_: Target count, max copies, cap

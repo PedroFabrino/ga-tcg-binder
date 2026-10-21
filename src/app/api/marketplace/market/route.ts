@@ -8,6 +8,7 @@ import {
   syncGlobalMarketplace,
 } from "@/services/marketplace";
 import { syncLigaStore } from "@/services/ligastore-sync";
+import { syncLootcards } from "@/services/lootcards-sync";
 
 export async function GET(req: NextRequest) {
   try {
@@ -55,6 +56,13 @@ export async function POST(req: NextRequest) {
         console.warn("[LigaStore Sync Blocked / Failed]", err);
         warning = "LIGASTORE_CLOUDFLARE_BLOCKED";
       }
+    } else if (requestedStoreId === "lootcards") {
+      try {
+        stats = await syncLootcards({ storeId: "lootcards", database: db });
+      } catch (err: unknown) {
+        console.warn("[Lootcards Sync Failed]", err);
+        warning = "LOOTCARDS_SYNC_FAILED";
+      }
     } else if (requestedStoreId === "myp") {
       stats = await syncGlobalMarketplace(db);
     } else {
@@ -66,10 +74,16 @@ export async function POST(req: NextRequest) {
         console.warn("[LigaStore Sync Blocked / Failed in All Stores]", err);
         warning = "LIGASTORE_CLOUDFLARE_BLOCKED";
       }
+      let lootStats: any = {};
+      try {
+        lootStats = await syncLootcards({ storeId: "lootcards", database: db });
+      } catch (err: unknown) {
+        console.warn("[Lootcards Sync Failed in All Stores]", err);
+      }
       stats = {
-        totalSynced: (mypStats.totalSynced || 0) + (ligaStats.totalSynced || 0),
-        matchedCount: (mypStats.matchedCount || 0) + (ligaStats.matchedCount || 0),
-        unmatchedCount: (mypStats.unmatchedCount || 0) + (ligaStats.unmatchedCount || 0),
+        totalSynced: (mypStats.totalSynced || 0) + (ligaStats.totalSynced || 0) + (lootStats.totalSynced || 0),
+        matchedCount: (mypStats.matchedCount || 0) + (ligaStats.matchedCount || 0) + (lootStats.matchedCount || 0),
+        unmatchedCount: (mypStats.unmatchedCount || 0) + (ligaStats.unmatchedCount || 0) + (lootStats.unmatchedCount || 0),
       };
     }
 

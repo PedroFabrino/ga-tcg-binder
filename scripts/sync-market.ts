@@ -7,6 +7,7 @@ import {
 } from "../src/db/repositories/marketplace-repository";
 import { syncGlobalMarketplace } from "../src/services/marketplace";
 import { syncLigaStore } from "../src/services/ligastore-sync";
+import { syncLootcards } from "../src/services/lootcards-sync";
 import { writeMarketNotifications } from "../src/services/market-notifications";
 import { deliverDiscordNotifications } from "../src/services/discord-market-notifier";
 
@@ -61,6 +62,27 @@ async function main() {
         console.log(`- Matched Catalog Printings: ${stats.matchedCount}`);
         console.log(`- Unmatched Listings: ${stats.unmatchedCount}`);
         console.log(`- Duration: ${durationSec}s`);
+      } else if (store.platform === "lootcards") {
+        const stats = await syncLootcards({
+          storeId: store.id,
+          database: db,
+        });
+        const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
+        console.log(`- Total Synced: ${stats.totalSynced}`);
+        console.log(`- Matched: ${stats.matchedCount}`);
+        console.log(`- Unmatched: ${stats.unmatchedCount}`);
+        console.log(`- Enriched: ${stats.enrichedCount}`);
+        console.log(`- Duration: ${durationSec}s`);
+
+        const notificationsWritten = await writeMarketNotifications(store.id, db);
+        console.log(`- Outbox Notifications Written: ${notificationsWritten}`);
+
+        const discord = await deliverDiscordNotifications(db);
+        if (discord.disabled) {
+          console.warn("- Discord Notifications: disabled (DISCORD_WEBHOOK is missing or invalid)");
+        } else {
+          console.log(`- Discord Notifications: ${discord.delivered}/${discord.attempted} delivered`);
+        }
       } else if (store.platform === "liga_store") {
         if (!store.baseUrl) {
           throw new Error(`Liga Store "${store.id}" has no baseUrl configured.`);
