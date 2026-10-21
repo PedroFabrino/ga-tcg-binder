@@ -250,6 +250,18 @@ The `@rootsdk/server-bot` application at `apps/ga-tcg-binder-bot/` that sends ma
 The Root community channel (identified by `ROOT_BOT_MARKET_CHANNEL_ID`) where the Root Bot posts market update notifications.
 _Avoid_: Vendor, shop profile, site account
 
+**Destination**:
+A named delivery channel (for example `discord`) that receives market update notifications. Each Notification Outbox row tracks delivery independently per Destination in `notification_deliveries`.
+_Avoid_: Channel, transport, sink type
+
+**Delivery**:
+A recorded, successful send of a market notification to a specific Destination, keyed by notification id plus Destination and carrying the sink's message id. Deliveries are written only after the sink confirms acceptance.
+_Avoid_: Send log, dispatch record, delivery receipt
+
+**Sink**:
+A pluggable notification delivery implementation (for example Discord) that formats, sends, and records deliveries for a specific Destination through the `MarketNotificationSink` interface. The Root bot is the only pull-based consumer and does not use this abstraction.
+_Avoid_: Adapter, driver, transport
+
 **LigaStore**:
 The integration adapter for external stores powered by the LigaMagic/lmcorp e-commerce engine, operating strictly as a buy-side listing source for Buyable Shortages and marketplace browsing without selling, cart, or fulfillment write-backs.
 _Avoid_: LigaMagic bot, Liga scraper

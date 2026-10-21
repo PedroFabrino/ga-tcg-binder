@@ -8,6 +8,7 @@ import {
 import { syncGlobalMarketplace } from "../src/services/marketplace";
 import { syncLigaStore } from "../src/services/ligastore-sync";
 import { writeMarketNotifications } from "../src/services/market-notifications";
+import { deliverDiscordNotifications } from "../src/services/discord-market-notifier";
 
 function readStoreIdArgument(args: string[]): string | undefined {
   const storeFlagIndex = args.indexOf("--store");
@@ -78,6 +79,13 @@ async function main() {
 
         const notificationsWritten = await writeMarketNotifications(store.id, db);
         console.log(`- Outbox Notifications Written: ${notificationsWritten}`);
+
+        const discord = await deliverDiscordNotifications(db);
+        if (discord.disabled) {
+          console.warn("- Discord Notifications: disabled (DISCORD_WEBHOOK is missing or invalid)");
+        } else {
+          console.log(`- Discord Notifications: ${discord.delivered}/${discord.attempted} delivered`);
+        }
       } else {
         console.warn(`Unknown platform ${store.platform} for store ${store.id}, skipping.`);
         continue;

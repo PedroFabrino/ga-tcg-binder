@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "es2020",
+    "target": "es2022",
     "composite": true,
     "declaration": true,
     "outDir": "dist",
@@ -24,6 +24,7 @@
     "src/**/*.ts",
     "../../src/db/index.ts",
     "../../src/db/schema.ts",
+    "../../src/db/notification-delivery-schema.ts",
     "../../src/db/repositories/marketplace-repository.ts",
     "../../src/services/market-notification-formatter.ts"
   ],

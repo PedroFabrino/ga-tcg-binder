@@ -274,6 +274,9 @@ export const marketNotifications = sqliteTable("market_notifications", {
 export type MarketNotification = typeof marketNotifications.$inferSelect;
 export type InsertMarketNotification = typeof marketNotifications.$inferInsert;
 
+// Notification deliveries live in ./notification-delivery-schema to keep this file under 400 lines.
+export { notificationDeliveries, type NotificationDelivery, type InsertNotificationDelivery } from "./notification-delivery-schema";
+
 // ---------------------------------------------------------------------------
 // Managed MyPCards Watchlist Ledger
 // ---------------------------------------------------------------------------

@@ -4,9 +4,10 @@ import {
   getPendingNotifications,
   markNotificationsSent,
   getMarketStoreById,
-  type MarketNotification,
 } from "../../../src/db/repositories/marketplace-repository";
-import { formatMarketNotificationMessage } from "../../../src/services/market-notification-formatter";
+import { formatMarketNotificationMessage, groupMarketNotificationsByStore } from "../../../src/services/market-notification-formatter";
+import { logCommunityChannels } from "./channel-diagnostics";
+import { describeError } from "./describe-error";
 
 /**
  * Starts the market notification poller.
@@ -32,6 +33,8 @@ export function startMarketNotifier(): void {
 
   const channelId = rawChannelId as unknown as ChannelGuid;
 
+  void logCommunityChannels(rawChannelId);
+
   console.log(
     `[market-notifier] Starting poller (interval=${pollIntervalMs}ms, channel=${rawChannelId})`
   );
@@ -52,15 +55,7 @@ export function startMarketNotifier(): void {
       }
 
       // Group by storeId
-      const byStore = new Map<string, MarketNotification[]>();
-      for (const n of pending) {
-        const list = byStore.get(n.storeId);
-        if (list) {
-          list.push(n);
-        } else {
-          byStore.set(n.storeId, [n]);
-        }
-      }
+      const byStore = groupMarketNotificationsByStore(pending);
 
       for (const [storeId, notifications] of byStore) {
         const store = await getMarketStoreById(storeId, db);
@@ -77,31 +72,35 @@ export function startMarketNotifier(): void {
           continue;
         }
 
+        const ids = notifications.map((n) => n.id);
+
+        let sentMessage;
         try {
-          const sentMessage = await rootServer.community.channelMessages.create({
+          sentMessage = await rootServer.community.channelMessages.create({
             channelId,
             content: message,
           });
+        } catch (err) {
+          console.error(
+            `[market-notifier] Failed to send ${ids.length} notifications for store "${storeName}" to channel ${rawChannelId}: ${describeError(err)}`
+          );
+          continue;
+        }
 
-          const ids = notifications.map((n) => n.id);
-          const messageId = sentMessage?.id ? String(sentMessage.id) : "sent";
+        const messageId = sentMessage?.id ? String(sentMessage.id) : "sent";
+        try {
           await markNotificationsSent(ids, messageId, new Date(), db);
-
           console.log(
-            `[market-notifier] Sent ${notifications.length} notifications for store "${storeName}"`
+            `[market-notifier] Sent ${ids.length} notifications for store "${storeName}" (message=${messageId})`
           );
         } catch (err) {
           console.error(
-            `[market-notifier] Failed to send notifications for store "${storeName}":`,
-            err instanceof Error ? err.message : err
+            `[market-notifier] Message ${messageId} was posted but ${ids.length} notifications for store "${storeName}" could not be marked as sent (ids: ${ids.join(", ")}) — they will be re-sent on the next tick: ${describeError(err)}`
           );
         }
       }
     } catch (err) {
-      console.error(
-        "[market-notifier] Poll tick error:",
-        err instanceof Error ? err.message : err
-      );
+      console.error(`[market-notifier] Poll tick error: ${describeError(err)}`);
     } finally {
       running = false;
     }
