@@ -17,6 +17,9 @@
   "scripts": {
     "build": "tsc && node -e \"if (fs.existsSync('dist/apps/ga-tcg-binder-bot/src/main.js')) fs.writeFileSync('dist/main.js', 'require(\\\"./apps/ga-tcg-binder-bot/src/main.js\\\");\\n');\"",
     "clean": "node clean.js",
-    "bot": "rootsdk start devhost"
+    "bot": "rootsdk start devhost",
+    "package": "rootsdk build package -p . -o ga-tcg-binder-bot.zip",
+    "upload": "rootsdk upload package -f ga-tcg-binder-bot.zip --authToken $ROOT_BOT_AUTH_TOKEN",
+    "deploy": "npm run build && npm run package && npm run upload"
   }
 }
