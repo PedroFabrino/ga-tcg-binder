@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "composite": true,
+    "declaration": true,
+    "outDir": "dist",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "sourceMap": false,
+    "allowJs": false,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitReturns": true,
+    "noImplicitThis": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "rootDir": "../../",
+    "paths": {
+      "@ga/contracts": ["../../packages/contracts/src/index.ts"]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../packages/contracts/src/**/*.ts",
+    "../../src/db/index.ts",
+    "../../src/db/schema.ts",
+    "../../src/db/assistant-schema.ts",
+    "../../src/db/notification-delivery-schema.ts",
+    "../../src/db/repositories/marketplace-repository.ts",
+    "../../src/services/market-notification-formatter.ts"
+  ],
+  "exclude": ["node_modules"]
+}

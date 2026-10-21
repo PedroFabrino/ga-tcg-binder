@@ -12,6 +12,7 @@ import { SettingsShippingPackageSection } from "@/components/settings/SettingsSh
 import { SettingsFairnessSection } from "@/components/settings/SettingsFairnessSection";
 import { SettingsMypSection } from "@/components/settings/SettingsMypSection";
 import { SettingsPlaygroupSection } from "@/components/settings/SettingsPlaygroupSection";
+import { SettingsLinkedAccountsSection } from "@/components/settings/SettingsLinkedAccountsSection";
 
 export default function SettingsPage() {
   const { t } = useTranslation();
@@ -117,6 +118,8 @@ export default function SettingsPage() {
             setThreshold={mgr.setThreshold}
             loading={mgr.loading}
           />
+
+          <SettingsLinkedAccountsSection />
         </div>
       </div>
 

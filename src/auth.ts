@@ -9,6 +9,7 @@ import {
   updateUserProfile,
   migrateDefaultUserDataToUser,
 } from "./db/repositories/auth-repository";
+import { upsertCollectorIdentity } from "./db/repositories/assistant-repository";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
@@ -67,7 +68,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    async signIn({ user }) {
+    async signIn({ user, account }) {
       if (!user.email) return true;
       try {
         const normalizedEmail = user.email.toLowerCase().trim();
@@ -88,6 +89,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             });
           }
           await migrateDefaultUserDataToUser(existingByEmail.id);
+          if (account?.provider === "discord" && account?.providerAccountId) {
+            try {
+              await upsertCollectorIdentity({
+                collectorId: existingByEmail.id,
+                provider: "discord",
+                providerUserId: String(account.providerAccountId),
+                providerUsername: user.name || null,
+              });
+            } catch (linkErr) {
+              console.error("Error auto-linking Discord identity:", linkErr);
+            }
+          }
           return true;
         }
 
@@ -109,6 +122,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           });
         }
         await migrateDefaultUserDataToUser(id);
+        if (account?.provider === "discord" && account?.providerAccountId) {
+          try {
+            await upsertCollectorIdentity({
+              collectorId: id,
+              provider: "discord",
+              providerUserId: String(account.providerAccountId),
+              providerUsername: user.name || null,
+            });
+          } catch (linkErr) {
+            console.error("Error auto-linking Discord identity:", linkErr);
+          }
+        }
       } catch (err) {
         console.error("Error in signIn callback:", err);
       }

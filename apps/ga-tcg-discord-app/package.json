@@ -1,0 +1,17 @@
+{
+  "name": "@ga/discord-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Grand Archive TCG Collector Assistant Discord App",
+  "scripts": {
+    "register": "tsx scripts/register-commands.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ga/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

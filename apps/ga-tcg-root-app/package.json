@@ -1,0 +1,27 @@
+{
+  "name": "@ga/root-app",
+  "author": "",
+  "description": "Grand Archive TCG Collector Assistant & Market Notifier Root App",
+  "version": "1.0.1",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@rootsdk/server-bot": "*",
+    "@libsql/client": "^0.14.0",
+    "drizzle-orm": "^0.36.4"
+  },
+  "devDependencies": {
+    "@rootsdk/dev-tools": "*",
+    "typescript": "^5.8.2"
+  },
+  "scripts": {
+    "build": "tsc && node -e \"if (fs.existsSync('dist/apps/ga-tcg-root-app/src/main.js')) fs.writeFileSync('dist/main.js', 'require(\\\"./apps/ga-tcg-root-app/src/main.js\\\");\\n');\"",
+    "clean": "node clean.js",
+    "bot": "rootsdk start devhost",
+    "package": "node scripts/package.js",
+    "upload": "node scripts/upload.js",
+    "deploy": "npm run build && npm run package && npm run upload"
+  }
+}

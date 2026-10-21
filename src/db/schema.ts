@@ -393,4 +393,6 @@ export const shippingTickets = sqliteTable("shipping_tickets", {
   userTicketUnique: uniqueIndex("shipping_tickets_user_ticket_idx").on(table.userId, table.superfreteOrderId),
 }));
 
+export * from "./assistant-schema";
+
 
