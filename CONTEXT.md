@@ -224,6 +224,18 @@ _Avoid_: Shop engine, site type, crawler adapter
 
 **Marketplace Store**:
 A specific configured external storefront or seller source (such as MyP Cards or Brandão Card Game) tracked with its own identity, base URL, platform, external TCG identifier, enabled state, listing count, and sync timestamps.
+
+**Latest Card Detection**:
+A change-detection strategy for LigaStore marketplaces that compares the most recently added product (`txt_order=12&ultimas=1`) against a previously recorded reference ID (`lastLatestCardRefId`), catching single-card swaps that count-based detection would miss.
+
+**Notification Outbox**:
+A persisted queue table (`market_notifications`) in the application database that decouples the marketplace sync process from the Root bot notification delivery. The sync process writes pending notifications; the bot polls and sends them, marking rows as sent.
+
+**Root Bot**:
+The `@rootsdk/server-bot` application at `apps/ga-tcg-binder-bot/` that sends marketplace update messages to a configured Root community channel. It polls the Notification Outbox and formats detected new cards as Markdown messages.
+
+**Bot Channel**:
+The Root community channel (identified by `ROOT_BOT_MARKET_CHANNEL_ID`) where the Root Bot posts market update notifications.
 _Avoid_: Vendor, shop profile, site account
 
 **LigaStore**:
