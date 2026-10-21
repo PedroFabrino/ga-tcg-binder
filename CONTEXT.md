@@ -100,6 +100,18 @@ _Avoid_: Wishlist, shopping list, shortage export
 A Collector's public Deck displayed on their Public Collector Profile with its live physical assembly completion percentage and exact missing cards required to sleeve the list.
 _Avoid_: Goal deck, wanted deck, project deck
 
+**Collector Assistant**:
+The conversational multi-platform bot service (deployed across Discord and Root) providing a linked Collector with real-time chat access to their personal Decks, Shortages, Binder holdings, and Wantlists.
+_Avoid_: Chat bot, discord bot, ga bot
+
+**Collector Identity Link**:
+The verified pairing record connecting an external platform identifier (e.g. Discord User ID or Root User GUID) to a canonical Collector account, established via OAuth or one-time pairing tokens.
+_Avoid_: Account link, user mapping, discord connection
+
+**Deck-Partitioned Wantlist**:
+A structured Wantlist presentation organized by individual Decks, itemizing the exact Hard Shortages and Shared Shortages required to sleeve each specific list.
+_Avoid_: Grouped shortage list, multi-deck wishlist
+
 **Friend Link**:
 An established mutual connection between two Collectors granting reciprocal visibility into each other's collection and idle cards.
 _Avoid_: Friendship, buddy, contact

@@ -58,3 +58,5 @@ graphify-out/
 
 .staging-package/
 apps/ga-tcg-binder-bot/*.zip
+*.sqlite3
+*.sqlite3-journal
