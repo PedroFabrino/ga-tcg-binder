@@ -45,3 +45,17 @@ Rules are **hard** for all new and modified code. Existing violations are tracke
 - No dead or commented-out code.
 - Secrets come from environment variables only; never commit or log them.
 - No new dependency, layer, or language without an ADR in `docs/adr/`. The stack is TypeScript only; no Go or other languages.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live as GitHub issues, driven with the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage roles map to labels named exactly after them — `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one root `CONTEXT.md` glossary plus `docs/adr/`. See `docs/agents/domain.md`.
