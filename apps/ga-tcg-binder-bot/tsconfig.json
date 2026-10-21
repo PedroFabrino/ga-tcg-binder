@@ -24,7 +24,8 @@
     "src/**/*.ts",
     "../../src/db/index.ts",
     "../../src/db/schema.ts",
-    "../../src/db/repositories/marketplace-repository.ts"
+    "../../src/db/repositories/marketplace-repository.ts",
+    "../../src/services/market-notification-formatter.ts"
   ],
   "exclude": ["node_modules"]
 }

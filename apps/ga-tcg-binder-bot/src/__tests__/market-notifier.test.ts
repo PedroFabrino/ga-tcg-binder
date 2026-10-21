@@ -1,16 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-vi.mock("@rootsdk/server-bot", () => ({
-  rootServer: {
-    community: {
-      channelMessages: {
-        create: vi.fn(),
-      },
-    },
-  },
-}));
-
-import { formatMarketNotificationMessage } from "../market-notifier";
+import { formatMarketNotificationMessage } from "../../../../src/services/market-notification-formatter";
 import type { MarketNotification } from "../../../../src/db/schema";
 
 describe("formatMarketNotificationMessage", () => {
