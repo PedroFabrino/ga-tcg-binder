@@ -1,12 +1,16 @@
 packages:
   - "."
-  - "apps/*"
+  - "apps/mobile"
   - "packages/*"
   - "services/*"
 
 allowBuilds:
+  '@rootsdk/dev-tools': set this to true or false
   esbuild: true
+  protobufjs: set this to true or false
+  sqlite3: set this to true or false
   tesseract.js: true
+  utf-8-validate: set this to true or false
 
 minimumReleaseAgeExclude:
   - '@expo/cli@57.0.30'
