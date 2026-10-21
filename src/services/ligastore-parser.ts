@@ -5,6 +5,21 @@
  * helpers because they run against server-provided LigaStore HTML fragments.
  */
 
+import {
+  DEFAULT_PRICE,
+  decodeHtml,
+  stripHtml,
+  getAttribute,
+  findDivContentByClasses,
+  normalizePrice,
+  priceToNumeric,
+  getSpriteText,
+  extractRefId,
+  decodeLigaStoreSpriteClasses,
+} from "./ligastore-html-utils";
+
+export { decodeLigaStoreSpriteClasses } from "./ligastore-html-utils";
+
 export interface ParsedLigaStoreItem {
   rawTitle: string;
   cardName: string;
@@ -30,138 +45,6 @@ export interface ParsedLigaStoreItemDetails {
   priceNumeric: number;
   stockQuantity: number;
   editionCode: string | null;
-}
-
-interface SpriteRule {
-  className: string;
-  x: number;
-  y: number;
-  index: number;
-}
-
-const DEFAULT_PRICE = "R$ 0,00";
-
-function decodeHtml(value: string): string {
-  return value
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
-    .replace(/&#x([a-f\d]+);/gi, (_, code) =>
-      String.fromCharCode(Number.parseInt(code, 16))
-    );
-}
-
-function stripHtml(value: string): string {
-  return decodeHtml(value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim());
-}
-
-function getAttribute(tag: string, attribute: string): string {
-  const expression = new RegExp(
-    `\\b${attribute}\\s*=\\s*(["'])([\\s\\S]*?)\\1`,
-    "i"
-  );
-  return decodeHtml(tag.match(expression)?.[2] ?? "");
-}
-
-function hasClass(tag: string, className: string): boolean {
-  const classes = getAttribute(tag, "class").split(/\s+/);
-  return classes.includes(className);
-}
-
-function findDivContentByClasses(html: string, requiredClasses: string[]): string {
-  const divStart = /<div\b([^>]*)>/gi;
-  let match: RegExpExecArray | null;
-
-  while ((match = divStart.exec(html))) {
-    const openingTag = match[0];
-    if (!requiredClasses.every((className) => hasClass(openingTag, className))) {
-      continue;
-    }
-
-    // Track nesting depth to find the matching closing </div>
-    let depth = 1;
-    let pos = match.index + openingTag.length;
-    const tagPattern = /<\/div>|<div\b[^>]*>/gi;
-    tagPattern.lastIndex = pos;
-
-    let tagMatch: RegExpExecArray | null;
-    while ((tagMatch = tagPattern.exec(html))) {
-      if (tagMatch[0].startsWith("</div")) {
-        depth--;
-      } else {
-        depth++;
-      }
-      if (depth === 0) {
-        return html.substring(pos, tagMatch.index);
-      }
-    }
-
-    // No matching closing tag found — return empty
-    return "";
-  }
-
-  return "";
-}
-
-function normalizePrice(value: string): string {
-  const match = decodeHtml(value).match(/R\$\s*([\d.]+(?:,\d+)?|\d+(?:\.\d+)?)/i);
-  if (!match) {
-    return DEFAULT_PRICE;
-  }
-
-  const numericPart = match[1].replace(/\./g, "").replace(",", ".");
-  const numeric = Number(numericPart);
-  if (!Number.isFinite(numeric)) {
-    return DEFAULT_PRICE;
-  }
-
-  return `R$ ${numeric.toLocaleString("pt-BR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
-
-function priceToNumeric(price: string): number {
-  const match = price.match(/R\$\s*([\d.]+,\d+|\d+(?:\.\d+)?)/i);
-  if (!match) {
-    return 0;
-  }
-
-  const value = match[1].includes(",")
-    ? match[1].replace(/\./g, "").replace(",", ".")
-    : match[1];
-
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : 0;
-}
-
-function parseClassList(tag: string): string[] {
-  return getAttribute(tag, "class").split(/\s+/).filter(Boolean);
-}
-
-function getSpriteText(html: string, spriteClasses: Map<string, string>): string {
-  return html.replace(/<[^>]+>/g, (tag) => {
-    const classes = parseClassList(tag);
-    const digit = classes.map((className) => spriteClasses.get(className) ?? "").join("");
-    return digit || " ";
-  });
-}
-
-function extractRefId(url: string): string {
-  const match = url.match(/[?&]refid=([^&#"']+)/i);
-  if (!match) {
-    return "";
-  }
-
-  try {
-    return decodeURIComponent(match[1]);
-  } catch {
-    return match[1];
-  }
 }
 
 function extractTitle(rawTitle: string): { cardName: string; collectorNumber: string } {
@@ -270,64 +153,6 @@ export function parseLigaStoreTotalCount(html: string): number {
 }
 
 /**
- * Decodes CSS sprite class names into their represented digits.
- */
-export function decodeLigaStoreSpriteClasses(html: string): Map<string, string> {
-  const styleBlocks = html.match(/<style\b[^>]*>[\s\S]*?<\/style>/gi) ?? [];
-  const style = styleBlocks.find(
-    (block) => /background-position/i.test(block) && /\.[\w-]+\s*\{/i.test(block)
-  );
-
-  if (!style) {
-    return new Map();
-  }
-
-  const rules: SpriteRule[] = [];
-  const rulePattern =
-    /\.([a-z_][\w-]*)[^{]*\{[^}]*\bbackground-position\s*:\s*(-?\d+)px\s+(-?\d+)px[^}]*\}/gi;
-  let match: RegExpExecArray | null;
-
-  while ((match = rulePattern.exec(style))) {
-    rules.push({
-      className: match[1],
-      x: Number(match[2]),
-      y: Number(match[3]),
-      index: rules.length,
-    });
-  }
-
-  const decoded = new Map<string, string>();
-
-  for (const rule of rules) {
-    const namedDigit =
-      rule.className.match(
-        /(?:^|[-_])(num(?:ero)?|digit|sprite|price|preco)[-_]?([0-9])$/i
-      ) ?? rule.className.match(/(?:^|[-_])([0-9])$/);
-
-    if (namedDigit) {
-      decoded.set(rule.className, namedDigit[namedDigit.length - 1]);
-    }
-
-    if (/(comma|virgula|decimal)/i.test(rule.className)) {
-      decoded.set(rule.className, ",");
-    }
-  }
-
-  const unmapped = rules.filter((rule) => !decoded.has(rule.className));
-  if (rules.length === 10 && unmapped.length > 0) {
-    [...rules]
-      .sort((a, b) => a.y - b.y || a.x - b.x || a.index - b.index)
-      .forEach((rule, index) => {
-        if (!decoded.has(rule.className)) {
-          decoded.set(rule.className, String(index));
-        }
-      });
-  }
-
-  return decoded;
-}
-
-/**
  * Parses a LigaStore product-detail page.
  */
 export function parseLigaStoreItemDetails(html: string): ParsedLigaStoreItemDetails {
@@ -430,4 +255,41 @@ export function parseLigaStoreSearchPage(html: string): ParsedLigaStoreSearchRes
     items,
     totalCount: parseLigaStoreTotalCount(html),
   };
+}
+
+/**
+ * Parses the refId of the most recently added card from a LigaStore
+ * latest-additions search page (txt_order=12&ultimas=1).
+ *
+ * Returns the refId string, or null if the page is empty or unparseable.
+ */
+export function parseLigaStoreLatestCardRefId(html: string): string | null {
+  const blocks = extractCardBlocks(html);
+  if (blocks.length > 0) {
+    const anchors = [...blocks[0].matchAll(/<a\b[^>]*\bhref=(['"])(.*?)\1[^>]*>/gi)];
+    const productAnchor = anchors.find((anchor) => /[?&]refid=/i.test(anchor[2]));
+    if (productAnchor) {
+      const refId = extractRefId(decodeHtml(productAnchor[2]));
+      if (refId) return refId;
+    }
+    const blockMatch = blocks[0].match(/[?&]refid=([^&#"'\s>]+)/i);
+    if (blockMatch?.[1]) {
+      try {
+        return decodeURIComponent(blockMatch[1]);
+      } catch {
+        return blockMatch[1];
+      }
+    }
+  }
+
+  const match = html.match(/[?&]refid=([^&#"'\s>]+)/i);
+  if (match?.[1]) {
+    try {
+      return decodeURIComponent(match[1]);
+    } catch {
+      return match[1];
+    }
+  }
+
+  return null;
 }

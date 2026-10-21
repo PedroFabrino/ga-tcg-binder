@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   decodeLigaStoreSpriteClasses,
   parseLigaStoreItemDetails,
+  parseLigaStoreLatestCardRefId,
   parseLigaStoreSearchPage,
   parseLigaStoreTotalCount,
 } from "../ligastore-parser";
+import { buildLigaStoreSearchUrl } from "../market-check";
 
 describe("parseLigaStoreTotalCount", () => {
   it("extracts the count from the LigaStore pagination cell", () => {
@@ -216,5 +218,87 @@ describe("parseLigaStoreSearchPage", () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0].rawTitle).toBe("Shanks (022) (Manga) (#OP17-022-MA)");
     expect(result.items[0].collectorNumber).toBe("OP17-022-MA");
+  });
+});
+
+describe("parseLigaStoreLatestCardRefId", () => {
+  it("extracts refId from a valid LigaStore search results HTML snippet", () => {
+    const html = `
+      <div class="card-item">
+        <div class="title">
+          <a href="?view=ecom/item&refid=M1B_twbhyV_d0_1_XlLN0RUYxUQ">Flame-Rune Swordsman (#136)</a>
+        </div>
+      </div>
+    `;
+    expect(parseLigaStoreLatestCardRefId(html)).toBe("M1B_twbhyV_d0_1_XlLN0RUYxUQ");
+  });
+
+  it("extracts refId from the first item when multiple items are present", () => {
+    const html = `
+      <div class="card-item">
+        <a href="?view=ecom/item&refid=first_item_ref">First Item</a>
+      </div>
+      <div class="card-item">
+        <a href="?view=ecom/item&refid=second_item_ref">Second Item</a>
+      </div>
+    `;
+    expect(parseLigaStoreLatestCardRefId(html)).toBe("first_item_ref");
+  });
+
+  it("returns null for empty results page or string", () => {
+    expect(parseLigaStoreLatestCardRefId("")).toBeNull();
+    expect(parseLigaStoreLatestCardRefId("   ")).toBeNull();
+  });
+
+  it("returns null for malformed HTML with no refid", () => {
+    expect(
+      parseLigaStoreLatestCardRefId("<html><body><div>No items found</div></body></html>")
+    ).toBeNull();
+  });
+
+  it("returns null for page with no product items", () => {
+    const html = `
+      <table class="ecomresp-tab">
+        <tr><td class="textoMaior">Nenhum produto encontrado</td></tr>
+      </table>
+    `;
+    expect(parseLigaStoreLatestCardRefId(html)).toBeNull();
+  });
+});
+
+describe("buildLigaStoreSearchUrl", () => {
+  const store = {
+    id: "brandao",
+    platform: "liga_store",
+    baseUrl: "https://www.brandaocardgame.com.br",
+    tcgId: "21",
+    lastCount: 100,
+    lastLatestCardRefId: null,
+  };
+
+  it("produces a URL with txt_order=12 and ultimas=1 when sort is latest", () => {
+    const url = buildLigaStoreSearchUrl(store, "latest");
+    expect(url).not.toBeNull();
+    expect(url).toContain("txt_order=12");
+    expect(url).toContain("ultimas=1");
+    expect(url).toContain("id=207836");
+  });
+
+  it("produces a URL with txt_order=6 when sort is count", () => {
+    const url = buildLigaStoreSearchUrl(store, "count");
+    expect(url).not.toBeNull();
+    expect(url).toContain("txt_order=6");
+    expect(url).not.toContain("txt_order=12");
+  });
+
+  it("defaults to count (txt_order=6) when sort argument is omitted", () => {
+    const url = buildLigaStoreSearchUrl(store);
+    expect(url).not.toBeNull();
+    expect(url).toContain("txt_order=6");
+    expect(url).not.toContain("txt_order=12");
+  });
+
+  it("returns null if baseUrl is empty", () => {
+    expect(buildLigaStoreSearchUrl({ ...store, baseUrl: "" })).toBeNull();
   });
 });

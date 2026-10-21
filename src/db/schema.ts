@@ -213,6 +213,8 @@ export const marketStores = sqliteTable("market_stores", {
   lastCount: integer("last_count"),
   lastCountCheckedAt: integer("last_count_checked_at", { mode: "timestamp" }),
   lastFullScanAt: integer("last_full_scan_at", { mode: "timestamp" }),
+  lastLatestCardRefId: text("last_latest_card_ref_id"),
+  lastNotifiedAt: integer("last_notified_at", { mode: "timestamp" }),
   updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
 
@@ -220,9 +222,7 @@ export const marketCards = sqliteTable(
   "market_cards",
   {
     id: text("id").primaryKey(),
-    storeId: text("store_id")
-      .notNull()
-      .references(() => marketStores.id, { onDelete: "cascade" }),
+    storeId: text("store_id").notNull().references(() => marketStores.id, { onDelete: "cascade" }),
     cardSlug: text("card_slug").references(() => cards.slug, { onDelete: "set null" }),
     editionId: text("edition_id").references(() => cardEditions.id, { onDelete: "set null" }),
     rawName: text("raw_name").notNull(),
@@ -239,6 +239,7 @@ export const marketCards = sqliteTable(
     productUrl: text("product_url"),
     vendorName: text("vendor_name"),
     vendorUrl: text("vendor_url"),
+    firstSeenAt: integer("first_seen_at", { mode: "timestamp" }).notNull().default(sql`(strftime('%s', 'now'))`),
     lastSeenAt: integer("last_seen_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
     updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
   },
@@ -253,6 +254,25 @@ export type MarketStore = typeof marketStores.$inferSelect;
 export type InsertMarketStore = typeof marketStores.$inferInsert;
 export type MarketCard = typeof marketCards.$inferSelect;
 export type InsertMarketCard = typeof marketCards.$inferInsert;
+
+export const marketNotifications = sqliteTable("market_notifications", {
+  id: text("id").primaryKey(),
+  storeId: text("store_id").notNull().references(() => marketStores.id, { onDelete: "cascade" }),
+  cardName: text("card_name").notNull(),
+  setPrefix: text("set_prefix").notNull(),
+  collectorNumber: text("collector_number").notNull(),
+  isFoil: integer("is_foil", { mode: "boolean" }).notNull().default(false),
+  price: text("price").notNull(),
+  refId: text("ref_id").notNull(),
+  imageUrl: text("image_url"),
+  detectedAt: integer("detected_at", { mode: "timestamp" }).notNull(),
+  sentAt: integer("sent_at", { mode: "timestamp" }),
+  messageId: text("message_id"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(strftime('%s', 'now'))`),
+});
+
+export type MarketNotification = typeof marketNotifications.$inferSelect;
+export type InsertMarketNotification = typeof marketNotifications.$inferInsert;
 
 // ---------------------------------------------------------------------------
 // Managed MyPCards Watchlist Ledger

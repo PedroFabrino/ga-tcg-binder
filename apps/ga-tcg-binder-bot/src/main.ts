@@ -1,8 +1,8 @@
-import { rootServer, RootBotStartState } from "@rootsdk/server-bot";
-import { initializeExample } from "./example"; // TODO: remove this line when you no longer need the example code
+import { rootServer, type RootBotStartState } from "@rootsdk/server-bot";
+import { startMarketNotifier } from "./market-notifier";
 
-async function onStarting(state: RootBotStartState) {
-  initializeExample(); // TODO: remove this line when you no longer need the example code
+async function onStarting(_state: RootBotStartState) {
+  startMarketNotifier();
 }
 
 (async () => {

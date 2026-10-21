@@ -7,6 +7,7 @@ import {
 } from "../src/db/repositories/marketplace-repository";
 import { syncGlobalMarketplace } from "../src/services/marketplace";
 import { syncLigaStore } from "../src/services/ligastore-sync";
+import { writeMarketNotifications } from "../src/services/market-notifications";
 
 function readStoreIdArgument(args: string[]): string | undefined {
   const storeFlagIndex = args.indexOf("--store");
@@ -74,6 +75,9 @@ async function main() {
         console.log(`- Unmatched: ${stats.unmatchedCount}`);
         console.log(`- Enriched: ${stats.enrichedCount}`);
         console.log(`- Duration: ${durationSec}s`);
+
+        const notificationsWritten = await writeMarketNotifications(store.id, db);
+        console.log(`- Outbox Notifications Written: ${notificationsWritten}`);
       } else {
         console.warn(`Unknown platform ${store.platform} for store ${store.id}, skipping.`);
         continue;

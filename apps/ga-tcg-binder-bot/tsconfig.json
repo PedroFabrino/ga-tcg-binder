@@ -17,8 +17,14 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "esModuleInterop": true,
-    "rootDir": "src"
+    "skipLibCheck": true,
+    "rootDir": "../../"
   },
-  "include": ["src/**/*.ts"],
+  "include": [
+    "src/**/*.ts",
+    "../../src/db/index.ts",
+    "../../src/db/schema.ts",
+    "../../src/db/repositories/marketplace-repository.ts"
+  ],
   "exclude": ["node_modules"]
 }

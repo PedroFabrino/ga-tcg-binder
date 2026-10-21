@@ -1,5 +1,5 @@
 {
-  "id": "your-bot-id",
+  "id": "ga-tcg-binder-market-bot",
   "version": "1.0.0",
   "package": {
     "server": {

@@ -1,12 +1,25 @@
-import { and, eq, gt, notInArray } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, notInArray } from "drizzle-orm";
 import { db } from "../index";
 import {
-  marketCards,
-  marketStores,
-  type InsertMarketCard,
-  type MarketCard,
-  type MarketStore,
+marketCards,
+marketNotifications,
+marketStores,
+type InsertMarketCard,
+type MarketCard,
+type MarketStore,
+type InsertMarketStore,
+type InsertMarketNotification,
+type MarketNotification,
 } from "../schema";
+
+export type {
+  MarketStore,
+  InsertMarketStore,
+  MarketCard,
+  InsertMarketCard,
+  MarketNotification,
+  InsertMarketNotification,
+};
 
 export type MarketplaceDatabase = typeof db;
 
@@ -232,11 +245,110 @@ export async function getMarketCards(
 }
 
 export async function upsertMarketStore(
-  store: typeof marketStores.$inferInsert,
+store: typeof marketStores.$inferInsert,
+database: MarketplaceDatabase = db
+): Promise<void> {
+const existing = await getMarketStoreById(store.id, database);
+if (!existing) {
+await database.insert(marketStores).values(store);
+}
+}
+
+/**
+ * Updates the lastLatestCardRefId for a market store.
+ */
+export async function updateStoreLatestCardRefId(
+storeId: string,
+refId: string,
+database: MarketplaceDatabase = db
+): Promise<void> {
+await database
+.update(marketStores)
+.set({
+lastLatestCardRefId: refId,
+updatedAt: new Date(),
+})
+.where(eq(marketStores.id, storeId));
+}
+
+/**
+ * Updates the lastNotifiedAt timestamp for a market store.
+ */
+export async function updateStoreLastNotifiedAt(
+storeId: string,
+notifiedAt: Date,
+database: MarketplaceDatabase = db
+): Promise<void> {
+await database
+.update(marketStores)
+.set({
+lastNotifiedAt: notifiedAt,
+updatedAt: new Date(),
+})
+.where(eq(marketStores.id, storeId));
+}
+
+/**
+ * Returns pending (unsent) market notifications.
+ */
+/**
+ * Returns cards for a store observed after the specified timestamp (or all cards if null/undefined).
+ */
+export async function getMarketCardsSeenAfter(
+  storeId: string,
+  since?: Date | null,
+  database: MarketplaceDatabase = db
+): Promise<MarketCard[]> {
+  const conditions = [eq(marketCards.storeId, storeId)];
+  if (since) {
+    conditions.push(gt(marketCards.firstSeenAt, since));
+  }
+  return database.select().from(marketCards).where(and(...conditions));
+}
+
+/**
+ * Returns pending (unsent) market notifications.
+ */
+export async function getPendingNotifications(
+  database: MarketplaceDatabase = db
+): Promise<MarketNotification[]> {
+  return database
+    .select()
+    .from(marketNotifications)
+    .where(isNull(marketNotifications.sentAt))
+    .orderBy(marketNotifications.createdAt);
+}
+
+/**
+ * Marks notifications as sent with a message ID.
+ */
+export async function markNotificationsSent(
+  ids: string[],
+  messageId: string,
+  sentAtOrDb?: Date | MarketplaceDatabase,
+  database?: MarketplaceDatabase
+): Promise<void> {
+  if (ids.length === 0) return;
+  const isDate = sentAtOrDb instanceof Date;
+  const sentAt = isDate ? sentAtOrDb : new Date();
+  const targetDb = isDate ? (database ?? db) : ((sentAtOrDb as MarketplaceDatabase) ?? db);
+
+  await targetDb
+    .update(marketNotifications)
+    .set({
+      sentAt,
+      messageId,
+    })
+    .where(inArray(marketNotifications.id, ids));
+}
+
+/**
+ * Inserts market notification rows into the outbox.
+ */
+export async function insertMarketNotifications(
+  notifications: InsertMarketNotification[],
   database: MarketplaceDatabase = db
 ): Promise<void> {
-  const existing = await getMarketStoreById(store.id, database);
-  if (!existing) {
-    await database.insert(marketStores).values(store);
-  }
+  if (notifications.length === 0) return;
+  await database.insert(marketNotifications).values(notifications);
 }

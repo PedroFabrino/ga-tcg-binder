@@ -88,6 +88,18 @@ _Avoid_: Rarity cutoff, scarcity limit
 An authenticated user who maintains a personal collection of Owned Copies and personal Decks.
 _Avoid_: Player, account, user
 
+**Public Collector Profile**:
+An unauthenticated, read-only web view (/u/[friendCode] or alias /u/[mypUsername]) showcasing a Collector's Public Wantlist, Target Decks with assembly completion progress, and available physical collection or Idle Copies with export capabilities.
+_Avoid_: User profile, public page, bio
+
+**Public Wantlist**:
+The aggregated read-only presentation of Shortages (both Hard Shortages and Shared Shortages) published on a Collector's Public Collector Profile to facilitate trading, borrowing, and purchasing within playgroups and marketplaces.
+_Avoid_: Wishlist, shopping list, shortage export
+
+**Target Deck**:
+A Collector's public Deck displayed on their Public Collector Profile with its live physical assembly completion percentage and exact missing cards required to sleeve the list.
+_Avoid_: Goal deck, wanted deck, project deck
+
 **Friend Link**:
 An established mutual connection between two Collectors granting reciprocal visibility into each other's collection and idle cards.
 _Avoid_: Friendship, buddy, contact

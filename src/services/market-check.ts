@@ -1,28 +1,33 @@
 import {
-  getEnabledMarketStores,
-  updateStoreCount,
-  type MarketplaceDatabase,
+getEnabledMarketStores,
+updateStoreCount,
+updateStoreLatestCardRefId,
+type MarketplaceDatabase,
 } from "../db/repositories/marketplace-repository";
-import { parseLigaStoreTotalCount } from "./ligastore-parser";
+import { parseLigaStoreTotalCount, parseLigaStoreLatestCardRefId } from "./ligastore-parser";
 
 export type MarketStorePlatform = "liga_store" | "myp";
 
 export interface EnabledMarketStore {
-  id: string;
-  platform: MarketStorePlatform | string;
-  baseUrl: string | null;
-  tcgId: string | null;
-  lastCount: number | null;
+id: string;
+platform: MarketStorePlatform | string;
+baseUrl: string | null;
+tcgId: string | null;
+lastCount: number | null;
+lastLatestCardRefId: string | null;
 }
 
 export interface MarketStoreCheckResult {
-  storeId: string;
-  platform: string;
-  previousCount: number | null;
-  observedCount: number | null;
-  changed: boolean;
-  dispatched: boolean;
-  error?: string;
+storeId: string;
+platform: string;
+previousCount: number | null;
+observedCount: number | null;
+changed: boolean;
+dispatched: boolean;
+latestCardRefId: string | null;
+previousLatestCardRefId: string | null;
+latestCardChanged: boolean;
+error?: string;
 }
 
 export interface MarketStoreCheckReport {
@@ -34,7 +39,10 @@ export interface MarketStoreCheckReport {
 const MYP_COUNT_URL =
   "https://mypcards.com/grandarchive?ProdutoSearch%5BexibirSomenteVenda%5D=1";
 
-function buildLigaStoreSearchUrl(store: EnabledMarketStore): string | null {
+export function buildLigaStoreSearchUrl(
+  store: EnabledMarketStore,
+  sort: "count" | "latest" = "count"
+): string | null {
   if (!store.baseUrl) {
     return null;
   }
@@ -42,10 +50,11 @@ function buildLigaStoreSearchUrl(store: EnabledMarketStore): string | null {
   const baseUrl = store.baseUrl.replace(/\/+$/, "");
   const tcgId = store.tcgId ?? "21";
   const storeIdParam = store.id === "brandao" ? "&id=207836" : `&id=${encodeURIComponent(store.id)}`;
+  const orderParam = sort === "latest" ? "txt_order=12" : "txt_order=6";
 
   return (
     `${baseUrl}/?view=ecom/itens&page=1&tcg=${encodeURIComponent(tcgId)}${storeIdParam}` +
-    "&ultimas=1&txt_order=6&txt_limit=30&txt_estoque=1&btFiltrar=Filtrar"
+    `&ultimas=1&${orderParam}&txt_limit=30&txt_estoque=1&btFiltrar=Filtrar`
   );
 }
 
@@ -189,61 +198,96 @@ export async function checkMarketStores(
 
   for (const store of stores) {
     const baseResult: MarketStoreCheckResult = {
-      storeId: store.id,
-      platform: store.platform,
-      previousCount: store.lastCount,
-      observedCount: null,
-      changed: false,
-      dispatched: false,
+    storeId: store.id,
+    platform: store.platform,
+    previousCount: store.lastCount,
+    observedCount: null,
+    changed: false,
+    dispatched: false,
+    latestCardRefId: null,
+    previousLatestCardRefId: store.lastLatestCardRefId ?? null,
+    latestCardChanged: false,
     };
 
     try {
-      const observedCount = await fetchStoreCount(store, customFetch);
-
-      if (observedCount === null) {
-        results.push({
-          ...baseResult,
-          error: "Could not parse total listed card count",
-        });
-        continue;
-      }
-
-      const changed = observedCount !== store.lastCount;
-
-      if (!changed) {
-        results.push({
-          ...baseResult,
-          observedCount,
-        });
-        continue;
-      }
-
-      await updateStoreCount(store.id, observedCount, checkedAt, database);
-
-      let dispatched = false;
-      let dispatchError: string | undefined;
-
-      try {
-        dispatched = await dispatchMarketSync(store.id, customFetch);
-      } catch (error) {
-        dispatchError =
-          error instanceof Error ? error.message : "Unknown dispatch error";
-      }
-
-      results.push({
-        ...baseResult,
-        observedCount,
-        changed: true,
-        dispatched,
-        ...(dispatchError ? { error: dispatchError } : {}),
-      });
-    } catch (error) {
-      results.push({
-        ...baseResult,
-        error: error instanceof Error ? error.message : "Unknown check error",
-      });
+    const observedCount = await fetchStoreCount(store, customFetch);
+    
+    if (observedCount === null) {
+    results.push({
+    ...baseResult,
+    error: "Could not parse total listed card count",
+    });
+    continue;
     }
-  }
+    
+    const countChanged = observedCount !== store.lastCount;
+    
+    let latestCardRefId: string | null = null;
+    let latestCardChanged = false;
+    
+    if (store.platform === "liga_store") {
+      try {
+        const latestUrl = buildLigaStoreSearchUrl(store, "latest");
+        if (latestUrl) {
+          const latestHtml = await fetchHtml(latestUrl, customFetch);
+          latestCardRefId = parseLigaStoreLatestCardRefId(latestHtml);
+          if (latestCardRefId !== null) {
+            latestCardChanged =
+              store.lastLatestCardRefId === null ||
+              latestCardRefId !== store.lastLatestCardRefId;
+            await updateStoreLatestCardRefId(store.id, latestCardRefId, database);
+          }
+        }
+      } catch (err) {
+        console.warn(
+          `[market-check] Failed latest card check for ${store.id}:`,
+          err instanceof Error ? err.message : err
+        );
+      }
+    }
+    
+    const changed = countChanged || latestCardChanged;
+    
+    if (!changed) {
+    results.push({
+    ...baseResult,
+    observedCount,
+    latestCardRefId,
+    latestCardChanged,
+    });
+    continue;
+    }
+    
+    if (countChanged) {
+    await updateStoreCount(store.id, observedCount, checkedAt, database);
+    }
+    
+    let dispatched = false;
+    let dispatchError: string | undefined;
+    
+    try {
+    dispatched = await dispatchMarketSync(store.id, customFetch);
+    } catch (error) {
+    dispatchError =
+    error instanceof Error ? error.message : "Unknown dispatch error";
+    }
+    
+    results.push({
+    ...baseResult,
+    observedCount,
+    changed: true,
+    dispatched,
+    latestCardRefId,
+    latestCardChanged,
+    ...(dispatchError ? { error: dispatchError } : {}),
+    });
+    } catch (error) {
+    results.push({
+    ...baseResult,
+    error: error instanceof Error ? error.message : "Unknown check error",
+    });
+    }
+    }
 
   return {
     checkedAt: checkedAt.toISOString(),

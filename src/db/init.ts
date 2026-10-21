@@ -312,6 +312,8 @@ CREATE TABLE IF NOT EXISTS \`market_stores\` (
 	\`last_count\` integer,
 	\`last_count_checked_at\` integer,
 	\`last_full_scan_at\` integer,
+	\`last_latest_card_ref_id\` text,
+	\`last_notified_at\` integer,
 	\`updated_at\` integer DEFAULT (strftime('%s', 'now'))
 );
 --> statement-breakpoint
@@ -334,6 +336,7 @@ CREATE TABLE IF NOT EXISTS \`market_cards\` (
 	\`product_url\` text,
 	\`vendor_name\` text,
 	\`vendor_url\` text,
+	\`first_seen_at\` integer DEFAULT (strftime('%s', 'now')) NOT NULL,
 	\`last_seen_at\` integer DEFAULT (strftime('%s', 'now')),
 	\`updated_at\` integer DEFAULT (strftime('%s', 'now')),
 	FOREIGN KEY (\`store_id\`) REFERENCES \`market_stores\`(\`id\`) ON UPDATE no action ON DELETE cascade,
@@ -346,6 +349,23 @@ CREATE UNIQUE INDEX IF NOT EXISTS \`market_cards_store_item_idx\` ON \`market_ca
 CREATE INDEX IF NOT EXISTS \`market_cards_store_card_slug_idx\` ON \`market_cards\` (\`store_id\`,\`card_slug\`);
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS \`market_cards_store_edition_idx\` ON \`market_cards\` (\`store_id\`,\`edition_id\`);
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS \`market_notifications\` (
+	\`id\` text PRIMARY KEY NOT NULL,
+	\`store_id\` text NOT NULL,
+	\`card_name\` text NOT NULL,
+	\`set_prefix\` text NOT NULL,
+	\`collector_number\` text NOT NULL,
+	\`is_foil\` integer DEFAULT 0 NOT NULL,
+	\`price\` text NOT NULL,
+	\`ref_id\` text NOT NULL,
+	\`image_url\` text,
+	\`detected_at\` integer NOT NULL,
+	\`sent_at\` integer,
+	\`message_id\` text,
+	\`created_at\` integer DEFAULT (strftime('%s', 'now')) NOT NULL,
+	FOREIGN KEY (\`store_id\`) REFERENCES \`market_stores\`(\`id\`) ON UPDATE no action ON DELETE cascade
+);
 --> statement-breakpoint
 INSERT OR IGNORE INTO \`market_stores\` (\`id\`, \`platform\`, \`name\`, \`base_url\`, \`tcg_id\`, \`enabled\`)
 VALUES ('myp', 'myp', 'MyP Cards', 'https://mypcards.com', 'grandarchive', 1);
@@ -414,9 +434,17 @@ export async function runMigrations(customClient?: any) {
 async function doRunMigrations(customClient: typeof client) {
   let sqlContent = EMBEDDED_MIGRATION_SQL;
   try {
-    const sqlPath = path.join(process.cwd(), "drizzle", "0000_thankful_tinkerer.sql");
-    if (fs.existsSync(sqlPath)) {
-      sqlContent = fs.readFileSync(sqlPath, "utf-8");
+    const drizzleDir = path.join(process.cwd(), "drizzle");
+    if (fs.existsSync(drizzleDir)) {
+      const sqlFiles = fs
+        .readdirSync(drizzleDir)
+        .filter((file) => file.endsWith(".sql"))
+        .sort();
+      if (sqlFiles.length > 0) {
+        sqlContent = sqlFiles
+          .map((file) => fs.readFileSync(path.join(drizzleDir, file), "utf-8"))
+          .join("\n--> statement-breakpoint\n");
+      }
     }
   } catch {
     // Fall back to EMBEDDED_MIGRATION_SQL in serverless / restricted environments
@@ -438,7 +466,7 @@ async function doRunMigrations(customClient: typeof client) {
       await customClient.execute(idempotentStmt);
     } catch (err: any) {
       const msg = (err?.message || "").toLowerCase();
-      if (msg.includes("already exists")) {
+      if (msg.includes("already exists") || msg.includes("duplicate column")) {
         continue;
       }
       throw err;
@@ -478,6 +506,9 @@ async function doRunMigrations(customClient: typeof client) {
     "ALTER TABLE `users` ADD COLUMN `shipping_card_weight` real DEFAULT 3 NOT NULL;",
     "ALTER TABLE `users` ADD COLUMN `slightly_overpriced_multiplier` real DEFAULT 1.2 NOT NULL;",
     "ALTER TABLE `users` ADD COLUMN `heavily_overpriced_multiplier` real DEFAULT 2.0 NOT NULL;",
+    "ALTER TABLE `market_stores` ADD COLUMN `last_latest_card_ref_id` text;",
+    "ALTER TABLE `market_stores` ADD COLUMN `last_notified_at` integer;",
+    "ALTER TABLE `market_cards` ADD COLUMN `first_seen_at` integer DEFAULT (strftime('%s', 'now')) NOT NULL;",
   ];
 
   for (const alterStmt of alterColumns) {

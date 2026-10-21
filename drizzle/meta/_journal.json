@@ -8,6 +8,13 @@
       "when": 1791992592468,
       "tag": "0000_thankful_tinkerer",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1792559436812,
+      "tag": "0001_lean_wither",
+      "breakpoints": true
     }
   ]
 }

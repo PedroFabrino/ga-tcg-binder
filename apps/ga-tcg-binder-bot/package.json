@@ -15,7 +15,7 @@
     "typescript": "^5.8.2"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node -e \"if (fs.existsSync('dist/apps/ga-tcg-binder-bot/src/main.js')) fs.writeFileSync('dist/main.js', 'require(\\\"./apps/ga-tcg-binder-bot/src/main.js\\\");\\n');\"",
     "clean": "node clean.js",
     "bot": "rootsdk start devhost"
   }

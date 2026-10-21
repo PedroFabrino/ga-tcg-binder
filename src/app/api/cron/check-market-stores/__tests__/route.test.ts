@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const repositoryMocks = vi.hoisted(() => ({
   getEnabledMarketStores: vi.fn(),
   updateStoreCount: vi.fn(),
+  updateStoreLatestCardRefId: vi.fn(),
 }));
 
 const authMocks = vi.hoisted(() => ({
@@ -11,6 +12,7 @@ const authMocks = vi.hoisted(() => ({
 
 const parserMocks = vi.hoisted(() => ({
   parseLigaStoreTotalCount: vi.fn(),
+  parseLigaStoreLatestCardRefId: vi.fn(),
 }));
 
 vi.mock("@/db/repositories/marketplace-repository", () => repositoryMocks);
@@ -73,11 +75,15 @@ describe("GET /api/cron/check-market-stores", () => {
     ]);
 
     parserMocks.parseLigaStoreTotalCount.mockReturnValue(25);
+    parserMocks.parseLigaStoreLatestCardRefId.mockReturnValue("latest-ref-1");
 
     const fetchMock = vi.fn<typeof fetch>();
     fetchMock
       .mockResolvedValueOnce(
-        new Response("<html>Liga Store</html>", { status: 200 })
+        new Response("<html>Liga Store Count</html>", { status: 200 })
+      )
+      .mockResolvedValueOnce(
+        new Response("<html>Liga Store Latest</html>", { status: 200 })
       )
       .mockResolvedValueOnce(
         new Response(
@@ -108,6 +114,12 @@ describe("GET /api/cron/check-market-stores", () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
+      expect.stringContaining("txt_order=12"),
+      expect.any(Object)
+    );
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
       "https://mypcards.com/grandarchive?ProdutoSearch%5BexibirSomenteVenda%5D=1",
       expect.any(Object)
     );
@@ -153,6 +165,7 @@ describe("GET /api/cron/check-market-stores", () => {
     const fetchMock = vi.fn<typeof fetch>();
     fetchMock
       .mockResolvedValueOnce(new Response("<html>store</html>", { status: 200 }))
+      .mockResolvedValueOnce(new Response("<html>latest</html>", { status: 200 }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
 
     vi.stubGlobal("fetch", fetchMock);
@@ -174,7 +187,7 @@ describe("GET /api/cron/check-market-stores", () => {
     );
 
     expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
+      3,
       "https://api.github.com/repos/owner/ga-tcg-binder/actions/workflows/market-sync.yml/dispatches",
       expect.objectContaining({
         method: "POST",

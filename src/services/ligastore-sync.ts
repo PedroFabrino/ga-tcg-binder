@@ -1,9 +1,9 @@
 import {
-  getMarketStoreById,
-  reconcileStoreListings,
-  updateStoreCount,
-  updateStoreFullScanAt,
-  upsertMarketCards,
+getMarketStoreById,
+reconcileStoreListings,
+updateStoreCount,
+updateStoreFullScanAt,
+upsertMarketCards,
 } from "../db/repositories/marketplace-repository";
 import {
   parseLigaStoreItemDetails,
@@ -280,16 +280,16 @@ export async function syncLigaStore(options?: {
     .filter(Boolean);
 
   await reconcileStoreListings(storeData.id, observedItemIds, database);
-
+  
   const scanTime = new Date();
   await updateStoreCount(storeData.id, totalCount, scanTime, database);
   await updateStoreFullScanAt(storeData.id, scanTime, database);
 
   return {
-    totalSynced: rowsToInsert.length,
-    matchedCount,
-    unmatchedCount,
-    enrichedCount,
-    storeName: storeData.name,
+  totalSynced: rowsToInsert.length,
+  matchedCount,
+  unmatchedCount,
+  enrichedCount,
+  storeName: storeData.name,
   };
 }

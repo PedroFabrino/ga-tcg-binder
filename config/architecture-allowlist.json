@@ -8,8 +8,7 @@
     "src/app/scan/dashboard/page.tsx",
     "src/app/meta/page.tsx",
     "src/db/init.ts",
-    "src/services/scanner.ts",
-    "src/services/ligastore-parser.ts"
+    "src/services/scanner.ts"
   ],
   "restrictedImports": [
     "src/app/api/decks/shortages/route.ts",
