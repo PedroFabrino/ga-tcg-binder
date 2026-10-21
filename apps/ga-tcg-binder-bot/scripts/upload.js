@@ -34,6 +34,6 @@ const packageFile = process.env.PACKAGE_FILE ?? "ga-tcg-binder-bot.zip";
 
 console.log(`Uploading ${packageFile}...`);
 execSync(
-  `rootsdk upload package -f ${packageFile} --authToken ${token}`,
+  `npx rootsdk upload package -f ${packageFile} --authToken ${token}`,
   { stdio: "inherit", cwd: join(__dirname, "..") }
 );

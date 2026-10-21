@@ -1,39 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.formatMarketNotificationMessage = formatMarketNotificationMessage;
 exports.startMarketNotifier = startMarketNotifier;
 const server_bot_1 = require("@rootsdk/server-bot");
 const db_1 = require("../../../src/db");
 const marketplace_repository_1 = require("../../../src/db/repositories/marketplace-repository");
-/**
- * Formats a batch of market notifications into a single Markdown message
- * suitable for sending to a Root community channel.
- */
-function formatMarketNotificationMessage(notifications, storeName, lastSyncDate) {
-    if (notifications.length === 0) {
-        return "";
-    }
-    const dateStr = lastSyncDate
-        ? lastSyncDate instanceof Date
-            ? lastSyncDate.toLocaleDateString("pt-BR")
-            : String(lastSyncDate)
-        : new Date().toLocaleDateString("pt-BR");
-    const lines = [
-        `**${storeName}** updated their stock!`,
-        `New cards since ${dateStr}:`,
-    ];
-    const sorted = [...notifications].sort((a, b) => {
-        const timeA = a.detectedAt ? new Date(a.detectedAt).getTime() : 0;
-        const timeB = b.detectedAt ? new Date(b.detectedAt).getTime() : 0;
-        return timeA - timeB;
-    });
-    for (const n of sorted) {
-        const foilStatus = n.isFoil ? " (Foil)" : "";
-        const collectorNumber = n.collectorNumber ? ` ${n.collectorNumber}` : "";
-        lines.push(`• ${n.cardName} — ${n.setPrefix}${collectorNumber}${foilStatus} — ${n.price}`);
-    }
-    return lines.join("\n");
-}
+const market_notification_formatter_1 = require("../../../src/services/market-notification-formatter");
 /**
  * Starts the market notification poller.
  *
@@ -77,7 +48,7 @@ function startMarketNotifier() {
                 const store = await (0, marketplace_repository_1.getMarketStoreById)(storeId, db_1.db);
                 const storeName = store?.name ?? storeId;
                 const lastSyncDate = store?.lastFullScanAt ?? null;
-                const message = formatMarketNotificationMessage(notifications, storeName, lastSyncDate);
+                const message = (0, market_notification_formatter_1.formatMarketNotificationMessage)(notifications, storeName, lastSyncDate);
                 if (!message) {
                     continue;
                 }

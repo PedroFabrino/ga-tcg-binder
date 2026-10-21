@@ -1,16 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const vitest_1 = require("vitest");
-vitest_1.vi.mock("@rootsdk/server-bot", () => ({
-    rootServer: {
-        community: {
-            channelMessages: {
-                create: vitest_1.vi.fn(),
-            },
-        },
-    },
-}));
-const market_notifier_1 = require("../market-notifier");
+const market_notification_formatter_1 = require("../../../../src/services/market-notification-formatter");
 (0, vitest_1.describe)("formatMarketNotificationMessage", () => {
     const baseNotification = {
         id: "notif-1",
@@ -28,12 +19,12 @@ const market_notifier_1 = require("../market-notifier");
         createdAt: new Date("2026-10-21T02:00:00Z"),
     };
     (0, vitest_1.it)("returns empty string when notifications list is empty", () => {
-        (0, vitest_1.expect)((0, market_notifier_1.formatMarketNotificationMessage)([], "Brandao Card Game")).toBe("");
+        (0, vitest_1.expect)((0, market_notification_formatter_1.formatMarketNotificationMessage)([], "Brandao Card Game")).toBe("");
     });
     (0, vitest_1.it)("formats single non-foil card with collector number correctly", () => {
         const fixedDate = new Date(2026, 9, 21); // 21/10/2026 in local time
         const expectedDateStr = fixedDate.toLocaleDateString("pt-BR");
-        const result = (0, market_notifier_1.formatMarketNotificationMessage)([baseNotification], "Brandao Card Game", fixedDate);
+        const result = (0, market_notification_formatter_1.formatMarketNotificationMessage)([baseNotification], "Brandao Card Game", fixedDate);
         (0, vitest_1.expect)(result).toBe(`**Brandao Card Game** updated their stock!\n` +
             `New cards since ${expectedDateStr}:\n` +
             `• Flame-Rune Swordsman — FTC 136 — R$ 15,00`);
@@ -45,7 +36,7 @@ const market_notifier_1 = require("../market-notifier");
             isFoil: true,
             price: "R$ 45,00",
         };
-        const result = (0, market_notifier_1.formatMarketNotificationMessage)([foilNotification], "Brandao Card Game", "21/10/2026");
+        const result = (0, market_notification_formatter_1.formatMarketNotificationMessage)([foilNotification], "Brandao Card Game", "21/10/2026");
         (0, vitest_1.expect)(result).toContain("• Flame-Rune Swordsman — FTC 136 (Foil) — R$ 45,00");
     });
     (0, vitest_1.it)("formats multiple cards in detectedAt order as a bullet list", () => {
@@ -61,7 +52,7 @@ const market_notifier_1 = require("../market-notifier");
             cardName: "Card B",
             detectedAt: new Date("2026-10-21T02:00:00Z"),
         };
-        const result = (0, market_notifier_1.formatMarketNotificationMessage)([card2, card1], // intentionally reversed order
+        const result = (0, market_notification_formatter_1.formatMarketNotificationMessage)([card2, card1], // intentionally reversed order
         "Test Store", "21/10/2026");
         const lines = result.split("\n");
         (0, vitest_1.expect)(lines[0]).toBe("**Test Store** updated their stock!");
@@ -74,7 +65,7 @@ const market_notifier_1 = require("../market-notifier");
             ...baseNotification,
             collectorNumber: "",
         };
-        const result = (0, market_notifier_1.formatMarketNotificationMessage)([noCollector], "Brandao Card Game", "21/10/2026");
+        const result = (0, market_notification_formatter_1.formatMarketNotificationMessage)([noCollector], "Brandao Card Game", "21/10/2026");
         (0, vitest_1.expect)(result).toContain("• Flame-Rune Swordsman — FTC — R$ 15,00");
     });
 });

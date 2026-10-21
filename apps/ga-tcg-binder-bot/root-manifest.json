@@ -1,11 +1,15 @@
 {
-  "id": "REPLACE_WITH_APP_ID_FROM_ROOT_DEVELOPER_PORTAL",
-  "version": "1.0.0",
+  "id": "ADH8HL2viwm_XPEqJ9om9w",
+  "version": "1.0.1",
   "package": {
     "server": {
       "launch": "dist/main.js",
-      "deploy": ["dist"],
-      "nodeModules": ["node_modules"]
+      "deploy": [
+        "dist"
+      ],
+      "nodeModules": [
+        "node_modules"
+      ]
     }
   }
 }

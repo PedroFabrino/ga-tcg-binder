@@ -56,3 +56,5 @@ public/debug/
 graphify-out/
 
 
+.staging-package/
+apps/ga-tcg-binder-bot/*.zip
