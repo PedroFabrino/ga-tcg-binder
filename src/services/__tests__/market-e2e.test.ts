@@ -1,15 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@rootsdk/server-bot", () => ({
-  rootServer: {
-    community: {
-      channelMessages: {
-        create: vi.fn(),
-      },
-    },
-  },
-}));
-
 import { createTestDb } from "../../db/test-utils";
 import * as schema from "../../db/schema";
 import { checkMarketStores } from "../market-check";
@@ -20,7 +10,7 @@ import {
   markNotificationsSent,
   getMarketStoreById,
 } from "../../db/repositories/marketplace-repository";
-import { formatMarketNotificationMessage } from "../../../apps/ga-tcg-binder-bot/src/market-notifier";
+import { formatMarketNotificationMessage } from "../market-notification-formatter";
 
 describe("Market Change Detection and Notification Flow (E2E)", () => {
   it("executes the full cycle from detection to outbox notification and formatting", async () => {
