@@ -522,7 +522,7 @@ async function doRunMigrations(customClient: typeof client) {
     "ALTER TABLE `users` ADD COLUMN `heavily_overpriced_multiplier` real DEFAULT 2.0 NOT NULL;",
     "ALTER TABLE `market_stores` ADD COLUMN `last_latest_card_ref_id` text;",
     "ALTER TABLE `market_stores` ADD COLUMN `last_notified_at` integer;",
-    "ALTER TABLE `market_cards` ADD COLUMN `first_seen_at` integer DEFAULT (strftime('%s', 'now')) NOT NULL;",
+    "ALTER TABLE `market_cards` ADD COLUMN `first_seen_at` integer DEFAULT 0 NOT NULL;",
   ];
 
   for (const alterStmt of alterColumns) {
@@ -531,7 +531,7 @@ async function doRunMigrations(customClient: typeof client) {
     } catch (err: any) {
       const msg = (err?.message || "").toLowerCase();
       if (!msg.includes("duplicate column")) {
-        // Ignore if column already exists
+        console.warn(`[migrations] ALTER column warning: ${(err as any)?.message || err}`);
       }
     }
   }
