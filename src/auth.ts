@@ -2,10 +2,13 @@ import NextAuth from "next-auth";
 import Discord from "next-auth/providers/discord";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
-import { db } from "./db";
-import { users } from "./db/schema";
-import { eq } from "drizzle-orm";
-import { migrateDefaultUserDataToUser } from "./services/seed";
+import {
+  findUserById,
+  findUserByEmail,
+  createUser,
+  updateUserProfile,
+  migrateDefaultUserDataToUser,
+} from "./db/repositories/auth-repository";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
@@ -43,10 +46,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const id = `user_${email.replace(/[^a-z0-9]/gi, "_").toLowerCase()}`;
 
         // Ensure user exists in db
-        const existing = await db.select().from(users).where(eq(users.id, id)).get();
+        const existing = await findUserById(id);
         if (!existing) {
           const friendCode = `GA-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-          await db.insert(users).values({
+          await createUser({
             id,
             name,
             email,
@@ -64,17 +67,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    async signIn({ user, account, profile }) {
+    async signIn({ user }) {
       if (!user.email) return true;
       try {
         const normalizedEmail = user.email.toLowerCase().trim();
 
         // 1. Look up existing user by email to ensure multi-device and re-login consistency
-        const existingByEmail = await db
-          .select()
-          .from(users)
-          .where(eq(users.email, normalizedEmail))
-          .get();
+        const existingByEmail = await findUserByEmail(normalizedEmail);
 
         if (existingByEmail) {
           // Canonical user exists! Set user.id so jwt receives the canonical DB id
@@ -83,15 +82,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             (user.name && user.name !== existingByEmail.name) ||
             (user.image && user.image !== existingByEmail.image)
           ) {
-            await db
-              .update(users)
-              .set({
-                name: user.name || existingByEmail.name,
-                image: user.image || existingByEmail.image,
-              })
-              .where(eq(users.id, existingByEmail.id));
+            await updateUserProfile(existingByEmail.id, {
+              name: user.name || existingByEmail.name,
+              image: user.image || existingByEmail.image,
+            });
           }
-          await migrateDefaultUserDataToUser(existingByEmail.id, db);
+          await migrateDefaultUserDataToUser(existingByEmail.id);
           return true;
         }
 
@@ -99,15 +95,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const id = user.id || `user_${normalizedEmail.replace(/[^a-z0-9]/gi, "_")}`;
         user.id = id;
 
-        const existingById = await db
-          .select()
-          .from(users)
-          .where(eq(users.id, id))
-          .get();
+        const existingById = await findUserById(id);
 
         if (!existingById) {
           const friendCode = `GA-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-          await db.insert(users).values({
+          await createUser({
             id,
             name: user.name || "Collector",
             email: normalizedEmail,
@@ -116,7 +108,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             lowPopThreshold: 1000,
           });
         }
-        await migrateDefaultUserDataToUser(id, db);
+        await migrateDefaultUserDataToUser(id);
       } catch (err) {
         console.error("Error in signIn callback:", err);
       }
@@ -130,11 +122,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (token?.email) {
         try {
           const normalizedEmail = (token.email as string).toLowerCase().trim();
-          const dbUser = await db
-            .select({ id: users.id })
-            .from(users)
-            .where(eq(users.email, normalizedEmail))
-            .get();
+          const dbUser = await findUserByEmail(normalizedEmail);
           if (dbUser?.id) {
             token.id = dbUser.id;
           }

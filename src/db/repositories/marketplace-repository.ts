@@ -230,3 +230,13 @@ export async function getMarketCards(
     .from(marketCards)
     .where(and(...conditions));
 }
+
+export async function upsertMarketStore(
+  store: typeof marketStores.$inferInsert,
+  database: MarketplaceDatabase = db
+): Promise<void> {
+  const existing = await getMarketStoreById(store.id, database);
+  if (!existing) {
+    await database.insert(marketStores).values(store);
+  }
+}

@@ -108,7 +108,7 @@ describe("User Account Resolution & Cross-Device Persistence", () => {
     });
 
     // Run migration
-    await migrateDefaultUserDataToUser(targetUserId, db as any);
+    await migrateDefaultUserDataToUser(targetUserId, db);
 
     // Verify deck is now owned by targetUserId
     const migratedDeck = await db.select().from(decks).where(eq(decks.id, "deck-guest-1")).get();

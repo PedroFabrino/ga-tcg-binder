@@ -1,4 +1,5 @@
 import { eq, desc, sql, inArray } from "drizzle-orm";
+import type { AuthDatabase } from "@/db/repositories/auth-repository";
 import {
   metaArchetypes,
   decks,
@@ -152,7 +153,7 @@ export const SEED_META_ARCHETYPES = [
   },
 ];
 
-export async function seedMetaArchetypes(database: any) {
+export async function seedMetaArchetypes(database: AuthDatabase) {
   for (const meta of SEED_META_ARCHETYPES) {
     await database
       .insert(metaArchetypes)

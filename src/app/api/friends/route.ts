@@ -1,109 +1,46 @@
-import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
-import { users, friendLinks } from "@/db/schema";
-import { eq, and, or, sql } from "drizzle-orm";
-import { DEFAULT_USER_ID, ensureDefaultUserAndSeed } from "@/services/seed";
-import { auth } from "@/auth";
+  import { NextRequest, NextResponse } from "next/server";
+  import { auth } from "@/auth";
+  import {
+  addFriendByCodeService,
+  FriendNotFoundError,
+  FriendValidationError,
+  getFriendsListService,
+} from "@/services/friend";
+  import { DEFAULT_USER_ID, ensureDefaultUserAndSeed } from "@/services/seed";
 
-export async function GET(req: NextRequest) {
-  try {
-    await ensureDefaultUserAndSeed();
-    const session = await auth();
-    const url = new URL(req.url);
-    const userId = url.searchParams.get("userId") || session?.user?.id || DEFAULT_USER_ID;
+  export async function GET(req: NextRequest) {
+    try {
+      await ensureDefaultUserAndSeed();
+      const session = await auth();
+      const userId = new URL(req.url).searchParams.get("userId") || session?.user?.id || DEFAULT_USER_ID;
 
-    // Fetch user details for self code
-    const selfUser = await db.select().from(users).where(eq(users.id, userId)).get();
+      return NextResponse.json(await getFriendsListService(userId));
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Internal server error";
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+  }
 
-    // Fetch accepted friend links
-    const links = await db
-      .select()
-      .from(friendLinks)
-      .where(
-        and(
-          or(eq(friendLinks.userId1, userId), eq(friendLinks.userId2, userId)),
-          eq(friendLinks.status, "accepted")
-        )
-      );
+  export async function POST(req: NextRequest) {
+    try {
+      await ensureDefaultUserAndSeed();
+      const session = await auth();
+      const body = await req.json();
+      const userId = body.userId || session?.user?.id || DEFAULT_USER_ID;
+      const friendCode = body.friendCode?.trim();
 
-    const friendIds = links.map((l) => (l.userId1 === userId ? l.userId2 : l.userId1));
-
-    let friendsList: any[] = [];
-    if (friendIds.length > 0) {
-      for (const fId of friendIds) {
-        const u = await db.select().from(users).where(eq(users.id, fId)).get();
-        if (u) {
-          friendsList.push({
-            id: u.id,
-            name: u.name,
-            friendCode: u.friendCode,
-            createdAt: u.createdAt,
-          });
-        }
+      if (!friendCode) {
+        return NextResponse.json({ error: "friendCode is required" }, { status: 400 });
       }
-    }
 
-    return NextResponse.json({
-      currentUser: selfUser,
-      friends: friendsList,
-    });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json(await addFriendByCodeService(userId, friendCode));
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Internal server error";
+      const status = error instanceof FriendNotFoundError
+        ? 404
+        : error instanceof FriendValidationError
+          ? 400
+          : 500;
+      return NextResponse.json({ error: message }, { status });
+    }
   }
-}
-
-export async function POST(req: NextRequest) {
-  try {
-    await ensureDefaultUserAndSeed();
-    const session = await auth();
-    const body = await req.json();
-    const userId = body.userId || session?.user?.id || DEFAULT_USER_ID;
-    const friendCode = body.friendCode?.trim();
-
-    if (!friendCode) {
-      return NextResponse.json({ error: "friendCode is required" }, { status: 400 });
-    }
-
-    const targetUser = await db
-      .select()
-      .from(users)
-      .where(sql`upper(${users.friendCode}) = upper(${friendCode})`)
-      .get();
-
-    if (!targetUser) {
-      return NextResponse.json({ error: "No collector found with that friend code" }, { status: 404 });
-    }
-
-    if (targetUser.id === userId) {
-      return NextResponse.json({ error: "You cannot add yourself as a friend" }, { status: 400 });
-    }
-
-    // Check if link already exists
-    const existing = await db
-      .select()
-      .from(friendLinks)
-      .where(
-        or(
-          and(eq(friendLinks.userId1, userId), eq(friendLinks.userId2, targetUser.id)),
-          and(eq(friendLinks.userId1, targetUser.id), eq(friendLinks.userId2, userId))
-        )
-      )
-      .get();
-
-    if (existing) {
-      return NextResponse.json({ message: "Already connected", friend: targetUser });
-    }
-
-    const linkId = `fl-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-    await db.insert(friendLinks).values({
-      id: linkId,
-      userId1: userId,
-      userId2: targetUser.id,
-      status: "accepted",
-    });
-
-    return NextResponse.json({ success: true, friend: targetUser });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}

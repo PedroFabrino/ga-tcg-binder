@@ -1,102 +1,55 @@
-import { db } from "../db";
-import { users, decks, collectionItems, marketStores } from "../db/schema";
+import { db } from "@/db";
 import { runMigrations } from "../db/init";
 import { seedMetaArchetypes } from "./meta";
-import { eq, and, sql } from "drizzle-orm";
+import { DEFAULT_USER_ID } from "@/lib/default-user";
+import {
+  findUserById,
+  createUser,
+  migrateDefaultUserDataToUser,
+  type AuthDatabase,
+} from "@/db/repositories/auth-repository";
+import { upsertMarketStore } from "@/db/repositories/marketplace-repository";
 
-export const DEFAULT_USER_ID = "user_default";
+export { DEFAULT_USER_ID } from "@/lib/default-user";
+export { migrateDefaultUserDataToUser };
 
-export async function migrateDefaultUserDataToUser(targetUserId: string, database = db) {
-  if (!targetUserId || targetUserId === DEFAULT_USER_ID) return;
-
-  try {
-    // 1. Move any decks belonging to DEFAULT_USER_ID to targetUserId
-    await database
-      .update(decks)
-      .set({ userId: targetUserId })
-      .where(eq(decks.userId, DEFAULT_USER_ID));
-
-    // 2. Move or merge collection items
-    const defaultItems = await database
-      .select()
-      .from(collectionItems)
-      .where(eq(collectionItems.userId, DEFAULT_USER_ID));
-
-    for (const item of defaultItems) {
-      const existing = await database
-        .select()
-        .from(collectionItems)
-        .where(
-          and(
-            eq(collectionItems.userId, targetUserId),
-            eq(collectionItems.editionId, item.editionId),
-            eq(collectionItems.foil, item.foil)
-          )
-        )
-        .get();
-
-      if (existing) {
-        await database
-          .update(collectionItems)
-          .set({
-            quantity: existing.quantity + item.quantity,
-            updatedAt: sql`(strftime('%s', 'now'))`,
-          })
-          .where(eq(collectionItems.id, existing.id));
-        await database
-          .delete(collectionItems)
-          .where(eq(collectionItems.id, item.id));
-      } else {
-        await database
-          .update(collectionItems)
-          .set({ userId: targetUserId })
-          .where(eq(collectionItems.id, item.id));
-      }
-    }
-  } catch (err) {
-    console.error("Error migrating default user data to user:", err);
-  }
-}
-
-async function doSeed(database = db) {
-  const existing = await database
-    .select()
-    .from(users)
-    .where(eq(users.id, DEFAULT_USER_ID))
-    .get();
+async function doSeed(database: AuthDatabase = db) {
+  const existing = await findUserById(DEFAULT_USER_ID, database);
 
   if (!existing) {
-    await database.insert(users).values({
-      id: DEFAULT_USER_ID,
-      name: "Alex",
-      email: "alex@grandarchive.local",
-      friendCode: "GA-ALEX01",
-      lowPopThreshold: 1000,
-    });
+    await createUser(
+      {
+        id: DEFAULT_USER_ID,
+        name: "Alex",
+        email: "alex@grandarchive.local",
+        friendCode: "GA-ALEX01",
+        lowPopThreshold: 1000,
+      },
+      database
+    );
   }
 
   // Also seed a demo friend to demonstrate idle borrowing right away
-  const demoFriend = await database
-    .select()
-    .from(users)
-    .where(eq(users.id, "user_friend_bob"))
-    .get();
+  const demoFriend = await findUserById("user_friend_bob", database);
 
   if (!demoFriend) {
-    await database.insert(users).values({
-      id: "user_friend_bob",
-      name: "Bob (Playgroup Friend)",
-      email: "bob@grandarchive.local",
-      friendCode: "GA-BOB77",
-      lowPopThreshold: 1000,
-    });
+    await createUser(
+      {
+        id: "user_friend_bob",
+        name: "Bob (Playgroup Friend)",
+        email: "bob@grandarchive.local",
+        friendCode: "GA-BOB77",
+        lowPopThreshold: 1000,
+      },
+      database
+    );
   }
 
   await seedMetaArchetypes(database);
   await seedMarketStores(database);
 }
 
-export async function seedMarketStores(database = db) {
+export async function seedMarketStores(database?: AuthDatabase) {
   const stores = [
     {
       id: "myp",
@@ -117,21 +70,13 @@ export async function seedMarketStores(database = db) {
   ];
 
   for (const s of stores) {
-    const existing = await database
-      .select()
-      .from(marketStores)
-      .where(eq(marketStores.id, s.id))
-      .get();
-
-    if (!existing) {
-      await database.insert(marketStores).values(s);
-    }
+    await upsertMarketStore(s, database);
   }
 }
 
 let defaultSeedPromise: Promise<void> | null = null;
 
-export async function ensureDefaultUserAndSeed(database?: any) {
+export async function ensureDefaultUserAndSeed(database?: AuthDatabase) {
   if (database) {
     return doEnsureDefaultUserAndSeed(database);
   }
@@ -144,11 +89,11 @@ export async function ensureDefaultUserAndSeed(database?: any) {
   return defaultSeedPromise;
 }
 
-async function doEnsureDefaultUserAndSeed(database = db) {
+async function doEnsureDefaultUserAndSeed(database: AuthDatabase) {
   try {
     await doSeed(database);
-  } catch (err: any) {
-    const errorMsg = (err?.message || "").toLowerCase();
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message.toLowerCase() : "";
     if (
       errorMsg.includes("no such table") ||
       errorMsg.includes("no such column") ||
@@ -158,6 +103,6 @@ async function doEnsureDefaultUserAndSeed(database = db) {
       await doSeed(database);
       return;
     }
-    throw err;
+    throw error;
   }
 }
