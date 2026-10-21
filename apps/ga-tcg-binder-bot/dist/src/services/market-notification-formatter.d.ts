@@ -1,7 +1,13 @@
 import type { MarketNotification } from "../db/repositories/marketplace-repository";
+export declare const BRAZIL_TIMEZONE = "America/Sao_Paulo";
 /**
- * Formats the "New cards since …" date exactly as the Root bot renders it:
- * a pt-BR locale date string, falling back to "now" when no date is known.
+ * Formats a Date into Brazil's standard time (America/Sao_Paulo, UTC-3)
+ * as "DD/MM/YYYY HH:mm".
+ */
+export declare function formatDateTimeInBrazil(date: Date): string;
+/**
+ * Formats the "New cards since …" timestamp in Brazil's standard time
+ * (America/Sao_Paulo, UTC-3), falling back to "now" when no date is known.
  */
 export declare function formatMarketNotificationDate(lastSyncDate?: Date | string | null): string;
 /**

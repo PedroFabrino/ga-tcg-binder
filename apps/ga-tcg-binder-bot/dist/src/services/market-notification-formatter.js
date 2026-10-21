@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ROOT_MESSAGE_MAX_LENGTH = void 0;
+exports.ROOT_MESSAGE_MAX_LENGTH = exports.BRAZIL_TIMEZONE = void 0;
+exports.formatDateTimeInBrazil = formatDateTimeInBrazil;
 exports.formatMarketNotificationDate = formatMarketNotificationDate;
 exports.sortMarketNotificationsByDetectedAt = sortMarketNotificationsByDetectedAt;
 exports.groupMarketNotificationsByStore = groupMarketNotificationsByStore;
@@ -11,17 +12,36 @@ exports.formatMarketNotificationCardLine = formatMarketNotificationCardLine;
 exports.splitMessageContent = splitMessageContent;
 exports.formatMarketNotificationChunks = formatMarketNotificationChunks;
 exports.formatMarketNotificationMessage = formatMarketNotificationMessage;
+exports.BRAZIL_TIMEZONE = "America/Sao_Paulo";
 /**
- * Formats the "New cards since …" date exactly as the Root bot renders it:
- * a pt-BR locale date string, falling back to "now" when no date is known.
+ * Formats a Date into Brazil's standard time (America/Sao_Paulo, UTC-3)
+ * as "DD/MM/YYYY HH:mm".
+ */
+function formatDateTimeInBrazil(date) {
+    const datePart = date.toLocaleDateString("pt-BR", { timeZone: exports.BRAZIL_TIMEZONE });
+    const timePart = date.toLocaleTimeString("pt-BR", {
+        timeZone: exports.BRAZIL_TIMEZONE,
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+    return `${datePart} ${timePart}`;
+}
+/**
+ * Formats the "New cards since …" timestamp in Brazil's standard time
+ * (America/Sao_Paulo, UTC-3), falling back to "now" when no date is known.
  */
 function formatMarketNotificationDate(lastSyncDate) {
-    if (lastSyncDate) {
-        return lastSyncDate instanceof Date
-            ? lastSyncDate.toLocaleDateString("pt-BR")
-            : String(lastSyncDate);
+    if (!lastSyncDate) {
+        return formatDateTimeInBrazil(new Date());
     }
-    return new Date().toLocaleDateString("pt-BR");
+    if (lastSyncDate instanceof Date) {
+        return formatDateTimeInBrazil(lastSyncDate);
+    }
+    const parsed = new Date(lastSyncDate);
+    if (!Number.isNaN(parsed.getTime())) {
+        return formatDateTimeInBrazil(parsed);
+    }
+    return String(lastSyncDate);
 }
 /**
  * Returns a copy of the notifications sorted by detection time (oldest first).

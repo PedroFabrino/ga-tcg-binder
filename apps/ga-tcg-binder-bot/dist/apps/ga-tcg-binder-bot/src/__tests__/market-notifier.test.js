@@ -18,20 +18,25 @@ const market_notification_formatter_1 = require("../../../../src/services/market
         messageId: null,
         createdAt: new Date("2026-10-21T02:00:00Z"),
     };
+    (0, vitest_1.it)("formats date and time in Brazil standard time (America/Sao_Paulo)", () => {
+        // 2026-10-21 21:45 UTC is 18:45 in America/Sao_Paulo (UTC-3)
+        const utcDate = new Date("2026-10-21T21:45:00.000Z");
+        (0, vitest_1.expect)((0, market_notification_formatter_1.formatMarketNotificationDate)(utcDate)).toBe("21/10/2026 18:45");
+    });
     (0, vitest_1.it)("returns empty string when notifications list is empty", () => {
         (0, vitest_1.expect)((0, market_notification_formatter_1.formatMarketNotificationMessage)([], "Brandao Card Game")).toBe("");
     });
     (0, vitest_1.it)("formats single non-foil card with collector number and hyperlink correctly", () => {
-        const fixedDate = new Date(2026, 9, 21); // 21/10/2026 in local time
-        const expectedDateStr = fixedDate.toLocaleDateString("pt-BR");
+        const fixedDate = new Date("2026-10-21T21:45:00.000Z");
+        const expectedDateStr = (0, market_notification_formatter_1.formatMarketNotificationDate)(fixedDate);
         const result = (0, market_notification_formatter_1.formatMarketNotificationMessage)([baseNotification], "Brandao Card Game", fixedDate, "https://brandaocardgame.com.br");
         (0, vitest_1.expect)(result).toBe(`**[Brandao Card Game](https://brandaocardgame.com.br)** updated their stock!\n` +
             `New cards since ${expectedDateStr}:\n` +
             `• [Flame-Rune Swordsman](https://example.com/card.jpg) — FTC 136 — R$ 15,00`);
     });
     (0, vitest_1.it)("falls back to plain text when imageUrl and storeUrl are not provided", () => {
-        const fixedDate = new Date(2026, 9, 21);
-        const expectedDateStr = fixedDate.toLocaleDateString("pt-BR");
+        const fixedDate = new Date("2026-10-21T21:45:00.000Z");
+        const expectedDateStr = (0, market_notification_formatter_1.formatMarketNotificationDate)(fixedDate);
         const noUrlNotification = {
             ...baseNotification,
             imageUrl: null,
@@ -101,8 +106,8 @@ const market_notification_formatter_1 = require("../../../../src/services/market
         (0, vitest_1.expect)((0, market_notification_formatter_1.formatMarketNotificationChunks)([], "Brandao Card Game")).toEqual([]);
     });
     (0, vitest_1.it)("returns a single chunk when under the max length, tracking notification ids", () => {
-        const fixedDate = new Date(2026, 9, 21);
-        const expectedDateStr = fixedDate.toLocaleDateString("pt-BR");
+        const fixedDate = new Date("2026-10-21T21:45:00.000Z");
+        const expectedDateStr = (0, market_notification_formatter_1.formatMarketNotificationDate)(fixedDate);
         const chunks = (0, market_notification_formatter_1.formatMarketNotificationChunks)([baseNotification], "Brandao Card Game", fixedDate, undefined, "https://brandaocardgame.com.br");
         (0, vitest_1.expect)(chunks).toHaveLength(1);
         (0, vitest_1.expect)(chunks[0].notificationIds).toEqual(["notif-1"]);

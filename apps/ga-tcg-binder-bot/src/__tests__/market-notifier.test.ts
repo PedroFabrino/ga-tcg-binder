@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   formatMarketNotificationChunks,
+  formatMarketNotificationDate,
   formatMarketNotificationMessage,
   ROOT_MESSAGE_MAX_LENGTH,
 } from "../../../../src/services/market-notification-formatter";
@@ -24,13 +25,19 @@ describe("formatMarketNotificationMessage", () => {
     createdAt: new Date("2026-10-21T02:00:00Z"),
   };
 
+  it("formats date and time in Brazil standard time (America/Sao_Paulo)", () => {
+    // 2026-10-21 21:45 UTC is 18:45 in America/Sao_Paulo (UTC-3)
+    const utcDate = new Date("2026-10-21T21:45:00.000Z");
+    expect(formatMarketNotificationDate(utcDate)).toBe("21/10/2026 18:45");
+  });
+
   it("returns empty string when notifications list is empty", () => {
     expect(formatMarketNotificationMessage([], "Brandao Card Game")).toBe("");
   });
 
   it("formats single non-foil card with collector number and hyperlink correctly", () => {
-    const fixedDate = new Date(2026, 9, 21); // 21/10/2026 in local time
-    const expectedDateStr = fixedDate.toLocaleDateString("pt-BR");
+    const fixedDate = new Date("2026-10-21T21:45:00.000Z");
+    const expectedDateStr = formatMarketNotificationDate(fixedDate);
     const result = formatMarketNotificationMessage(
       [baseNotification],
       "Brandao Card Game",
@@ -46,8 +53,8 @@ describe("formatMarketNotificationMessage", () => {
   });
 
   it("falls back to plain text when imageUrl and storeUrl are not provided", () => {
-    const fixedDate = new Date(2026, 9, 21);
-    const expectedDateStr = fixedDate.toLocaleDateString("pt-BR");
+    const fixedDate = new Date("2026-10-21T21:45:00.000Z");
+    const expectedDateStr = formatMarketNotificationDate(fixedDate);
     const noUrlNotification: MarketNotification = {
       ...baseNotification,
       imageUrl: null,
@@ -147,8 +154,8 @@ describe("formatMarketNotificationChunks", () => {
   });
 
   it("returns a single chunk when under the max length, tracking notification ids", () => {
-    const fixedDate = new Date(2026, 9, 21);
-    const expectedDateStr = fixedDate.toLocaleDateString("pt-BR");
+    const fixedDate = new Date("2026-10-21T21:45:00.000Z");
+    const expectedDateStr = formatMarketNotificationDate(fixedDate);
     const chunks = formatMarketNotificationChunks(
       [baseNotification],
       "Brandao Card Game",

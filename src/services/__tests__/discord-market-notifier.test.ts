@@ -48,8 +48,8 @@ function makeNotification(overrides: Partial<MarketNotification> = {}): MarketNo
  };
 }
 
-const fixedDate = new Date(2026, 9, 21);
-const expectedDateStr = fixedDate.toLocaleDateString("pt-BR");
+const fixedDate = new Date("2026-10-21T21:45:00.000Z");
+const expectedDateStr = formatMarketNotificationDate(fixedDate);
 
 describe("shared market notification formatter", () => {
  it("groups notifications by store id", () => {
@@ -63,8 +63,8 @@ describe("shared market notification formatter", () => {
   expect(grouped.get("myp")?.map((n) => n.id)).toEqual(["a", "c"]);
  });
 
- it("formats the pt-BR date like the Root bot", () => {
-  expect(formatMarketNotificationDate(fixedDate)).toBe(expectedDateStr);
+ it("formats the pt-BR date and time in Brazil timezone (America/Sao_Paulo)", () => {
+  expect(formatMarketNotificationDate(fixedDate)).toBe("21/10/2026 18:45");
  });
 });
 
