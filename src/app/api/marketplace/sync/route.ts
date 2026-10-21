@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { runMigrations } from "@/db/init";
 import { ensureDefaultUserAndSeed } from "@/services/seed";
 import { auth } from "@/auth";
-import { userHasCapability } from "@/services/settings";
+import { userHasCapability, getUserSettings } from "@/services/settings";
 import {
   getUserMarketplaceReport,
   syncUserMarketplace,
@@ -22,7 +22,8 @@ export async function POST(req: NextRequest) {
     }
 
     const currentReport = await getUserMarketplaceReport(userId, db);
-    const usernameToSync = body.username || currentReport.mypUsername;
+    const userSettings = await getUserSettings(userId, db);
+    const usernameToSync = (body.username || currentReport.mypUsername || userSettings?.mypUsername || "").trim();
 
     if (!usernameToSync) {
       return NextResponse.json(

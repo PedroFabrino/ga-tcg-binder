@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ToastProvider";
 import { ALL_ELEMENTS, ELEMENT_COLORS, ELEMENT_LABELS, normalizeElement } from "@/lib/elements";
 import { RARITIES } from "@/lib/rarities";
-import { readShippingCapability } from "@/lib/settings-capabilities";
+import { readShippingCapability, readMypUsername } from "@/lib/settings-capabilities";
 import type { MarketplaceCardItem, MarketplaceReport } from "@/services/marketplace";
 import FulfillmentView from "./FulfillmentView";
 import MypStoreSubTabs, { type MypSubView } from "./MypStoreSubTabs";
@@ -57,6 +57,7 @@ const { showToast } = useToast();
 
   const [subView, setSubView] = useState<MypSubView>("listings");
   const [hasShippingCapability, setHasShippingCapability] = useState(false);
+  const [settingsUsername, setSettingsUsername] = useState<string | null>(null);
 
   const userIdQuery = session?.user?.id ? `?userId=${session.user.id}` : "";
 
@@ -75,23 +76,30 @@ const { showToast } = useToast();
     } finally {
       setLoading(false);
     }
-  }, [userIdQuery, showToast]);
+  }, [userIdQuery, showToast, t]);
 
   useEffect(() => {
     fetchMarketplace();
   }, [fetchMarketplace]);
 
   useEffect(() => {
-  void fetch("/api/settings")
-  .then((response) => response.json())
-  .then((settings: unknown) => {
-  setHasShippingCapability(readShippingCapability(settings));
-  })
-  .catch(() => undefined);
-  }, []);
+    void fetch(`/api/settings${userIdQuery}`)
+      .then((response) => response.json())
+      .then((settings: unknown) => {
+        setHasShippingCapability(readShippingCapability(settings));
+        const username = readMypUsername(settings);
+        if (username) {
+          setSettingsUsername(username);
+          setUsernameInput((prev) => prev || username);
+        }
+      })
+      .catch(() => undefined);
+  }, [userIdQuery]);
+
+  const effectiveUsername = report?.mypUsername || settingsUsername;
 
   const handleSync = async (overrideUsername?: string) => {
-    const targetUsername = (overrideUsername ?? usernameInput ?? report?.mypUsername ?? "").trim();
+    const targetUsername = (overrideUsername ?? usernameInput ?? effectiveUsername ?? "").trim();
     if (!targetUsername) {
       showToast(t("mypStore.usernameRequired"), "error");
       setEditingUsername(true);
@@ -226,7 +234,7 @@ const { showToast } = useToast();
   }, [report?.cards, filterMode, onlyShortages, selectedElements, selectedRarities, query]);
 
   const summary = report?.summary;
-  const needsOnboarding = !loading && (!report?.mypUsername || editingUsername);
+  const needsOnboarding = !loading && (!effectiveUsername || editingUsername);
 
   return (
     <div className="space-y-6">
@@ -234,7 +242,7 @@ const { showToast } = useToast();
 
       {subView === "fulfillment" ? (
         <FulfillmentView
-          mypUsername={report?.mypUsername}
+          mypUsername={effectiveUsername}
           hasShippingCapability={hasShippingCapability}
           userId={session?.user?.id}
         />
@@ -246,9 +254,9 @@ const { showToast } = useToast();
           <div className="flex items-center gap-2">
             <Store className="h-5 w-5 text-amber-400" />
             <h2 className="text-base font-bold text-white">Personal MyP Cards Store</h2>
-            {report?.mypUsername && !editingUsername && (
+            {effectiveUsername && !editingUsername && (
               <span className="font-mono text-xs text-amber-300 font-semibold">
-                @{report.mypUsername}
+                @{effectiveUsername}
               </span>
             )}
           </div>
@@ -258,10 +266,10 @@ const { showToast } = useToast();
         </div>
 
         <div className="flex items-center gap-2">
-          {report?.mypUsername && !editingUsername && (
+          {effectiveUsername && !editingUsername && (
             <div className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1 text-xs text-slate-300">
               <a
-                href={`https://mypcards.com/${encodeURIComponent(report.mypUsername)}`}
+                href={`https://mypcards.com/${encodeURIComponent(effectiveUsername)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-mono font-semibold text-white hover:text-cyan-300 transition-colors inline-flex items-center gap-1"
@@ -336,13 +344,13 @@ const { showToast } = useToast();
                     "Save & Sync"
                   )}
                 </Button>
-                {report?.mypUsername && (
+                {effectiveUsername && (
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
                     onClick={() => {
-                      setUsernameInput(report.mypUsername || "");
+                      setUsernameInput(effectiveUsername || "");
                       setEditingUsername(false);
                     }}
                   >
@@ -627,11 +635,11 @@ const { showToast } = useToast();
           <Store className="mx-auto mb-3 h-10 w-10 text-slate-500" />
           <h3 className="text-base font-semibold text-white">No MyP Cards synced yet</h3>
           <p className="mt-1 text-xs text-slate-400 max-w-md mx-auto">
-            {report?.mypUsername
-              ? `Click "Sync Store" above to crawl your listings from mypcards.com/${report.mypUsername}.`
+            {effectiveUsername
+              ? `Click "Sync Store" above to crawl your listings from mypcards.com/${effectiveUsername}.`
               : "Enter your MyP Cards username above to import your external listings."}
           </p>
-          {report?.mypUsername && (
+          {effectiveUsername && (
             <Button
               onClick={() => handleSync()}
               disabled={syncing}

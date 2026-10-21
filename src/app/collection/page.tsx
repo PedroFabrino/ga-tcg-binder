@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { Layers, Sparkles, Gem, TrendingUp, Upload, LayoutGrid, Table2, Plus, SearchX, Store } from "lucide-react";
 import { PageHeader, Tabs } from "@/components/common";
 import { isCollectionViewAvailable, resolveCollectionView, type CollectionView } from "@/lib/collection-views";
+import { readVendorCapability } from "@/lib/settings-capabilities";
 import { SkeletonRow, EmptyState } from "@/components/Skeletons";
 import { useToast } from "@/components/ToastProvider";
 import CollectionTable from "@/components/collection/CollectionTable";
@@ -71,8 +72,8 @@ const { showToast } = useToast();
     let active = true;
     void fetch("/api/settings")
       .then((response) => response.json())
-      .then((settings: { user?: { hasVendorCapability?: boolean } | null }) => {
-      if (active) setHasVendorCapability(settings.user?.hasVendorCapability === true);
+      .then((settings: unknown) => {
+        if (active) setHasVendorCapability(readVendorCapability(settings));
       })
       .catch(() => undefined);
     return () => {

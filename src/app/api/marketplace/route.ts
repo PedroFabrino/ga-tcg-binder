@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { runMigrations } from "@/db/init";
 import { ensureDefaultUserAndSeed } from "@/services/seed";
 import { auth } from "@/auth";
-import { userHasCapability } from "@/services/settings";
+import { userHasCapability, getUserSettings } from "@/services/settings";
 import {
   getUserMarketplaceReport,
   syncUserMarketplace,
@@ -22,6 +22,12 @@ export async function GET(req: NextRequest) {
     }
 
     const report = await getUserMarketplaceReport(userId, db);
+    if (!report.mypUsername) {
+      const userSettings = await getUserSettings(userId, db);
+      if (userSettings?.mypUsername) {
+        report.mypUsername = userSettings.mypUsername;
+      }
+    }
     return NextResponse.json(report);
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Failed to load marketplace" }, { status: 500 });
@@ -43,7 +49,8 @@ export async function POST(req: NextRequest) {
 
     if (action === "sync") {
       const currentReport = await getUserMarketplaceReport(userId, db);
-      const usernameToSync = body.username || currentReport.mypUsername;
+      const userSettings = await getUserSettings(userId, db);
+      const usernameToSync = (body.username || currentReport.mypUsername || userSettings?.mypUsername || "").trim();
 
       if (!usernameToSync) {
         return NextResponse.json(
