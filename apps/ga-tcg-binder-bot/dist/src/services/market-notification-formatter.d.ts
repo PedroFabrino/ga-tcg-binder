@@ -20,6 +20,19 @@ export declare function groupMarketNotificationsByStore(notifications: MarketNot
  */
 export declare function formatMarketNotificationCardDetails(notification: MarketNotification): string;
 /**
+ * Checks whether a given string is a valid https URL.
+ */
+export declare function isHttpsUrl(value: string | null | undefined): value is string;
+/**
+ * Escapes characters in URLs to prevent breaking Markdown links.
+ */
+export declare function escapeLinkUrl(value: string): string;
+/**
+ * Renders one card bullet line for chat platforms (Root, Discord).
+ * The card name is hyperlinked if `imageUrl` is a valid https product URL.
+ */
+export declare function formatMarketNotificationCardLine(notification: MarketNotification): string;
+/**
  * Maximum character length for a single chat message (Root, Discord).
  */
 export declare const ROOT_MESSAGE_MAX_LENGTH = 2000;
@@ -36,9 +49,9 @@ export declare function splitMessageContent(message: string, maxLength?: number)
  * Each chunk tracks the notification IDs included within it so delivery can be
  * marked incrementally per sent message, preventing duplicate re-sends on partial failures.
  */
-export declare function formatMarketNotificationChunks(notifications: MarketNotification[], storeName: string, lastSyncDate?: Date | string | null, maxLength?: number): MarketNotificationChunk[];
+export declare function formatMarketNotificationChunks(notifications: MarketNotification[], storeName: string, lastSyncDate?: Date | string | null, maxLength?: number, storeUrl?: string | null): MarketNotificationChunk[];
 /**
  * Formats a batch of market notifications into a single Markdown message
  * suitable for sending to a Root community channel.
  */
-export declare function formatMarketNotificationMessage(notifications: MarketNotification[], storeName: string, lastSyncDate?: Date | string | null): string;
+export declare function formatMarketNotificationMessage(notifications: MarketNotification[], storeName: string, lastSyncDate?: Date | string | null, storeUrl?: string | null): string;

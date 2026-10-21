@@ -21,10 +21,22 @@ const market_notification_formatter_1 = require("../../../../src/services/market
     (0, vitest_1.it)("returns empty string when notifications list is empty", () => {
         (0, vitest_1.expect)((0, market_notification_formatter_1.formatMarketNotificationMessage)([], "Brandao Card Game")).toBe("");
     });
-    (0, vitest_1.it)("formats single non-foil card with collector number correctly", () => {
+    (0, vitest_1.it)("formats single non-foil card with collector number and hyperlink correctly", () => {
         const fixedDate = new Date(2026, 9, 21); // 21/10/2026 in local time
         const expectedDateStr = fixedDate.toLocaleDateString("pt-BR");
-        const result = (0, market_notification_formatter_1.formatMarketNotificationMessage)([baseNotification], "Brandao Card Game", fixedDate);
+        const result = (0, market_notification_formatter_1.formatMarketNotificationMessage)([baseNotification], "Brandao Card Game", fixedDate, "https://brandaocardgame.com.br");
+        (0, vitest_1.expect)(result).toBe(`**[Brandao Card Game](https://brandaocardgame.com.br)** updated their stock!\n` +
+            `New cards since ${expectedDateStr}:\n` +
+            `• [Flame-Rune Swordsman](https://example.com/card.jpg) — FTC 136 — R$ 15,00`);
+    });
+    (0, vitest_1.it)("falls back to plain text when imageUrl and storeUrl are not provided", () => {
+        const fixedDate = new Date(2026, 9, 21);
+        const expectedDateStr = fixedDate.toLocaleDateString("pt-BR");
+        const noUrlNotification = {
+            ...baseNotification,
+            imageUrl: null,
+        };
+        const result = (0, market_notification_formatter_1.formatMarketNotificationMessage)([noUrlNotification], "Brandao Card Game", fixedDate);
         (0, vitest_1.expect)(result).toBe(`**Brandao Card Game** updated their stock!\n` +
             `New cards since ${expectedDateStr}:\n` +
             `• Flame-Rune Swordsman — FTC 136 — R$ 15,00`);
@@ -37,7 +49,7 @@ const market_notification_formatter_1 = require("../../../../src/services/market
             price: "R$ 45,00",
         };
         const result = (0, market_notification_formatter_1.formatMarketNotificationMessage)([foilNotification], "Brandao Card Game", "21/10/2026");
-        (0, vitest_1.expect)(result).toContain("• Flame-Rune Swordsman — FTC 136 (Foil) — R$ 45,00");
+        (0, vitest_1.expect)(result).toContain("• [Flame-Rune Swordsman](https://example.com/card.jpg) — FTC 136 (Foil) — R$ 45,00");
     });
     (0, vitest_1.it)("formats multiple cards in detectedAt order as a bullet list", () => {
         const card1 = {
@@ -57,8 +69,8 @@ const market_notification_formatter_1 = require("../../../../src/services/market
         const lines = result.split("\n");
         (0, vitest_1.expect)(lines[0]).toBe("**Test Store** updated their stock!");
         (0, vitest_1.expect)(lines[1]).toBe("New cards since 21/10/2026:");
-        (0, vitest_1.expect)(lines[2]).toContain("• Card A");
-        (0, vitest_1.expect)(lines[3]).toContain("• Card B");
+        (0, vitest_1.expect)(lines[2]).toContain("• [Card A](https://example.com/card.jpg)");
+        (0, vitest_1.expect)(lines[3]).toContain("• [Card B](https://example.com/card.jpg)");
     });
     (0, vitest_1.it)("handles notification without collector number gracefully", () => {
         const noCollector = {
@@ -66,7 +78,7 @@ const market_notification_formatter_1 = require("../../../../src/services/market
             collectorNumber: "",
         };
         const result = (0, market_notification_formatter_1.formatMarketNotificationMessage)([noCollector], "Brandao Card Game", "21/10/2026");
-        (0, vitest_1.expect)(result).toContain("• Flame-Rune Swordsman — FTC — R$ 15,00");
+        (0, vitest_1.expect)(result).toContain("• [Flame-Rune Swordsman](https://example.com/card.jpg) — FTC — R$ 15,00");
     });
 });
 (0, vitest_1.describe)("formatMarketNotificationChunks", () => {
@@ -91,12 +103,12 @@ const market_notification_formatter_1 = require("../../../../src/services/market
     (0, vitest_1.it)("returns a single chunk when under the max length, tracking notification ids", () => {
         const fixedDate = new Date(2026, 9, 21);
         const expectedDateStr = fixedDate.toLocaleDateString("pt-BR");
-        const chunks = (0, market_notification_formatter_1.formatMarketNotificationChunks)([baseNotification], "Brandao Card Game", fixedDate);
+        const chunks = (0, market_notification_formatter_1.formatMarketNotificationChunks)([baseNotification], "Brandao Card Game", fixedDate, undefined, "https://brandaocardgame.com.br");
         (0, vitest_1.expect)(chunks).toHaveLength(1);
         (0, vitest_1.expect)(chunks[0].notificationIds).toEqual(["notif-1"]);
-        (0, vitest_1.expect)(chunks[0].content).toBe(`**Brandao Card Game** updated their stock!\n` +
+        (0, vitest_1.expect)(chunks[0].content).toBe(`**[Brandao Card Game](https://brandaocardgame.com.br)** updated their stock!\n` +
             `New cards since ${expectedDateStr}:\n` +
-            `• Flame-Rune Swordsman — FTC 136 — R$ 15,00`);
+            `• [Flame-Rune Swordsman](https://example.com/card.jpg) — FTC 136 — R$ 15,00`);
     });
     (0, vitest_1.it)("splits large batches into chunks without exceeding ROOT_MESSAGE_MAX_LENGTH", () => {
         // Generate 100 notifications (~5,000 characters)
@@ -118,7 +130,7 @@ const market_notification_formatter_1 = require("../../../../src/services/market
         (0, vitest_1.expect)(new Set(allIds).size).toBe(100);
         // First chunk has store header
         (0, vitest_1.expect)(chunks[0].content).toContain("**Lootcards** updated their stock!");
-        // Subsequent chunks start directly with card lines
-        (0, vitest_1.expect)(chunks[1].content).toMatch(/^• Test Card Name/);
+        // Subsequent chunks start directly with card lines (hyperlinked)
+        (0, vitest_1.expect)(chunks[1].content).toMatch(/^• \[Test Card Name/);
     });
 });

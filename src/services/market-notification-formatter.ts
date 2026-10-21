@@ -63,6 +63,45 @@ export function formatMarketNotificationCardDetails(
 }
 
 /**
+ * Checks whether a given string is a valid https URL.
+ */
+export function isHttpsUrl(value: string | null | undefined): value is string {
+ if (!value) {
+  return false;
+ }
+ try {
+  return new URL(value).protocol === "https:";
+ } catch {
+  return false;
+ }
+}
+
+/**
+ * Escapes characters in URLs to prevent breaking Markdown links.
+ */
+export function escapeLinkUrl(value: string): string {
+ return value
+  .replace(/\\/g, "\\\\")
+  .replace(/\(/g, "\\(")
+  .replace(/\)/g, "\\)");
+}
+
+/**
+ * Renders one card bullet line for chat platforms (Root, Discord).
+ * The card name is hyperlinked if `imageUrl` is a valid https product URL.
+ */
+export function formatMarketNotificationCardLine(
+ notification: MarketNotification
+): string {
+ const cardDetails = formatMarketNotificationCardDetails(notification);
+ const cardName = isHttpsUrl(notification.imageUrl)
+  ? `[${notification.cardName}](${escapeLinkUrl(notification.imageUrl)})`
+  : notification.cardName;
+
+ return `• ${cardName} — ${cardDetails}`;
+}
+
+/**
  * Maximum character length for a single chat message (Root, Discord).
  */
 export const ROOT_MESSAGE_MAX_LENGTH = 2000;
@@ -129,7 +168,8 @@ export function formatMarketNotificationChunks(
  notifications: MarketNotification[],
  storeName: string,
  lastSyncDate?: Date | string | null,
- maxLength: number = ROOT_MESSAGE_MAX_LENGTH
+ maxLength: number = ROOT_MESSAGE_MAX_LENGTH,
+ storeUrl?: string | null
 ): MarketNotificationChunk[] {
  if (notifications.length === 0) {
   return [];
@@ -137,15 +177,18 @@ export function formatMarketNotificationChunks(
 
  const sorted = sortMarketNotificationsByDetectedAt(notifications);
  const dateStr = formatMarketNotificationDate(lastSyncDate);
+ const storeTitle = isHttpsUrl(storeUrl)
+  ? `**[${storeName}](${escapeLinkUrl(storeUrl)})**`
+  : `**${storeName}**`;
 
- const header = `**${storeName}** updated their stock!\nNew cards since ${dateStr}:`;
+ const header = `${storeTitle} updated their stock!\nNew cards since ${dateStr}:`;
 
  const chunks: MarketNotificationChunk[] = [];
  let currentContent = header;
  let currentIds: string[] = [];
 
  for (const n of sorted) {
-  const cardLine = `• ${n.cardName} — ${formatMarketNotificationCardDetails(n)}`;
+  const cardLine = formatMarketNotificationCardLine(n);
   const candidate = currentContent ? `${currentContent}\n${cardLine}` : cardLine;
 
   if (candidate.length > maxLength && currentIds.length > 0) {
@@ -178,23 +221,25 @@ export function formatMarketNotificationChunks(
 export function formatMarketNotificationMessage(
  notifications: MarketNotification[],
  storeName: string,
- lastSyncDate?: Date | string | null
+ lastSyncDate?: Date | string | null,
+ storeUrl?: string | null
 ): string {
  if (notifications.length === 0) {
   return "";
  }
 
  const dateStr = formatMarketNotificationDate(lastSyncDate);
+ const storeTitle = isHttpsUrl(storeUrl)
+  ? `**[${storeName}](${escapeLinkUrl(storeUrl)})**`
+  : `**${storeName}**`;
 
  const lines: string[] = [
-  `**${storeName}** updated their stock!`,
+  `${storeTitle} updated their stock!`,
   `New cards since ${dateStr}:`,
  ];
 
  for (const n of sortMarketNotificationsByDetectedAt(notifications)) {
-  lines.push(
-   `• ${n.cardName} — ${formatMarketNotificationCardDetails(n)}`
-  );
+  lines.push(formatMarketNotificationCardLine(n));
  }
 
  return lines.join("\n");

@@ -65,11 +65,14 @@ export function startMarketNotifier(): void {
         const store = await getMarketStoreById(storeId, db);
         const storeName = store?.name ?? storeId;
         const lastSyncDate = store?.lastFullScanAt ?? null;
+        const storeUrl = store?.baseUrl ?? null;
 
         const chunks = formatMarketNotificationChunks(
           notifications,
           storeName,
-          lastSyncDate
+          lastSyncDate,
+          undefined,
+          storeUrl
         );
 
         if (chunks.length === 0) {

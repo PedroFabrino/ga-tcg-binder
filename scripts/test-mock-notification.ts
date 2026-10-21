@@ -52,6 +52,7 @@ const MOCK_CARDS = [
     price: "R$ 2,50",
     priceNumeric: 2.5,
     isFoil: false,
+    productUrl: "https://lootcards.store/carta/dungeon-guide",
   },
   {
     id: "mock-card-002",
@@ -61,6 +62,7 @@ const MOCK_CARDS = [
     price: "R$ 15,00",
     priceNumeric: 15.0,
     isFoil: true,
+    productUrl: "https://lootcards.store/carta/spellfire-arcanist",
   },
   {
     id: "mock-card-003",
@@ -70,6 +72,7 @@ const MOCK_CARDS = [
     price: "R$ 38,90",
     priceNumeric: 38.9,
     isFoil: false,
+    productUrl: "https://lootcards.store/carta/eternal-guardian",
   },
 ];
 
@@ -144,6 +147,7 @@ async function main() {
       price: card.price,
       priceNumeric: card.priceNumeric,
       isFoil: card.isFoil,
+      productUrl: card.productUrl,
       firstSeenAt: now,
       lastSeenAt: now,
     });
@@ -169,7 +173,8 @@ async function main() {
       const msg = formatMarketNotificationMessage(
         notifications,
         MOCK_STORE_NAME,
-        new Date()
+        new Date(),
+        "https://mypcards.com"
       );
       console.log("  ---");
       console.log(msg.replace(/^/gm, "  "));

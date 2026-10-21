@@ -69,7 +69,7 @@ describe("shared market notification formatter", () => {
 });
 
 describe("formatMarketNotificationMessage (Root, byte-for-byte)", () => {
- it("produces the exact Root message for a single non-foil card", () => {
+ it("produces the exact Root message for a single non-foil card with hyperlink", () => {
   const result = formatMarketNotificationMessage(
    [makeNotification()],
    "Brandao Card Game",
@@ -79,7 +79,7 @@ describe("formatMarketNotificationMessage (Root, byte-for-byte)", () => {
   expect(result).toBe(
    `**Brandao Card Game** updated their stock!\n` +
     `New cards since ${expectedDateStr}:\n` +
-    `• Flame-Rune Swordsman — FTC 136 — R$ 15,00`
+    `• [Flame-Rune Swordsman](https://example.com/card.jpg) — FTC 136 — R$ 15,00`
   );
  });
 
@@ -101,7 +101,7 @@ describe("formatMarketNotificationMessage (Root, byte-for-byte)", () => {
   expect(result).toBe(
    `**Brandao Card Game** updated their stock!\n` +
     `New cards since ${expectedDateStr}:\n` +
-    `• Frostbind — FTC (Foil) — R$ 45,00`
+    `• [Frostbind](https://example.com/card.jpg) — FTC (Foil) — R$ 45,00`
   );
  });
 });

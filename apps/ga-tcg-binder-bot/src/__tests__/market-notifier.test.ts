@@ -28,11 +28,32 @@ describe("formatMarketNotificationMessage", () => {
     expect(formatMarketNotificationMessage([], "Brandao Card Game")).toBe("");
   });
 
-  it("formats single non-foil card with collector number correctly", () => {
+  it("formats single non-foil card with collector number and hyperlink correctly", () => {
     const fixedDate = new Date(2026, 9, 21); // 21/10/2026 in local time
     const expectedDateStr = fixedDate.toLocaleDateString("pt-BR");
     const result = formatMarketNotificationMessage(
       [baseNotification],
+      "Brandao Card Game",
+      fixedDate,
+      "https://brandaocardgame.com.br"
+    );
+
+    expect(result).toBe(
+      `**[Brandao Card Game](https://brandaocardgame.com.br)** updated their stock!\n` +
+      `New cards since ${expectedDateStr}:\n` +
+      `• [Flame-Rune Swordsman](https://example.com/card.jpg) — FTC 136 — R$ 15,00`
+    );
+  });
+
+  it("falls back to plain text when imageUrl and storeUrl are not provided", () => {
+    const fixedDate = new Date(2026, 9, 21);
+    const expectedDateStr = fixedDate.toLocaleDateString("pt-BR");
+    const noUrlNotification: MarketNotification = {
+      ...baseNotification,
+      imageUrl: null,
+    };
+    const result = formatMarketNotificationMessage(
+      [noUrlNotification],
       "Brandao Card Game",
       fixedDate
     );
@@ -58,7 +79,7 @@ describe("formatMarketNotificationMessage", () => {
       "21/10/2026"
     );
 
-    expect(result).toContain("• Flame-Rune Swordsman — FTC 136 (Foil) — R$ 45,00");
+    expect(result).toContain("• [Flame-Rune Swordsman](https://example.com/card.jpg) — FTC 136 (Foil) — R$ 45,00");
   });
 
   it("formats multiple cards in detectedAt order as a bullet list", () => {
@@ -84,8 +105,8 @@ describe("formatMarketNotificationMessage", () => {
     const lines = result.split("\n");
     expect(lines[0]).toBe("**Test Store** updated their stock!");
     expect(lines[1]).toBe("New cards since 21/10/2026:");
-    expect(lines[2]).toContain("• Card A");
-    expect(lines[3]).toContain("• Card B");
+    expect(lines[2]).toContain("• [Card A](https://example.com/card.jpg)");
+    expect(lines[3]).toContain("• [Card B](https://example.com/card.jpg)");
   });
 
   it("handles notification without collector number gracefully", () => {
@@ -100,7 +121,7 @@ describe("formatMarketNotificationMessage", () => {
       "21/10/2026"
     );
 
-    expect(result).toContain("• Flame-Rune Swordsman — FTC — R$ 15,00");
+    expect(result).toContain("• [Flame-Rune Swordsman](https://example.com/card.jpg) — FTC — R$ 15,00");
   });
 });
 
@@ -131,15 +152,17 @@ describe("formatMarketNotificationChunks", () => {
     const chunks = formatMarketNotificationChunks(
       [baseNotification],
       "Brandao Card Game",
-      fixedDate
+      fixedDate,
+      undefined,
+      "https://brandaocardgame.com.br"
     );
 
     expect(chunks).toHaveLength(1);
     expect(chunks[0].notificationIds).toEqual(["notif-1"]);
     expect(chunks[0].content).toBe(
-      `**Brandao Card Game** updated their stock!\n` +
+      `**[Brandao Card Game](https://brandaocardgame.com.br)** updated their stock!\n` +
       `New cards since ${expectedDateStr}:\n` +
-      `• Flame-Rune Swordsman — FTC 136 — R$ 15,00`
+      `• [Flame-Rune Swordsman](https://example.com/card.jpg) — FTC 136 — R$ 15,00`
     );
   });
 
@@ -172,7 +195,7 @@ describe("formatMarketNotificationChunks", () => {
 
     // First chunk has store header
     expect(chunks[0].content).toContain("**Lootcards** updated their stock!");
-    // Subsequent chunks start directly with card lines
-    expect(chunks[1].content).toMatch(/^• Test Card Name/);
+    // Subsequent chunks start directly with card lines (hyperlinked)
+    expect(chunks[1].content).toMatch(/^• \[Test Card Name/);
   });
 });

@@ -43,7 +43,8 @@ function startMarketNotifier() {
                 const store = await (0, marketplace_repository_1.getMarketStoreById)(storeId, db_1.db);
                 const storeName = store?.name ?? storeId;
                 const lastSyncDate = store?.lastFullScanAt ?? null;
-                const chunks = (0, market_notification_formatter_1.formatMarketNotificationChunks)(notifications, storeName, lastSyncDate);
+                const storeUrl = store?.baseUrl ?? null;
+                const chunks = (0, market_notification_formatter_1.formatMarketNotificationChunks)(notifications, storeName, lastSyncDate, undefined, storeUrl);
                 if (chunks.length === 0) {
                     continue;
                 }

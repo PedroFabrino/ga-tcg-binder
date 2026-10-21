@@ -5,6 +5,9 @@ exports.formatMarketNotificationDate = formatMarketNotificationDate;
 exports.sortMarketNotificationsByDetectedAt = sortMarketNotificationsByDetectedAt;
 exports.groupMarketNotificationsByStore = groupMarketNotificationsByStore;
 exports.formatMarketNotificationCardDetails = formatMarketNotificationCardDetails;
+exports.isHttpsUrl = isHttpsUrl;
+exports.escapeLinkUrl = escapeLinkUrl;
+exports.formatMarketNotificationCardLine = formatMarketNotificationCardLine;
 exports.splitMessageContent = splitMessageContent;
 exports.formatMarketNotificationChunks = formatMarketNotificationChunks;
 exports.formatMarketNotificationMessage = formatMarketNotificationMessage;
@@ -60,6 +63,40 @@ function formatMarketNotificationCardDetails(notification) {
     return `${notification.setPrefix}${collectorNumber}${foilStatus} — ${notification.price}`;
 }
 /**
+ * Checks whether a given string is a valid https URL.
+ */
+function isHttpsUrl(value) {
+    if (!value) {
+        return false;
+    }
+    try {
+        return new URL(value).protocol === "https:";
+    }
+    catch {
+        return false;
+    }
+}
+/**
+ * Escapes characters in URLs to prevent breaking Markdown links.
+ */
+function escapeLinkUrl(value) {
+    return value
+        .replace(/\\/g, "\\\\")
+        .replace(/\(/g, "\\(")
+        .replace(/\)/g, "\\)");
+}
+/**
+ * Renders one card bullet line for chat platforms (Root, Discord).
+ * The card name is hyperlinked if `imageUrl` is a valid https product URL.
+ */
+function formatMarketNotificationCardLine(notification) {
+    const cardDetails = formatMarketNotificationCardDetails(notification);
+    const cardName = isHttpsUrl(notification.imageUrl)
+        ? `[${notification.cardName}](${escapeLinkUrl(notification.imageUrl)})`
+        : notification.cardName;
+    return `• ${cardName} — ${cardDetails}`;
+}
+/**
  * Maximum character length for a single chat message (Root, Discord).
  */
 exports.ROOT_MESSAGE_MAX_LENGTH = 2000;
@@ -108,18 +145,21 @@ function splitMessageContent(message, maxLength = exports.ROOT_MESSAGE_MAX_LENGT
  * Each chunk tracks the notification IDs included within it so delivery can be
  * marked incrementally per sent message, preventing duplicate re-sends on partial failures.
  */
-function formatMarketNotificationChunks(notifications, storeName, lastSyncDate, maxLength = exports.ROOT_MESSAGE_MAX_LENGTH) {
+function formatMarketNotificationChunks(notifications, storeName, lastSyncDate, maxLength = exports.ROOT_MESSAGE_MAX_LENGTH, storeUrl) {
     if (notifications.length === 0) {
         return [];
     }
     const sorted = sortMarketNotificationsByDetectedAt(notifications);
     const dateStr = formatMarketNotificationDate(lastSyncDate);
-    const header = `**${storeName}** updated their stock!\nNew cards since ${dateStr}:`;
+    const storeTitle = isHttpsUrl(storeUrl)
+        ? `**[${storeName}](${escapeLinkUrl(storeUrl)})**`
+        : `**${storeName}**`;
+    const header = `${storeTitle} updated their stock!\nNew cards since ${dateStr}:`;
     const chunks = [];
     let currentContent = header;
     let currentIds = [];
     for (const n of sorted) {
-        const cardLine = `• ${n.cardName} — ${formatMarketNotificationCardDetails(n)}`;
+        const cardLine = formatMarketNotificationCardLine(n);
         const candidate = currentContent ? `${currentContent}\n${cardLine}` : cardLine;
         if (candidate.length > maxLength && currentIds.length > 0) {
             chunks.push({
@@ -146,17 +186,20 @@ function formatMarketNotificationChunks(notifications, storeName, lastSyncDate, 
  * Formats a batch of market notifications into a single Markdown message
  * suitable for sending to a Root community channel.
  */
-function formatMarketNotificationMessage(notifications, storeName, lastSyncDate) {
+function formatMarketNotificationMessage(notifications, storeName, lastSyncDate, storeUrl) {
     if (notifications.length === 0) {
         return "";
     }
     const dateStr = formatMarketNotificationDate(lastSyncDate);
+    const storeTitle = isHttpsUrl(storeUrl)
+        ? `**[${storeName}](${escapeLinkUrl(storeUrl)})**`
+        : `**${storeName}**`;
     const lines = [
-        `**${storeName}** updated their stock!`,
+        `${storeTitle} updated their stock!`,
         `New cards since ${dateStr}:`,
     ];
     for (const n of sortMarketNotificationsByDetectedAt(notifications)) {
-        lines.push(`• ${n.cardName} — ${formatMarketNotificationCardDetails(n)}`);
+        lines.push(formatMarketNotificationCardLine(n));
     }
     return lines.join("\n");
 }

@@ -4,6 +4,8 @@ import {
  formatMarketNotificationDate,
  sortMarketNotificationsByDetectedAt,
  splitMessageContent,
+ isHttpsUrl,
+ escapeLinkUrl,
 } from "./market-notification-formatter";
 
 /**
@@ -20,24 +22,6 @@ const DISCORD_MARKDOWN_ESCAPE_PATTERN = /([\\*_~`|>@#:])/g;
  */
 export function escapeDiscordMarkdown(text: string): string {
  return text.replace(DISCORD_MARKDOWN_ESCAPE_PATTERN, "\\$1");
-}
-
-function isHttpsUrl(value: string | null | undefined): value is string {
- if (!value) {
-  return false;
- }
- try {
-  return new URL(value).protocol === "https:";
- } catch {
-  return false;
- }
-}
-
-function escapeLinkUrl(value: string): string {
- return value
-  .replace(/\\/g, "\\\\")
-  .replace(/\(/g, "\\(")
-  .replace(/\)/g, "\\)");
 }
 
 /**
