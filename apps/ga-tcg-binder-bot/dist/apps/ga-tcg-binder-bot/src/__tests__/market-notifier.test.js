@@ -69,3 +69,56 @@ const market_notification_formatter_1 = require("../../../../src/services/market
         (0, vitest_1.expect)(result).toContain("• Flame-Rune Swordsman — FTC — R$ 15,00");
     });
 });
+(0, vitest_1.describe)("formatMarketNotificationChunks", () => {
+    const baseNotification = {
+        id: "notif-1",
+        storeId: "brandao",
+        cardName: "Flame-Rune Swordsman",
+        setPrefix: "FTC",
+        collectorNumber: "136",
+        isFoil: false,
+        price: "R$ 15,00",
+        refId: "ref_136",
+        imageUrl: "https://example.com/card.jpg",
+        detectedAt: new Date("2026-10-21T02:00:00Z"),
+        sentAt: null,
+        messageId: null,
+        createdAt: new Date("2026-10-21T02:00:00Z"),
+    };
+    (0, vitest_1.it)("returns empty array for empty notifications", () => {
+        (0, vitest_1.expect)((0, market_notification_formatter_1.formatMarketNotificationChunks)([], "Brandao Card Game")).toEqual([]);
+    });
+    (0, vitest_1.it)("returns a single chunk when under the max length, tracking notification ids", () => {
+        const fixedDate = new Date(2026, 9, 21);
+        const expectedDateStr = fixedDate.toLocaleDateString("pt-BR");
+        const chunks = (0, market_notification_formatter_1.formatMarketNotificationChunks)([baseNotification], "Brandao Card Game", fixedDate);
+        (0, vitest_1.expect)(chunks).toHaveLength(1);
+        (0, vitest_1.expect)(chunks[0].notificationIds).toEqual(["notif-1"]);
+        (0, vitest_1.expect)(chunks[0].content).toBe(`**Brandao Card Game** updated their stock!\n` +
+            `New cards since ${expectedDateStr}:\n` +
+            `• Flame-Rune Swordsman — FTC 136 — R$ 15,00`);
+    });
+    (0, vitest_1.it)("splits large batches into chunks without exceeding ROOT_MESSAGE_MAX_LENGTH", () => {
+        // Generate 100 notifications (~5,000 characters)
+        const notifications = Array.from({ length: 100 }, (_, i) => ({
+            ...baseNotification,
+            id: `notif-${i}`,
+            cardName: `Test Card Name ${i}`,
+            detectedAt: new Date(Date.now() + i * 1000),
+        }));
+        const chunks = (0, market_notification_formatter_1.formatMarketNotificationChunks)(notifications, "Lootcards", new Date("2026-10-21"));
+        (0, vitest_1.expect)(chunks.length).toBeGreaterThan(1);
+        // Verify all chunks respect character limit
+        for (const chunk of chunks) {
+            (0, vitest_1.expect)(chunk.content.length).toBeLessThanOrEqual(market_notification_formatter_1.ROOT_MESSAGE_MAX_LENGTH);
+        }
+        // Verify every single notification is accounted for across chunks exactly once
+        const allIds = chunks.flatMap((c) => c.notificationIds);
+        (0, vitest_1.expect)(allIds).toHaveLength(100);
+        (0, vitest_1.expect)(new Set(allIds).size).toBe(100);
+        // First chunk has store header
+        (0, vitest_1.expect)(chunks[0].content).toContain("**Lootcards** updated their stock!");
+        // Subsequent chunks start directly with card lines
+        (0, vitest_1.expect)(chunks[1].content).toMatch(/^• Test Card Name/);
+    });
+});

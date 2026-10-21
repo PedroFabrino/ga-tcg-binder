@@ -3091,6 +3091,7 @@ export declare const marketNotifications: import("drizzle-orm/sqlite-core").SQLi
 }>;
 export type MarketNotification = typeof marketNotifications.$inferSelect;
 export type InsertMarketNotification = typeof marketNotifications.$inferInsert;
+export { notificationDeliveries, type NotificationDelivery, type InsertNotificationDelivery } from "./notification-delivery-schema";
 export type WatchlistStatus = "watching" | "pending_add" | "pending_update" | "pending_remove" | "ignored";
 export declare const mypWatchlist: import("drizzle-orm/sqlite-core").SQLiteTableWithColumns<{
     name: "myp_watchlist";

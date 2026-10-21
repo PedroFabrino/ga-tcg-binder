@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.shippingTickets = exports.fulfillmentOrderPrintings = exports.fulfillmentOrders = exports.mypWatchlist = exports.marketNotifications = exports.marketCards = exports.marketStores = exports.mypCards = exports.metaStaples = exports.metaArchetypes = exports.scannerSessions = exports.cardHashes = exports.friendLinks = exports.deckCards = exports.decks = exports.collectionItems = exports.cardCirculations = exports.cardEditions = exports.cards = exports.users = void 0;
+exports.shippingTickets = exports.fulfillmentOrderPrintings = exports.fulfillmentOrders = exports.mypWatchlist = exports.notificationDeliveries = exports.marketNotifications = exports.marketCards = exports.marketStores = exports.mypCards = exports.metaStaples = exports.metaArchetypes = exports.scannerSessions = exports.cardHashes = exports.friendLinks = exports.deckCards = exports.decks = exports.collectionItems = exports.cardCirculations = exports.cardEditions = exports.cards = exports.users = void 0;
 const sqlite_core_1 = require("drizzle-orm/sqlite-core");
 const drizzle_orm_1 = require("drizzle-orm");
 // ---------------------------------------------------------------------------
@@ -248,6 +248,9 @@ exports.marketNotifications = (0, sqlite_core_1.sqliteTable)("market_notificatio
     messageId: (0, sqlite_core_1.text)("message_id"),
     createdAt: (0, sqlite_core_1.integer)("created_at", { mode: "timestamp" }).notNull().default((0, drizzle_orm_1.sql) `(strftime('%s', 'now'))`),
 });
+// Notification deliveries live in ./notification-delivery-schema to keep this file under 400 lines.
+var notification_delivery_schema_1 = require("./notification-delivery-schema");
+Object.defineProperty(exports, "notificationDeliveries", { enumerable: true, get: function () { return notification_delivery_schema_1.notificationDeliveries; } });
 exports.mypWatchlist = (0, sqlite_core_1.sqliteTable)("myp_watchlist", {
     id: (0, sqlite_core_1.text)("id").primaryKey(),
     userId: (0, sqlite_core_1.text)("user_id").notNull().references(() => exports.users.id, { onDelete: "cascade" }),

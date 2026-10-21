@@ -63,6 +63,115 @@ export function formatMarketNotificationCardDetails(
 }
 
 /**
+ * Maximum character length for a single chat message (Root, Discord).
+ */
+export const ROOT_MESSAGE_MAX_LENGTH = 2000;
+
+export interface MarketNotificationChunk {
+ content: string;
+ notificationIds: string[];
+}
+
+/**
+ * Splits arbitrary multiline text into chunks no longer than `maxLength`, breaking on line boundaries.
+ */
+export function splitMessageContent(
+ message: string,
+ maxLength: number = ROOT_MESSAGE_MAX_LENGTH
+): string[] {
+ if (message.length <= maxLength) {
+  return [message];
+ }
+
+ const lines = message.split("\n");
+ const chunks: string[] = [];
+ let current = "";
+
+ for (const line of lines) {
+  if (line.length > maxLength) {
+   if (current) {
+    chunks.push(current);
+    current = "";
+   }
+   let remaining = line;
+   while (remaining.length > maxLength) {
+    chunks.push(remaining.slice(0, maxLength));
+    remaining = remaining.slice(maxLength);
+   }
+   if (remaining) {
+    current = remaining;
+   }
+   continue;
+  }
+
+  const candidate = current ? `${current}\n${line}` : line;
+  if (candidate.length > maxLength) {
+   chunks.push(current);
+   current = line;
+  } else {
+   current = candidate;
+  }
+ }
+
+ if (current) {
+  chunks.push(current);
+ }
+
+ return chunks;
+}
+
+/**
+ * Splits a batch of notifications into chunks of at most `maxLength` characters.
+ * Each chunk tracks the notification IDs included within it so delivery can be
+ * marked incrementally per sent message, preventing duplicate re-sends on partial failures.
+ */
+export function formatMarketNotificationChunks(
+ notifications: MarketNotification[],
+ storeName: string,
+ lastSyncDate?: Date | string | null,
+ maxLength: number = ROOT_MESSAGE_MAX_LENGTH
+): MarketNotificationChunk[] {
+ if (notifications.length === 0) {
+  return [];
+ }
+
+ const sorted = sortMarketNotificationsByDetectedAt(notifications);
+ const dateStr = formatMarketNotificationDate(lastSyncDate);
+
+ const header = `**${storeName}** updated their stock!\nNew cards since ${dateStr}:`;
+
+ const chunks: MarketNotificationChunk[] = [];
+ let currentContent = header;
+ let currentIds: string[] = [];
+
+ for (const n of sorted) {
+  const cardLine = `• ${n.cardName} — ${formatMarketNotificationCardDetails(n)}`;
+  const candidate = currentContent ? `${currentContent}\n${cardLine}` : cardLine;
+
+  if (candidate.length > maxLength && currentIds.length > 0) {
+   chunks.push({
+    content: currentContent,
+    notificationIds: currentIds,
+   });
+   currentContent = cardLine;
+   currentIds = [n.id];
+  } else {
+   currentContent = candidate;
+   currentIds.push(n.id);
+  }
+ }
+
+ if (currentIds.length > 0) {
+  chunks.push({
+   content: currentContent,
+   notificationIds: currentIds,
+  });
+ }
+
+ return chunks;
+}
+
+/**
  * Formats a batch of market notifications into a single Markdown message
  * suitable for sending to a Root community channel.
  */

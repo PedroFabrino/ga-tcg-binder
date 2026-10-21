@@ -3,6 +3,7 @@ import {
  formatMarketNotificationCardDetails,
  formatMarketNotificationDate,
  sortMarketNotificationsByDetectedAt,
+ splitMessageContent,
 } from "./market-notification-formatter";
 
 /**
@@ -88,43 +89,5 @@ export function splitDiscordContent(
  message: string,
  maxLength: number = DISCORD_MESSAGE_MAX_LENGTH
 ): string[] {
- if (message.length <= maxLength) {
-  return [message];
- }
-
- const lines = message.split("\n");
- const chunks: string[] = [];
- let current = "";
-
- for (const line of lines) {
-  if (line.length > maxLength) {
-   if (current) {
-    chunks.push(current);
-    current = "";
-   }
-   let remaining = line;
-   while (remaining.length > maxLength) {
-    chunks.push(remaining.slice(0, maxLength));
-    remaining = remaining.slice(maxLength);
-   }
-   if (remaining) {
-    current = remaining;
-   }
-   continue;
-  }
-
-  const candidate = current ? `${current}\n${line}` : line;
-  if (candidate.length > maxLength) {
-   chunks.push(current);
-   current = line;
-  } else {
-   current = candidate;
-  }
- }
-
- if (current) {
-  chunks.push(current);
- }
-
- return chunks;
+ return splitMessageContent(message, maxLength);
 }

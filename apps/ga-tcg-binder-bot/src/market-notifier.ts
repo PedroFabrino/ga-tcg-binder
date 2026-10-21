@@ -5,7 +5,10 @@ import {
   markNotificationsSent,
   getMarketStoreById,
 } from "../../../src/db/repositories/marketplace-repository";
-import { formatMarketNotificationMessage, groupMarketNotificationsByStore } from "../../../src/services/market-notification-formatter";
+import {
+  formatMarketNotificationChunks,
+  groupMarketNotificationsByStore,
+} from "../../../src/services/market-notification-formatter";
 import { logCommunityChannels } from "./channel-diagnostics";
 import { describeError } from "./describe-error";
 
@@ -14,8 +17,9 @@ import { describeError } from "./describe-error";
  *
  * Reads configuration from environment variables and begins polling the
  * `market_notifications` outbox table at the configured interval. Pending
- * notifications are grouped by store, formatted as Markdown, and sent to
- * the configured Root community channel.
+ * notifications are grouped by store, formatted as Markdown chunks under
+ * Root message limits, and sent incrementally to the configured Root community
+ * channel.
  */
 export function startMarketNotifier(): void {
   const pollIntervalMs = Number.parseInt(
@@ -62,41 +66,48 @@ export function startMarketNotifier(): void {
         const storeName = store?.name ?? storeId;
         const lastSyncDate = store?.lastFullScanAt ?? null;
 
-        const message = formatMarketNotificationMessage(
+        const chunks = formatMarketNotificationChunks(
           notifications,
           storeName,
           lastSyncDate
         );
 
-        if (!message) {
+        if (chunks.length === 0) {
           continue;
         }
 
-        const ids = notifications.map((n) => n.id);
+        for (let i = 0; i < chunks.length; i++) {
+          const chunk = chunks[i];
+          let sentMessage;
+          try {
+            sentMessage = await rootServer.community.channelMessages.create({
+              channelId,
+              content: chunk.content,
+            });
+          } catch (err) {
+            console.error(
+              `[market-notifier] Failed to send chunk ${i + 1}/${chunks.length} (${chunk.notificationIds.length} cards) for store "${storeName}" to channel ${rawChannelId}: ${describeError(err)}`
+            );
+            // Stop processing remaining chunks for this store to keep message ordering intact.
+            // Remaining notifications will be retried on the next poll tick.
+            break;
+          }
 
-        let sentMessage;
-        try {
-          sentMessage = await rootServer.community.channelMessages.create({
-            channelId,
-            content: message,
-          });
-        } catch (err) {
-          console.error(
-            `[market-notifier] Failed to send ${ids.length} notifications for store "${storeName}" to channel ${rawChannelId}: ${describeError(err)}`
-          );
-          continue;
-        }
+          const messageId = sentMessage?.id ? String(sentMessage.id) : "sent";
+          try {
+            await markNotificationsSent(chunk.notificationIds, messageId, new Date(), db);
+            console.log(
+              `[market-notifier] Sent chunk ${i + 1}/${chunks.length} (${chunk.notificationIds.length} cards) for store "${storeName}" (message=${messageId})`
+            );
+          } catch (err) {
+            console.error(
+              `[market-notifier] Message ${messageId} was posted but ${chunk.notificationIds.length} notifications for store "${storeName}" could not be marked as sent (ids: ${chunk.notificationIds.join(", ")}) — they will be re-sent on the next tick: ${describeError(err)}`
+            );
+          }
 
-        const messageId = sentMessage?.id ? String(sentMessage.id) : "sent";
-        try {
-          await markNotificationsSent(ids, messageId, new Date(), db);
-          console.log(
-            `[market-notifier] Sent ${ids.length} notifications for store "${storeName}" (message=${messageId})`
-          );
-        } catch (err) {
-          console.error(
-            `[market-notifier] Message ${messageId} was posted but ${ids.length} notifications for store "${storeName}" could not be marked as sent (ids: ${ids.join(", ")}) — they will be re-sent on the next tick: ${describeError(err)}`
-          );
+          if (i < chunks.length - 1) {
+            await new Promise((resolve) => setTimeout(resolve, 250));
+          }
         }
       }
     } catch (err) {
