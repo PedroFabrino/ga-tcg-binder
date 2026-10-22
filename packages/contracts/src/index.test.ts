@@ -137,6 +137,30 @@ describe("@ga/contracts", () => {
       expect(tEn("settings.mypAutomationTitle")).toBe("Automated Daily Watchlist Sync (Opt-In)");
       expect(tPt("settings.mypAutomationTitle")).toBe("Sincronização Diária Automática (Opt-In)");
 
+      expect(tEn("sets.shortageBadge", { count: 3 })).toBe("3 Shortages");
+      expect(tPt("sets.shortageBadge", { count: 3 })).toBe("3 Necessárias");
+
+      expect(tEn("sets.decksImpacted", { count: 2 })).toBe("2 Decks");
+      expect(tPt("sets.decksImpacted", { count: 2 })).toBe("2 Decks");
+
+      expect(tEn("sets.cardsOwned", { owned: 42, total: 100, percent: 42 })).toBe("42 / 100 Cards (42%)");
+      expect(tPt("sets.cardsOwned", { owned: 42, total: 100, percent: 42 })).toBe("42 / 100 Cartas (42%)");
+
+      expect(tEn("sets.hiddenCount", { count: 5 })).toBe("5 hidden");
+      expect(tPt("sets.hiddenCount", { count: 5 })).toBe("5 ocultas");
+
+      expect(tEn("sets.completion", { percent: 87 })).toBe("87% complete");
+      expect(tPt("sets.completion", { percent: 87 })).toBe("87% completo");
+
+      expect(tEn("sets.totalCards", { count: 150 })).toBe("150 cards");
+      expect(tPt("sets.totalCards", { count: 150 })).toBe("150 cartas");
+
+      expect(tEn("sets.checklist.requiredBy", { count: 3 })).toBe("Required by 3 deck(s)");
+      expect(tPt("sets.checklist.requiredBy", { count: 3 })).toBe("Necessária em 3 deck(s)");
+
+      expect(tEn("sets.checklist.ownedCopies", { count: 2 })).toBe("You own 2");
+      expect(tPt("sets.checklist.ownedCopies", { count: 2 })).toBe("Você possui 2");
+
       expect(resolveLocale("pt-BR")).toBe("pt-BR");
       expect(resolveLocale("pt")).toBe("pt-BR");
       expect(resolveLocale("en-US")).toBe("en");
