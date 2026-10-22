@@ -134,9 +134,9 @@ describe("Market Change Detection and Notification Flow (E2E)", () => {
       store?.lastFullScanAt,
       store?.baseUrl
     );
-    expect(message).toContain(`**[Brandão Card Game](${store?.baseUrl})** updated their stock!`);
+    expect(message).toContain(`**[Brandão Card Game](<${store?.baseUrl}>)** updated their stock!`);
     expect(message).toContain(
-      "• [Flame-Rune Swordsman](https://www.brandaocardgame.com.br/?view=ecom/item&refid=new-ref) — DOA 136 — R$ 14,00"
+      "• [Flame-Rune Swordsman](<https://www.brandaocardgame.com.br/?view=ecom/item&refid=new-ref>) — DOA 136 — R$ 14,00"
     );
 
     // 8. Step 6: Mark sent and verify outbox is cleared

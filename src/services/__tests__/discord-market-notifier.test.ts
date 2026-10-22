@@ -79,7 +79,7 @@ describe("formatMarketNotificationMessage (Root, byte-for-byte)", () => {
   expect(result).toBe(
    `**Brandao Card Game** updated their stock!\n` +
     `New cards since ${expectedDateStr}:\n` +
-    `• [Flame-Rune Swordsman](https://example.com/card.jpg) — FTC 136 — R$ 15,00`
+    `• [Flame-Rune Swordsman](<https://example.com/card.jpg>) — FTC 136 — R$ 15,00`
   );
  });
 
@@ -101,7 +101,7 @@ describe("formatMarketNotificationMessage (Root, byte-for-byte)", () => {
   expect(result).toBe(
    `**Brandao Card Game** updated their stock!\n` +
     `New cards since ${expectedDateStr}:\n` +
-    `• [Frostbind](https://example.com/card.jpg) — FTC (Foil) — R$ 45,00`
+    `• [Frostbind](<https://example.com/card.jpg>) — FTC (Foil) — R$ 45,00`
   );
  });
 });
@@ -128,7 +128,7 @@ describe("formatDiscordMarketNotificationMessage", () => {
    .slice(2);
 
   expect(linkLine).toBe(
-   "• [Flame-Rune Swordsman](https://mypcards.com/product/1) — FTC 136 — R$ 15,00"
+   "• [Flame-Rune Swordsman](<https://mypcards.com/product/1>) — FTC 136 — R$ 15,00"
   );
   expect(badLine).toBe("• Flame-Rune Swordsman — FTC 136 — R$ 15,00");
   expect(noUrlLine).toBe("• Flame-Rune Swordsman — FTC 136 — R$ 15,00");
@@ -280,6 +280,7 @@ describe("sendDiscordWebhookMessage", () => {
    expect(_url).toContain("wait=true");
    const body = JSON.parse(String(init?.body));
    expect(body.allowed_mentions).toEqual({ parse: [] });
+   expect(body.flags).toBe(4);
    return jsonResponse(200, { id: "msg-42" });
   }) as unknown as typeof fetch;
 
@@ -453,7 +454,7 @@ describe("DiscordMarketNotificationSink", () => {
   expect(sink.formatGroup([makeNotification()], "Store", fixedDate)).toEqual([
    `**Store** updated their stock!\n` +
     `New cards since ${expectedDateStr}:\n` +
-    "• [Flame-Rune Swordsman](https://example.com/card.jpg) — FTC 136 — R$ 15,00",
+    "• [Flame-Rune Swordsman](<https://example.com/card.jpg>) — FTC 136 — R$ 15,00",
   ]);
  });
 

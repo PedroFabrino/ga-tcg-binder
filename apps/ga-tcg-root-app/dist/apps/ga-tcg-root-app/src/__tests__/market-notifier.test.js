@@ -30,9 +30,9 @@ const market_notification_formatter_1 = require("../../../../src/services/market
         const fixedDate = new Date("2026-10-21T21:45:00.000Z");
         const expectedDateStr = (0, market_notification_formatter_1.formatMarketNotificationDate)(fixedDate);
         const result = (0, market_notification_formatter_1.formatMarketNotificationMessage)([baseNotification], "Brandao Card Game", fixedDate, "https://brandaocardgame.com.br");
-        (0, vitest_1.expect)(result).toBe(`**[Brandao Card Game](https://brandaocardgame.com.br)** updated their stock!\n` +
+        (0, vitest_1.expect)(result).toBe(`**[Brandao Card Game](<https://brandaocardgame.com.br>)** updated their stock!\n` +
             `New cards since ${expectedDateStr}:\n` +
-            `• [Flame-Rune Swordsman](https://example.com/card.jpg) — FTC 136 — R$ 15,00`);
+            `• [Flame-Rune Swordsman](<https://example.com/card.jpg>) — FTC 136 — R$ 15,00`);
     });
     (0, vitest_1.it)("falls back to plain text when imageUrl and storeUrl are not provided", () => {
         const fixedDate = new Date("2026-10-21T21:45:00.000Z");
@@ -54,7 +54,7 @@ const market_notification_formatter_1 = require("../../../../src/services/market
             price: "R$ 45,00",
         };
         const result = (0, market_notification_formatter_1.formatMarketNotificationMessage)([foilNotification], "Brandao Card Game", "21/10/2026");
-        (0, vitest_1.expect)(result).toContain("• [Flame-Rune Swordsman](https://example.com/card.jpg) — FTC 136 (Foil) — R$ 45,00");
+        (0, vitest_1.expect)(result).toContain("• [Flame-Rune Swordsman](<https://example.com/card.jpg>) — FTC 136 (Foil) — R$ 45,00");
     });
     (0, vitest_1.it)("formats multiple cards in detectedAt order as a bullet list", () => {
         const card1 = {
@@ -74,8 +74,8 @@ const market_notification_formatter_1 = require("../../../../src/services/market
         const lines = result.split("\n");
         (0, vitest_1.expect)(lines[0]).toBe("**Test Store** updated their stock!");
         (0, vitest_1.expect)(lines[1]).toBe("New cards since 21/10/2026:");
-        (0, vitest_1.expect)(lines[2]).toContain("• [Card A](https://example.com/card.jpg)");
-        (0, vitest_1.expect)(lines[3]).toContain("• [Card B](https://example.com/card.jpg)");
+        (0, vitest_1.expect)(lines[2]).toContain("• [Card A](<https://example.com/card.jpg>)");
+        (0, vitest_1.expect)(lines[3]).toContain("• [Card B](<https://example.com/card.jpg>)");
     });
     (0, vitest_1.it)("handles notification without collector number gracefully", () => {
         const noCollector = {
@@ -83,7 +83,7 @@ const market_notification_formatter_1 = require("../../../../src/services/market
             collectorNumber: "",
         };
         const result = (0, market_notification_formatter_1.formatMarketNotificationMessage)([noCollector], "Brandao Card Game", "21/10/2026");
-        (0, vitest_1.expect)(result).toContain("• [Flame-Rune Swordsman](https://example.com/card.jpg) — FTC — R$ 15,00");
+        (0, vitest_1.expect)(result).toContain("• [Flame-Rune Swordsman](<https://example.com/card.jpg>) — FTC — R$ 15,00");
     });
 });
 (0, vitest_1.describe)("formatMarketNotificationChunks", () => {
@@ -111,9 +111,9 @@ const market_notification_formatter_1 = require("../../../../src/services/market
         const chunks = (0, market_notification_formatter_1.formatMarketNotificationChunks)([baseNotification], "Brandao Card Game", fixedDate, undefined, "https://brandaocardgame.com.br");
         (0, vitest_1.expect)(chunks).toHaveLength(1);
         (0, vitest_1.expect)(chunks[0].notificationIds).toEqual(["notif-1"]);
-        (0, vitest_1.expect)(chunks[0].content).toBe(`**[Brandao Card Game](https://brandaocardgame.com.br)** updated their stock!\n` +
+        (0, vitest_1.expect)(chunks[0].content).toBe(`**[Brandao Card Game](<https://brandaocardgame.com.br>)** updated their stock!\n` +
             `New cards since ${expectedDateStr}:\n` +
-            `• [Flame-Rune Swordsman](https://example.com/card.jpg) — FTC 136 — R$ 15,00`);
+            `• [Flame-Rune Swordsman](<https://example.com/card.jpg>) — FTC 136 — R$ 15,00`);
     });
     (0, vitest_1.it)("splits large batches into chunks without exceeding ROOT_MESSAGE_MAX_LENGTH", () => {
         // Generate 100 notifications (~5,000 characters)

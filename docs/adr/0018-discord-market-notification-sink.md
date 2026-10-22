@@ -52,6 +52,7 @@ New cards since {date}:
 - Each card name links to its store product page (the `image_url` value) only when it is a valid https URL. Real card thumbnails are a separate future feature.
 - Messages are split into chunks of at most 2000 characters, breaking only on line boundaries.
 - Requests send `allowed_mentions: { parse: [] }` to block `@everyone`, `@here`, and role pings.
+- Requests send `flags: 4` (`SUPPRESS_EMBEDS`) and card URLs are formatted with `<...>` delimiters (`[card](<url>)`) to disable automatic link preview embed blocks while keeping the text hyperlinked.
 - Markdown and mention characters in card and store names are escaped.
 - HTTP 429 responses honor `retry_after` with bounded retries.
 - `?wait=true` is appended so the Discord message id can be captured.

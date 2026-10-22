@@ -119,7 +119,7 @@ export function formatMarketNotificationCardLine(
 ): string {
  const cardDetails = formatMarketNotificationCardDetails(notification);
  const cardName = isHttpsUrl(notification.imageUrl)
-  ? `[${notification.cardName}](${escapeLinkUrl(notification.imageUrl)})`
+  ? `[${notification.cardName}](<${escapeLinkUrl(notification.imageUrl)}>)`
   : notification.cardName;
 
  return `• ${cardName} — ${cardDetails}`;
@@ -202,7 +202,7 @@ export function formatMarketNotificationChunks(
  const sorted = sortMarketNotificationsByDetectedAt(notifications);
  const dateStr = formatMarketNotificationDate(lastSyncDate);
  const storeTitle = isHttpsUrl(storeUrl)
-  ? `**[${storeName}](${escapeLinkUrl(storeUrl)})**`
+  ? `**[${storeName}](<${escapeLinkUrl(storeUrl)}>)**`
   : `**${storeName}**`;
 
  const header = `${storeTitle} updated their stock!\nNew cards since ${dateStr}:`;
@@ -254,7 +254,7 @@ export function formatMarketNotificationMessage(
 
  const dateStr = formatMarketNotificationDate(lastSyncDate);
  const storeTitle = isHttpsUrl(storeUrl)
-  ? `**[${storeName}](${escapeLinkUrl(storeUrl)})**`
+  ? `**[${storeName}](<${escapeLinkUrl(storeUrl)}>)**`
   : `**${storeName}**`;
 
  const lines: string[] = [

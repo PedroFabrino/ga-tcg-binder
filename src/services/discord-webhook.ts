@@ -1,5 +1,11 @@
 import { DISCORD_MESSAGE_MAX_LENGTH } from "./discord-market-notification-formatter";
 
+/**
+ * Discord message flag: SUPPRESS_EMBEDS (1 << 2) suppresses all automatic
+ * link preview embeds across the message.
+ */
+export const DISCORD_MESSAGE_FLAG_SUPPRESS_EMBEDS = 4;
+
 const MAX_RETRIES = 3;
 const DEFAULT_RETRY_DELAY_MS = 1000;
 const MAX_RETRY_DELAY_MS = 5000;
@@ -134,6 +140,7 @@ export async function sendDiscordWebhookMessage(
     body: JSON.stringify({
      content,
      allowed_mentions: { parse: [] },
+     flags: DISCORD_MESSAGE_FLAG_SUPPRESS_EMBEDS,
     }),
    });
   } catch (error) {

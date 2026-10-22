@@ -31,7 +31,7 @@ export function escapeDiscordMarkdown(text: string): string {
 export function formatDiscordCardLine(notification: MarketNotification): string {
  const escapedName = escapeDiscordMarkdown(notification.cardName);
  const cardName = isHttpsUrl(notification.imageUrl)
-  ? `[${escapedName}](${escapeLinkUrl(notification.imageUrl as string)})`
+  ? `[${escapedName}](<${escapeLinkUrl(notification.imageUrl as string)}>)`
   : escapedName;
 
  return `• ${cardName} — ${formatMarketNotificationCardDetails(notification)}`;

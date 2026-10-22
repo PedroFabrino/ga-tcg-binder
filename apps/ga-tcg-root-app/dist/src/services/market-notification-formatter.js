@@ -112,7 +112,7 @@ function escapeLinkUrl(value) {
 function formatMarketNotificationCardLine(notification) {
     const cardDetails = formatMarketNotificationCardDetails(notification);
     const cardName = isHttpsUrl(notification.imageUrl)
-        ? `[${notification.cardName}](${escapeLinkUrl(notification.imageUrl)})`
+        ? `[${notification.cardName}](<${escapeLinkUrl(notification.imageUrl)}>)`
         : notification.cardName;
     return `• ${cardName} — ${cardDetails}`;
 }
@@ -172,7 +172,7 @@ function formatMarketNotificationChunks(notifications, storeName, lastSyncDate, 
     const sorted = sortMarketNotificationsByDetectedAt(notifications);
     const dateStr = formatMarketNotificationDate(lastSyncDate);
     const storeTitle = isHttpsUrl(storeUrl)
-        ? `**[${storeName}](${escapeLinkUrl(storeUrl)})**`
+        ? `**[${storeName}](<${escapeLinkUrl(storeUrl)}>)**`
         : `**${storeName}**`;
     const header = `${storeTitle} updated their stock!\nNew cards since ${dateStr}:`;
     const chunks = [];
@@ -212,7 +212,7 @@ function formatMarketNotificationMessage(notifications, storeName, lastSyncDate,
     }
     const dateStr = formatMarketNotificationDate(lastSyncDate);
     const storeTitle = isHttpsUrl(storeUrl)
-        ? `**[${storeName}](${escapeLinkUrl(storeUrl)})**`
+        ? `**[${storeName}](<${escapeLinkUrl(storeUrl)}>)**`
         : `**${storeName}**`;
     const lines = [
         `${storeTitle} updated their stock!`,
