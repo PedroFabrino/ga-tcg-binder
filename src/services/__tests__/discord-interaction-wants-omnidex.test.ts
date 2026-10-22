@@ -194,6 +194,54 @@ describe("Discord Interactive Selection, Wants & Omnidex Integration", () => {
       expect(remRes.type).toBe(4);
       expect(remRes.data?.embeds?.[0].description).toContain("**1** remaining");
     });
+
+    it("resolves a card by display name (case-insensitive) instead of crashing", async () => {
+      // Discord sends the raw typed name (e.g. "Creative Shock"), not the slug.
+      const addPayload: DiscordInteractionPayload = {
+        type: 2,
+        id: "int_want_add_name",
+        token: "tok",
+        data: {
+          name: "wantlist",
+          options: [
+            {
+              name: "add",
+              type: 1,
+              options: [{ name: "card", type: 3, value: "Creative Shock" }],
+            },
+          ],
+        },
+        user: { id: discordUserId, username: "Lancelot" },
+      };
+
+      const res = await handleDiscordInteraction(addPayload, db);
+      expect(res.type).toBe(4);
+      expect(res.data?.embeds?.[0].title).toContain("Added to Personal Wants!");
+      expect(res.data?.embeds?.[0].description).toContain("Creative Shock");
+    });
+
+    it("returns a friendly error instead of crashing for an unknown card", async () => {
+      const addPayload: DiscordInteractionPayload = {
+        type: 2,
+        id: "int_want_add_missing",
+        token: "tok",
+        data: {
+          name: "wantlist",
+          options: [
+            {
+              name: "add",
+              type: 1,
+              options: [{ name: "card", type: 3, value: "Nonexistent Card" }],
+            },
+          ],
+        },
+        user: { id: discordUserId, username: "Lancelot" },
+      };
+
+      const res = await handleDiscordInteraction(addPayload, db);
+      expect(res.type).toBe(4);
+      expect(res.data?.embeds?.[0].title).toContain("Card Not Found");
+    });
   });
 
   describe("Omnidex Ingestion Modals and Gap Calculation", () => {

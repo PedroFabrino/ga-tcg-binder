@@ -311,3 +311,29 @@ export async function searchCardsForAutocomplete(
     .where(sql`LOWER(${cards.name}) LIKE ${"%" + clean + "%"}`)
     .limit(limit);
 }
+
+/**
+ * Resolves a card by exact slug or exact display name, case-insensitively.
+ * Used by Discord commands where the user may submit a display name instead of a slug.
+ */
+export async function findCardBySlugOrName(
+  query: string,
+  database: CatalogDatabase = db
+): Promise<CardRow | undefined> {
+  const clean = query.trim().toLowerCase();
+  if (!clean) return undefined;
+
+  const [bySlug] = await database
+    .select()
+    .from(cards)
+    .where(sql`LOWER(${cards.slug}) = ${clean}`)
+    .limit(1);
+  if (bySlug) return bySlug;
+
+  const [byName] = await database
+    .select()
+    .from(cards)
+    .where(sql`LOWER(${cards.name}) = ${clean}`)
+    .limit(1);
+  return byName;
+}

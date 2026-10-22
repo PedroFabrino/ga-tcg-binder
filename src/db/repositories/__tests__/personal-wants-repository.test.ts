@@ -74,7 +74,7 @@ describe("personal-wants-repository", () => {
   });
 
   it("upserts a new personal want and lists it with joined card data", async () => {
-    const item = await upsertPersonalWant(
+    const result = await upsertPersonalWant(
       {
         collectorId: testCollectorId,
         cardSlug: "creative-shock",
@@ -87,17 +87,36 @@ describe("personal-wants-repository", () => {
       db
     );
 
-    expect(item).toBeDefined();
-    expect(item.desiredQuantity).toBe(2);
-    expect(item.cardName).toBe("Creative Shock");
-    expect(item.setPrefix).toBe("DOA");
-    expect(item.foil).toBe(true);
-    expect(item.targetMaxPrice).toBe(45.5);
+    expect(result.success).toBe(true);
+    if (!result.success) throw new Error("expected upsert to succeed");
+    expect(result.item.desiredQuantity).toBe(2);
+    expect(result.item.cardName).toBe("Creative Shock");
+    expect(result.item.setPrefix).toBe("DOA");
+    expect(result.item.foil).toBe(true);
+    expect(result.item.targetMaxPrice).toBe(45.5);
 
     const list = await listPersonalWants(testCollectorId, db);
     expect(list).toHaveLength(1);
     expect(list[0].cardSlug).toBe("creative-shock");
     expect(list[0].desiredQuantity).toBe(2);
+  });
+
+  it("returns success:false without throwing for a non-existent card slug", async () => {
+    const result = await upsertPersonalWant(
+      {
+        collectorId: testCollectorId,
+        cardSlug: "nonexistent-card",
+        desiredQuantity: 1,
+        source: "manual",
+      },
+      db
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.item).toBeNull();
+
+    const list = await listPersonalWants(testCollectorId, db);
+    expect(list).toHaveLength(0);
   });
 
   it("increments quantity when upserting existing want", async () => {
@@ -120,7 +139,9 @@ describe("personal-wants-repository", () => {
       db
     );
 
-    expect(updated.desiredQuantity).toBe(4);
+    expect(updated.success).toBe(true);
+    if (!updated.success) throw new Error("expected upsert to succeed");
+    expect(updated.item.desiredQuantity).toBe(4);
 
     const list = await listPersonalWants(testCollectorId, db);
     expect(list).toHaveLength(1);

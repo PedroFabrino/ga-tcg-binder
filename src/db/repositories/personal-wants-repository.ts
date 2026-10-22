@@ -48,6 +48,10 @@ export interface RemovePersonalWantResult {
   removed: boolean;
 }
 
+export type UpsertPersonalWantResult =
+  | { success: true; item: PersonalWantItem }
+  | { success: false; item: null };
+
 /**
  * Lists all active personal wants for a collector, joined with canonical card & edition data.
  */
@@ -89,14 +93,28 @@ export async function listPersonalWants(
 
 /**
  * Inserts or increments a personal want for a collector.
+ *
+ * Validates that the card slug references a real catalog card before writing, so an
+ * unresolvable slug returns `{ success: false, item: null }` instead of throwing a
+ * foreign-key constraint error (or silently returning `undefined` from a join miss).
  */
 export async function upsertPersonalWant(
   data: UpsertPersonalWantInput,
   database = db
-): Promise<PersonalWantItem> {
+): Promise<UpsertPersonalWantResult> {
   const desiredQty = data.desiredQuantity ?? 1;
   const foilVal = data.foil === undefined ? null : data.foil === null ? null : data.foil;
   const editionVal = data.editionId ?? null;
+
+  // Enforce the cards.slug foreign-key invariant before writing.
+  const card = await database
+    .select({ slug: cards.slug })
+    .from(cards)
+    .where(eq(cards.slug, data.cardSlug))
+    .get();
+  if (!card) {
+    return { success: false, item: null };
+  }
 
   const conditions = [
     eq(collectorWants.collectorId, data.collectorId),
@@ -126,7 +144,8 @@ export async function upsertPersonalWant(
       .where(eq(collectorWants.id, existing.id));
 
     const updated = await listPersonalWants(data.collectorId, database);
-    return updated.find((u) => u.id === existing.id)!;
+    const item = updated.find((u) => u.id === existing.id);
+    return item ? { success: true, item } : { success: false, item: null };
   }
 
   const newId = randomUUID();
@@ -145,7 +164,8 @@ export async function upsertPersonalWant(
 
   await database.insert(collectorWants).values(row);
   const items = await listPersonalWants(data.collectorId, database);
-  return items.find((u) => u.id === newId)!;
+  const item = items.find((u) => u.id === newId);
+  return item ? { success: true, item } : { success: false, item: null };
 }
 
 /**

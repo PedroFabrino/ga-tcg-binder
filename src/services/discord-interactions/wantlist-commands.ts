@@ -8,6 +8,7 @@ import {
 } from "../../db/repositories/personal-wants-repository";
 import { importOmnidexDeckToPersonalWants } from "../omnidex-wants";
 import { fetchDeckFromUrl } from "../omnidex";
+import { findCardBySlugOrName } from "../../db/repositories/catalog-repository";
 import { sendDiscordDirectMessage } from "../discord-deal-notifier";
 import { buildWantlistAddOmnidexModal } from "./modals";
 import {
@@ -64,8 +65,8 @@ export async function handleWantlistCommand(
 
   // Subcommand: /wantlist add
   if (subAdd) {
-    const cardSlug = getOptionValue(subAdd.options, "card");
-    if (!cardSlug) {
+    const cardInput = getOptionValue(subAdd.options, "card");
+    if (!cardInput) {
       return createEphemeralEmbed(
         "Missing Card",
         "Please specify a card: `/wantlist add card: <name>`.",
@@ -78,10 +79,19 @@ export async function handleWantlistCommand(
     const foilVal = getOptionValue(subAdd.options, "foil");
     const foil = foilVal !== undefined ? Boolean(foilVal) : null;
 
+    const card = await findCardBySlugOrName(String(cardInput).trim(), database as any);
+    if (!card) {
+      return createEphemeralEmbed(
+        "Card Not Found",
+        `Couldn't find a card matching "${cardInput}". Please pick a suggestion from the autocomplete list.`,
+        DISCORD_COLORS.RED
+      );
+    }
+
     const want = await upsertPersonalWant(
       {
         collectorId: collector.id,
-        cardSlug: String(cardSlug),
+        cardSlug: card.slug,
         desiredQuantity: desiredQty,
         foil,
         source: "manual",
@@ -89,10 +99,18 @@ export async function handleWantlistCommand(
       database as any
     );
 
+    if (!want.success) {
+      return createEphemeralEmbed(
+        "Card Not Found",
+        `Couldn't add "${cardInput}" to your Personal Wants.`,
+        DISCORD_COLORS.RED
+      );
+    }
+
     return createEphemeralEmbed(
       "🎯 Added to Personal Wants!",
-      `Added **${want.desiredQuantity}x ${want.cardName}** (${
-        want.foil === true ? "★ Foil" : want.foil === false ? "Normal" : "Any Finish"
+      `Added **${want.item.desiredQuantity}x ${want.item.cardName}** (${
+        want.item.foil === true ? "★ Foil" : want.item.foil === false ? "Normal" : "Any Finish"
       }) to your Personal Wants.\nView your complete list with \`/wantlist view\`.`,
       DISCORD_COLORS.GREEN
     );
@@ -100,8 +118,8 @@ export async function handleWantlistCommand(
 
   // Subcommand: /wantlist remove
   if (subRemove) {
-    const cardSlug = getOptionValue(subRemove.options, "card");
-    if (!cardSlug) {
+    const cardInput = getOptionValue(subRemove.options, "card");
+    if (!cardInput) {
       return createEphemeralEmbed(
         "Missing Card",
         "Please specify a card to remove: `/wantlist remove card: <name>`.",
@@ -112,9 +130,14 @@ export async function handleWantlistCommand(
     const qtyVal = getOptionValue(subRemove.options, "quantity");
     const removeQty = qtyVal ? Number(qtyVal) : undefined;
 
+    // Resolve display name or slug to the canonical slug stored on the want.
+    const card = await findCardBySlugOrName(String(cardInput).trim(), database as any);
+    const cardSlug = card ? card.slug : String(cardInput).trim();
+    const displayName = card ? card.name : String(cardInput);
+
     const res = await removePersonalWant(
       collector.id,
-      String(cardSlug),
+      cardSlug,
       removeQty,
       database as any
     );
@@ -122,7 +145,7 @@ export async function handleWantlistCommand(
     if (!res.success) {
       return createEphemeralEmbed(
         "Card Not in Wants",
-        `"${cardSlug}" was not found in your Personal Wants.`,
+        `"${displayName}" was not found in your Personal Wants.`,
         DISCORD_COLORS.RED
       );
     }
@@ -130,7 +153,7 @@ export async function handleWantlistCommand(
     return createEphemeralEmbed(
       "Removed from Personal Wants",
       res.removed
-        ? `Removed **${cardSlug}** completely from your Personal Wants.`
+        ? `Removed **${displayName}** completely from your Personal Wants.`
         : `Decremented quantity. **${res.remainingQuantity}** remaining in your Personal Wants.`,
       DISCORD_COLORS.GREEN
     );
