@@ -3,6 +3,7 @@
 import { ReactNode } from "react";
 import { Minus, Plus, Gem, Sparkles } from "lucide-react";
 import { getElementClass } from "@/lib/elements";
+import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -94,20 +95,25 @@ export function QuantityStepper({
   onChange,
   disabled,
   label,
+  canDecrement = true,
+  canIncrement = true,
 }: {
   value: number;
   onChange: (delta: number) => void;
   disabled?: boolean;
   label: string;
+  canDecrement?: boolean;
+  canIncrement?: boolean;
 }) {
+  const { t } = useTranslation();
   return (
-    <div className="inline-flex items-center rounded-lg border border-white/[0.08] bg-black/20" role="group" aria-label={`Quantity for ${label}`}>
+    <div className="inline-flex items-center rounded-lg border border-white/[0.08] bg-black/20" role="group" aria-label={t("common.quantityStepperGroup", { label })}>
       <Button
         variant="ghost"
         size="icon-sm"
         onClick={() => onChange(-1)}
-        disabled={disabled}
-        aria-label={`Remove one ${label}`}
+        disabled={disabled || !canDecrement}
+        aria-label={t("common.quantityStepperRemove", { label })}
         className="stepper-btn rounded-r-none hover:bg-rose-500/15 hover:text-rose-300"
       >
         <Minus className="h-3 w-3" />
@@ -117,8 +123,8 @@ export function QuantityStepper({
         variant="ghost"
         size="icon-sm"
         onClick={() => onChange(1)}
-        disabled={disabled}
-        aria-label={`Add one ${label}`}
+        disabled={disabled || !canIncrement}
+        aria-label={t("common.quantityStepperAdd", { label })}
         className="stepper-btn rounded-l-none hover:bg-emerald-500/15 hover:text-emerald-300"
       >
         <Plus className="h-3 w-3" />

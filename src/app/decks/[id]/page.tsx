@@ -7,12 +7,19 @@ import { ArrowLeft, Copy, Trash2, Crown, BookOpen, Check, LayoutGrid, List } fro
 import { ConfirmModal } from "@/components/common";
 import { SkeletonRow, EmptyState } from "@/components/Skeletons";
 import { useToast } from "@/components/ToastProvider";
-import ShortageTable, { FeasibilityBanner, type ShortageItem, type ShortageReport } from "@/components/decks/ShortageTable";
+import ShortageTable, { FeasibilityBanner, type ShortageReport } from "@/components/decks/ShortageTable";
 import DeckList, { type DeckCard } from "@/components/decks/DeckList";
 import DeckCardGrid from "@/components/decks/DeckCardGrid";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { buildCollectionUpdateRequest } from "@/lib/collection-stepper";
 import { useTranslation } from "@/lib/i18n";
+
+interface BinderTarget {
+  cardSlug: string;
+  cardName?: string | null;
+  assignedEditionId?: string | null;
+}
 
 export default function DeckDetailPage() {
 const { t } = useTranslation();
@@ -80,88 +87,53 @@ const { showToast } = useToast();
     }
   };
 
-  const addMissing = async (item: ShortageItem) => {
-    setAddingSlug(item.cardSlug);
-    try {
-      let editionId: string | undefined;
-      let cardName = item.cardName;
-
-      // Check if catalog has printings
-      const catRes = await fetch(`/api/catalog?query=${encodeURIComponent(item.cardSlug)}&limit=1`);
-      const catData = catRes.ok ? await catRes.json() : null;
-      const foundCard = catData?.cards?.[0];
-      if (foundCard?.editions?.[0]?.id) {
-        editionId = foundCard.editions[0].id;
-        cardName = foundCard.name || cardName;
-      }
-
-      if (!editionId) {
-        throw new Error("No catalog edition found for this card. Please sync catalog.");
-      }
-
-      const res = await fetch("/api/collection", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          editionId,
-          foil: false,
-          quantity: item.missingQuantity,
-          userId: session?.user?.id,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to add to collection");
-      }
-
-      showToast(`Added ${item.missingQuantity}x ${cardName} to Binder`, "success");
-      load(true);
-    } catch (e: any) {
-      showToast(e.message || `Couldn't add ${item.cardName}`, "error");
-    } finally {
-      setAddingSlug(null);
+  const resolveEdition = async (cardSlug: string, assignedEditionId?: string | null) => {
+    if (assignedEditionId) {
+      return { editionId: assignedEditionId, cardName: null as string | null };
     }
+
+    const catRes = await fetch(`/api/catalog?query=${encodeURIComponent(cardSlug)}&limit=1`);
+    const catData = catRes.ok ? await catRes.json() : null;
+    const foundCard = catData?.cards?.[0];
+    return {
+      editionId: (foundCard?.editions?.[0]?.id as string | undefined) ?? null,
+      cardName: (foundCard?.name as string | undefined) ?? null,
+    };
   };
 
-  const addOne = async (cardSlug: string, cardNameParam?: string | null, assignedEditionId?: string | null) => {
-    setAddingSlug(cardSlug);
+  const adjustCopies = async (target: BinderTarget, delta: number, ownedQuantity: number) => {
+    if (delta === 0) return;
+
+    setAddingSlug(target.cardSlug);
     try {
-      let editionId = assignedEditionId;
-      let cardName = cardNameParam || cardSlug;
-
-      if (!editionId) {
-        const catRes = await fetch(`/api/catalog?query=${encodeURIComponent(cardSlug)}&limit=1`);
-        const catData = catRes.ok ? await catRes.json() : null;
-        const foundCard = catData?.cards?.[0];
-        if (foundCard?.editions?.[0]?.id) {
-          editionId = foundCard.editions[0].id;
-          cardName = foundCard.name || cardName;
-        }
+      const resolved = await resolveEdition(target.cardSlug, target.assignedEditionId);
+      if (!resolved.editionId) {
+        throw new Error(t("shortages.noPrintingFound"));
       }
 
-      if (!editionId) {
-        throw new Error("No printing found for this card. Please sync catalog.");
-      }
+      // The collection endpoint treats quantity as a delta, so -1 removes a copy.
+      const body = buildCollectionUpdateRequest(resolved.editionId, ownedQuantity, delta);
+      if (!body) return;
 
       const res = await fetch("/api/collection", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          editionId,
-          foil: false,
-          quantity: 1,
-          userId: session?.user?.id,
-        }),
+        body: JSON.stringify({ ...body, userId: session?.user?.id }),
       });
-      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || "Failed to add to collection");
+        throw new Error(t("shortages.quantityUpdateError"));
       }
 
-      showToast(`Added 1x ${cardName} to Binder`, "success");
-      load(true);
+      const cardName = resolved.cardName || target.cardName || target.cardSlug;
+      showToast(
+        delta > 0
+          ? t("shortages.quickAddSuccess", { quantity: delta, cardName })
+          : t("shortages.quickRemoveSuccess", { quantity: Math.abs(delta), cardName }),
+        delta > 0 ? "success" : "info",
+      );
+      await load(true);
     } catch (e: any) {
-      showToast(e.message || `Couldn't add copy of card`, "error");
+      showToast(e.message || t("shortages.quantityUpdateError"), "error");
     } finally {
       setAddingSlug(null);
     }
@@ -266,7 +238,9 @@ const { showToast } = useToast();
               <DeckCardGrid
                 cards={cards}
                 shortageItems={shortage?.items || []}
-                onAddOne={addOne}
+                onAddOne={(cardSlug, cardName, assignedEditionId) =>
+                  adjustCopies({ cardSlug, cardName, assignedEditionId }, 1, 0)
+                }
                 addingSlug={addingSlug}
               />
             </section>
@@ -283,7 +257,17 @@ const { showToast } = useToast();
                     Only show shortages
                   </label>
                 </div>
-                <ShortageTable items={shortage?.items || []} onAddMissing={addMissing} addingSlug={addingSlug} onlyMissing={onlyMissing}/>
+                <ShortageTable
+                  items={shortage?.items || []}
+                  onAddMissing={(item) =>
+                    adjustCopies(item, item.missingQuantity, item.availableQuantity)
+                  }
+                  onAdjustQuantity={(item, delta) =>
+                    adjustCopies(item, delta, item.availableQuantity)
+                  }
+                  addingSlug={addingSlug}
+                  onlyMissing={onlyMissing}
+                />
               </section>
               <aside className="rounded-2xl glass p-5" aria-label="Decklist">
                 <DeckList {...cards}/>

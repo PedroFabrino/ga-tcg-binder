@@ -3,6 +3,8 @@
 import { AlertTriangle, Check, Users, Plus, Loader2, MessageSquare, Lock, Store, ExternalLink } from "lucide-react";
 import { useToast } from "@/components/ToastProvider";
 import { CardPreviewTrigger } from "@/components/CardHoverPreview";
+import { QuantityStepper } from "@/components/common";
+import { useTranslation } from "@/lib/i18n";
 import type { MarketShortageAvailability } from "@/services/shortage";
 
 export interface ShortageItem extends MarketShortageAvailability {
@@ -86,15 +88,18 @@ export function FeasibilityBanner({ report, label = "Cards Ready" }: { report: S
 export default function ShortageTable({
   items,
   onAddMissing,
+  onAdjustQuantity,
   addingSlug,
   onlyMissing = false,
 }: {
   items: ShortageItem[];
   onAddMissing?: (item: ShortageItem) => void;
+  onAdjustQuantity?: (item: ShortageItem, delta: number) => void;
   addingSlug?: string | null;
   onlyMissing?: boolean;
 }) {
   const { showToast } = useToast();
+  const { t } = useTranslation();
   const rows = onlyMissing ? items.filter((i) => i.missingQuantity > 0) : [...items].sort((a, b) => b.missingQuantity - a.missingQuantity);
 
   const borrowInquiry = async (item: ShortageItem, friend: ShortageItem["friendsWithIdle"][number]) => {
@@ -122,7 +127,7 @@ export default function ShortageTable({
             <th scope="col" className="px-3 py-2.5 text-center font-semibold">Need</th>
             <th scope="col" className="px-3 py-2.5 text-center font-semibold">Have</th>
             <th scope="col" className="px-3 py-2.5 font-semibold">Status</th>
-            {onAddMissing && <th scope="col" className="px-3 py-2.5 text-right font-semibold">Action</th>}
+            {(onAddMissing || onAdjustQuantity) && <th scope="col" className="px-3 py-2.5 text-right font-semibold">Action</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-white/[0.04]">
@@ -223,18 +228,33 @@ export default function ShortageTable({
                     </div>
                   )}
                 </td>
-                {onAddMissing && (
+                {(onAddMissing || onAdjustQuantity) && (
                   <td className="px-3 py-3 text-right align-top">
-                    {short && (
-                      <button
-                        onClick={() => onAddMissing(item)}
-                        disabled={addingSlug === item.cardSlug}
-                        className="inline-flex items-center gap-1 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium text-slate-200 transition-all hover:border-cyan-400/40 hover:bg-cyan-400/10 hover:text-cyan-200 active:scale-95 disabled:opacity-50"
-                      >
-                        {addingSlug === item.cardSlug ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-                        Add {item.missingQuantity} missing
-                      </button>
-                    )}
+                    <div className="flex flex-col items-end gap-1.5">
+                      {onAdjustQuantity && (
+                        <QuantityStepper
+                          value={item.availableQuantity}
+                          label={item.cardName}
+                          disabled={addingSlug === item.cardSlug}
+                          canDecrement={item.availableQuantity > 0}
+                          onChange={(delta) => onAdjustQuantity(item, delta)}
+                        />
+                      )}
+                      {short && onAddMissing && (
+                        <button
+                          onClick={() => onAddMissing(item)}
+                          disabled={addingSlug === item.cardSlug}
+                          title={t("shortages.fillShortageTitle", {
+                            quantity: item.missingQuantity,
+                            cardName: item.cardName,
+                          })}
+                          className="inline-flex items-center gap-1 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium text-slate-200 transition-all hover:border-cyan-400/40 hover:bg-cyan-400/10 hover:text-cyan-200 active:scale-95 disabled:opacity-50"
+                        >
+                          {addingSlug === item.cardSlug ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                          {t("shortages.fillShortageBtn", { quantity: item.missingQuantity })}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 )}
               </tr>

@@ -1,5 +1,5 @@
 /**
- * Pure request builder for the collection update stepper.
+ * Pure request builder for binder quantity steppers.
  *
  * `addOrUpdateCollectionItem` treats `quantity` as a DELTA
  * (existing.quantity + params.quantity), so this must return the delta ±1,

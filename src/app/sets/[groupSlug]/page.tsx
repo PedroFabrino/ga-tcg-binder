@@ -16,7 +16,7 @@ import { LoadingState, EmptyState } from "@/components/Skeletons";
 import SetChecklistHeader from "@/components/sets/SetChecklistHeader";
 import SetChecklistFiltersBar from "@/components/sets/SetChecklistFilters";
 import SetChecklistCard from "@/components/sets/SetChecklistCard";
-import { buildCollectionUpdateRequest } from "@/components/sets/stepper-utils";
+import { buildCollectionUpdateRequest } from "@/lib/collection-stepper";
 
 export default function SetChecklistPage() {
   const params = useParams<{ groupSlug: string }>();

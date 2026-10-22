@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCollectionUpdateRequest } from "../stepper-utils";
+import { buildCollectionUpdateRequest } from "../collection-stepper";
 
 describe("buildCollectionUpdateRequest", () => {
   it("returns delta +1 (not absolute count)", () => {
