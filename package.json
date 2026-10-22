@@ -17,7 +17,8 @@
     "sync:market": "tsx scripts/sync-market.ts",
     "sync:daemon": "tsx scripts/sync-daemon.ts",
     "sync:pipeline": "tsx scripts/sync-pipeline.ts",
-    "spike:myp": "tsx scripts/spike-myp-order-sync.ts"
+    "spike:myp": "tsx scripts/spike-myp-order-sync.ts",
+    "sync:sets": "tsx scripts/sync-sets.ts"
   },
   "dependencies": {
     "@ga/contracts": "workspace:*",
