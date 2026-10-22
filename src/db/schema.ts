@@ -31,6 +31,7 @@ lowPopThreshold: integer("low_pop_threshold").notNull().default(1000),
   slightlyOverpricedMultiplier: real("slightly_overpriced_multiplier").notNull().default(1.2),
   heavilyOverpricedMultiplier: real("heavily_overpriced_multiplier").notNull().default(2.0),
   watchlistSyncToken: text("watchlist_sync_token"),
+  hiddenSetUuids: text("hidden_set_uuids").notNull().default("[]"),
   createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
 
@@ -392,7 +393,6 @@ export const shippingTickets = sqliteTable("shipping_tickets", {
 }, (table) => ({
   userTicketUnique: uniqueIndex("shipping_tickets_user_ticket_idx").on(table.userId, table.superfreteOrderId),
 }));
-
+// Featured-set tables live in ./featured-set-schema to stay under 400 lines.
+export * from "./featured-set-schema";
 export * from "./assistant-schema";
-
-
