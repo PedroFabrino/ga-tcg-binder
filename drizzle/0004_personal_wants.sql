@@ -15,3 +15,5 @@ CREATE TABLE IF NOT EXISTS `collector_wants` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS `collector_wants_collector_card_edition_foil_idx` ON `collector_wants` (`collector_id`, `card_slug`, `edition_id`, `foil`);
+--> statement-breakpoint
+ALTER TABLE `collector_identities` ADD COLUMN `wantlist_notifications_enabled` integer DEFAULT 0 NOT NULL;

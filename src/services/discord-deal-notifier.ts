@@ -163,7 +163,13 @@ export async function sendDiscordDirectMessage(
   embed: DiscordEmbed,
   botToken = process.env.DISCORD_BOT_TOKEN
 ): Promise<boolean> {
-  if (!botToken) return false;
+  if (!botToken) {
+    console.warn("[discord-dm] DISCORD_BOT_TOKEN is not configured in environment variables.");
+    return false;
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
 
   try {
     // 1. Open DM channel with recipient
@@ -174,9 +180,15 @@ export async function sendDiscordDirectMessage(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ recipient_id: discordUserId }),
+      signal: controller.signal,
     });
 
-    if (!dmRes.ok) return false;
+    if (!dmRes.ok) {
+      clearTimeout(timer);
+      const errText = await dmRes.text().catch(() => "");
+      console.error(`[discord-dm] Failed to open DM channel (${dmRes.status}):`, errText);
+      return false;
+    }
     const dmData = await dmRes.json();
     const channelId = dmData.id;
 
@@ -190,10 +202,19 @@ export async function sendDiscordDirectMessage(
       body: JSON.stringify({
         embeds: [embed],
       }),
+      signal: controller.signal,
     });
 
-    return msgRes.ok;
-  } catch {
+    clearTimeout(timer);
+    if (!msgRes.ok) {
+      const errText = await msgRes.text().catch(() => "");
+      console.error(`[discord-dm] Failed to post DM embed (${msgRes.status}):`, errText);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    clearTimeout(timer);
+    console.error("[discord-dm] Error sending DM:", err);
     return false;
   }
 }

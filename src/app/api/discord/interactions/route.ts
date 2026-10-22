@@ -27,6 +27,7 @@ export async function POST(request: Request) {
     const response = await handleDiscordInteraction(payload);
     return NextResponse.json(response);
   } catch (err: any) {
+    console.error("[discord/interactions] Handler error:", err);
     return NextResponse.json(
       { error: "BAD_REQUEST", message: err?.message || "Invalid payload" },
       { status: 400 }
