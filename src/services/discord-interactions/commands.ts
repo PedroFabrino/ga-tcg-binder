@@ -297,7 +297,7 @@ export async function handleDiscordApplicationCommand(
 
   // 6. /wantlist
   if (commandName === "wantlist") {
-    return handleWantlistCommand(collector, rootOptions, database);
+    return handleWantlistCommand(collector, rootOptions, database, discordUser.id);
   }
 
   return createEphemeralEmbedResponse({

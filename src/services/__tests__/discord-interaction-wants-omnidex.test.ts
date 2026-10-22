@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, vi } from "vitest";
 import { createTestDb } from "../../db/test-utils";
 import {
   users,
@@ -13,6 +13,7 @@ import {
   handleDiscordInteraction,
   type DiscordInteractionPayload,
 } from "../discord-interaction";
+import * as dealNotifier from "../discord-deal-notifier";
 
 describe("Discord Interactive Selection, Wants & Omnidex Integration", () => {
   let db: any;
@@ -337,6 +338,39 @@ describe("Discord Interactive Selection, Wants & Omnidex Integration", () => {
       // 3. Check status again
       const checkRes2 = await handleDiscordInteraction(checkPayload, db);
       expect(checkRes2.data?.embeds?.[0].description).toContain("Enabled 🔔");
+    });
+
+    it("sends a direct message confirmation to the user when enabling notifications", async () => {
+      const dmSpy = vi.spyOn(dealNotifier, "sendDiscordDirectMessage").mockResolvedValue(true);
+
+      const enablePayload: DiscordInteractionPayload = {
+        type: 2,
+        id: "int_notif_enable_dm",
+        token: "tok",
+        data: {
+          name: "wantlist",
+          options: [
+            {
+              name: "notify",
+              type: 1,
+              options: [{ name: "enable", type: 5, value: true }],
+            },
+          ],
+        },
+        user: { id: discordUserId, username: "Lancelot" },
+      };
+
+      const res = await handleDiscordInteraction(enablePayload, db);
+      expect(res.type).toBe(4);
+      expect(res.data?.embeds?.[0].description).toContain("Check your DMs");
+
+      expect(dmSpy).toHaveBeenCalledWith(
+        discordUserId,
+        expect.objectContaining({
+          title: "🔔 Deal Alerts Activated!",
+          description: expect.stringContaining("Hey **Sir Lancelot**! I'll notify you here whenever any of your wantlist cards or deck shortages are for sale on the marketplace!"),
+        })
+      );
     });
   });
 });

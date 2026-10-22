@@ -8,6 +8,7 @@ import {
 } from "../../db/repositories/personal-wants-repository";
 import { importOmnidexDeckToPersonalWants } from "../omnidex-wants";
 import { fetchDeckFromUrl } from "../omnidex";
+import { sendDiscordDirectMessage } from "../discord-deal-notifier";
 import { buildWantlistAddOmnidexModal } from "./modals";
 import {
   DISCORD_COLORS,
@@ -52,7 +53,8 @@ export function getOptionValue(
 export async function handleWantlistCommand(
   collector: { id: string; name: string | null },
   rootOptions: DiscordInteractionDataOption[],
-  database?: unknown
+  database?: unknown,
+  discordUserId?: string
 ): Promise<DiscordInteractionResponse> {
   const subAdd = rootOptions.find((o) => o.name === "add");
   const subRemove = rootOptions.find((o) => o.name === "remove");
@@ -191,11 +193,32 @@ export async function handleWantlistCommand(
       database as any
     );
 
+    let dmSent = false;
+    if (enabled && discordUserId) {
+      dmSent = await sendDiscordDirectMessage(discordUserId, {
+        title: "🔔 Deal Alerts Activated!",
+        description: `Hey **${collector.name || "Collector"}**! I'll notify you here whenever any of your wantlist cards or deck shortages are for sale on the marketplace!`,
+        color: DISCORD_COLORS.GREEN,
+        fields: [
+          {
+            name: "How it works",
+            value: "Whenever stores list cards matching your active Decks or Personal Wants, you'll receive a direct message with card details, prices, and store links.",
+            inline: false,
+          },
+        ],
+        footer: { text: "Manage notifications anytime with /wantlist notify" },
+      });
+    }
+
+    const description = enabled
+      ? (dmSent
+          ? "🔔 Deal notifications **Enabled**! Check your DMs—I've sent you a confirmation message! 📬"
+          : "🔔 Deal notifications **Enabled**! You will receive private DMs when stores list cards matching your wants.")
+      : "🔕 Deal notifications **Disabled**.";
+
     return createEphemeralEmbed(
       "Notification Preference Updated",
-      enabled
-        ? "🔔 Deal notifications **Enabled**! You will receive private DMs when stores list cards matching your wants."
-        : "🔕 Deal notifications **Disabled**.",
+      description,
       enabled ? DISCORD_COLORS.GREEN : DISCORD_COLORS.GOLD
     );
   }
