@@ -32,14 +32,14 @@ async function registerCommands() {
     process.exit(1);
   }
 
-  const url = guildId
+  let targetUrl = guildId
     ? `https://discord.com/api/v10/applications/${appId}/guilds/${guildId}/commands`
     : `https://discord.com/api/v10/applications/${appId}/commands`;
 
-  const scopeLabel = guildId ? `Guild (${guildId})` : "Global (all servers)";
+  let scopeLabel = guildId ? `Guild (${guildId})` : "Global (all servers)";
   console.log(`Registering ${ASSISTANT_COMMANDS.length} slash commands to Discord application ${appId} for ${scopeLabel}...`);
 
-  const response = await fetch(url, {
+  let response = await fetch(targetUrl, {
     method: "PUT",
     headers: {
       Authorization: `Bot ${token}`,
@@ -47,6 +47,21 @@ async function registerCommands() {
     },
     body: JSON.stringify(ASSISTANT_COMMANDS),
   });
+
+  if (!response.ok && guildId && response.status === 403) {
+    console.warn(`\n⚠️ Notice: Bot is not yet a member of Guild ${guildId} (Code 50001 Missing Access).`);
+    console.warn("Falling back to registering commands globally across all servers...\n");
+
+    targetUrl = `https://discord.com/api/v10/applications/${appId}/commands`;
+    response = await fetch(targetUrl, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bot ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(ASSISTANT_COMMANDS),
+    });
+  }
 
   if (!response.ok) {
     const errorBody = await response.text();
