@@ -233,6 +233,19 @@ describe("@ga/contracts", () => {
       // Is a shortage but wrong prefix -> no match
       expect(matchesSetChecklistFilters(makeCard({ prefixes: ["DOA Alter"], isShortage: true }), filters)).toBe(false);
     });
+
+    it("filters by element and rarity", () => {
+      const filters: SetChecklistFilters = { prefix: null, status: "all", element: "FIRE", rarity: 3 };
+      expect(matchesSetChecklistFilters(makeCard({ element: "FIRE", rarity: 3 }), filters)).toBe(true);
+      expect(matchesSetChecklistFilters(makeCard({ element: "WATER", rarity: 3 }), filters)).toBe(false);
+      expect(matchesSetChecklistFilters(makeCard({ element: "FIRE", rarity: 2 }), filters)).toBe(false);
+    });
+
+    it("matches case-insensitive name search", () => {
+      const filters: SetChecklistFilters = { prefix: null, status: "all", search: "test" };
+      expect(matchesSetChecklistFilters(makeCard({ cardName: "Test Card" }), filters)).toBe(true);
+      expect(matchesSetChecklistFilters(makeCard({ cardName: "Other Card" }), filters)).toBe(false);
+    });
   });
 });
 

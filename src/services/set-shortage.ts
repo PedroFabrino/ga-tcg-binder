@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Featured Set Shortage Ranking & Checklist Service
  *
  * Pure domain orchestration: loads bulk data from the repository and computes
@@ -14,12 +14,21 @@ import {
   getFeaturedSetGroupBySlug,
   getFeaturedSetGroupByUuid,
 } from "@/db/repositories/set-repository";
+import {
+  cardToGroupsMap,
+  categoryFromNames,
+  computeShortages,
+  groupDefs,
+  prefixToGroupMap,
+  slugsInGroup,
+} from "./set-shortage-math";
 import { matchesSetChecklistFilters } from "@ga/contracts";
 import type {
   FeaturedSetSummary,
   SetGroupStats,
   SetChecklistCard,
   SetChecklistFilters,
+  SetCategory,
 } from "@ga/contracts";
 
 // ---------------------------------------------------------------------------
@@ -56,7 +65,15 @@ export interface SetChecklistReportCard extends SetChecklistCard {
 }
 
 export interface SetGroupChecklistReport {
-  group: { uuid: string; name: string; slug: string; imageUrl: string | null };
+  group: {
+    uuid: string;
+    name: string;
+    slug: string;
+    imageUrl: string | null;
+    releaseDate: string | null;
+    childPrefixes: string[];
+    category: SetCategory;
+  };
   stats: SetGroupStats;
   cards: SetChecklistReportCard[];
 }
@@ -66,107 +83,6 @@ export class SetGroupNotFoundError extends Error {
     super(`Set group not found: ${identifier}`);
     this.name = "SetGroupNotFoundError";
   }
-}
-
-// ---------------------------------------------------------------------------
-// Internal pure helpers
-// ---------------------------------------------------------------------------
-
-interface PerCardShortage {
-  peakMissing: number;
-  concurrentMissing: number;
-  deckIds: string[];
-}
-
-/** peakMissing = max(0, peakDemand - owned), concurrentMissing = max(0, totalDemand - owned) */
-function computeShortages(
-  allDeckCards: Array<{ deckId: string; cardSlug: string; quantity: number }>,
-  userCollection: Array<{ cardSlug: string; quantity: number }>,
-): Map<string, PerCardShortage> {
-  // Aggregate deck demand per card slug
-  const demandByCard = new Map<string, Map<string, number>>();
-  for (const dc of allDeckCards) {
-    let entry = demandByCard.get(dc.cardSlug);
-    if (!entry) { entry = new Map(); demandByCard.set(dc.cardSlug, entry); }
-    entry.set(dc.deckId, (entry.get(dc.deckId) ?? 0) + dc.quantity);
-  }
-
-  // Aggregate owned per card slug
-  const ownedByCard = new Map<string, number>();
-  for (const ci of userCollection) {
-    ownedByCard.set(ci.cardSlug, (ownedByCard.get(ci.cardSlug) ?? 0) + ci.quantity);
-  }
-
-  const result = new Map<string, PerCardShortage>();
-  for (const [slug, deckMap] of demandByCard) {
-    const owned = ownedByCard.get(slug) ?? 0;
-    const demands = [...deckMap.values()];
-    const peak = demands.reduce((max, q) => Math.max(max, q), 0);
-    const total = demands.reduce((sum, q) => sum + q, 0);
-    result.set(slug, {
-      peakMissing: Math.max(0, peak - owned),
-      concurrentMissing: Math.max(0, total - owned),
-      deckIds: [...deckMap.keys()],
-    });
-  }
-  return result;
-}
-
-/** setPrefix -> groupUuid from definitions. First-wins for ambiguous prefixes. */
-function prefixToGroupMap(
-  defs: Array<{ groupUuid: string; prefix: string }>,
-): Map<string, string> {
-  const m = new Map<string, string>();
-  for (const d of defs) { if (!m.has(d.prefix)) m.set(d.prefix, d.groupUuid); }
-  return m;
-}
-
-/** cardSlug -> Set<groupUuid> via edition setPrefixes. */
-function cardToGroupsMap(
-  editions: Array<{ cardSlug: string; setPrefix: string }>,
-  p2g: Map<string, string>,
-): Map<string, Set<string>> {
-  const m = new Map<string, Set<string>>();
-  for (const e of editions) {
-    const g = p2g.get(e.setPrefix);
-    if (!g) continue;
-    let groups = m.get(e.cardSlug);
-    if (!groups) { groups = new Set(); m.set(e.cardSlug, groups); }
-    groups.add(g);
-  }
-  return m;
-}
-
-/** Map set definitions to their group UUID. */
-function groupDefs(
-  defs: Array<{ groupUuid: string; prefix: string; name: string; releaseDate: string | null }>,
-): Map<string, typeof defs> {
-  const m = new Map<string, typeof defs>();
-  for (const d of defs) {
-    const l = m.get(d.groupUuid); if (l) l.push(d); else m.set(d.groupUuid, [d]);
-  }
-  return m;
-}
-
-/** Card slugs belonging to each group via edition setPrefix → definition → groupUuid. */
-function slugsInGroup(
-  editions: Array<{ cardSlug: string; setPrefix: string }>,
-  p2g: Map<string, string>,
-): Map<string, Set<string>> {
-  const m = new Map<string, Set<string>>();
-  for (const e of editions) {
-    const g = p2g.get(e.setPrefix);
-    if (!g) continue;
-    let s = m.get(g); if (!s) { s = new Set(); m.set(g, s); }
-    s.add(e.cardSlug);
-  }
-  return m;
-}
-
-/** Category: "decks" only when every child name is "Starter Decks" or "Re:Collection". */
-function categoryFromNames(names: string[]): "booster" | "decks" {
-  if (names.length === 0) return "booster";
-  return names.every((n) => n === "Starter Decks" || n === "Re:Collection") ? "decks" : "booster";
 }
 
 // ---------------------------------------------------------------------------
@@ -206,7 +122,10 @@ export async function calculateFeaturedSetSummaries(
     if (groupSlugs) for (const s of groupSlugs) { if (ownedSlugs.has(s)) ownedCards++; }
 
     const prefixes = [...new Set(defs.map((d) => d.prefix))].sort();
-    const relDates = defs.map((d) => d.releaseDate).filter((d): d is string => d !== null).sort();
+    const relDates = defs
+      .map((d) => d.releaseDate)
+      .filter((d): d is string => Boolean(d))
+      .sort();
     const releaseDate = relDates[0] ?? null;
 
     let hard = 0; let shared = 0; let uniqueShort = 0;
@@ -262,15 +181,32 @@ export async function getSetGroupChecklistReport(
   options?: { filters?: SetChecklistFilters },
 ): Promise<SetGroupChecklistReport | null> {
   // Resolve group
-  let group: { uuid: string; name: string; slug: string; imageUrl: string | null };
+  let group: {
+    uuid: string;
+    name: string;
+    slug: string;
+    imageUrl: string | null;
+    releaseDate: string | null;
+    childPrefixes: string[];
+    category: SetCategory;
+  };
   const bySlug = await getFeaturedSetGroupBySlug(slugOrUuid, database);
-  if (bySlug) {
-    group = { uuid: bySlug.uuid, name: bySlug.name, slug: bySlug.slug, imageUrl: bySlug.imageUrl ?? null };
-  } else {
-    const byUuid = await getFeaturedSetGroupByUuid(slugOrUuid, database);
-    if (!byUuid) return null;
-    group = { uuid: byUuid.uuid, name: byUuid.name, slug: byUuid.slug, imageUrl: byUuid.imageUrl ?? null };
-  }
+  const resolved = bySlug ?? (await getFeaturedSetGroupByUuid(slugOrUuid, database));
+  if (!resolved) return null;
+  const defs = resolved.setDefinitions;
+  const releaseDates = defs
+    .map((d) => d.releaseDate)
+    .filter((d): d is string => Boolean(d))
+    .sort();
+  group = {
+    uuid: resolved.uuid,
+    name: resolved.name,
+    slug: resolved.slug,
+    imageUrl: resolved.imageUrl ?? null,
+    releaseDate: releaseDates[0] ?? null,
+    childPrefixes: [...new Set(defs.map((d) => d.prefix))].sort(),
+    category: categoryFromNames(defs.map((d) => d.name)),
+  };
 
   const checklist = await loadSetGroupChecklist(group.uuid, userId, database);
   if (!checklist) return null;
@@ -306,6 +242,9 @@ export async function getSetGroupChecklistReport(
 
   const cards: SetChecklistReportCard[] = [];
   let ownedCardCount = 0;
+  let totalHard = 0;
+  let totalShared = 0;
+  let totalConcurrent = 0;
 
   for (const { slug, name, element, class: cls, type } of cardRows) {
     const slugEds = edsBySlug.get(slug) ?? [];
@@ -348,6 +287,9 @@ export async function getSetGroupChecklistReport(
     };
 
     if (ownedTotal > 0) ownedCardCount++;
+    totalHard += peakM;
+    totalShared += concM - peakM;
+    totalConcurrent += concM;
     if (options?.filters && !matchesSetChecklistFilters(card, options.filters)) continue;
     cards.push(card);
   }
@@ -355,9 +297,9 @@ export async function getSetGroupChecklistReport(
   const totalCards = cardRows.length;
   const stats: SetGroupStats = {
     totalGroups: 1,
-    totalHardShortageCopies: cards.reduce((s, c) => s + c.peakMissing, 0),
-    totalSharedShortageCopies: cards.reduce((s, c) => s + (c.concurrentMissing - c.peakMissing), 0),
-    totalShortageCopies: cards.reduce((s, c) => s + c.concurrentMissing, 0),
+    totalHardShortageCopies: totalHard,
+    totalSharedShortageCopies: totalShared,
+    totalShortageCopies: totalConcurrent,
     totalCardsAcrossGroups: totalCards,
     totalOwnedCardsAcrossGroups: ownedCardCount,
     overallCompletionPercent: totalCards > 0 ? Math.round((ownedCardCount / totalCards) * 100) : 0,

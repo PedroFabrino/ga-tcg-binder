@@ -60,7 +60,7 @@ describe("set-shortage", () => {
       { id: "def-doa-1st", groupUuid: "grp-doa", prefix: "DOA 1st", name: "Dawn of Ashes First Edition", language: "EN", releaseDate: "2023-05-15" },
       { id: "def-doa-alt", groupUuid: "grp-doa", prefix: "DOA Alter", name: "Dawn of Ashes Alter Edition", language: "EN", releaseDate: "2023-08-20" },
       { id: "def-acr", groupUuid: "grp-acr", prefix: "ACR", name: "Alchemical Revolution", language: "EN", releaseDate: "2024-01-10" },
-      { id: "def-rdo", groupUuid: "grp-starter", prefix: "RDO", name: "Re:Collection", language: "EN", releaseDate: "2024-03-01" },
+      { id: "def-rdo", groupUuid: "grp-starter", prefix: "RDO", name: "Re:Collection Shadowdancer", language: "EN", releaseDate: "2024-03-01" },
     ]);
   }
 
@@ -235,6 +235,17 @@ describe("set-shortage", () => {
       expect(doa.releaseDate).toBe("2023-05-15");
     });
 
+    it("ignores empty child release dates when picking the earliest", async () => {
+      await seedAll();
+      await db.insert(setDefinitions).values({
+        id: "def-doa-unknown", groupUuid: "grp-doa", prefix: "DOA Unknown",
+        name: "Dawn of Ashes Unknown", language: "EN", releaseDate: "",
+      });
+      const summaries = await calculateFeaturedSetSummaries("user-1", db);
+      const doa = summaries.find((s: any) => s.groupUuid === "grp-doa")!;
+      expect(doa.releaseDate).toBe("2023-05-15");
+    });
+
     it("returns childPrefixes sorted", async () => {
       await seedAll();
       const summaries = await calculateFeaturedSetSummaries("user-1", db);
@@ -346,6 +357,19 @@ describe("set-shortage", () => {
         expect(c.isShortage).toBe(true);
       }
       expect(report!.cards.length).toBe(1); // only fire-slash has shortage
+      // Group stats stay derived from the full checklist, not the filtered rows.
+      expect(report!.stats.totalCardsAcrossGroups).toBe(3);
+      expect(report!.stats.totalShortageCopies).toBe(2);
+    });
+
+    it("filters by element, rarity, and name search", async () => {
+      await seedAll();
+      const report = await getSetGroupChecklistReport("grp-doa", "user-1", db, {
+        filters: { prefix: null, status: "all", element: "WATER", rarity: 2, search: "water" },
+      });
+      expect(report).not.toBeNull();
+      expect(report!.cards.map((c) => c.cardSlug)).toEqual(["water-bolt"]);
+      expect(report!.stats.totalCardsAcrossGroups).toBe(3);
     });
 
     it("filters by prefix", async () => {

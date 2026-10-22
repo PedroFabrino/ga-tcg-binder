@@ -100,6 +100,12 @@ export type SetChecklistFilterStatus = "all" | "shortages" | "owned" | "unowned"
 export interface SetChecklistFilters {
   prefix: string | null;
   status: SetChecklistFilterStatus;
+  /** Element code, e.g. "FIRE". Null/undefined matches every element. */
+  element?: string | null;
+  /** Rarity number. Null/undefined matches every rarity. */
+  rarity?: number | null;
+  /** Case-insensitive card-name search. Empty/undefined matches every card. */
+  search?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -115,6 +121,19 @@ export function matchesSetChecklistFilters(
   filters: SetChecklistFilters,
 ): boolean {
   if (filters.prefix !== null && !card.prefixes.includes(filters.prefix)) {
+    return false;
+  }
+
+  if (filters.element && card.element.toUpperCase() !== filters.element.toUpperCase()) {
+    return false;
+  }
+
+  if (filters.rarity != null && card.rarity !== filters.rarity) {
+    return false;
+  }
+
+  const search = filters.search?.trim().toLowerCase();
+  if (search && !card.cardName.toLowerCase().includes(search)) {
     return false;
   }
 
