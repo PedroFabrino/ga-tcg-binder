@@ -24,6 +24,7 @@ import type { SupportedLocale } from "@ga/contracts";
 const NAV_ITEMS = [
 { href: "/collection", tKey: "nav.collection" as const, icon: Layers },
 { href: "/decks", tKey: "nav.decks" as const, icon: BookOpen },
+{ href: "/sets", tKey: "nav.sets" as const, icon: Layers },
 { href: "/marketplace", tKey: "nav.marketplace" as const, icon: Store },
 { href: "/catalog", tKey: "nav.catalog" as const, icon: Sparkles },
 { href: "/meta", tKey: "nav.meta" as const, icon: Trophy },
