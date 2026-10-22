@@ -193,9 +193,9 @@ export async function handleWantlistCommand(
       database as any
     );
 
-    let dmSent = false;
     if (enabled && discordUserId) {
-      dmSent = await sendDiscordDirectMessage(discordUserId, {
+      // Fire-and-forget: do NOT block the 3000ms Discord interaction webhook window
+      sendDiscordDirectMessage(discordUserId, {
         title: "🔔 Deal Alerts Activated!",
         description: `Hey **${collector.name || "Collector"}**! I'll notify you here whenever any of your wantlist cards or deck shortages are for sale on the marketplace!`,
         color: DISCORD_COLORS.GREEN,
@@ -207,13 +207,13 @@ export async function handleWantlistCommand(
           },
         ],
         footer: { text: "Manage notifications anytime with /wantlist notify" },
+      }).catch((err) => {
+        console.error("[deal-alerts] Failed to send welcome DM:", err);
       });
     }
 
     const description = enabled
-      ? (dmSent
-          ? "🔔 Deal notifications **Enabled**! Check your DMs—I've sent you a confirmation message! 📬"
-          : "🔔 Deal notifications **Enabled**! You will receive private DMs when stores list cards matching your wants.")
+      ? "🔔 Deal notifications **Enabled**! Check your DMs—I've sent you a confirmation message! 📬"
       : "🔕 Deal notifications **Disabled**.";
 
     return createEphemeralEmbed(

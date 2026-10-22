@@ -165,6 +165,9 @@ export async function sendDiscordDirectMessage(
 ): Promise<boolean> {
   if (!botToken) return false;
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+
   try {
     // 1. Open DM channel with recipient
     const dmRes = await fetch("https://discord.com/api/v10/users/@me/channels", {
@@ -174,9 +177,13 @@ export async function sendDiscordDirectMessage(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ recipient_id: discordUserId }),
+      signal: controller.signal,
     });
 
-    if (!dmRes.ok) return false;
+    if (!dmRes.ok) {
+      clearTimeout(timer);
+      return false;
+    }
     const dmData = await dmRes.json();
     const channelId = dmData.id;
 
@@ -190,10 +197,13 @@ export async function sendDiscordDirectMessage(
       body: JSON.stringify({
         embeds: [embed],
       }),
+      signal: controller.signal,
     });
 
+    clearTimeout(timer);
     return msgRes.ok;
   } catch {
+    clearTimeout(timer);
     return false;
   }
 }
