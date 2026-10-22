@@ -106,4 +106,65 @@ describe("Discord Interaction Service (handleDiscordInteraction)", () => {
     expect(res.data?.embeds?.[0].title).toContain("Sir Gawain");
     expect(res.data?.embeds?.[0].description).toContain("don't have any decks saved");
   });
+
+  it("returns Deck Not Found when /wantlist is called with a non-existent deck", async () => {
+    await db.insert(collectorIdentities).values({
+      id: "ident-gawain",
+      collectorId: testCollectorId,
+      provider: "discord",
+      providerUserId: discordUserId,
+      providerUsername: "Gawain#5678",
+      linkedAt: new Date(),
+    });
+
+    const payload: DiscordInteractionPayload = {
+      type: 2,
+      id: "int-wantlist-invalid",
+      token: "tok-want",
+      data: {
+        name: "wantlist",
+        options: [{ name: "deck", type: 3, value: "NonExistentDeck" }],
+      },
+      user: {
+        id: discordUserId,
+        username: "Gawain#5678",
+      },
+    };
+
+    const res = await handleDiscordInteraction(payload, db);
+    expect(res.type).toBe(4);
+    expect(res.data?.flags).toBe(64);
+    expect(res.data?.embeds?.[0].title).toBe("Deck Not Found");
+    expect(res.data?.embeds?.[0].description).toContain("Could not find a deck matching \"NonExistentDeck\"");
+  });
+
+  it("returns zero shortages when /wantlist is called without options and user has no decks/shortages", async () => {
+    await db.insert(collectorIdentities).values({
+      id: "ident-gawain",
+      collectorId: testCollectorId,
+      provider: "discord",
+      providerUserId: discordUserId,
+      providerUsername: "Gawain#5678",
+      linkedAt: new Date(),
+    });
+
+    const payload: DiscordInteractionPayload = {
+      type: 2,
+      id: "int-wantlist-empty",
+      token: "tok-want-empty",
+      data: {
+        name: "wantlist",
+      },
+      user: {
+        id: discordUserId,
+        username: "Gawain#5678",
+      },
+    };
+
+    const res = await handleDiscordInteraction(payload, db);
+    expect(res.type).toBe(4);
+    expect(res.data?.flags).toBe(64);
+    expect(res.data?.embeds?.[0].title).toBe("Wantlist");
+    expect(res.data?.embeds?.[0].description).toContain("Zero shortages across your decks");
+  });
 });

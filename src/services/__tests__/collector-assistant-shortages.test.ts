@@ -298,5 +298,11 @@ describe("collector-assistant (Tickets 2 & 3: Decks, Shortages, Collection, Want
       expect(wantlist.decks[0].hardShortages).toHaveLength(0);
       expect(wantlist.decks[0].sharedShortages).toHaveLength(1);
     });
+
+    it("throws error when specified deck does not exist", async () => {
+      await expect(
+        getDeckPartitionedWantlist(testCollectorId, "nonexistent deck", db)
+      ).rejects.toThrow("Deck not found");
+    });
   });
 });

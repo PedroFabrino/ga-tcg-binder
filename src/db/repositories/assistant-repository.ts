@@ -1,5 +1,12 @@
 import { db } from "../index";
-import { users } from "../schema";
+import {
+  users,
+  decks,
+  deckCards,
+  collectionItems,
+  cardEditions,
+  cards,
+} from "../schema";
 import {
   collectorIdentities,
   collectorPairingTokens,
@@ -8,7 +15,7 @@ import {
   type CollectorPairingToken,
   type InsertCollectorPairingToken,
 } from "../assistant-schema";
-import { eq, and, gt, isNull } from "drizzle-orm";
+import { eq, and, gt, isNull, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export type AssistantDatabase = typeof db;
@@ -218,3 +225,60 @@ export async function unlinkCollectorIdentity(
 
   return (res as any)?.rowsAffected ? (res as any).rowsAffected > 0 : true;
 }
+
+/**
+ * Loads all data needed for assistant deck shortage calculations in two fast batch queries.
+ */
+export async function loadAssistantCollectorDecksData(
+  collectorId: string,
+  database = db
+) {
+  const userDecks = await database
+    .select({
+      id: decks.id,
+      name: decks.name,
+      champion: decks.champion,
+      format: decks.format,
+    })
+    .from(decks)
+    .where(eq(decks.userId, collectorId));
+
+  const deckIds = userDecks.map((d) => d.id);
+  if (deckIds.length === 0) {
+    return { userDecks: [], allDeckCards: [], userInventory: [] };
+  }
+
+  const [allDeckCards, userInventory] = await Promise.all([
+    database
+      .select({
+        id: deckCards.id,
+        deckId: deckCards.deckId,
+        cardSlug: deckCards.cardSlug,
+        zone: deckCards.zone,
+        quantity: deckCards.quantity,
+        assignedEditionId: deckCards.assignedEditionId,
+        deckName: decks.name,
+        cardName: cards.name,
+        element: cards.element,
+      })
+      .from(deckCards)
+      .innerJoin(decks, eq(deckCards.deckId, decks.id))
+      .leftJoin(cards, eq(deckCards.cardSlug, cards.slug))
+      .where(inArray(deckCards.deckId, deckIds)),
+    database
+      .select({
+        id: collectionItems.id,
+        editionId: collectionItems.editionId,
+        cardSlug: cardEditions.cardSlug,
+        foil: collectionItems.foil,
+        quantity: collectionItems.quantity,
+        isDedicated: collectionItems.isDedicated,
+      })
+      .from(collectionItems)
+      .innerJoin(cardEditions, eq(collectionItems.editionId, cardEditions.id))
+      .where(eq(collectionItems.userId, collectorId)),
+  ]);
+
+  return { userDecks, allDeckCards, userInventory };
+}
+

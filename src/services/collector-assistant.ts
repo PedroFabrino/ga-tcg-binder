@@ -6,12 +6,12 @@ import {
   findIdentitiesByCollectorId,
   unlinkCollectorIdentity,
   findCollectorByIdentity,
+  loadAssistantCollectorDecksData,
   type CollectorIdentity,
   type CollectorProfile,
 } from "../db/repositories/assistant-repository";
-import { getUserDecks } from "../db/repositories/deck-repository";
 import { getUserCollectionItems } from "../db/repositories/collection-repository";
-import { calculateDeckShortage } from "./shortage";
+import { computeDeckShortagesFromData } from "./assistant-shortage-math";
 import type {
   AssistantDeckSummary,
   AssistantShortageItem,
@@ -131,51 +131,27 @@ export async function getCollectorDecks(
   collectorId: string,
   database?: unknown
 ): Promise<AssistantDeckSummary[]> {
-  const userDecks = await getUserDecks(collectorId, database as any);
-  if (!userDecks || userDecks.length === 0) {
-    return [];
-  }
+  const { userDecks, allDeckCards, userInventory } = await loadAssistantCollectorDecksData(
+    collectorId,
+    database as any
+  );
 
-  const summaries: AssistantDeckSummary[] = [];
-
-  for (const deck of userDecks) {
-    const report = await calculateDeckShortage(deck.id, collectorId, database as any);
-
-    let hardShortageCount = 0;
-    let sharedShortageCount = 0;
-    let totalHardMissingCopies = 0;
-
-    for (const item of report.items) {
-      const totalOwned = item.dedicatedCopiesOwned + item.sharedCopiesOwned;
-      const hardMissing = Math.max(0, item.requiredQuantity - totalOwned);
-
-      if (hardMissing > 0) {
-        hardShortageCount++;
-        totalHardMissingCopies += hardMissing;
-      } else if (item.missingQuantity > 0 || item.isContended) {
-        sharedShortageCount++;
-      }
-    }
-
-    const totalCards = report.totalCardsRequired;
-    const playableOwned = Math.max(0, totalCards - totalHardMissingCopies);
-    const completionPercentage =
-      totalCards > 0 ? Math.max(0, Math.min(100, Math.round((playableOwned / totalCards) * 100))) : 100;
-
-    summaries.push({
-      id: deck.id,
-      name: deck.name,
-      format: deck.format || "standard",
-      champion: deck.champion || null,
-      totalCards,
-      uniqueCards: report.items.length,
-      completionPercentage,
-      hardShortageCount,
-      sharedShortageCount,
-    });
-  }
-
-  return summaries;
+  return userDecks.map((deck) => {
+    const targetCards = allDeckCards.filter((c) => c.deckId === deck.id);
+    const otherCards = allDeckCards.filter((c) => c.deckId !== deck.id);
+    const res = computeDeckShortagesFromData(deck, targetCards, otherCards, userInventory);
+    return {
+      id: res.deckId,
+      name: res.deckName,
+      format: res.format,
+      champion: res.champion,
+      totalCards: res.totalCards,
+      uniqueCards: res.uniqueCards,
+      completionPercentage: res.completionPercentage,
+      hardShortageCount: res.totalHardShortages,
+      sharedShortageCount: res.totalSharedShortages,
+    };
+  });
 }
 
 /**
@@ -186,9 +162,12 @@ export async function getDeckShortages(
   deckIdOrName: string,
   database?: unknown
 ): Promise<AssistantDeckShortagesResponse> {
-  const userDecks = await getUserDecks(collectorId, database as any);
-  const cleanQuery = deckIdOrName.trim().toLowerCase();
+  const { userDecks, allDeckCards, userInventory } = await loadAssistantCollectorDecksData(
+    collectorId,
+    database as any
+  );
 
+  const cleanQuery = deckIdOrName.trim().toLowerCase();
   const deck =
     userDecks.find((d) => d.id === deckIdOrName) ||
     userDecks.find((d) => d.name.toLowerCase() === cleanQuery) ||
@@ -198,64 +177,20 @@ export async function getDeckShortages(
     throw new Error(`Deck not found: ${deckIdOrName}`);
   }
 
-  const report = await calculateDeckShortage(deck.id, collectorId, database as any);
-
-  const hardShortages: AssistantShortageItem[] = [];
-  const sharedShortages: AssistantShortageItem[] = [];
-  let totalHardMissingCopies = 0;
-
-  for (const item of report.items) {
-    const totalOwned = item.dedicatedCopiesOwned + item.sharedCopiesOwned;
-    const hardMissing = Math.max(0, item.requiredQuantity - totalOwned);
-
-    if (hardMissing > 0) {
-      totalHardMissingCopies += hardMissing;
-      hardShortages.push({
-        cardSlug: item.cardSlug,
-        cardName: item.cardName,
-        element: "Norm",
-        rarity: null,
-        requiredQuantity: item.requiredQuantity,
-        missingQuantity: hardMissing,
-        sharedQuantity: 0,
-        competingDecks: item.contendingDeckNames || [],
-        type: "hard",
-        zone: item.zone,
-        imageUrl: item.imageUrl,
-      });
-    } else if (item.missingQuantity > 0 || item.isContended) {
-      const sharedMissing = item.missingQuantity > 0 ? item.missingQuantity : item.requiredQuantity;
-      sharedShortages.push({
-        cardSlug: item.cardSlug,
-        cardName: item.cardName,
-        element: "Norm",
-        rarity: null,
-        requiredQuantity: item.requiredQuantity,
-        missingQuantity: 0,
-        sharedQuantity: sharedMissing,
-        competingDecks: item.contendingDeckNames || [],
-        type: "shared",
-        zone: item.zone,
-        imageUrl: item.imageUrl,
-      });
-    }
-  }
-
-  const totalCards = report.totalCardsRequired;
-  const playableOwned = Math.max(0, totalCards - totalHardMissingCopies);
-  const completionPercentage =
-    totalCards > 0 ? Math.max(0, Math.min(100, Math.round((playableOwned / totalCards) * 100))) : 100;
+  const targetCards = allDeckCards.filter((c) => c.deckId === deck.id);
+  const otherCards = allDeckCards.filter((c) => c.deckId !== deck.id);
+  const res = computeDeckShortagesFromData(deck, targetCards, otherCards, userInventory);
 
   return {
     collectorId,
-    deckId: deck.id,
-    deckName: deck.name,
-    format: deck.format || "standard",
-    completionPercentage,
-    hardShortages,
-    sharedShortages,
-    totalHardShortages: hardShortages.length,
-    totalSharedShortages: sharedShortages.length,
+    deckId: res.deckId,
+    deckName: res.deckName,
+    format: res.format,
+    completionPercentage: res.completionPercentage,
+    hardShortages: res.hardShortages,
+    sharedShortages: res.sharedShortages,
+    totalHardShortages: res.totalHardShortages,
+    totalSharedShortages: res.totalSharedShortages,
   };
 }
 
@@ -333,35 +268,47 @@ export async function getDeckPartitionedWantlist(
   optionalDeckIdOrName?: string,
   database?: unknown
 ): Promise<AssistantWantlistResponse> {
-  const userDecks = await getUserDecks(collectorId, database as any);
+  const { userDecks, allDeckCards, userInventory } = await loadAssistantCollectorDecksData(
+    collectorId,
+    database as any
+  );
+
+  const cleanQuery = optionalDeckIdOrName?.trim().toLowerCase();
+  let targetDecks = userDecks;
+
+  if (cleanQuery) {
+    targetDecks = userDecks.filter(
+      (d) =>
+        d.id === optionalDeckIdOrName ||
+        d.name.toLowerCase() === cleanQuery ||
+        d.name.toLowerCase().includes(cleanQuery)
+    );
+    if (targetDecks.length === 0) {
+      throw new Error(`Deck not found: ${optionalDeckIdOrName}`);
+    }
+  }
+
   const groups: AssistantDeckWantlistGroup[] = [];
-
-  const targetDecks = optionalDeckIdOrName
-    ? userDecks.filter(
-        (d) =>
-          d.id === optionalDeckIdOrName ||
-          d.name.toLowerCase() === optionalDeckIdOrName.trim().toLowerCase() ||
-          d.name.toLowerCase().includes(optionalDeckIdOrName.trim().toLowerCase())
-      )
-    : userDecks;
-
   let grandTotalHard = 0;
   let grandTotalShared = 0;
 
   for (const deck of targetDecks) {
-    const shortages = await getDeckShortages(collectorId, deck.id, database as any);
-    if (shortages.hardShortages.length > 0 || shortages.sharedShortages.length > 0) {
+    const targetCards = allDeckCards.filter((c) => c.deckId === deck.id);
+    const otherCards = allDeckCards.filter((c) => c.deckId !== deck.id);
+    const res = computeDeckShortagesFromData(deck, targetCards, otherCards, userInventory);
+
+    if (res.totalHardShortages > 0 || res.totalSharedShortages > 0) {
       groups.push({
-        deckId: deck.id,
-        deckName: deck.name,
-        format: deck.format || "standard",
-        hardShortages: shortages.hardShortages,
-        sharedShortages: shortages.sharedShortages,
-        totalShortages: shortages.hardShortages.length + shortages.sharedShortages.length,
+        deckId: res.deckId,
+        deckName: res.deckName,
+        format: res.format,
+        hardShortages: res.hardShortages,
+        sharedShortages: res.sharedShortages,
+        totalShortages: res.totalHardShortages + res.totalSharedShortages,
       });
 
-      grandTotalHard += shortages.totalHardShortages;
-      grandTotalShared += shortages.totalSharedShortages;
+      grandTotalHard += res.totalHardShortages;
+      grandTotalShared += res.totalSharedShortages;
     }
   }
 

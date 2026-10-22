@@ -8,6 +8,7 @@ describe("Discord Interactions Route (POST /api/discord/interactions)", () => {
 
   beforeEach(() => {
     process.env = { ...origEnv };
+    delete process.env.DISCORD_PUBLIC_KEY;
     vi.restoreAllMocks();
   });
 

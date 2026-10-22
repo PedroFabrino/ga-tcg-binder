@@ -329,38 +329,48 @@ export async function handleDiscordInteraction(
   // 8. Handle /wantlist
   if (commandName === "wantlist") {
     const optionalDeck = getOptionValue("deck");
-    const wantlist = await getDeckPartitionedWantlist(collector.id, optionalDeck, database);
+    try {
+      const wantlist = await getDeckPartitionedWantlist(collector.id, optionalDeck, database);
 
-    if (wantlist.decks.length === 0) {
+      if (wantlist.decks.length === 0) {
+        return createEphemeralEmbedResponse({
+          title: "Wantlist",
+          description: optionalDeck
+            ? `Zero shortages for **${optionalDeck}**! Your collection fully covers this decklist.`
+            : "Zero shortages across your decks! Your collection fully covers all active decklists.",
+          color: COLORS.GREEN,
+        });
+      }
+
+      const fields: DiscordEmbedField[] = wantlist.decks.map((group) => {
+        const items: string[] = [];
+        for (const h of group.hardShortages) {
+          items.push(`🔴 ${h.cardName} x${h.missingQuantity}`);
+        }
+        for (const s of group.sharedShortages) {
+          items.push(`🟡 ${s.cardName} x${s.sharedQuantity}`);
+        }
+
+        return {
+          name: `**${group.deckName}** (${group.totalShortages} shortages)`,
+          value: items.join("\n").slice(0, 1024) || "No shortages",
+          inline: false,
+        };
+      });
+
       return createEphemeralEmbedResponse({
-        title: "Wantlist",
-        description: "Zero shortages across your decks! Your collection fully covers all active decklists.",
-        color: COLORS.GREEN,
+        title: `Wantlist (${wantlist.totalDecks} Deck${wantlist.totalDecks > 1 ? "s" : ""})`,
+        description: `Total: **${wantlist.grandTotalHard}** Hard (🔴) | **${wantlist.grandTotalShared}** Shared (🟡)`,
+        color: COLORS.GOLD,
+        fields,
+      });
+    } catch {
+      return createEphemeralEmbedResponse({
+        title: "Deck Not Found",
+        description: `Could not find a deck matching "${optionalDeck}". Run \`/decks\` to see your active decks.`,
+        color: COLORS.RED,
       });
     }
-
-    const fields: DiscordEmbedField[] = wantlist.decks.map((group) => {
-      const items: string[] = [];
-      for (const h of group.hardShortages) {
-        items.push(`🔴 ${h.cardName} x${h.missingQuantity}`);
-      }
-      for (const s of group.sharedShortages) {
-        items.push(`🟡 ${s.cardName} x${s.sharedQuantity}`);
-      }
-
-      return {
-        name: `**${group.deckName}** (${group.totalShortages} shortages)`,
-        value: items.join("\n").slice(0, 1024) || "No shortages",
-        inline: false,
-      };
-    });
-
-    return createEphemeralEmbedResponse({
-      title: `Wantlist (${wantlist.totalDecks} Deck${wantlist.totalDecks > 1 ? "s" : ""})`,
-      description: `Total: **${wantlist.grandTotalHard}** Hard (🔴) | **${wantlist.grandTotalShared}** Shared (🟡)`,
-      color: COLORS.GOLD,
-      fields,
-    });
   }
 
   return createEphemeralEmbedResponse({

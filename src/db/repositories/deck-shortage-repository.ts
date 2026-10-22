@@ -160,6 +160,8 @@ export async function loadDeckShortageData(
     // fallback if table not migrated
   }
 
+  const slugsInDeck = Array.from(new Set(targetDeckCards.map((c) => c.cardSlug)));
+
   let marketListings: Array<{
     cardSlug: string | null;
     editionId: string | null;
@@ -174,35 +176,42 @@ export async function loadDeckShortageData(
     vendorName: string | null;
     vendorUrl: string | null;
   }> = [];
-  try {
-    const rawMarketCards = await database
-      .select({
-        cardSlug: marketCards.cardSlug,
-        editionId: marketCards.editionId,
-        setPrefix: marketCards.setPrefix,
-        itemId: marketCards.itemId,
-        quantity: marketCards.quantity,
-        price: marketCards.price,
-        priceNumeric: marketCards.priceNumeric,
-        tcgPrice: marketCards.tcgPrice,
-        tcgPriceNumeric: marketCards.tcgPriceNumeric,
-        productUrl: marketCards.productUrl,
-        vendorName: marketCards.vendorName,
-        vendorUrl: marketCards.vendorUrl,
-      })
-      .from(marketCards)
-      .where(eq(marketCards.storeId, "myp"));
 
-    marketListings = rawMarketCards.map((r) => ({
-      ...r,
-      mypItemId: r.itemId,
-      mypProductUrl: r.productUrl,
-    }));
-  } catch {
-    // fallback
+  if (slugsInDeck.length > 0) {
+    try {
+      const rawMarketCards = await database
+        .select({
+          cardSlug: marketCards.cardSlug,
+          editionId: marketCards.editionId,
+          setPrefix: marketCards.setPrefix,
+          itemId: marketCards.itemId,
+          quantity: marketCards.quantity,
+          price: marketCards.price,
+          priceNumeric: marketCards.priceNumeric,
+          tcgPrice: marketCards.tcgPrice,
+          tcgPriceNumeric: marketCards.tcgPriceNumeric,
+          productUrl: marketCards.productUrl,
+          vendorName: marketCards.vendorName,
+          vendorUrl: marketCards.vendorUrl,
+        })
+        .from(marketCards)
+        .where(
+          and(
+            eq(marketCards.storeId, "myp"),
+            inArray(marketCards.cardSlug, slugsInDeck)
+          )
+        );
+
+      marketListings = rawMarketCards.map((r) => ({
+        ...r,
+        mypItemId: r.itemId,
+        mypProductUrl: r.productUrl,
+      }));
+    } catch {
+      // fallback
+    }
   }
 
-  const slugsInDeck = Array.from(new Set(targetDeckCards.map((c) => c.cardSlug)));
   let editionsInDeck: Array<{
     id: string;
     cardSlug: string;
