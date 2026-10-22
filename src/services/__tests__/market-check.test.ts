@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createTestDb } from "../../db/test-utils";
 import * as schema from "../../db/schema";
-import { checkMarketStores } from "../market-check";
+import { checkMarketStores, parseMypLatestCardRefId } from "../market-check";
 import { eq } from "drizzle-orm";
 
 describe("checkMarketStores dual change detection", () => {
@@ -199,7 +199,7 @@ describe("checkMarketStores dual change detection", () => {
     expect(result.latestCardChanged).toBe(false);
   });
 
-  it("runs only count check for MyP platform", async () => {
+  it("uses a single request for MyP count and latest-card detection", async () => {
     const { db } = await createTestDb();
 
     // Default myp store is enabled with id="myp", platform="myp"
@@ -220,7 +220,8 @@ describe("checkMarketStores dual change detection", () => {
     expect(mypResult).toBeDefined();
     expect(mypResult?.observedCount).toBe(500);
 
-    // Verify no latest-card URL was fetched for MyP
+    // MyP has no separate latest-additions page; the catalog page is used.
+    expect(requestedUrls).toHaveLength(1);
     const latestUrls = requestedUrls.filter((u) => u.includes("txt_order=12"));
     expect(latestUrls).toHaveLength(0);
   });
@@ -272,5 +273,112 @@ describe("checkMarketStores dual change detection", () => {
       .where(eq(schema.marketStores.id, "lootcards"));
     expect(storeInDb.lastCount).toBe(451);
     expect(storeInDb.lastLatestCardRefId).toBe("ed2:250");
+  });
+});
+
+const MYP_PAGE_HTML = `
+  <div class="summary"><strong>42</strong> itens encontrados.</div>
+  <div class="card" data-ga-item-id="grandarchive_dtr1e_064">
+    <a class="card-img-link" href="/grandarchive/produto/383635/fluffy-shopkeep"></a>
+    <div class="card-name"><h3>Fluffy Shopkeep</h3></div>
+    <span class="card-edicao">DTR1E</span>
+    <span class="quantidade-num">3</span>
+    <span class="card-preco moeda">R$ 140,00</span>
+  </div>
+`;
+
+describe("parseMypLatestCardRefId", () => {
+  it("returns the first card's item id", () => {
+    expect(parseMypLatestCardRefId(MYP_PAGE_HTML)).toBe(
+      "grandarchive_dtr1e_064"
+    );
+  });
+
+  it("returns null when the page has no cards", () => {
+    expect(
+      parseMypLatestCardRefId(
+        '<div class="summary"><strong>0</strong> itens encontrados.</div>'
+      )
+    ).toBeNull();
+  });
+
+  it("ignores wrapper divs that lack the item id", () => {
+    const html = `
+      <div class="card-deck">
+        <div class="card-body">
+          <span class="card-name">Some wrapper</span>
+        </div>
+      </div>
+      <div class="card" data-ga-item-id="grandarchive_dtr1e_064"></div>
+    `;
+    expect(parseMypLatestCardRefId(html)).toBe("grandarchive_dtr1e_064");
+  });
+});
+
+describe("checkMarketStores MyP latest-card detection", () => {
+  it("detects a new latest listing and count change in a single request", async () => {
+    const { db } = await createTestDb();
+
+    await db.update(schema.marketStores).set({ enabled: false });
+    await db
+      .update(schema.marketStores)
+      .set({
+        enabled: true,
+        lastCount: 41,
+        lastLatestCardRefId: "grandarchive_old_001",
+      })
+      .where(eq(schema.marketStores.id, "myp"));
+
+    const fetchMock = vi.fn(async () => new Response(MYP_PAGE_HTML));
+
+    const report = await checkMarketStores(db, fetchMock as unknown as typeof fetch);
+    const myp = report.stores.find((store) => store.storeId === "myp");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://mypcards.com/grandarchive?ProdutoSearch%5BexibirSomenteVenda%5D=1",
+      expect.any(Object)
+    );
+    expect(myp).toMatchObject({
+      observedCount: 42,
+      changed: true,
+      latestCardRefId: "grandarchive_dtr1e_064",
+      previousLatestCardRefId: "grandarchive_old_001",
+      latestCardChanged: true,
+    });
+
+    const [store] = await db
+      .select()
+      .from(schema.marketStores)
+      .where(eq(schema.marketStores.id, "myp"));
+    expect(store.lastCount).toBe(42);
+    expect(store.lastLatestCardRefId).toBe("grandarchive_dtr1e_064");
+  });
+
+  it("does not signal a change when count and latest listing are unchanged", async () => {
+    const { db } = await createTestDb();
+
+    await db.update(schema.marketStores).set({ enabled: false });
+    await db
+      .update(schema.marketStores)
+      .set({
+        enabled: true,
+        lastCount: 42,
+        lastLatestCardRefId: "grandarchive_dtr1e_064",
+      })
+      .where(eq(schema.marketStores.id, "myp"));
+
+    const fetchMock = vi.fn(async () => new Response(MYP_PAGE_HTML));
+
+    const report = await checkMarketStores(db, fetchMock as unknown as typeof fetch);
+    const myp = report.stores.find((store) => store.storeId === "myp");
+
+    expect(report.changes).toHaveLength(0);
+    expect(myp).toMatchObject({
+      observedCount: 42,
+      changed: false,
+      latestCardChanged: false,
+      dispatched: false,
+    });
   });
 });

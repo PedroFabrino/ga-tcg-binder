@@ -4,7 +4,7 @@
 
 - **Feature slug**: `ligastore-latest-card-detection-and-bot-notifications`
 - **Status**: Proposed
-- **ADR**: [0016 - Root Bot Notifications and Latest-Card Change Detection](../adr/0016-root-bot-notifications-and-latest-card-detection.md)
+- **ADR**: [0016 - Root Bot Notifications and Latest-Card Change Detection](../adr/0016-root-bot-notifications-and-latest-card-detection.md), amended by [0022 - MyP Marketplace Listing Parity and Notifications](../adr/0022-myp-marketplace-listing-parity-and-notifications.md)
 - **Domain terms**: Latest Card Detection, Notification Outbox, Root Bot, Bot Channel (see [`CONTEXT.md`](../../CONTEXT.md))
 
 ## Summary
@@ -34,11 +34,11 @@ See [ADR 0016](../adr/0016-root-bot-notifications-and-latest-card-detection.md) 
 - **FR1.2**: The parsed `refId` SHALL be compared against `marketStores.lastLatestCardRefId`. If different (or `lastLatestCardRefId` is null), a change is signaled.
 - **FR1.3**: The latest-card check SHALL run alongside the existing count check. If EITHER signals a change, a full sync SHALL be dispatched.
 - **FR1.4**: After a successful latest-card check, `marketStores.lastLatestCardRefId` SHALL be updated to the observed `refId`.
-- **FR1.5**: The latest-card check SHALL NOT apply to MyP stores (`platform = 'myp'`), which continue to use count-based detection only.
+- **FR1.5**: MyP stores (`platform = 'myp'`) SHALL use the same latest-card signal, parsed from the first card on the default in-stock catalog page (which MyP returns in insertion order), alongside count-based detection. See [ADR 0022](../adr/0022-myp-marketplace-listing-parity-and-notifications.md).
 
 ### FR2: Notification Outbox
 
-- **FR2.1**: After a full sync completes for a LigaStore, the sync process SHALL query `marketCards` for rows where `storeId = ? AND firstSeenAt > marketStores.lastNotifiedAt` (or `lastNotifiedAt IS NULL`).
+- **FR2.1**: After a full sync completes for a monitored store, the sync process SHALL query `marketCards` for rows where `storeId = ? AND firstSeenAt > marketStores.lastNotifiedAt` (or `lastNotifiedAt IS NULL`). MyP is bootstrapped with a baseline `lastNotifiedAt` on its first notification run so existing stock is not announced.
 - **FR2.2**: For each newly detected card, the sync process SHALL insert a row into `market_notifications` with: `id` (UUID), `storeId`, `cardName`, `setPrefix`, `collectorNumber`, `isFoil`, `price`, `refId`, `imageUrl`, `detectedAt` (now).
 - **FR2.3**: After inserting notifications, the sync process SHALL update `marketStores.lastNotifiedAt` to the current timestamp.
 - **FR2.4**: The notification outbox write SHALL happen immediately after a successful sync, before the sync process exits.
@@ -119,7 +119,7 @@ See [ADR 0016](../adr/0016-root-bot-notifications-and-latest-card-detection.md) 
 - **FR1.2**: The parsed `refId` SHALL be compared against `marketStores.lastLatestCardRefId`. If different (or `lastLatestCardRefId` is null), a change is signaled.
 - **FR1.3**: The latest-card check SHALL run alongside the existing count check. If EITHER signals a change, a full sync SHALL be dispatched.
 - **FR1.4**: After a successful latest-card check, `marketStores.lastLatestCardRefId` SHALL be updated to the observed `refId`.
-- **FR1.5**: The latest-card check SHALL NOT apply to MyP stores (`platform = 'myp'`), which continue to use count-based detection only.
+- **FR1.5**: MyP stores (`platform = 'myp'`) SHALL use the same latest-card signal, parsed from the first card on the default in-stock catalog page (which MyP returns in insertion order), alongside count-based detection. See [ADR 0022](../adr/0022-myp-marketplace-listing-parity-and-notifications.md).
 
 ### FR2: Notification Outbox
 

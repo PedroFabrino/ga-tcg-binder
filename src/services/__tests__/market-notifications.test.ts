@@ -167,4 +167,74 @@ describe("writeMarketNotifications service", () => {
     const count = await writeMarketNotifications("non-existent-store", db);
     expect(count).toBe(0);
   });
+
+  it("derives the collector number from MyP item ids when the raw name has none", async () => {
+    const { db } = await createTestDb();
+
+    await db
+      .update(schema.marketStores)
+      .set({ lastNotifiedAt: new Date("2026-10-21T01:00:00Z") })
+      .where(eq(schema.marketStores.id, "myp"));
+
+    await db.insert(schema.marketCards).values({
+      id: "mkt-myp-new",
+      storeId: "myp",
+      rawName: "Fluffy Shopkeep",
+      cardName: "Fluffy Shopkeep",
+      setPrefix: "DTR1E",
+      price: "R$ 140,00",
+      priceNumeric: 140,
+      itemId: "grandarchive_dtr1e_064",
+      quantity: 3,
+      firstSeenAt: new Date("2026-10-21T02:00:00Z"),
+    });
+
+    const count = await writeMarketNotifications("myp", db);
+
+    expect(count).toBe(1);
+    const [notification] = await getPendingNotifications(db);
+    expect(notification).toMatchObject({
+      storeId: "myp",
+      cardName: "Fluffy Shopkeep",
+      setPrefix: "DTR1E",
+      collectorNumber: "064",
+      refId: "grandarchive_dtr1e_064",
+    });
+  });
+
+  it("bootstraps the notification baseline without notifying existing stock", async () => {
+    const { db } = await createTestDb();
+
+    await db
+      .update(schema.marketStores)
+      .set({ lastNotifiedAt: null })
+      .where(eq(schema.marketStores.id, "myp"));
+
+    await db.insert(schema.marketCards).values({
+      id: "mkt-myp-existing",
+      storeId: "myp",
+      rawName: "Existing Stock",
+      cardName: "Existing Stock",
+      setPrefix: "ALC",
+      price: "R$ 10,00",
+      priceNumeric: 10,
+      itemId: "grandarchive_alc_001",
+      quantity: 1,
+      firstSeenAt: new Date("2026-10-21T01:00:00Z"),
+    });
+
+    const count = await writeMarketNotifications("myp", db, {
+      bootstrapIfNeverNotified: true,
+    });
+
+    expect(count).toBe(0);
+    const pending = await getPendingNotifications(db);
+    expect(pending).toHaveLength(0);
+
+    const [store] = await db
+      .select()
+      .from(schema.marketStores)
+      .where(eq(schema.marketStores.id, "myp"));
+    expect(store.lastNotifiedAt).not.toBeNull();
+  });
 });

@@ -4,6 +4,11 @@
 
 Proposed
 
+> **Amended by [ADR 0022](./0022-myp-marketplace-listing-parity-and-notifications.md):**
+> MyP now also uses latest-card detection (single catalog request) and the
+> notification outbox. The MyP exclusion in FR1.5 of the original spec no
+> longer applies.
+
 ## Context
 
 The marketplace sync pipeline currently detects LigaStore inventory changes solely by comparing listing counts (`lastCount` vs observed count from `txt_order=6`). This count-based approach has a blind spot: if one card sells and the store adds one replacement card between sync intervals, the total count remains unchanged and no full sync is triggered.

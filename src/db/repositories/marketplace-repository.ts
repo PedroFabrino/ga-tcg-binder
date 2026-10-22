@@ -303,7 +303,11 @@ export async function getMarketCardsSeenAfter(
   if (since) {
     conditions.push(gt(marketCards.firstSeenAt, since));
   }
-  return database.select().from(marketCards).where(and(...conditions));
+  return database
+    .select()
+    .from(marketCards)
+    .where(and(...conditions))
+    .orderBy(marketCards.firstSeenAt);
 }
 
 /**

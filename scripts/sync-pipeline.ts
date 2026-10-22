@@ -1,4 +1,5 @@
 import { runMigrations } from "../src/db/init";
+import { db } from "../src/db";
 import { runFullSyncPipeline } from "../src/services/sync-pipeline";
 
 async function main() {
@@ -11,7 +12,7 @@ async function main() {
   console.log("Database schema initialized successfully.");
 
   console.log("\n[2/2] Running Sequential Pipeline Stages...");
-  const report = await runFullSyncPipeline();
+  const report = await runFullSyncPipeline(db);
 
   console.log("\n==================================================");
   console.log("               PIPELINE EXECUTION REPORT          ");

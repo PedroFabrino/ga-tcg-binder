@@ -79,6 +79,17 @@ export function parseMypTotalCount(html: string): number | null {
   return null;
 }
 
+/**
+ * Parses the newest MyP marketplace listing identifier from the first catalog
+ * page. MyP returns the in-stock catalog in insertion order, so the first card
+ * block is the most recently listed item. The attribute only appears on card
+ * blocks, so the first occurrence in the document is the newest listing.
+ */
+export function parseMypLatestCardRefId(html: string): string | null {
+  const match = html.match(/\bdata-ga-item-id="([^"]+)"/i);
+  return match?.[1]?.trim() || null;
+}
+
 const BROWSER_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
@@ -118,20 +129,36 @@ async function fetchHtml(url: string, customFetch = fetch): Promise<string> {
   return stdout;
 }
 
-async function fetchStoreCount(
+interface StoreObservation {
+  count: number | null;
+  latestCardRefId: string | null;
+}
+
+/**
+ * Fetches the lightweight change-detection data for a store. MyP returns its
+ * total count and newest listing in the same catalog page because that page is
+ * already ordered by insertion (newest first).
+ */
+async function fetchStoreObservation(
   store: EnabledMarketStore,
   customFetch = fetch
-): Promise<number | null> {
+): Promise<StoreObservation> {
   if (store.platform === "myp") {
     const html = await fetchHtml(MYP_COUNT_URL, customFetch);
-    return parseMypTotalCount(html);
+    return {
+      count: parseMypTotalCount(html),
+      latestCardRefId: parseMypLatestCardRefId(html),
+    };
   }
 
   if (store.platform === "lootcards") {
     const baseUrl = (store.baseUrl ?? "https://lootcards.store").replace(/\/+$/, "");
     const url = `${baseUrl}/api/cards?ordem=chegaram_agora&so_estoque=1`;
     const jsonText = await fetchHtml(url, customFetch);
-    return parseLootcardsTotalCount(jsonText);
+    return {
+      count: parseLootcardsTotalCount(jsonText),
+      latestCardRefId: null,
+    };
   }
 
   const url = buildLigaStoreSearchUrl(store);
@@ -141,7 +168,10 @@ async function fetchStoreCount(
   }
 
   const html = await fetchHtml(url, customFetch);
-  return parseLigaStoreTotalCount(html);
+  return {
+    count: parseLigaStoreTotalCount(html),
+    latestCardRefId: null,
+  };
 }
 
 async function dispatchMarketSync(
@@ -189,6 +219,43 @@ async function dispatchMarketSync(
   return true;
 }
 
+function warnLatestCardCheckFailure(
+  store: EnabledMarketStore,
+  err: unknown
+): void {
+  console.warn(
+    `[market-check] Failed latest card check for ${store.id}:`,
+    err instanceof Error ? err.message : err
+  );
+}
+
+/**
+ * Compares an observed latest-listing identifier against the store's recorded
+ * one, persists the new value, and reports whether it changed. Returns false
+ * when the identifier could not be parsed.
+ */
+async function applyLatestCardChange(
+  store: EnabledMarketStore,
+  latestCardRefId: string | null,
+  database?: MarketplaceDatabase
+): Promise<boolean> {
+  if (latestCardRefId === null) {
+    return false;
+  }
+
+  const changed =
+    store.lastLatestCardRefId === null ||
+    latestCardRefId !== store.lastLatestCardRefId;
+
+  try {
+    await updateStoreLatestCardRefId(store.id, latestCardRefId, database);
+  } catch (err) {
+    warnLatestCardCheckFailure(store, err);
+  }
+
+  return changed;
+}
+
 /**
  * Retrieves the lightweight listing count for each enabled marketplace store.
  *
@@ -218,7 +285,8 @@ export async function checkMarketStores(
     };
 
     try {
-    const observedCount = await fetchStoreCount(store, customFetch);
+    const observation = await fetchStoreObservation(store, customFetch);
+    const observedCount = observation.count;
     
     if (observedCount === null) {
     results.push({
@@ -230,26 +298,28 @@ export async function checkMarketStores(
     
     const countChanged = observedCount !== store.lastCount;
     
-    let latestCardRefId: string | null = null;
+    let latestCardRefId: string | null = observation.latestCardRefId;
     let latestCardChanged = false;
     
-    if (store.platform === "lootcards") {
+    if (store.platform === "myp") {
+      latestCardChanged = await applyLatestCardChange(
+        store,
+        latestCardRefId,
+        database
+      );
+    } else if (store.platform === "lootcards") {
       try {
         const baseUrl = (store.baseUrl ?? "https://lootcards.store").replace(/\/+$/, "");
         const latestUrl = `${baseUrl}/api/cards?ordem=chegaram_agora&so_estoque=1`;
         const latestJson = await fetchHtml(latestUrl, customFetch);
         latestCardRefId = parseLootcardsLatestCardRefId(latestJson);
-        if (latestCardRefId !== null) {
-          latestCardChanged =
-            store.lastLatestCardRefId === null ||
-            latestCardRefId !== store.lastLatestCardRefId;
-          await updateStoreLatestCardRefId(store.id, latestCardRefId, database);
-        }
-      } catch (err) {
-        console.warn(
-          `[market-check] Failed latest card check for ${store.id}:`,
-          err instanceof Error ? err.message : err
+        latestCardChanged = await applyLatestCardChange(
+          store,
+          latestCardRefId,
+          database
         );
+      } catch (err) {
+        warnLatestCardCheckFailure(store, err);
       }
     } else if (store.platform === "liga_store") {
       try {
@@ -257,18 +327,14 @@ export async function checkMarketStores(
         if (latestUrl) {
           const latestHtml = await fetchHtml(latestUrl, customFetch);
           latestCardRefId = parseLigaStoreLatestCardRefId(latestHtml);
-          if (latestCardRefId !== null) {
-            latestCardChanged =
-              store.lastLatestCardRefId === null ||
-              latestCardRefId !== store.lastLatestCardRefId;
-            await updateStoreLatestCardRefId(store.id, latestCardRefId, database);
-          }
+          latestCardChanged = await applyLatestCardChange(
+            store,
+            latestCardRefId,
+            database
+          );
         }
       } catch (err) {
-        console.warn(
-          `[market-check] Failed latest card check for ${store.id}:`,
-          err instanceof Error ? err.message : err
-        );
+        warnLatestCardCheckFailure(store, err);
       }
     }
     

@@ -6,7 +6,6 @@ import {
   syncUserMarketplace,
   getUserMarketplaceReport,
   claimMarketplaceCardForBinder,
-  syncGlobalMarketplace,
   getGlobalMarketReport,
   calculateNetMarketStock,
   extractTcgPlayerPrice,
@@ -14,6 +13,7 @@ import {
   evaluatePriceFairness,
   enrichMarketplaceTcgPrices,
 } from "./marketplace";
+import { syncGlobalMarketplace } from "./myp-sync";
 import { calculateAggregatedShortages, calculateDeckShortage } from "./shortage";
 
 const SAMPLE_MYP_HTML_PAGE_1 = `

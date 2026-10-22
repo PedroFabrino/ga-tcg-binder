@@ -3,10 +3,8 @@ import { db } from "@/db";
 import { runMigrations } from "@/db/init";
 import { DEFAULT_USER_ID, ensureDefaultUserAndSeed } from "@/services/seed";
 import { auth } from "@/auth";
-import {
-  getGlobalMarketReport,
-  syncGlobalMarketplace,
-} from "@/services/marketplace";
+import { getGlobalMarketReport } from "@/services/marketplace";
+import { syncGlobalMarketplace } from "@/services/myp-sync";
 import { syncLigaStore } from "@/services/ligastore-sync";
 import { syncLootcards } from "@/services/lootcards-sync";
 

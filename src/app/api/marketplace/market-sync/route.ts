@@ -3,7 +3,8 @@ import { db } from "@/db";
 import { runMigrations } from "@/db/init";
 import { ensureDefaultUserAndSeed } from "@/services/seed";
 import { auth } from "@/auth";
-import { syncGlobalMarketplace, getGlobalMarketReport } from "@/services/marketplace";
+import { getGlobalMarketReport } from "@/services/marketplace";
+import { syncGlobalMarketplace } from "@/services/myp-sync";
 
 export async function POST(req: NextRequest) {
   try {

@@ -1,9 +1,9 @@
 import { syncMetaStaples } from "./meta-staples";
 import {
   syncUserMarketplace,
-  syncGlobalMarketplace,
   enrichMarketplaceTcgPrices,
 } from "./marketplace";
+import { syncGlobalMarketplace } from "./myp-sync";
 import { syncMetaArchetypes } from "./meta";
 import { reconcileUserWatchlist, fetchPublicQueroList } from "./watchlist";
 import { executeAutomatedWatchlistSync } from "./watchlist-sync-runner";
@@ -35,7 +35,7 @@ export interface PipelineOptions {
 }
 
 export async function runFullSyncPipeline(
-  database?: unknown,
+  database: unknown,
   options: PipelineOptions = {}
 ): Promise<PipelineExecutionReport> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- repositories accept in-memory test database or singleton db
