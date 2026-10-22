@@ -1,16 +1,22 @@
 /**
  * Pure request builder for the collection update stepper.
- * Takes a card's preferredEditionId, current owned quantity, and a delta
- * (+1 or -1), returns the POST body for /api/collection, or null if
- * the update is impossible (no editionId or already at 0 with -1 delta).
+ *
+ * `addOrUpdateCollectionItem` treats `quantity` as a DELTA
+ * (existing.quantity + params.quantity), so this must return the delta ±1,
+ * NOT an absolute count.
+ *
+ * Returns null when the update is impossible (no editionId, or delta would
+ * take normal copies below 0).
  */
 export function buildCollectionUpdateRequest(
   preferredEditionId: string | null,
-  currentQuantity: number,
+  ownedNormal: number,
   delta: number,
 ): { editionId: string; foil: false; quantity: number } | null {
   if (!preferredEditionId) return null;
-  const next = Math.max(0, currentQuantity + delta);
-  if (next === currentQuantity) return null;
-  return { editionId: preferredEditionId, foil: false as const, quantity: next };
+  // Clamp: never decrement normal copies below 0
+  if (delta < 0 && ownedNormal + delta < 0) return null;
+  // No-op: delta is 0
+  if (delta === 0) return null;
+  return { editionId: preferredEditionId, foil: false as const, quantity: delta };
 }

@@ -293,13 +293,13 @@ describe("set-shortage", () => {
     it("returns null for unknown slug", async () => {
       await seedUser();
       await seedGroupsAndDefs();
-      expect(await getSetGroupChecklistReport("nonexistent", "user-1", db)).toBeNull();
+      expect(await getSetGroupChecklistReport("nonexistent", "user-1", undefined, db)).toBeNull();
     });
 
     it("returns null for unknown UUID", async () => {
       await seedUser();
       await seedGroupsAndDefs();
-      expect(await getSetGroupChecklistReport("grp-unknown", "user-1", db)).toBeNull();
+      expect(await getSetGroupChecklistReport("grp-unknown", "user-1", undefined, db)).toBeNull();
     });
 
     it("returns group stats and checklist cards", async () => {
@@ -312,7 +312,7 @@ describe("set-shortage", () => {
         { id: "dc-1", deckId: "deck-1", cardSlug: "fire-slash", zone: "main", quantity: 3 },
       ]);
 
-      const report = await getSetGroupChecklistReport("grp-doa", "user-1", db);
+      const report = await getSetGroupChecklistReport("grp-doa", "user-1", undefined, db);
       expect(report).not.toBeNull();
       expect(report!.group.uuid).toBe("grp-doa");
       expect(report!.group.name).toBe("Dawn of Ashes");
@@ -334,7 +334,7 @@ describe("set-shortage", () => {
 
     it("looks up group by slug", async () => {
       await seedAll();
-      const report = await getSetGroupChecklistReport("dawn-of-ashes", "user-1", db);
+      const report = await getSetGroupChecklistReport("dawn-of-ashes", "user-1", undefined, db);
       expect(report).not.toBeNull();
       expect(report!.group.uuid).toBe("grp-doa");
     });
@@ -349,9 +349,9 @@ describe("set-shortage", () => {
         { id: "dc-1", deckId: "deck-1", cardSlug: "fire-slash", zone: "main", quantity: 3 },
       ]);
 
-      const report = await getSetGroupChecklistReport("grp-doa", "user-1", db, {
+      const report = await getSetGroupChecklistReport("grp-doa", "user-1", {
         filters: { prefix: null, status: "shortages" },
-      });
+      }, db);
       expect(report).not.toBeNull();
       for (const c of report!.cards) {
         expect(c.isShortage).toBe(true);
@@ -364,9 +364,9 @@ describe("set-shortage", () => {
 
     it("filters by element, rarity, and name search", async () => {
       await seedAll();
-      const report = await getSetGroupChecklistReport("grp-doa", "user-1", db, {
+      const report = await getSetGroupChecklistReport("grp-doa", "user-1", {
         filters: { prefix: null, status: "all", element: "WATER", rarity: 2, search: "water" },
-      });
+      }, db);
       expect(report).not.toBeNull();
       expect(report!.cards.map((c) => c.cardSlug)).toEqual(["water-bolt"]);
       expect(report!.stats.totalCardsAcrossGroups).toBe(3);
@@ -380,9 +380,9 @@ describe("set-shortage", () => {
         { id: "dc-2", deckId: "deck-1", cardSlug: "water-bolt", zone: "main", quantity: 1 },
       ]);
 
-      const report = await getSetGroupChecklistReport("grp-doa", "user-1", db, {
+      const report = await getSetGroupChecklistReport("grp-doa", "user-1", {
         filters: { prefix: "DOA 1st", status: "all" },
-      });
+      }, db);
       expect(report).not.toBeNull();
       for (const c of report!.cards) {
         expect(c.prefixes).toContain("DOA 1st");

@@ -185,6 +185,7 @@ describe("@ga/contracts", () => {
       class: "MAGE",
       type: "ACTION",
       rarity: 3,
+      rarities: [3],
       imageUrl: null,
       prefixes: ["DOA 1st", "DOA Alter"],
       ownedQuantity: 1,
@@ -236,9 +237,18 @@ describe("@ga/contracts", () => {
 
     it("filters by element and rarity", () => {
       const filters: SetChecklistFilters = { prefix: null, status: "all", element: "FIRE", rarity: 3 };
-      expect(matchesSetChecklistFilters(makeCard({ element: "FIRE", rarity: 3 }), filters)).toBe(true);
-      expect(matchesSetChecklistFilters(makeCard({ element: "WATER", rarity: 3 }), filters)).toBe(false);
-      expect(matchesSetChecklistFilters(makeCard({ element: "FIRE", rarity: 2 }), filters)).toBe(false);
+      expect(matchesSetChecklistFilters(makeCard({ element: "FIRE", rarity: 3, rarities: [3] }), filters)).toBe(true);
+      expect(matchesSetChecklistFilters(makeCard({ element: "WATER", rarity: 3, rarities: [3] }), filters)).toBe(false);
+      expect(matchesSetChecklistFilters(makeCard({ element: "FIRE", rarity: 2, rarities: [2] }), filters)).toBe(false);
+    });
+
+    it("matches rarity filter when card has multiple rarities", () => {
+      // Card has rarities [3, 2, 1] — filter rarity 2 should match
+      const filters: SetChecklistFilters = { prefix: null, status: "all", rarity: 2 };
+      expect(matchesSetChecklistFilters(makeCard({ rarity: 1, rarities: [1, 2, 3] }), filters)).toBe(true);
+      // Filter rarity 5 does not match
+      const filters5: SetChecklistFilters = { prefix: null, status: "all", rarity: 5 };
+      expect(matchesSetChecklistFilters(makeCard({ rarity: 1, rarities: [1, 2, 3] }), filters5)).toBe(false);
     });
 
     it("matches case-insensitive name search", () => {

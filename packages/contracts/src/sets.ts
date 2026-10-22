@@ -4,6 +4,30 @@
  */
 
 // ---------------------------------------------------------------------------
+// Domain types (moved from set-shortage service per finding #8)
+// ---------------------------------------------------------------------------
+
+/** Shortage severity for a card within a set group. */
+export type SetShortageLevel = "hard" | "shared" | "none";
+
+/** Per-deck quantity requirement for a card. */
+export interface SetDeckRequirement {
+  deckId: string;
+  deckName: string;
+  quantity: number;
+}
+
+/** A printing (edition) of a card within a set group. */
+export interface SetPrinting {
+  editionId: string;
+  setPrefix: string;
+  setName: string;
+  collectorNumber: string;
+  rarity: number;
+  imageUrl: string | null;
+}
+
+// ---------------------------------------------------------------------------
 // Set Category
 // ---------------------------------------------------------------------------
 
@@ -63,6 +87,16 @@ export interface SetGroupStats {
   overallCompletionPercent: number;
 }
 
+export const EMPTY_SET_GROUP_STATS: SetGroupStats = {
+  totalGroups: 0,
+  totalHardShortageCopies: 0,
+  totalSharedShortageCopies: 0,
+  totalShortageCopies: 0,
+  totalCardsAcrossGroups: 0,
+  totalOwnedCardsAcrossGroups: 0,
+  overallCompletionPercent: 0,
+};
+
 // ---------------------------------------------------------------------------
 // Set Checklist Card (displayed on /sets/[groupSlug] checklist)
 // ---------------------------------------------------------------------------
@@ -73,7 +107,10 @@ export interface SetChecklistCard {
   element: string;
   class: string;
   type: string;
+  /** Highest rarity among all printings of this card. */
   rarity: number;
+  /** All rarity values across all printings of this card within the group. */
+  rarities: number[];
   imageUrl: string | null;
   /** The set prefixes this card appears in within the group. */
   prefixes: string[];
@@ -89,6 +126,42 @@ export interface SetChecklistCard {
 
   /** Deck IDs that require this card. */
   requiringDeckIds: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Set Checklist Report Card (extended card with shortage info — per finding #8)
+// ---------------------------------------------------------------------------
+
+export interface SetChecklistReportCard extends SetChecklistCard {
+  /** All printings (editions) of this card within the group. */
+  printings: SetPrinting[];
+  /** Preferred edition ID: first (lowest collector number) in narrowest prefix. */
+  preferredEditionId: string | null;
+  ownedNormal: number;
+  ownedFoil: number;
+  peakMissing: number;
+  concurrentMissing: number;
+  shortage: SetShortageLevel;
+  /** Per-deck quantity requirements. */
+  deckRequirements: SetDeckRequirement[];
+}
+
+// ---------------------------------------------------------------------------
+// Set Group Checklist Report (returned by /api/sets/[groupSlug])
+// ---------------------------------------------------------------------------
+
+export interface SetGroupChecklistReport {
+  group: {
+    uuid: string;
+    name: string;
+    slug: string;
+    imageUrl: string | null;
+    releaseDate: string | null;
+    childPrefixes: string[];
+    category: SetCategory;
+  };
+  stats: SetGroupStats;
+  cards: SetChecklistReportCard[];
 }
 
 // ---------------------------------------------------------------------------
@@ -128,7 +201,8 @@ export function matchesSetChecklistFilters(
     return false;
   }
 
-  if (filters.rarity != null && card.rarity !== filters.rarity) {
+  // Match when the selected rarity is INCLUDED in the card's rarities array
+  if (filters.rarity != null && !card.rarities.includes(filters.rarity)) {
     return false;
   }
 

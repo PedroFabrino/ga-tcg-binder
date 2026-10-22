@@ -243,6 +243,58 @@ describe("featured-set-sync", () => {
   });
 
   // -----------------------------------------------------------------------
+  // Payload validation
+  // -----------------------------------------------------------------------
+  it("rejects a non-array payload without writing rows", async () => {
+    const fetchMock = fakeFetch({ not: "an array" });
+
+    await expect(
+      syncFeaturedSetsFromApi(db, fetchMock as unknown as typeof fetch),
+    ).rejects.toThrow(/Malformed featured-sets payload/);
+
+    expect(await getAllFeaturedSetGroups(db)).toHaveLength(0);
+  });
+
+  it("rejects a group missing its uuid", async () => {
+    const fetchMock = fakeFetch([
+      {
+        name: "No UUID",
+        image: "",
+        sets: [{ id: "s1", name: "Set", prefix: "NOP" }],
+      },
+    ]);
+
+    await expect(
+      syncFeaturedSetsFromApi(db, fetchMock as unknown as typeof fetch),
+    ).rejects.toThrow(/groups\[0\]\.uuid/);
+  });
+
+  it("rejects a group whose sets field is not an array", async () => {
+    const fetchMock = fakeFetch([
+      { uuid: "valid-uuid", name: "Bad Sets", image: "", sets: "nope" },
+    ]);
+
+    await expect(
+      syncFeaturedSetsFromApi(db, fetchMock as unknown as typeof fetch),
+    ).rejects.toThrow(/groups\[0\]\.sets/);
+  });
+
+  it("rejects a child set without a prefix", async () => {
+    const fetchMock = fakeFetch([
+      {
+        uuid: "valid-uuid",
+        name: "Bad Child",
+        image: "",
+        sets: [{ id: "s1", name: "Set", prefix: "" }],
+      },
+    ]);
+
+    await expect(
+      syncFeaturedSetsFromApi(db, fetchMock as unknown as typeof fetch),
+    ).rejects.toThrow(/sets\[0\]\.prefix/);
+  });
+
+  // -----------------------------------------------------------------------
   // No real network calls
   // -----------------------------------------------------------------------
   it("uses injected fetchImpl and never calls real fetch", async () => {

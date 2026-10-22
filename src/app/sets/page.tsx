@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PackageSearch } from "lucide-react";
 import { PageHeader } from "@/components/common";
-import { SkeletonGrid, EmptyState, LoadingState } from "@/components/Skeletons";
+import { EmptyState, LoadingState } from "@/components/Skeletons";
 import { useToast } from "@/components/ToastProvider";
 import SetGroupCard from "@/components/sets/SetGroupCard";
 import SetsToolbar from "@/components/sets/SetsToolbar";
@@ -13,6 +13,7 @@ import {
   filterSetsByCategory,
   sortSets,
   splitActiveHidden,
+  applyHiddenFlag,
   type SetCategoryFilter,
   type SetSortMode,
 } from "@/lib/sets-view";
@@ -57,8 +58,8 @@ export default function SetsPage() {
   // -------------------- Hide / Unhide --------------------
   const handleToggleHide = useCallback(
     async (groupUuid: string) => {
-      // If a toggle is already in-flight for this group, chain after it
-      const previous = pendingToggles.current.get(groupUuid) ?? Promise.resolve();
+      const previous =
+        pendingToggles.current.get(groupUuid) ?? Promise.resolve();
 
       const togglePromise = previous.then(async () => {
         const group = groups.find((g) => g.groupUuid === groupUuid);
@@ -66,12 +67,8 @@ export default function SetsPage() {
 
         const newHidden = !group.isHidden;
 
-        // Optimistic update
-        setGroups((prev) =>
-          prev.map((g) =>
-            g.groupUuid === groupUuid ? { ...g, isHidden: newHidden } : g,
-          ),
-        );
+        // Optimistic update using pure helper
+        setGroups((prev) => applyHiddenFlag(prev, groupUuid, newHidden));
 
         try {
           const res = await fetch("/api/sets/hide", {
@@ -83,9 +80,7 @@ export default function SetsPage() {
         } catch {
           // Rollback
           setGroups((prev) =>
-            prev.map((g) =>
-              g.groupUuid === groupUuid ? { ...g, isHidden: !newHidden } : g,
-            ),
+            applyHiddenFlag(prev, groupUuid, !newHidden),
           );
           showToast(t("common.error"), "error");
         }
@@ -93,60 +88,48 @@ export default function SetsPage() {
 
       pendingToggles.current.set(groupUuid, togglePromise);
 
-      // Clean up resolved promise to prevent memory leak
       void togglePromise.finally(() => {
-        pendingToggles.current.delete(groupUuid);
+        if (pendingToggles.current.get(groupUuid) === togglePromise) {
+          pendingToggles.current.delete(groupUuid);
+        }
       });
     },
     [groups, showToast, t],
   );
 
-  // -------------------- Derive view state --------------------
-  const filtered = filterSetsByCategory(groups, category);
-  const searched = searchSets(filtered, query);
-  const sorted = sortSets(searched, sortMode);
-  const { active, hidden } = splitActiveHidden(sorted);
+  // -------------------- Derived data --------------------
+  // Hidden groups from UNFILTERED list (P0 #7)
+  const { active: rawActive, hidden } = splitActiveHidden(groups);
 
-  // -------------------- Loading state --------------------
+  // Active list respects search, category, sort
+  const searched = searchSets(rawActive, query);
+  const filtered = filterSetsByCategory(searched, category);
+  const active = sortSets(filtered, sortMode);
+
+  // -------------------- Render --------------------
   if (loading) {
     return (
-      <div className="space-y-6">
-        <PageHeader
-          eyebrow={t("sets.title")}
-          title={t("sets.title")}
-          description={t("sets.subtitle")}
-        />
+      <div className="mx-auto max-w-5xl px-4 py-8">
         <LoadingState message={t("sets.loading")} />
-        <SkeletonGrid count={6} />
       </div>
     );
   }
 
-  // -------------------- Error state --------------------
   if (error) {
     return (
-      <div className="space-y-6">
-        <PageHeader
-          eyebrow={t("sets.title")}
-          title={t("sets.title")}
-          description={t("sets.subtitle")}
-        />
+      <div className="mx-auto max-w-5xl px-4 py-8">
         <EmptyState
-          icon={PackageSearch}
+          icon={<PackageSearch className="h-10 w-10 text-slate-600" />}
           title={t("common.error")}
+          description={t("sets.error")}
         />
       </div>
     );
   }
 
-  // -------------------- Main view --------------------
   return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow={t("sets.title")}
-        title={t("sets.title")}
-        description={t("sets.subtitle")}
-      />
+    <div className="mx-auto max-w-5xl space-y-6 px-4 py-8">
+      <PageHeader eyebrow="" title={t("sets.title")} description={t("sets.subtitle")} />
 
       <SetsToolbar
         query={query}
@@ -157,9 +140,15 @@ export default function SetsPage() {
         onCategoryChange={setCategory}
       />
 
-      {/* Active grid */}
-      {active.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      {/* Active groups grid */}
+      {active.length === 0 ? (
+        <EmptyState
+          icon={<PackageSearch className="h-10 w-10 text-slate-600" />}
+          title={t("sets.emptyTitle")}
+          description={t("sets.emptyHint")}
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {active.map((group) => (
             <SetGroupCard
               key={group.groupUuid}
@@ -168,17 +157,14 @@ export default function SetsPage() {
             />
           ))}
         </div>
-      ) : (
-        <EmptyState
-          icon={PackageSearch}
-          title={t("sets.emptyTitle")}
-          description={t("sets.emptyHint")}
-        />
       )}
 
-      {/* Hidden accordion */}
+      {/* Hidden sets accordion — count from unfiltered list */}
       {hidden.length > 0 && (
-        <HiddenSetsAccordion groups={hidden} onToggleHide={handleToggleHide} />
+        <HiddenSetsAccordion
+          groups={hidden}
+          onToggleHide={handleToggleHide}
+        />
       )}
     </div>
   );

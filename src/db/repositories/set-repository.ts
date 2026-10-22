@@ -251,7 +251,6 @@ export async function loadSetShortageAndInventoryData(
   const d = database ?? db;
 
   const [
-    userDecks,
     allDeckCards,
     userCollection,
     allEditions,
@@ -259,7 +258,6 @@ export async function loadSetShortageAndInventoryData(
     allDefs,
     hiddenRaw,
   ] = await Promise.all([
-    d.select({ id: decks.id, name: decks.name }).from(decks).where(eq(decks.userId, userId)),
     d.select({
       id: deckCards.id, deckId: deckCards.deckId, cardSlug: deckCards.cardSlug,
       zone: deckCards.zone, quantity: deckCards.quantity,
@@ -281,7 +279,7 @@ export async function loadSetShortageAndInventoryData(
     d.select({ hiddenSetUuids: users.hiddenSetUuids }).from(users).where(eq(users.id, userId)),
   ]);
 
-  return { userDecks, allDeckCards, userCollection, allEditions, allGroups, allDefs,
+  return { allDeckCards, userCollection, allEditions, allGroups, allDefs,
     hidden: parseHiddenSetUuids(hiddenRaw[0]?.hiddenSetUuids) };
 }
 

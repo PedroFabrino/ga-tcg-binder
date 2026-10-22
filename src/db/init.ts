@@ -456,7 +456,7 @@ CREATE TABLE IF NOT EXISTS \`featured_set_groups\` (
 \`uuid\` text PRIMARY KEY NOT NULL,
 \`name\` text NOT NULL,
 \`slug\` text NOT NULL,
-\`image_url\` text,
+\`image_url\` text DEFAULT '' NOT NULL,
 \`sort_order\` integer DEFAULT 0 NOT NULL,
 \`created_at\` integer DEFAULT (strftime('%s', 'now')),
 \`updated_at\` integer DEFAULT (strftime('%s', 'now'))
@@ -470,7 +470,7 @@ CREATE TABLE IF NOT EXISTS \`set_definitions\` (
 \`prefix\` text NOT NULL,
 \`name\` text NOT NULL,
 \`language\` text DEFAULT 'EN' NOT NULL,
-\`release_date\` text,
+\`release_date\` text DEFAULT '' NOT NULL,
 \`created_at\` integer DEFAULT (strftime('%s', 'now')),
 \`updated_at\` integer DEFAULT (strftime('%s', 'now')),
 FOREIGN KEY (\`group_uuid\`) REFERENCES \`featured_set_groups\`(\`uuid\`) ON UPDATE no action ON DELETE cascade

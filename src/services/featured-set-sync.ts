@@ -3,6 +3,7 @@ import {
   upsertSetDefinition,
   getAllFeaturedSetGroups,
 } from "@/db/repositories/set-repository";
+import type { SetRepositoryDatabase } from "@/db/repositories/set-repository";
 import type { SyncStats } from "./catalog-sync";
 
 // ---------------------------------------------------------------------------
@@ -25,13 +26,113 @@ export interface GatcgApiFeaturedGroup {
 }
 
 // ---------------------------------------------------------------------------
+// Validation (hand-rolled per ADR 0012 — no zod)
+// ---------------------------------------------------------------------------
+
+interface ValidationError {
+  path: string;
+  message: string;
+}
+
+function validateGroup(data: unknown, index: number): ValidationError[] {
+  const errors: ValidationError[] = [];
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    errors.push({
+      path: `groups[${index}]`,
+      message: `Expected object, got ${typeof data}`,
+    });
+    return errors;
+  }
+  const g = data as Record<string, unknown>;
+
+  if (typeof g.uuid !== "string" || !g.uuid) {
+    errors.push({
+      path: `groups[${index}].uuid`,
+      message: "uuid must be a non-empty string",
+    });
+  }
+  if (typeof g.name !== "string" || !g.name) {
+    errors.push({
+      path: `groups[${index}].name`,
+      message: "name must be a non-empty string",
+    });
+  }
+  if (!Array.isArray(g.sets)) {
+    errors.push({
+      path: `groups[${index}].sets`,
+      message: "sets must be an array",
+    });
+    return errors;
+  }
+
+  const sets = g.sets as unknown[];
+  for (let j = 0; j < sets.length; j++) {
+    const s = sets[j];
+    if (!s || typeof s !== "object" || Array.isArray(s)) {
+      errors.push({
+        path: `groups[${index}].sets[${j}]`,
+        message: `Expected object, got ${typeof s}`,
+      });
+      continue;
+    }
+    const set = s as Record<string, unknown>;
+    if (typeof set.id !== "string" || !set.id) {
+      errors.push({
+        path: `groups[${index}].sets[${j}].id`,
+        message: "set id must be a non-empty string",
+      });
+    }
+    if (typeof set.name !== "string" || !set.name) {
+      errors.push({
+        path: `groups[${index}].sets[${j}].name`,
+        message: "set name must be a non-empty string",
+      });
+    }
+    if (typeof set.prefix !== "string" || !set.prefix) {
+      errors.push({
+        path: `groups[${index}].sets[${j}].prefix`,
+        message: "set prefix must be a non-empty string",
+      });
+    }
+  }
+
+  return errors;
+}
+
+function parseGroupsPayload(raw: unknown): {
+  success: true;
+  data: GatcgApiFeaturedGroup[];
+} | {
+  success: false;
+  errors: ValidationError[];
+} {
+  if (!Array.isArray(raw)) {
+    return {
+      success: false,
+      errors: [{ path: "root", message: "Expected an array of groups" }],
+    };
+  }
+
+  const allErrors: ValidationError[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    allErrors.push(...validateGroup(raw[i], i));
+  }
+
+  if (allErrors.length > 0) {
+    return { success: false, errors: allErrors };
+  }
+
+  return { success: true, data: raw as GatcgApiFeaturedGroup[] };
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 /**
  * Produces a deterministic ASCII slug from a display name:
- *   "Dawn of Ashes"      → "dawn-of-ashes"
- *   ".asphodel/paradise" → "asphodel-paradise"
+ * "Dawn of Ashes" → "dawn-of-ashes"
+ * ".asphodel/paradise" → "asphodel-paradise"
  */
 function toAsciiSlug(name: string): string {
   return (
@@ -61,9 +162,11 @@ function normalizeReleaseDate(value: string | null | undefined): string {
  * A non-ok response throws immediately (no silent skip).
  */
 export async function syncFeaturedSetsFromApi(
-  targetDb?: any,
+  targetDb?: SetRepositoryDatabase,
   fetchImpl: typeof fetch = fetch,
-): Promise<Pick<SyncStats, "featuredSetGroupsSynced" | "setDefinitionsSynced">> {
+): Promise<
+  Pick<SyncStats, "featuredSetGroupsSynced" | "setDefinitionsSynced">
+> {
   const database = targetDb;
   const response = await fetchImpl("https://api.gatcg.com/featured-sets");
   if (!response.ok) {
@@ -72,7 +175,17 @@ export async function syncFeaturedSetsFromApi(
     );
   }
 
-  const groupsData: GatcgApiFeaturedGroup[] = await response.json();
+  const raw = await response.json();
+  const parsed = parseGroupsPayload(raw);
+  if (!parsed.success) {
+    const details = parsed.errors
+      .map((e) => `${e.path}: ${e.message}`)
+      .join("; ");
+    throw new Error(
+      `Malformed featured-sets payload from api.gatcg.com: ${details}`,
+    );
+  }
+  const groupsData = parsed.data;
 
   // Build collision map: slug → uuid for existing rows
   const existingGroups = await getAllFeaturedSetGroups(database);
@@ -96,13 +209,14 @@ export async function syncFeaturedSetsFromApi(
       slug = `${base}-${suffix++}`;
     }
     // Release the group's previous slug so it becomes available.
-    const currentSlug = existingGroups.find((g) => g.uuid === group.uuid)?.slug;
+    const currentSlug = existingGroups.find(
+      (g) => g.uuid === group.uuid,
+    )?.slug;
     if (currentSlug && currentSlug !== slug) {
       taken.delete(currentSlug);
     }
     taken.set(slug, group.uuid);
 
-    // ── Image URL expansion ──
     const imageUrl = group.image
       ? group.image.startsWith("http")
         ? group.image
@@ -115,7 +229,6 @@ export async function syncFeaturedSetsFromApi(
     );
     groupsSynced++;
 
-    // ── Child definitions ──
     for (const setDef of group.sets) {
       await upsertSetDefinition(
         {
@@ -132,8 +245,5 @@ export async function syncFeaturedSetsFromApi(
     }
   }
 
-  return {
-    featuredSetGroupsSynced: groupsSynced,
-    setDefinitionsSynced: definitionsSynced,
-  };
+  return { featuredSetGroupsSynced: groupsSynced, setDefinitionsSynced: definitionsSynced };
 }

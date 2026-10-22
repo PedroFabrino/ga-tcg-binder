@@ -9,9 +9,30 @@ export interface PerCardShortage {
   deckIds: string[];
 }
 
+/**
+ * Compute shortage metrics for a single card given its deck demands and
+ * the user's owned quantity. Used by both `computeShortages` (bulk) and
+ * the checklist report (per-card).
+ */
+export function computeCardShortage(
+  deckQuantities: number[],
+  owned: number,
+): { peakMissing: number; concurrentMissing: number } {
+  const peak = deckQuantities.reduce((max, q) => Math.max(max, q), 0);
+  const total = deckQuantities.reduce((sum, q) => sum + q, 0);
+  return {
+    peakMissing: Math.max(0, peak - owned),
+    concurrentMissing: Math.max(0, total - owned),
+  };
+}
+
 /** peakMissing = max(0, peakDemand - owned), concurrentMissing = max(0, totalDemand - owned) */
 export function computeShortages(
-  allDeckCards: Array<{ deckId: string; cardSlug: string; quantity: number }>,
+  allDeckCards: Array<{
+    deckId: string;
+    cardSlug: string;
+    quantity: number;
+  }>,
   userCollection: Array<{ cardSlug: string; quantity: number }>,
 ): Map<string, PerCardShortage> {
   const demandByCard = new Map<string, Map<string, number>>();
@@ -26,18 +47,23 @@ export function computeShortages(
 
   const ownedByCard = new Map<string, number>();
   for (const ci of userCollection) {
-    ownedByCard.set(ci.cardSlug, (ownedByCard.get(ci.cardSlug) ?? 0) + ci.quantity);
+    ownedByCard.set(
+      ci.cardSlug,
+      (ownedByCard.get(ci.cardSlug) ?? 0) + ci.quantity,
+    );
   }
 
   const result = new Map<string, PerCardShortage>();
   for (const [slug, deckMap] of demandByCard) {
     const owned = ownedByCard.get(slug) ?? 0;
-    const demands = [...deckMap.values()];
-    const peak = demands.reduce((max, q) => Math.max(max, q), 0);
-    const total = demands.reduce((sum, q) => sum + q, 0);
+    const quantities = [...deckMap.values()];
+    const { peakMissing, concurrentMissing } = computeCardShortage(
+      quantities,
+      owned,
+    );
     result.set(slug, {
-      peakMissing: Math.max(0, peak - owned),
-      concurrentMissing: Math.max(0, total - owned),
+      peakMissing,
+      concurrentMissing,
       deckIds: [...deckMap.keys()],
     });
   }
@@ -50,7 +76,9 @@ export interface SetPrefixGroup {
 }
 
 /** setPrefix -> groupUuid from definitions. First-wins for ambiguous prefixes. */
-export function prefixToGroupMap(defs: SetPrefixGroup[]): Map<string, string> {
+export function prefixToGroupMap(
+  defs: SetPrefixGroup[],
+): Map<string, string> {
   const m = new Map<string, string>();
   for (const d of defs) {
     if (!m.has(d.prefix)) m.set(d.prefix, d.groupUuid);
@@ -78,7 +106,9 @@ export function cardToGroupsMap(
 }
 
 /** Map set definitions to their group UUID. */
-export function groupDefs<T extends { groupUuid: string }>(defs: T[]): Map<string, T[]> {
+export function groupDefs<T extends { groupUuid: string }>(
+  defs: T[],
+): Map<string, T[]> {
   const m = new Map<string, T[]>();
   for (const d of defs) {
     const list = m.get(d.groupUuid);
@@ -107,10 +137,17 @@ export function slugsInGroup(
   return m;
 }
 
-/** Category: "decks" only when every child name is a starter deck or Re:Collection. */
+/**
+ * Category: "decks" only when every child definition name matches
+ * "Starter Decks" or "Re:Collection"; otherwise "booster".
+ */
 export function categoryFromNames(names: string[]): "booster" | "decks" {
-  if (names.length === 0) return "booster";
-  return names.every((n) => n.includes("Starter Decks") || n.includes("Re:Collection"))
-    ? "decks"
-    : "booster";
+  const deckKeywords = ["starter decks", "re:collection"];
+  if (
+    names.length > 0 &&
+    names.every((n) => deckKeywords.some((kw) => n.toLowerCase().includes(kw)))
+  ) {
+    return "decks";
+  }
+  return "booster";
 }

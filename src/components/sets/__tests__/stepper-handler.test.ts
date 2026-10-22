@@ -2,23 +2,25 @@ import { describe, expect, it } from "vitest";
 import { buildCollectionUpdateRequest } from "../stepper-utils";
 
 describe("buildCollectionUpdateRequest", () => {
-  it("increments quantity by +1", () => {
+  it("returns delta +1 (not absolute count)", () => {
+    // going from 2 to 3 → body should be { quantity: 1 }
     expect(buildCollectionUpdateRequest("ed-001", 2, 1)).toEqual({
-      editionId: "ed-001",
-      foil: false,
-      quantity: 3,
-    });
-  });
-
-  it("decrements quantity by -1", () => {
-    expect(buildCollectionUpdateRequest("ed-001", 2, -1)).toEqual({
       editionId: "ed-001",
       foil: false,
       quantity: 1,
     });
   });
 
-  it("clamps at 0 when decrementing below zero", () => {
+  it("returns delta -1 (not absolute count)", () => {
+    // going from 2 to 1 → body should be { quantity: -1 }
+    expect(buildCollectionUpdateRequest("ed-001", 2, -1)).toEqual({
+      editionId: "ed-001",
+      foil: false,
+      quantity: -1,
+    });
+  });
+
+  it("returns null when decrementing below 0 ownedNormal", () => {
     expect(buildCollectionUpdateRequest("ed-001", 0, -1)).toBeNull();
   });
 
@@ -26,7 +28,7 @@ describe("buildCollectionUpdateRequest", () => {
     expect(buildCollectionUpdateRequest("ed-001", 1, -1)).toEqual({
       editionId: "ed-001",
       foil: false,
-      quantity: 0,
+      quantity: -1,
     });
   });
 
@@ -35,7 +37,7 @@ describe("buildCollectionUpdateRequest", () => {
     expect(buildCollectionUpdateRequest(null, 0, -1)).toBeNull();
   });
 
-  it("increments from 0 to 1", () => {
+  it("returns delta for increment from 0", () => {
     expect(buildCollectionUpdateRequest("ed-001", 0, 1)).toEqual({
       editionId: "ed-001",
       foil: false,
@@ -43,11 +45,15 @@ describe("buildCollectionUpdateRequest", () => {
     });
   });
 
-  it("large increments work", () => {
+  it("returns null for zero delta", () => {
+    expect(buildCollectionUpdateRequest("ed-001", 5, 0)).toBeNull();
+  });
+
+  it("large positive delta preserved as-is", () => {
     expect(buildCollectionUpdateRequest("ed-001", 5, 3)).toEqual({
       editionId: "ed-001",
       foil: false,
-      quantity: 8,
+      quantity: 3,
     });
   });
 });

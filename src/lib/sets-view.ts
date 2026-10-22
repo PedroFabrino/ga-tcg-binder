@@ -79,3 +79,18 @@ export function splitActiveHidden(
   }
   return { active, hidden };
 }
+
+/**
+ * Pure helper: returns a new array with the group identified by `uuid`
+ * having its `isHidden` flag set to the given value. Other groups are
+ * unchanged. Used for optimistic hide/unhide updates.
+ */
+export function applyHiddenFlag(
+  groups: FeaturedSetSummary[],
+  uuid: string,
+  isHidden: boolean,
+): FeaturedSetSummary[] {
+  return groups.map((g) =>
+    g.groupUuid === uuid ? { ...g, isHidden } : g,
+  );
+}

@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { SetChecklistReportCard } from "@/services/set-shortage";
+import type { SetChecklistReportCard } from "@ga/contracts";
 
 interface Props {
   card: SetChecklistReportCard;
@@ -15,19 +15,23 @@ interface Props {
   quantityLoading?: boolean;
 }
 
-export default function SetChecklistCard({ card, onQuantityChange, quantityLoading }: Props) {
+export default function SetChecklistCard({
+  card,
+  onQuantityChange,
+  quantityLoading,
+}: Props) {
   const { t } = useTranslation();
   const rarityLabel = getRarityLabel(card.rarity);
-  const rarityColor = RARITIES.find((r) => r.id === card.rarity)?.color ?? "#94a3b8";
-  const elementColor = ELEMENT_COLORS[card.element?.toUpperCase()] ?? ELEMENT_COLORS.NORM;
-
-  const firstPrinting = card.printings?.[0];
-  const collectorNumber = firstPrinting?.collectorNumber ?? "";
-  const prefix = firstPrinting?.setPrefix ?? "";
+  const rarityColor =
+    RARITIES.find((r) => r.id === card.rarity)?.color ?? "#94a3b8";
+  const elementColor =
+    ELEMENT_COLORS[card.element?.toUpperCase()] ?? ELEMENT_COLORS.NORM;
 
   const hasShortage = card.shortage !== "none";
   const isHardShortage = card.shortage === "hard";
-  const shortageKey = isHardShortage ? "sets.checklist.shortageHard" : "sets.checklist.shortageShared";
+  const shortageKey = isHardShortage
+    ? "sets.checklist.shortageHard"
+    : "sets.checklist.shortageShared";
   const deckCount = card.deckRequirements?.length ?? 0;
 
   return (
@@ -38,7 +42,7 @@ export default function SetChecklistCard({ card, onQuantityChange, quantityLoadi
       )}
     >
       {/* Card image */}
-      <div className="relative aspect-[3/4] overflow-hidden rounded-t-xl bg-slate-900/50">
+      <div className="relative aspect-[2.5/3.5] w-full overflow-hidden rounded-t-xl bg-slate-900/60">
         {card.imageUrl ? (
           <img
             src={card.imageUrl}
@@ -47,118 +51,150 @@ export default function SetChecklistCard({ card, onQuantityChange, quantityLoadi
             loading="lazy"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-slate-700">
-            <span className="text-xs">{t("common.loading")}</span>
+          <div className="flex h-full w-full items-center justify-center">
+            <PackageIcon className="h-8 w-8 text-slate-600" />
           </div>
         )}
 
-        {/* Shortage badge */}
+        {/* Shortage badge (top-left) */}
         {hasShortage && (
-          <div
-            className={cn(
-              "absolute left-2 top-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold backdrop-blur-md",
-              isHardShortage
-                ? "bg-rose-500/20 text-rose-300"
-                : "bg-amber-500/20 text-amber-300",
-            )}
-          >
-            <AlertTriangle className="h-3 w-3" />
-            <span>{t(shortageKey)}</span>
+          <div className="absolute left-2 top-2">
+            <Badge
+              variant="destructive"
+              className="text-[10px] font-bold"
+              aria-label={`${t(shortageKey)}: ${card.missingQuantity}`}
+            >
+              <AlertTriangle className="mr-1 h-3 w-3" />
+              {t(shortageKey)} ({card.missingQuantity})
+            </Badge>
+          </div>
+        )}
+
+        {/* Deck count badge (top-right when no shortage) */}
+        {deckCount > 0 && !hasShortage && (
+          <div className="absolute right-2 top-2">
+            <Badge
+              variant="default"
+              className="text-[10px]"
+              aria-label={t("sets.checklist.requiredBy", { count: deckCount })}
+            >
+              <Users className="mr-1 h-3 w-3" />
+              {deckCount}
+            </Badge>
           </div>
         )}
       </div>
 
-      {/* Card details */}
-      <div className="flex flex-1 flex-col gap-1.5 p-3">
-        {/* Collector number + prefix */}
-        {(collectorNumber || prefix) && (
-          <p className="font-mono text-[10px] text-slate-500">
-            {collectorNumber}
-            {prefix && <span className="ml-1 text-slate-600">{prefix}</span>}
-          </p>
-        )}
-
-        {/* Card name */}
-        <p className="text-sm font-semibold text-white leading-tight line-clamp-1">
-          {card.cardName}
-        </p>
-
-        {/* Element + rarity */}
-        <div className="flex items-center gap-1.5">
-          <span
-            className="inline-block h-2 w-2 rounded-full"
-            style={{ backgroundColor: elementColor }}
-            title={card.element}
-          />
-          <span className="text-[11px] font-medium text-slate-400">{card.element}</span>
-          {rarityLabel && (
+      {/* Card info */}
+      <div className="flex flex-1 flex-col gap-2 p-3">
+        {/* Name + element + rarity */}
+        <div className="min-w-0">
+          <h3 className="truncate text-sm font-semibold text-white">
+            {card.cardName}
+          </h3>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            {/* Element dot */}
             <span
-              className="ml-auto rounded px-1.5 py-0.5 text-[10px] font-semibold"
-              style={{ color: rarityColor, backgroundColor: `${rarityColor}15` }}
-            >
-              {rarityLabel}
+              className="inline-block h-2.5 w-2.5 rounded-full"
+              style={{ backgroundColor: elementColor }}
+              title={card.element}
+            />
+            <span className="text-[11px] text-slate-400">
+              {t("sets.checklist.normalCopies", { count: card.ownedNormal })}
             </span>
-          )}
+            <span className="text-[11px] text-slate-500">·</span>
+            <span className="text-[11px] text-slate-400">
+              {t("sets.checklist.foilCopies", { count: card.ownedFoil })}
+            </span>
+          </div>
         </div>
 
-        {/* Owned counts */}
-        <div className="flex items-center gap-2 text-[11px] text-slate-400">
-          <span>{t("sets.checklist.ownedCopies", { count: card.ownedQuantity })}</span>
-          {card.ownedNormal > 0 && (
-            <span className="text-slate-500">({card.ownedNormal}N)</span>
-          )}
-          {card.ownedFoil > 0 && (
-            <span className="text-slate-500">({card.ownedFoil}F)</span>
-          )}
-        </div>
-
-        {/* Shortage detail: deck names */}
-        {hasShortage && deckCount > 0 && (
-          <div className="mt-1 space-y-0.5">
-            <p className="text-[10px] text-slate-500 flex items-center gap-1">
-              <Users className="h-3 w-3" />
-              {t("sets.checklist.requiredBy", { count: deckCount })}
-            </p>
-            <div className="flex flex-wrap gap-1">
-              {card.deckRequirements.map((dr) => (
-                <Badge
-                  key={dr.deckId}
-                  className="border-amber-500/20 bg-amber-500/[0.06] text-[10px] text-amber-300/70"
-                >
-                  {dr.deckName} ({dr.quantity})
-                </Badge>
-              ))}
-            </div>
+        {/* All printings */}
+        {card.printings.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {card.printings.map((p) => (
+              <span
+                key={p.editionId}
+                className="inline-flex items-center gap-1 rounded bg-slate-800/60 px-1.5 py-0.5 text-[10px] text-slate-400"
+              >
+                {p.setPrefix} #{p.collectorNumber}
+              </span>
+            ))}
           </div>
         )}
 
-        {/* Quantity stepper */}
-        <div className="mt-auto flex items-center justify-between pt-2">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => onQuantityChange(card, -1)}
-            disabled={quantityLoading || card.ownedQuantity <= 0}
-            aria-label={t("sets.checklist.decrease")}
-            className="stepper-btn h-7 w-7 rounded-lg hover:bg-rose-500/15 hover:text-rose-300"
-          >
-            <Minus className="h-3 w-3" />
-          </Button>
-          <span className="w-8 text-center font-mono text-sm font-semibold text-white tabular-nums">
-            {card.ownedQuantity}
+        {/* Deck requirements (expandable hint) */}
+        {card.deckRequirements.length > 0 && (
+          <details className="mt-0.5">
+            <summary className="cursor-pointer text-[10px] text-slate-500 hover:text-slate-400">
+              {t("sets.checklist.requiredBy", { count: deckCount })}
+            </summary>
+            <ul className="mt-1 space-y-0.5 pl-3">
+              {card.deckRequirements.map((dr) => (
+                <li
+                  key={dr.deckId}
+                  className="text-[10px] text-slate-500"
+                >
+                  {dr.deckName}: ×{dr.quantity}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </div>
+
+      {/* Stepper (bottom) */}
+      <div className="flex items-center justify-between border-t border-white/[0.06] px-3 py-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 rounded-full"
+          disabled={
+            quantityLoading || card.ownedNormal <= 0
+          }
+          onClick={() => onQuantityChange(card, -1)}
+          aria-label={t("sets.checklist.decrease")}
+        >
+          <Minus className="h-3.5 w-3.5" />
+        </Button>
+
+        <span className="text-xs font-medium tabular-nums text-slate-300">
+          {card.ownedQuantity}
+          <span className="ml-1 text-[10px] text-slate-500">
+            / {card.requiredQuantity}
           </span>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => onQuantityChange(card, 1)}
-            disabled={quantityLoading}
-            aria-label={t("sets.checklist.increase")}
-            className="stepper-btn h-7 w-7 rounded-lg hover:bg-emerald-500/15 hover:text-emerald-300"
-          >
-            <Plus className="h-3 w-3" />
-          </Button>
-        </div>
+        </span>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 rounded-full"
+          disabled={quantityLoading || !card.preferredEditionId}
+          onClick={() => onQuantityChange(card, 1)}
+          aria-label={t("sets.checklist.increase")}
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </Button>
       </div>
     </div>
+  );
+}
+
+/** Neutral icon used when no image URL is available. */
+function PackageIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 2L2 7l10 5 10-5-10-5z" />
+      <path d="M2 17l10 5 10-5" />
+      <path d="M2 12l10 5 10-5" />
+    </svg>
   );
 }
