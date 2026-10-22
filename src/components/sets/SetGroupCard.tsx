@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/lib/i18n";
+import { formatIsoDate } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import type { FeaturedSetSummary } from "@ga/contracts";
 
@@ -64,8 +65,8 @@ export default function SetGroupCard({
           <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
             <Calendar className="h-3 w-3" />
             {t("sets.releaseDate")}
-            {group.releaseDate ? (
-              <>: {new Date(`${group.releaseDate}T12:00:00`).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</>
+            {formatIsoDate(group.releaseDate) ? (
+              <>: {formatIsoDate(group.releaseDate)}</>
             ) : (
               <>: —</>
             )}

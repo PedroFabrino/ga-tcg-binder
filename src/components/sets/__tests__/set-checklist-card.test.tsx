@@ -74,18 +74,19 @@ describe("SetChecklistCard", () => {
     expect(html).toContain("Fireball");
   });
 
-  it("shows Hard Shortage badge with missing quantity", () => {
-    const card = makeCard({ shortage: "hard", missingQuantity: 3 });
+  it("shows Hard Shortage badge with peak missing quantity", () => {
+    const card = makeCard({ shortage: "hard", peakMissing: 3, concurrentMissing: 5 });
     const html = render(card);
     expect(html).toContain("Hard Shortage");
-    // Must show the count (3) — would fail if only label shown
+    // Must show the peak count (3), not the concurrent total (5)
     expect(html).toContain("(3)");
+    expect(html).not.toContain("(5)");
     // Accessible label includes count
-    expect(html).toContain('aria-label="Hard Shortage');
+    expect(html).toContain('aria-label="Hard Shortage: 3"');
   });
 
-  it("shows Shared Shortage badge with missing quantity", () => {
-    const card = makeCard({ shortage: "shared", missingQuantity: 2 });
+  it("shows Shared Shortage badge with concurrent missing quantity", () => {
+    const card = makeCard({ shortage: "shared", peakMissing: 0, concurrentMissing: 2 });
     const html = render(card);
     expect(html).toContain("Shared Shortage");
     expect(html).toContain("(2)");

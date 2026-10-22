@@ -87,16 +87,6 @@ export interface SetGroupStats {
   overallCompletionPercent: number;
 }
 
-export const EMPTY_SET_GROUP_STATS: SetGroupStats = {
-  totalGroups: 0,
-  totalHardShortageCopies: 0,
-  totalSharedShortageCopies: 0,
-  totalShortageCopies: 0,
-  totalCardsAcrossGroups: 0,
-  totalOwnedCardsAcrossGroups: 0,
-  overallCompletionPercent: 0,
-};
-
 // ---------------------------------------------------------------------------
 // Set Checklist Card (displayed on /sets/[groupSlug] checklist)
 // ---------------------------------------------------------------------------

@@ -32,6 +32,8 @@ export default function SetChecklistCard({
   const shortageKey = isHardShortage
     ? "sets.checklist.shortageHard"
     : "sets.checklist.shortageShared";
+  // A hard shortage reports the peak deficit; a shared shortage the concurrent one.
+  const badgeCount = isHardShortage ? card.peakMissing : card.concurrentMissing;
   const deckCount = card.deckRequirements?.length ?? 0;
 
   return (
@@ -62,10 +64,10 @@ export default function SetChecklistCard({
             <Badge
               variant="destructive"
               className="text-[10px] font-bold"
-              aria-label={`${t(shortageKey)}: ${card.missingQuantity}`}
+              aria-label={`${t(shortageKey)}: ${badgeCount}`}
             >
               <AlertTriangle className="mr-1 h-3 w-3" />
-              {t(shortageKey)} ({card.missingQuantity})
+              {t(shortageKey)} ({badgeCount})
             </Badge>
           </div>
         )}

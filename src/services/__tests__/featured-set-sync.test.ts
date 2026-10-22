@@ -294,6 +294,21 @@ describe("featured-set-sync", () => {
     ).rejects.toThrow(/sets\[0\]\.prefix/);
   });
 
+  it("rejects a group whose image is not a string", async () => {
+    const fetchMock = fakeFetch([
+      {
+        uuid: "valid-uuid",
+        name: "Bad Image",
+        image: 123,
+        sets: [{ id: "s1", name: "Set", prefix: "NOP" }],
+      },
+    ]);
+
+    await expect(
+      syncFeaturedSetsFromApi(db, fetchMock as unknown as typeof fetch),
+    ).rejects.toThrow(/groups\[0\]\.image/);
+  });
+
   // -----------------------------------------------------------------------
   // No real network calls
   // -----------------------------------------------------------------------

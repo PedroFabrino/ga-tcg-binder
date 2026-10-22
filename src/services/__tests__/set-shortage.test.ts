@@ -362,6 +362,28 @@ describe("set-shortage", () => {
       expect(report!.stats.totalShortageCopies).toBe(2);
     });
 
+    it("reconciles hard/shared/total when a hard card is also contended", async () => {
+      await seedAll();
+      await db.insert(decks).values([
+        { id: "deck-1", userId: "user-1", name: "Deck 1", champion: "Silvie" },
+        { id: "deck-2", userId: "user-1", name: "Deck 2", champion: "Lorraine" },
+      ]);
+      await db.insert(deckCards).values([
+        { id: "dc-1", deckId: "deck-1", cardSlug: "fire-slash", zone: "main", quantity: 3 },
+        { id: "dc-2", deckId: "deck-2", cardSlug: "fire-slash", zone: "main", quantity: 2 },
+      ]);
+
+      const report = await getSetGroupChecklistReport("grp-doa", "user-1", undefined, db);
+      expect(report).not.toBeNull();
+      // peak = 3, concurrent = 5, owned = 0 → hard 3, shared 2, total 5.
+      expect(report!.stats.totalHardShortageCopies).toBe(3);
+      expect(report!.stats.totalSharedShortageCopies).toBe(2);
+      expect(report!.stats.totalShortageCopies).toBe(5);
+      expect(report!.stats.totalShortageCopies).toBe(
+        report!.stats.totalHardShortageCopies + report!.stats.totalSharedShortageCopies,
+      );
+    });
+
     it("filters by element, rarity, and name search", async () => {
       await seedAll();
       const report = await getSetGroupChecklistReport("grp-doa", "user-1", {

@@ -57,6 +57,12 @@ function validateGroup(data: unknown, index: number): ValidationError[] {
       message: "name must be a non-empty string",
     });
   }
+  if (g.image !== undefined && typeof g.image !== "string") {
+    errors.push({
+      path: `groups[${index}].image`,
+      message: "image must be a string when present",
+    });
+  }
   if (!Array.isArray(g.sets)) {
     errors.push({
       path: `groups[${index}].sets`,
@@ -167,7 +173,6 @@ export async function syncFeaturedSetsFromApi(
 ): Promise<
   Pick<SyncStats, "featuredSetGroupsSynced" | "setDefinitionsSynced">
 > {
-  const database = targetDb;
   const response = await fetchImpl("https://api.gatcg.com/featured-sets");
   if (!response.ok) {
     throw new Error(
@@ -188,7 +193,7 @@ export async function syncFeaturedSetsFromApi(
   const groupsData = parsed.data;
 
   // Build collision map: slug → uuid for existing rows
-  const existingGroups = await getAllFeaturedSetGroups(database);
+  const existingGroups = await getAllFeaturedSetGroups(targetDb);
   const taken = new Map<string, string>(); // slug → uuid
   for (const g of existingGroups) {
     taken.set(g.slug, g.uuid);
@@ -225,7 +230,7 @@ export async function syncFeaturedSetsFromApi(
 
     await upsertFeaturedSetGroup(
       { uuid: group.uuid, name: group.name, slug, imageUrl, sortOrder: i },
-      database,
+      targetDb,
     );
     groupsSynced++;
 
@@ -239,7 +244,7 @@ export async function syncFeaturedSetsFromApi(
           language: setDef.language ?? "EN",
           releaseDate: normalizeReleaseDate(setDef.release_date),
         },
-        database,
+        targetDb,
       );
       definitionsSynced++;
     }

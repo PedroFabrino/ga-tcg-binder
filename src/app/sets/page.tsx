@@ -105,6 +105,8 @@ export default function SetsPage() {
   const searched = searchSets(rawActive, query);
   const filtered = filterSetsByCategory(searched, category);
   const active = sortSets(filtered, sortMode);
+  // Sorting stays applied inside the hidden section too.
+  const hiddenSorted = sortSets(hidden, sortMode);
 
   // -------------------- Render --------------------
   if (loading) {
@@ -162,7 +164,7 @@ export default function SetsPage() {
       {/* Hidden sets accordion — count from unfiltered list */}
       {hidden.length > 0 && (
         <HiddenSetsAccordion
-          groups={hidden}
+          groups={hiddenSorted}
           onToggleHide={handleToggleHide}
         />
       )}

@@ -3,6 +3,7 @@
 import { ArrowLeft, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
+import { formatIsoDate } from "@/lib/dates";
 import type { SetGroupStats } from "@ga/contracts";
 import FilterChip from "./FilterChip";
 
@@ -14,19 +15,6 @@ interface Props {
   childPrefixes: string[];
   selectedPrefix: string | null;
   onPrefixChange: (prefix: string | null) => void;
-}
-
-/** Parse release date at T12:00:00 to avoid timezone shifts. */
-function formatReleaseDate(iso: string | null): string | null {
-  if (!iso) return null;
-  // Parse as local noon to avoid UTC date drift
-  const date = new Date(iso + "T12:00:00");
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
 }
 
 export default function SetChecklistHeader({
@@ -48,7 +36,7 @@ export default function SetChecklistHeader({
     overallCompletionPercent: completionPercent,
   } = stats;
 
-  const formattedDate = formatReleaseDate(releaseDate);
+  const formattedDate = formatIsoDate(releaseDate);
 
   return (
     <div className="space-y-4">

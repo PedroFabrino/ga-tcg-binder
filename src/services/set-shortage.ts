@@ -36,15 +36,6 @@ import type {
   SetGroupChecklistReport,
 } from "@ga/contracts";
 
-// Re-export for backward compatibility (finding #8)
-export type {
-  SetShortageLevel,
-  SetDeckRequirement,
-  SetPrinting,
-  SetChecklistReportCard,
-  SetGroupChecklistReport,
-};
-
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -160,17 +151,14 @@ export async function getSetGroupChecklistReport(
     .sort();
 
   // Parse release date at T12:00:00 to avoid timezone shifts
-  const rawReleaseDate = releaseDates[0] ?? null;
-  const parsedReleaseDate = rawReleaseDate
-    ? rawReleaseDate + "T12:00:00"
-    : null;
+  const releaseDate = releaseDates[0] ?? null;
 
   const group = {
     uuid: resolved.uuid,
     name: resolved.name,
     slug: resolved.slug,
     imageUrl: resolved.imageUrl ?? null,
-    releaseDate: parsedReleaseDate,
+    releaseDate,
     childPrefixes: [...new Set(defs.map((d) => d.prefix))].sort(),
     category: categoryFromNames(defs.map((d) => d.name)),
   };
@@ -315,15 +303,17 @@ export async function getSetGroupChecklistReport(
     ? allCards.filter((c) => matchesSetChecklistFilters(c, filters))
     : allCards;
 
-  // Stats
+  // Stats: hard = Σ peakMissing, shared = Σ (concurrentMissing − peakMissing),
+  // total = hard + shared, all computed over every short card (matching the
+  // dashboard summary).
   const stats: SetGroupStats = {
     totalGroups: 1,
     totalHardShortageCopies: allCards
-      .filter((c) => c.shortage === "hard")
+      .filter((c) => c.shortage !== "none")
       .reduce((s, c) => s + c.peakMissing, 0),
     totalSharedShortageCopies: allCards
-      .filter((c) => c.shortage === "shared")
-      .reduce((s, c) => s + c.concurrentMissing - c.peakMissing, 0),
+      .filter((c) => c.shortage !== "none")
+      .reduce((s, c) => s + (c.concurrentMissing - c.peakMissing), 0),
     totalShortageCopies: allCards
       .filter((c) => c.shortage !== "none")
       .reduce((s, c) => s + c.concurrentMissing, 0),
