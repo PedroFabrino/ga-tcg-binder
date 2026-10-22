@@ -15,6 +15,9 @@ import {
   createTranslator,
   resolveLocale,
   formatLocaleNumber,
+  matchesSetChecklistFilters,
+  type SetChecklistCard,
+  type SetChecklistFilters,
 } from "./index";
 
 describe("@ga/contracts", () => {
@@ -168,6 +171,67 @@ describe("@ga/contracts", () => {
 
       expect(formatLocaleNumber(1000, "pt-BR")).toBe("1.000");
       expect(formatLocaleNumber(1000, "en")).toBe("1,000");
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // matchesSetChecklistFilters
+  // -----------------------------------------------------------------------
+  describe("matchesSetChecklistFilters", () => {
+    const makeCard = (overrides: Partial<SetChecklistCard> = {}): SetChecklistCard => ({
+      cardSlug: "test-card",
+      cardName: "Test Card",
+      element: "FIRE",
+      class: "MAGE",
+      type: "ACTION",
+      rarity: 3,
+      imageUrl: null,
+      prefixes: ["DOA 1st", "DOA Alter"],
+      ownedQuantity: 1,
+      requiredQuantity: 3,
+      missingQuantity: 2,
+      isShortage: true,
+      requiringDeckIds: ["deck-1"],
+      ...overrides,
+    });
+
+    it("matches all when status is 'all' and no prefix filter", () => {
+      const filters: SetChecklistFilters = { prefix: null, status: "all" };
+      expect(matchesSetChecklistFilters(makeCard(), filters)).toBe(true);
+    });
+
+    it("matches by prefix", () => {
+      const filters: SetChecklistFilters = { prefix: "DOA 1st", status: "all" };
+      expect(matchesSetChecklistFilters(makeCard(), filters)).toBe(true);
+      expect(matchesSetChecklistFilters(makeCard({ prefixes: ["DOA Alter"] }), filters)).toBe(false);
+    });
+
+    it("filters by shortage status", () => {
+      const filters: SetChecklistFilters = { prefix: null, status: "shortages" };
+      expect(matchesSetChecklistFilters(makeCard({ isShortage: true }), filters)).toBe(true);
+      expect(matchesSetChecklistFilters(makeCard({ isShortage: false }), filters)).toBe(false);
+    });
+
+    it("filters by owned status", () => {
+      const filters: SetChecklistFilters = { prefix: null, status: "owned" };
+      expect(matchesSetChecklistFilters(makeCard({ ownedQuantity: 1 }), filters)).toBe(true);
+      expect(matchesSetChecklistFilters(makeCard({ ownedQuantity: 0 }), filters)).toBe(false);
+    });
+
+    it("filters by unowned status", () => {
+      const filters: SetChecklistFilters = { prefix: null, status: "unowned" };
+      expect(matchesSetChecklistFilters(makeCard({ ownedQuantity: 0 }), filters)).toBe(true);
+      expect(matchesSetChecklistFilters(makeCard({ ownedQuantity: 1 }), filters)).toBe(false);
+    });
+
+    it("combines prefix and status filters", () => {
+      const filters: SetChecklistFilters = { prefix: "DOA 1st", status: "shortages" };
+      // Has DOA 1st and is a shortage -> match
+      expect(matchesSetChecklistFilters(makeCard({ prefixes: ["DOA 1st"], isShortage: true }), filters)).toBe(true);
+      // Has DOA 1st but not a shortage -> no match
+      expect(matchesSetChecklistFilters(makeCard({ prefixes: ["DOA 1st"], isShortage: false }), filters)).toBe(false);
+      // Is a shortage but wrong prefix -> no match
+      expect(matchesSetChecklistFilters(makeCard({ prefixes: ["DOA Alter"], isShortage: true }), filters)).toBe(false);
     });
   });
 });
