@@ -1,22 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PackageSearch } from "lucide-react";
-import { PageHeader } from "@/components/common";
-import { EmptyState, LoadingState } from "@/components/Skeletons";
 import { useToast } from "@/components/ToastProvider";
-import SetGroupCard from "@/components/sets/SetGroupCard";
-import SetsToolbar from "@/components/sets/SetsToolbar";
-import HiddenSetsAccordion from "@/components/sets/HiddenSetsAccordion";
-import {
-  searchSets,
-  filterSetsByCategory,
-  sortSets,
-  splitActiveHidden,
-  applyHiddenFlag,
-  type SetCategoryFilter,
-  type SetSortMode,
-} from "@/lib/sets-view";
+import SetsDashboardView from "@/components/sets/SetsDashboardView";
+import { applyHiddenFlag } from "@/lib/sets-view";
 import { useTranslation } from "@/lib/i18n";
 import type { FeaturedSetSummary } from "@ga/contracts";
 
@@ -27,10 +14,6 @@ export default function SetsPage() {
   const [groups, setGroups] = useState<FeaturedSetSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-
-  const [query, setQuery] = useState("");
-  const [sortMode, setSortMode] = useState<SetSortMode>("shortages");
-  const [category, setCategory] = useState<SetCategoryFilter>("all");
 
   // Serialize concurrent hide/unhide toggles per group
   const pendingToggles = useRef<Map<string, Promise<void>>>(new Map());
@@ -97,77 +80,12 @@ export default function SetsPage() {
     [groups, showToast, t],
   );
 
-  // -------------------- Derived data --------------------
-  // Hidden groups from UNFILTERED list (P0 #7)
-  const { active: rawActive, hidden } = splitActiveHidden(groups);
-
-  // Active list respects search, category, sort
-  const searched = searchSets(rawActive, query);
-  const filtered = filterSetsByCategory(searched, category);
-  const active = sortSets(filtered, sortMode);
-  // Sorting stays applied inside the hidden section too.
-  const hiddenSorted = sortSets(hidden, sortMode);
-
-  // -------------------- Render --------------------
-  if (loading) {
-    return (
-      <div className="mx-auto max-w-5xl px-4 py-8">
-        <LoadingState message={t("sets.loading")} />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="mx-auto max-w-5xl px-4 py-8">
-        <EmptyState
-          icon={<PackageSearch className="h-10 w-10 text-slate-600" />}
-          title={t("common.error")}
-          description={t("sets.error")}
-        />
-      </div>
-    );
-  }
-
   return (
-    <div className="mx-auto max-w-5xl space-y-6 px-4 py-8">
-      <PageHeader eyebrow="" title={t("sets.title")} description={t("sets.subtitle")} />
-
-      <SetsToolbar
-        query={query}
-        onQueryChange={setQuery}
-        sortMode={sortMode}
-        onSortChange={setSortMode}
-        category={category}
-        onCategoryChange={setCategory}
-      />
-
-      {/* Active groups grid */}
-      {active.length === 0 ? (
-        <EmptyState
-          icon={<PackageSearch className="h-10 w-10 text-slate-600" />}
-          title={t("sets.emptyTitle")}
-          description={t("sets.emptyHint")}
-        />
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {active.map((group) => (
-            <SetGroupCard
-              key={group.groupUuid}
-              group={group}
-              onToggleHide={handleToggleHide}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Hidden sets accordion — count from unfiltered list */}
-      {hidden.length > 0 && (
-        <HiddenSetsAccordion
-          groups={hiddenSorted}
-          onToggleHide={handleToggleHide}
-        />
-      )}
-    </div>
+    <SetsDashboardView
+      groups={groups}
+      loading={loading}
+      error={error}
+      onToggleHide={handleToggleHide}
+    />
   );
 }

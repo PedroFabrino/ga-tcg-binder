@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Minus, Plus, AlertTriangle, Users } from "lucide-react";
 import { RARITIES, getRarityLabel } from "@/lib/rarities";
 import { ELEMENT_COLORS } from "@/lib/elements";
@@ -7,6 +8,12 @@ import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { SetChecklistReportCard } from "@ga/contracts";
 
 interface Props {
@@ -21,6 +28,7 @@ export default function SetChecklistCard({
   quantityLoading,
 }: Props) {
   const { t } = useTranslation();
+  const [previewOpen, setPreviewOpen] = useState(false);
   const rarityLabel = getRarityLabel(card.rarity);
   const rarityColor =
     RARITIES.find((r) => r.id === card.rarity)?.color ?? "#94a3b8";
@@ -32,8 +40,10 @@ export default function SetChecklistCard({
   const shortageKey = isHardShortage
     ? "sets.checklist.shortageHard"
     : "sets.checklist.shortageShared";
-  // A hard shortage reports the peak deficit; a shared shortage the concurrent one.
-  const badgeCount = isHardShortage ? card.peakMissing : card.concurrentMissing;
+  // A hard shortage reports the peak deficit; a shared shortage the concurrent minus peak one.
+  const badgeCount = isHardShortage
+    ? card.peakMissing
+    : Math.max(0, card.concurrentMissing - card.peakMissing);
   const deckCount = card.deckRequirements?.length ?? 0;
 
   return (
@@ -46,12 +56,19 @@ export default function SetChecklistCard({
       {/* Card image */}
       <div className="relative aspect-[2.5/3.5] w-full overflow-hidden rounded-t-xl bg-slate-900/60">
         {card.imageUrl ? (
-          <img
-            src={card.imageUrl}
-            alt={card.cardName}
-            className="h-full w-full object-cover"
-            loading="lazy"
-          />
+          <button
+            type="button"
+            className="group/img h-full w-full cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50"
+            onClick={() => setPreviewOpen(true)}
+            aria-label={`${card.cardName} - ${t("sets.checklist.previewCard")}`}
+          >
+            <img
+              src={card.imageUrl}
+              alt={card.cardName}
+              className="h-full w-full object-cover transition-transform duration-300 group-hover/img:scale-105"
+              loading="lazy"
+            />
+          </button>
         ) : (
           <div className="flex h-full w-full items-center justify-center">
             <PackageIcon className="h-8 w-8 text-slate-600" />
@@ -137,7 +154,10 @@ export default function SetChecklistCard({
                   key={dr.deckId}
                   className="text-[10px] text-slate-500"
                 >
-                  {dr.deckName}: ×{dr.quantity}
+                  {t("sets.checklist.deckRequirementItem", {
+                    deckName: dr.deckName,
+                    quantity: dr.quantity,
+                  })}
                 </li>
               ))}
             </ul>
@@ -178,6 +198,41 @@ export default function SetChecklistCard({
           <Plus className="h-3.5 w-3.5" />
         </Button>
       </div>
+
+      {/* Card Preview Modal */}
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-xs sm:max-w-sm flex flex-col items-center p-4">
+          <DialogHeader className="w-full text-center">
+            <DialogTitle className="text-base font-semibold text-white">
+              {card.cardName}
+            </DialogTitle>
+          </DialogHeader>
+          {card.imageUrl && (
+            <div className="my-2 max-h-[65vh] overflow-hidden rounded-lg">
+              <img
+                src={card.imageUrl}
+                alt={card.cardName}
+                className="max-h-[60vh] w-auto object-contain shadow-2xl"
+              />
+            </div>
+          )}
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <span
+              className="inline-block h-2 w-2 rounded-full"
+              style={{ backgroundColor: elementColor }}
+            />
+            <span>{card.element}</span>
+            <span>·</span>
+            <span>{rarityLabel}</span>
+            {card.class && (
+              <>
+                <span>·</span>
+                <span>{card.class}</span>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

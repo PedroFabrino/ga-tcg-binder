@@ -75,6 +75,11 @@ export interface SetPrefixGroup {
   prefix: string;
 }
 
+export interface EditionPrefixRef {
+  cardSlug: string;
+  setPrefix: string;
+}
+
 /** setPrefix -> groupUuid from definitions. First-wins for ambiguous prefixes. */
 export function prefixToGroupMap(
   defs: SetPrefixGroup[],
@@ -88,12 +93,12 @@ export function prefixToGroupMap(
 
 /** cardSlug -> Set<groupUuid> via edition setPrefixes. */
 export function cardToGroupsMap(
-  editions: Array<{ cardSlug: string; setPrefix: string }>,
-  p2g: Map<string, string>,
+  editions: EditionPrefixRef[],
+  prefixToGroup: Map<string, string>,
 ): Map<string, Set<string>> {
   const m = new Map<string, Set<string>>();
   for (const e of editions) {
-    const g = p2g.get(e.setPrefix);
+    const g = prefixToGroup.get(e.setPrefix);
     if (!g) continue;
     let groups = m.get(e.cardSlug);
     if (!groups) {
@@ -120,12 +125,12 @@ export function groupDefs<T extends { groupUuid: string }>(
 
 /** Card slugs belonging to each group via edition setPrefix → definition → groupUuid. */
 export function slugsInGroup(
-  editions: Array<{ cardSlug: string; setPrefix: string }>,
-  p2g: Map<string, string>,
+  editions: EditionPrefixRef[],
+  prefixToGroup: Map<string, string>,
 ): Map<string, Set<string>> {
   const m = new Map<string, Set<string>>();
   for (const e of editions) {
-    const g = p2g.get(e.setPrefix);
+    const g = prefixToGroup.get(e.setPrefix);
     if (!g) continue;
     let s = m.get(g);
     if (!s) {

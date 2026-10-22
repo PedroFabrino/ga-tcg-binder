@@ -1,7 +1,7 @@
 import { db } from "../index";
 import { featuredSetGroups, setDefinitions } from "../featured-set-schema";
 import { users, cards, cardEditions, collectionItems, decks, deckCards } from "../schema";
-import { eq, asc, inArray } from "drizzle-orm";
+import { eq, asc, inArray, and } from "drizzle-orm";
 import type { FeaturedSetGroup, InsertFeaturedSetGroup, SetDefinition, InsertSetDefinition } from "../featured-set-schema";
 
 // ---------------------------------------------------------------------------
@@ -316,9 +316,18 @@ export async function loadSetGroupChecklist(
   }).from(collectionItems).innerJoin(cardEditions, eq(collectionItems.editionId, cardEditions.id))
     .where(eq(collectionItems.userId, userId));
 
+  const deckCardRows = slugs.length > 0
+    ? await d.select({
+        deckId: deckCards.deckId, deckName: decks.name, cardSlug: deckCards.cardSlug,
+        quantity: deckCards.quantity,
+      }).from(deckCards).innerJoin(decks, eq(deckCards.deckId, decks.id))
+        .where(and(eq(decks.userId, userId), inArray(deckCards.cardSlug, slugs)))
+    : [];
+
   const slugSet = new Set(slugs);
   return { group, defs, prefixes, editions, cards: cardRows,
-    collection: allCollection.filter((c) => slugSet.has(c.cardSlug)) };
+    collection: allCollection.filter((c) => slugSet.has(c.cardSlug)),
+    deckCards: deckCardRows };
 }
 
 // ---------------------------------------------------------------------------

@@ -68,7 +68,7 @@ export default function SetGroupCard({
             {formatIsoDate(group.releaseDate) ? (
               <>: {formatIsoDate(group.releaseDate)}</>
             ) : (
-              <>: —</>
+              <>: {t("sets.releaseDateUnknown")}</>
             )}
           </p>
         </div>

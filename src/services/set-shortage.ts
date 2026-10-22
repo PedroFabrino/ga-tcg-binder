@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Featured Set Shortage Ranking & Checklist Service
  *
  * Pure domain orchestration: loads bulk data from the repository and computes
@@ -51,10 +51,10 @@ export async function calculateFeaturedSetSummaries(
   if (allGroups.length === 0) return [];
 
   const shortages = computeShortages(allDeckCards, userCollection);
-  const p2g = prefixToGroupMap(allDefs);
-  const c2g = cardToGroupsMap(allEditions, p2g);
-  const dByG = groupDefs(allDefs);
-  const slugsByGroup = slugsInGroup(allEditions, p2g);
+  const prefixToGroup = prefixToGroupMap(allDefs);
+  const cardToGroups = cardToGroupsMap(allEditions, prefixToGroup);
+  const defsByGroup = groupDefs(allDefs);
+  const slugsByGroup = slugsInGroup(allEditions, prefixToGroup);
 
   // Owned slugs (any card with qty > 0)
   const ownedSlugs = new Set<string>();
@@ -64,7 +64,7 @@ export async function calculateFeaturedSetSummaries(
 
   const summaries: FeaturedSetSummary[] = [];
   for (const group of allGroups) {
-    const defs = dByG.get(group.uuid) ?? [];
+    const defs = defsByGroup.get(group.uuid) ?? [];
     const groupSlugs = slugsByGroup.get(group.uuid);
     const totalCards = groupSlugs?.size ?? 0;
 
@@ -89,7 +89,7 @@ export async function calculateFeaturedSetSummaries(
 
     for (const [slug, sh] of shortages) {
       if (sh.concurrentMissing <= 0 && sh.peakMissing <= 0) continue;
-      const cardGroups = c2g.get(slug);
+      const cardGroups = cardToGroups.get(slug);
       if (!cardGroups?.has(group.uuid)) continue;
       hard += sh.peakMissing;
       shared += sh.concurrentMissing - sh.peakMissing;
@@ -165,7 +165,7 @@ export async function getSetGroupChecklistReport(
 
   const checklist = await loadSetGroupChecklist(group.uuid, userId, database);
   if (!checklist) return null;
-  const { editions, cards: cardRows, collection } = checklist;
+  const { editions, cards: cardRows, collection, deckCards: allDeckCards = [] } = checklist;
 
   // Lookups: card metadata, editions by slug
   const edsBySlug = new Map<string, typeof editions>();
@@ -197,8 +197,7 @@ export async function getSetGroupChecklistReport(
     }
   }
 
-  // Deck demand: load all user deck cards, filter to group slugs
-  const { allDeckCards } = await loadSetShortageAndInventoryData(userId, database);
+  // Deck demand: group-scoped deck cards loaded directly with checklist
   const groupSlugSet = new Set(cardRows.map((c) => c.slug));
   const deckDemandBySlug = new Map<string, number[]>();
   const deckMetaBySlug = new Map<

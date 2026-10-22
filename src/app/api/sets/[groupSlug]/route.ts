@@ -4,15 +4,19 @@ import { auth } from "@/auth";
 import { getSetGroupChecklistReport } from "@/services/set-shortage";
 import { parseSetChecklistQuery } from "@/lib/validation/sets-schemas";
 
-export async function GET(req: NextRequest, { params }: { params: { groupSlug: string } }) {
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ groupSlug: string }> | { groupSlug: string } }
+) {
   try {
     await ensureDefaultUserAndSeed();
     const session = await auth();
     const userId =
       req.nextUrl.searchParams.get("userId") || session?.user?.id || DEFAULT_USER_ID;
 
+    const { groupSlug } = await params;
     const filters = parseSetChecklistQuery(req.nextUrl.searchParams);
-    const report = await getSetGroupChecklistReport(params.groupSlug, userId, {
+    const report = await getSetGroupChecklistReport(groupSlug, userId, {
       filters,
     });
 
