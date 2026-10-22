@@ -1,6 +1,14 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { createTestDb } from "../../db/test-utils";
-import { users, collectorIdentities, cards, decks, deckCards } from "../../db/schema";
+import {
+  users,
+  collectorIdentities,
+  cards,
+  decks,
+  deckCards,
+  marketStores,
+  marketCards,
+} from "../../db/schema";
 import { upsertPersonalWant } from "../../db/repositories/personal-wants-repository";
 import {
   matchDealAlerts,
@@ -8,6 +16,7 @@ import {
   clearAlertsCache,
   isAlertRecentlySent,
   getDedupeKey,
+  dispatchDealAlerts,
 } from "../discord-deal-notifier";
 import type { MarketCard } from "../../db/schema";
 
@@ -189,6 +198,41 @@ describe("Discord Deal Alerts Matcher and Notifier", () => {
     // Second run should dedupe and return 0
     const secondRun = await matchDealAlerts([listing], db);
     expect(secondRun).toHaveLength(0);
+  });
+
+  it("dispatches deal alert DMs for in-stock listings matching a wantlist", async () => {
+    await db.insert(marketStores).values({
+      id: "store_myp",
+      platform: "myp",
+      name: "MyP",
+      baseUrl: "https://mypcards.com",
+    });
+
+    await db.insert(marketCards).values({
+      id: "mc_dispatch_1",
+      storeId: "store_myp",
+      cardSlug: "creative-shock",
+      rawName: "Creative Shock",
+      cardName: "Creative Shock",
+      setPrefix: "DOA",
+      quantity: 1,
+      price: "R$ 55,00",
+      priceNumeric: 55.0,
+      isFoil: true,
+      itemId: "item_dispatch_1",
+      productUrl: "https://myp.local/shock",
+      vendorName: "Camelot Cards",
+    });
+
+    const sentTo: string[] = [];
+    const result = await dispatchDealAlerts(db, async (match) => {
+      sentTo.push(match.discordUserId);
+      return true;
+    });
+
+    expect(result.matched).toBe(1);
+    expect(result.sent).toBe(1);
+    expect(sentTo).toEqual([discordUserId]);
   });
 
   it("formats deal alert embed correctly", () => {

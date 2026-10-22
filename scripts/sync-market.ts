@@ -7,6 +7,7 @@ import { syncLigaStore } from "../src/services/ligastore-sync";
 import { syncLootcards } from "../src/services/lootcards-sync";
 import { writeMarketNotifications } from "../src/services/market-notifications";
 import { deliverDiscordNotifications } from "../src/services/discord-market-notifier";
+import { dispatchDealAlerts } from "../src/services/discord-deal-notifier";
 
 function readStoreIdArgument(args: string[]): string | undefined {
   const storeFlagIndex = args.indexOf("--store");
@@ -120,6 +121,15 @@ async function main() {
     } catch (err: any) {
       console.error(`Failed to synchronize store "${store.name}" (${store.id}):`, err.message || err);
     }
+  }
+
+  // Deal alert dispatch runs once after all stores have synced so matching
+  // sees the complete set of freshly updated listings.
+  try {
+    const dealAlerts = await dispatchDealAlerts(db);
+    console.log(`- Deal Alerts: ${dealAlerts.matched} matched, ${dealAlerts.sent} DMs sent`);
+  } catch (err: any) {
+    console.error("Failed to dispatch deal alerts:", err.message || err);
   }
 }
 

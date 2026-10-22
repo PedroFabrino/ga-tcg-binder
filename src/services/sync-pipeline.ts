@@ -7,6 +7,7 @@ import { syncGlobalMarketplace } from "./myp-sync";
 import { syncMetaArchetypes } from "./meta";
 import { reconcileUserWatchlist, fetchPublicQueroList } from "./watchlist";
 import { executeAutomatedWatchlistSync } from "./watchlist-sync-runner";
+import { dispatchDealAlerts } from "./discord-deal-notifier";
 import {
   getUsersWithMypUsername,
   getUsersForAutomatedWatchlistSync,
@@ -246,6 +247,25 @@ export async function runFullSyncPipeline(
       status: "failed",
       durationMs: Date.now() - stage2eStart,
       error: err.message,
+    });
+  }
+
+  // Stage 2f: Wantlist Deal Alert Dispatch
+  const stage2fStart = Date.now();
+  try {
+    const res = await dispatchDealAlerts(dbParam);
+    stages.push({
+      stage: "Stage 2f: Wantlist Deal Alert Dispatch",
+      status: "success",
+      durationMs: Date.now() - stage2fStart,
+      details: res,
+    });
+  } catch (err: unknown) {
+    stages.push({
+      stage: "Stage 2f: Wantlist Deal Alert Dispatch",
+      status: "failed",
+      durationMs: Date.now() - stage2fStart,
+      error: err instanceof Error ? err.message : String(err),
     });
   }
 

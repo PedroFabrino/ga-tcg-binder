@@ -1,6 +1,10 @@
 import { findIdentitiesWithNotificationsEnabled } from "../db/repositories/assistant-repository";
 import { listPersonalWants, type PersonalWantItem } from "../db/repositories/personal-wants-repository";
-import { type MarketCard } from "../db/repositories/marketplace-repository";
+import {
+  getMarketCards,
+  type MarketCard,
+  type MarketplaceDatabase,
+} from "../db/repositories/marketplace-repository";
 import { getDeckPartitionedWantlist } from "./collector-assistant";
 import { DISCORD_COLORS, type DiscordEmbed } from "./discord-interactions/types";
 
@@ -104,6 +108,34 @@ export async function matchDealAlerts(
   }
 
   return matches;
+}
+
+export interface DealAlertDispatchResult {
+  matched: number;
+  sent: number;
+}
+
+/**
+ * Fetches every in-stock marketplace listing and dispatches private deal-alert
+ * DMs to collectors whose wantlists or deck shortages match. Runs as a single
+ * pass after all stores have synced so matching sees the complete listing set.
+ */
+export async function dispatchDealAlerts(
+  database?: MarketplaceDatabase,
+  send: (match: DealAlertMatch) => Promise<boolean> = (match) =>
+    sendDiscordDirectMessage(match.discordUserId, formatDealAlertEmbed(match))
+): Promise<DealAlertDispatchResult> {
+  const listings = await getMarketCards({ inStockOnly: true }, database);
+  const matches = await matchDealAlerts(listings, database);
+
+  let sent = 0;
+  for (const match of matches) {
+    if (await send(match)) {
+      sent++;
+    }
+  }
+
+  return { matched: matches.length, sent };
 }
 
 /**
