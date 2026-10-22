@@ -1,7 +1,7 @@
 import { db } from "../index";
 import { featuredSetGroups, setDefinitions } from "../featured-set-schema";
-import { users } from "../schema";
-import { eq, asc } from "drizzle-orm";
+import { users, cards, cardEditions, collectionItems, decks, deckCards } from "../schema";
+import { eq, asc, inArray } from "drizzle-orm";
 import type { FeaturedSetGroup, InsertFeaturedSetGroup, SetDefinition, InsertSetDefinition } from "../featured-set-schema";
 
 // ---------------------------------------------------------------------------
@@ -238,6 +238,89 @@ export async function setUserHiddenSetUuids(
     .update(users)
     .set({ hiddenSetUuids: json })
     .where(eq(users.id, userId));
+}
+
+// ---------------------------------------------------------------------------
+// Bulk Loaders for Set Shortage Service
+// ---------------------------------------------------------------------------
+
+export async function loadSetShortageAndInventoryData(
+  userId: string,
+  database?: typeof db,
+) {
+  const d = database ?? db;
+
+  const [
+    userDecks,
+    allDeckCards,
+    userCollection,
+    allEditions,
+    allGroups,
+    allDefs,
+    hiddenRaw,
+  ] = await Promise.all([
+    d.select({ id: decks.id, name: decks.name }).from(decks).where(eq(decks.userId, userId)),
+    d.select({
+      id: deckCards.id, deckId: deckCards.deckId, cardSlug: deckCards.cardSlug,
+      zone: deckCards.zone, quantity: deckCards.quantity,
+      assignedEditionId: deckCards.assignedEditionId, deckName: decks.name,
+    }).from(deckCards).innerJoin(decks, eq(deckCards.deckId, decks.id)).where(eq(decks.userId, userId)),
+    d.select({
+      id: collectionItems.id, cardSlug: cardEditions.cardSlug,
+      quantity: collectionItems.quantity, isDedicated: collectionItems.isDedicated,
+    }).from(collectionItems).innerJoin(cardEditions, eq(collectionItems.editionId, cardEditions.id))
+      .where(eq(collectionItems.userId, userId)),
+    d.select({
+      id: cardEditions.id, cardSlug: cardEditions.cardSlug,
+      setPrefix: cardEditions.setPrefix, setName: cardEditions.setName,
+      collectorNumber: cardEditions.collectorNumber, rarity: cardEditions.rarity,
+      imageUrl: cardEditions.imageUrl,
+    }).from(cardEditions),
+    d.select().from(featuredSetGroups).orderBy(asc(featuredSetGroups.sortOrder), asc(featuredSetGroups.name)),
+    d.select().from(setDefinitions).orderBy(asc(setDefinitions.name)),
+    d.select({ hiddenSetUuids: users.hiddenSetUuids }).from(users).where(eq(users.id, userId)),
+  ]);
+
+  return { userDecks, allDeckCards, userCollection, allEditions, allGroups, allDefs,
+    hidden: parseHiddenSetUuids(hiddenRaw[0]?.hiddenSetUuids) };
+}
+
+export async function loadSetGroupChecklist(
+  groupUuid: string, userId: string, database?: typeof db,
+) {
+  const d = database ?? db;
+
+  const groupRows = await d.select().from(featuredSetGroups).where(eq(featuredSetGroups.uuid, groupUuid));
+  if (groupRows.length === 0) return null;
+
+  const group = groupRows[0];
+  const defs = await d.select().from(setDefinitions)
+    .where(eq(setDefinitions.groupUuid, groupUuid)).orderBy(asc(setDefinitions.name));
+  const prefixes = [...new Set(defs.map((d) => d.prefix))];
+
+  const editions = prefixes.length > 0
+    ? await d.select({
+        id: cardEditions.id, cardSlug: cardEditions.cardSlug,
+        setPrefix: cardEditions.setPrefix, setName: cardEditions.setName,
+        collectorNumber: cardEditions.collectorNumber, rarity: cardEditions.rarity,
+        imageUrl: cardEditions.imageUrl,
+      }).from(cardEditions).where(inArray(cardEditions.setPrefix, prefixes))
+    : [];
+
+  const slugs = [...new Set(editions.map((e) => e.cardSlug))];
+  const cardRows = slugs.length > 0
+    ? await d.select({ slug: cards.slug, name: cards.name, element: cards.element,
+        class: cards.class, type: cards.type }).from(cards).where(inArray(cards.slug, slugs))
+    : [];
+
+  const allCollection = await d.select({
+    cardSlug: cardEditions.cardSlug, quantity: collectionItems.quantity, foil: collectionItems.foil,
+  }).from(collectionItems).innerJoin(cardEditions, eq(collectionItems.editionId, cardEditions.id))
+    .where(eq(collectionItems.userId, userId));
+
+  const slugSet = new Set(slugs);
+  return { group, defs, prefixes, editions, cards: cardRows,
+    collection: allCollection.filter((c) => slugSet.has(c.cardSlug)) };
 }
 
 // ---------------------------------------------------------------------------
