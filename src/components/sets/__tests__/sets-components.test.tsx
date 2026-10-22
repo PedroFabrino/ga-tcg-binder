@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { I18nProvider } from "@/lib/i18n";
 import SetGroupCard from "../SetGroupCard";
+import SetGroupRow from "../SetGroupRow";
 import HiddenSetsAccordion from "../HiddenSetsAccordion";
 import type { FeaturedSetSummary } from "@ga/contracts";
 
@@ -151,5 +152,39 @@ describe("HiddenSetsAccordion", () => {
     const html = renderHiddenAccordion([]);
     expect(html).toContain("Hidden Sets");
     expect(html).toContain("0 hidden");
+  });
+});
+
+describe("SetGroupRow", () => {
+  function renderRow(overrides: Partial<FeaturedSetSummary> = {}) {
+    const group = makeGroup(overrides);
+    return renderToStaticMarkup(
+      <I18nProvider>
+        <SetGroupRow group={group} onToggleHide={() => {}} />
+      </I18nProvider>,
+    );
+  }
+
+  it("renders group name and browse link", () => {
+    const html = renderRow({ groupName: "Dawn of Ashes", slug: "dawn-of-ashes" });
+    expect(html).toContain("Dawn of Ashes");
+    expect(html).toContain('/sets/dawn-of-ashes');
+  });
+
+  it("renders shortage badges breakdown", () => {
+    const html = renderRow({
+      totalShortageCopies: 15,
+      hardShortageCopies: 10,
+      sharedShortageCopies: 5,
+    });
+    expect(html).toContain("Shortages");
+    expect(html).toContain("Hard Shortage");
+    expect(html).toContain("Shared Shortage");
+  });
+
+  it("renders completion details", () => {
+    const html = renderRow({ ownedCards: 40, totalCards: 100, completionPercent: 40 });
+    expect(html).toContain("40/100");
+    expect(html).toContain("40%");
   });
 });

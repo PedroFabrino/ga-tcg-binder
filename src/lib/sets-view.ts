@@ -7,7 +7,15 @@ import type { FeaturedSetSummary } from "@ga/contracts";
 
 export type SetCategoryFilter = "all" | "booster" | "decks";
 
-export type SetSortMode = "shortages" | "completionAsc" | "completionDesc" | "date" | "name";
+export type SetSortMode =
+  | "shortages"
+  | "hardShortages"
+  | "completionAsc"
+  | "completionDesc"
+  | "date"
+  | "name";
+
+export type SetViewMode = "grid" | "list";
 
 /**
  * Normalise a string by removing combining diacritical marks and lowercasing.
@@ -36,7 +44,17 @@ export function filterSetsByCategory(
   category: SetCategoryFilter,
 ): FeaturedSetSummary[] {
   if (category === "all") return groups;
-  return groups.filter((g) => g.category === category);
+  if (category === "decks") {
+    return groups.filter(
+      (g) => g.hasDecks || g.category === "decks" || g.category === "both",
+    );
+  }
+  if (category === "booster") {
+    return groups.filter(
+      (g) => g.hasBooster || g.category === "booster" || g.category === "both",
+    );
+  }
+  return groups;
 }
 
 const SORTERS: Record<
@@ -44,6 +62,12 @@ const SORTERS: Record<
   (a: FeaturedSetSummary, b: FeaturedSetSummary) => number
 > = {
   shortages: (a, b) => b.totalShortageCopies - a.totalShortageCopies,
+  hardShortages: (a, b) => {
+    if (b.hardShortageCopies !== a.hardShortageCopies) {
+      return b.hardShortageCopies - a.hardShortageCopies;
+    }
+    return b.totalShortageCopies - a.totalShortageCopies;
+  },
   completionAsc: (a, b) => a.completionPercent - b.completionPercent,
   completionDesc: (a, b) => b.completionPercent - a.completionPercent,
   date: (a, b) => {

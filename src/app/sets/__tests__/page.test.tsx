@@ -119,4 +119,36 @@ describe("/sets Page Component (SetsDashboardView)", () => {
     expect(html).toContain("Starter Decks");
     expect(html).not.toContain("Dawn of Ashes");
   });
+
+  it("renders list view mode when initialViewMode is list", () => {
+    const html = renderView({ initialViewMode: "list" });
+    // In list view, elements include browse link and compact row container
+    expect(html).toContain("Browse Set");
+    expect(html).toContain("Dawn of Ashes");
+    expect(html).toContain("Alchemical Revolution");
+  });
+
+  it("sorts by hard shortages when initialSortMode is hardShortages", () => {
+    // Dawn of Ashes has hard: 6, total: 10
+    // Alchemical Revolution has hard: 15, total: 25
+    // Set 3: hard: 20, total: 20
+    const hardDominant = makeGroup({
+      groupUuid: "uuid-third",
+      groupName: "Third Set",
+      slug: "third-set",
+      hardShortageCopies: 20,
+      totalShortageCopies: 20,
+    });
+    const html = renderView({
+      groups: [
+        makeGroup({ groupUuid: "g1", groupName: "Small Hard Big Total", slug: "s1", hardShortageCopies: 1, totalShortageCopies: 50 }),
+        hardDominant,
+      ],
+      initialSortMode: "hardShortages",
+    });
+
+    const thirdIdx = html.indexOf("Third Set");
+    const smallIdx = html.indexOf("Small Hard Big Total");
+    expect(thirdIdx).toBeLessThan(smallIdx);
+  });
 });

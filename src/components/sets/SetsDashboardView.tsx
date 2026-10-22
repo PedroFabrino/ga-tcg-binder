@@ -5,6 +5,7 @@ import { PackageSearch } from "lucide-react";
 import { PageHeader } from "@/components/common";
 import { EmptyState, LoadingState } from "@/components/Skeletons";
 import SetGroupCard from "@/components/sets/SetGroupCard";
+import SetGroupRow from "@/components/sets/SetGroupRow";
 import SetsToolbar from "@/components/sets/SetsToolbar";
 import HiddenSetsAccordion from "@/components/sets/HiddenSetsAccordion";
 import {
@@ -14,6 +15,7 @@ import {
   splitActiveHidden,
   type SetCategoryFilter,
   type SetSortMode,
+  type SetViewMode,
 } from "@/lib/sets-view";
 import { useTranslation } from "@/lib/i18n";
 import type { FeaturedSetSummary } from "@ga/contracts";
@@ -26,6 +28,7 @@ export interface SetsDashboardViewProps {
   initialQuery?: string;
   initialSortMode?: SetSortMode;
   initialCategory?: SetCategoryFilter;
+  initialViewMode?: SetViewMode;
 }
 
 export default function SetsDashboardView({
@@ -36,11 +39,13 @@ export default function SetsDashboardView({
   initialQuery = "",
   initialSortMode = "shortages",
   initialCategory = "all",
+  initialViewMode = "grid",
 }: SetsDashboardViewProps) {
   const { t } = useTranslation();
   const [query, setQuery] = useState(initialQuery);
   const [sortMode, setSortMode] = useState<SetSortMode>(initialSortMode);
   const [category, setCategory] = useState<SetCategoryFilter>(initialCategory);
+  const [viewMode, setViewMode] = useState<SetViewMode>(initialViewMode);
 
   // Hidden groups from UNFILTERED list (P0 #7)
   const { active: rawActive, hidden } = splitActiveHidden(groups);
@@ -93,15 +98,27 @@ export default function SetsDashboardView({
         onSortChange={setSortMode}
         category={category}
         onCategoryChange={setCategory}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
       />
 
-      {/* Active groups grid */}
+      {/* Active groups grid or list */}
       {active.length === 0 ? (
         <EmptyState
           icon={PackageSearch}
           title={t("sets.emptyTitle")}
           description={t("sets.emptyHint")}
         />
+      ) : viewMode === "list" ? (
+        <div className="flex flex-col gap-2">
+          {active.map((group) => (
+            <SetGroupRow
+              key={group.groupUuid}
+              group={group}
+              onToggleHide={onToggleHide}
+            />
+          ))}
+        </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {active.map((group) => (

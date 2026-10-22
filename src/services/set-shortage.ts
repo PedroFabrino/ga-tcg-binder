@@ -18,6 +18,8 @@ import type { SetRepositoryDatabase } from "@/db/repositories/set-repository";
 import {
   cardToGroupsMap,
   categoryFromNames,
+  hasDeckReleases,
+  hasBoosterReleases,
   computeCardShortage,
   computeShortages,
   groupDefs,
@@ -115,6 +117,8 @@ export async function calculateFeaturedSetSummaries(
       releaseDate,
       childPrefixes: prefixes,
       category: categoryFromNames(defs.map((d) => d.name)),
+      hasDecks: hasDeckReleases(defs.map((d) => d.name)),
+      hasBooster: hasBoosterReleases(defs.map((d) => d.name)),
       isHidden: hidden.includes(group.uuid),
     });
   }

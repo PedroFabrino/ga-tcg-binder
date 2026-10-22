@@ -31,8 +31,8 @@ export interface SetPrinting {
 // Set Category
 // ---------------------------------------------------------------------------
 
-/** "decks" only when every child definition name matches "Starter Decks" or "Re:Collection"; otherwise "booster". */
-export type SetCategory = "booster" | "decks";
+/** "decks" when only deck releases, "both" when both booster and deck releases, or "booster". */
+export type SetCategory = "booster" | "decks" | "both";
 
 // ---------------------------------------------------------------------------
 // Featured Set Summary (displayed on /sets ranking page)
@@ -70,6 +70,8 @@ export interface FeaturedSetSummary {
   childPrefixes: string[];
 
   category: SetCategory;
+  hasDecks?: boolean;
+  hasBooster?: boolean;
   isHidden: boolean;
 }
 

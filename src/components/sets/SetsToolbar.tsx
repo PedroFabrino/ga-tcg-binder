@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, ChevronDown } from "lucide-react";
+import { Search, ChevronDown, LayoutGrid, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import type { SetCategoryFilter, SetSortMode } from "@/lib/sets-view";
+import type { SetCategoryFilter, SetSortMode, SetViewMode } from "@/lib/sets-view";
 
 const CATEGORY_OPTIONS: { value: SetCategoryFilter; tKey: "sets.filterAll" | "sets.filterBoosters" | "sets.filterDecks" }[] = [
   { value: "all", tKey: "sets.filterAll" },
@@ -19,8 +19,18 @@ const CATEGORY_OPTIONS: { value: SetCategoryFilter; tKey: "sets.filterAll" | "se
   { value: "decks", tKey: "sets.filterDecks" },
 ];
 
-const SORT_OPTIONS: { value: SetSortMode; tKey: "sets.sortByShortages" | "sets.sortByCompletionAsc" | "sets.sortByCompletionDesc" | "sets.sortByDate" | "sets.sortByName" }[] = [
+const SORT_OPTIONS: {
+  value: SetSortMode;
+  tKey:
+    | "sets.sortByShortages"
+    | "sets.sortByHardShortages"
+    | "sets.sortByCompletionAsc"
+    | "sets.sortByCompletionDesc"
+    | "sets.sortByDate"
+    | "sets.sortByName";
+}[] = [
   { value: "shortages", tKey: "sets.sortByShortages" },
+  { value: "hardShortages", tKey: "sets.sortByHardShortages" },
   { value: "completionAsc", tKey: "sets.sortByCompletionAsc" },
   { value: "completionDesc", tKey: "sets.sortByCompletionDesc" },
   { value: "date", tKey: "sets.sortByDate" },
@@ -34,6 +44,8 @@ export default function SetsToolbar({
   onSortChange,
   category,
   onCategoryChange,
+  viewMode,
+  onViewModeChange,
 }: {
   query: string;
   onQueryChange: (q: string) => void;
@@ -41,6 +53,8 @@ export default function SetsToolbar({
   onSortChange: (mode: SetSortMode) => void;
   category: SetCategoryFilter;
   onCategoryChange: (cat: SetCategoryFilter) => void;
+  viewMode: SetViewMode;
+  onViewModeChange: (mode: SetViewMode) => void;
 }) {
   const { t } = useTranslation();
 
@@ -60,7 +74,7 @@ export default function SetsToolbar({
         />
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {/* Category quick filters */}
         <div className="flex items-center rounded-lg border border-white/[0.08] bg-white/[0.02] p-0.5">
           {CATEGORY_OPTIONS.map((opt) => (
@@ -107,6 +121,42 @@ export default function SetsToolbar({
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {/* View mode toggle (Grid vs List) */}
+        <div className="flex items-center rounded-lg border border-white/[0.08] bg-white/[0.02] p-0.5">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "h-8 w-8 rounded-md p-0",
+              viewMode === "grid"
+                ? "bg-white/[0.12] text-white"
+                : "text-slate-400 hover:text-white",
+            )}
+            onClick={() => onViewModeChange("grid")}
+            aria-label={t("sets.viewGrid")}
+            title={t("sets.viewGrid")}
+          >
+            <LayoutGrid className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "h-8 w-8 rounded-md p-0",
+              viewMode === "list"
+                ? "bg-white/[0.12] text-white"
+                : "text-slate-400 hover:text-white",
+            )}
+            onClick={() => onViewModeChange("list")}
+            aria-label={t("sets.viewList")}
+            title={t("sets.viewList")}
+          >
+            <List className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -92,6 +92,19 @@ describe("filterSetsByCategory", () => {
     expect(result).toHaveLength(2);
     expect(result.every((g) => g.category === "decks")).toBe(true);
   });
+
+  it("matches groups marked as 'both' in either booster or decks filter", () => {
+    const bothGroup = makeGroup({
+      groupUuid: "uuid-both",
+      groupName: "Dawn of Ashes Hybrid",
+      category: "both",
+      hasDecks: true,
+      hasBooster: true,
+    });
+    const sample = [...groups, bothGroup];
+    expect(filterSetsByCategory(sample, "booster")).toContainEqual(bothGroup);
+    expect(filterSetsByCategory(sample, "decks")).toContainEqual(bothGroup);
+  });
 });
 
 describe("sortSets", () => {
@@ -103,6 +116,18 @@ describe("sortSets", () => {
     expect(result[3].totalShortageCopies).toBe(5);
     expect(result[4].totalShortageCopies).toBe(3);
     expect(result[5].totalShortageCopies).toBe(0);
+  });
+
+  it("sorts by hard shortages descending when hardShortages mode is selected", () => {
+    const hardGroups: FeaturedSetSummary[] = [
+      makeGroup({ groupUuid: "g1", groupName: "G1", hardShortageCopies: 2, totalShortageCopies: 20 }),
+      makeGroup({ groupUuid: "g2", groupName: "G2", hardShortageCopies: 10, totalShortageCopies: 12 }),
+      makeGroup({ groupUuid: "g3", groupName: "G3", hardShortageCopies: 5, totalShortageCopies: 5 }),
+    ];
+    const sorted = sortSets(hardGroups, "hardShortages");
+    expect(sorted[0].groupUuid).toBe("g2"); // 10 hard
+    expect(sorted[1].groupUuid).toBe("g3"); // 5 hard
+    expect(sorted[2].groupUuid).toBe("g1"); // 2 hard
   });
 
   it("sorts by completion ascending", () => {

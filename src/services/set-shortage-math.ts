@@ -142,17 +142,24 @@ export function slugsInGroup(
   return m;
 }
 
+export function hasDeckReleases(names: string[]): boolean {
+  const deckKeywords = ["starter deck", "pantheon deck", "re:collection", "deck"];
+  return names.some((n) => deckKeywords.some((kw) => n.toLowerCase().includes(kw)));
+}
+
+export function hasBoosterReleases(names: string[]): boolean {
+  const deckKeywords = ["starter deck", "pantheon deck", "re:collection", "deck"];
+  return names.some((n) => !deckKeywords.some((kw) => n.toLowerCase().includes(kw)));
+}
+
 /**
- * Category: "decks" only when every child definition name matches
- * "Starter Decks" or "Re:Collection"; otherwise "booster".
+ * Category: "decks" when only deck releases, "both" when both booster and deck releases, or "booster".
  */
-export function categoryFromNames(names: string[]): "booster" | "decks" {
-  const deckKeywords = ["starter decks", "re:collection"];
-  if (
-    names.length > 0 &&
-    names.every((n) => deckKeywords.some((kw) => n.toLowerCase().includes(kw)))
-  ) {
-    return "decks";
-  }
+export function categoryFromNames(names: string[]): "booster" | "decks" | "both" {
+  const hasDecks = hasDeckReleases(names);
+  const hasBooster = hasBoosterReleases(names);
+
+  if (hasDecks && hasBooster) return "both";
+  if (hasDecks) return "decks";
   return "booster";
 }
