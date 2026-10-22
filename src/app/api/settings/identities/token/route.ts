@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { DEFAULT_USER_ID } from "@/services/seed";
+import { DEFAULT_USER_ID, ensureDefaultUserAndSeed } from "@/services/seed";
 import { generatePairingCodeForCollector } from "@/services/collector-assistant";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(_req: NextRequest) {
   try {
+    await ensureDefaultUserAndSeed();
     const session = await auth();
     const userId = session?.user?.id || DEFAULT_USER_ID;
 

@@ -95,6 +95,8 @@ export function SettingsLinkedAccountsSection() {
 
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
+  const hasDiscord = identities.some((i) => i.provider === "discord");
+  const hasRoot = identities.some((i) => i.provider === "root");
 
   return (
     <div className="space-y-6">
@@ -176,8 +178,14 @@ export function SettingsLinkedAccountsSection() {
               </span>
             </div>
             <div className="space-y-1 text-[11px] text-indigo-200/70 border-t border-indigo-500/20 pt-2">
-              <p>• {t("settings.botInstructionDiscord")}</p>
-              <p>• {t("settings.botInstructionRoot")}</p>
+              {!hasDiscord && <p>• {t("settings.botInstructionDiscord")}</p>}
+              {!hasRoot && <p>• {t("settings.botInstructionRoot")}</p>}
+              {hasDiscord && hasRoot && (
+                <>
+                  <p>• {t("settings.botInstructionDiscord")}</p>
+                  <p>• {t("settings.botInstructionRoot")}</p>
+                </>
+              )}
             </div>
           </div>
         )}
