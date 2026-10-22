@@ -135,7 +135,7 @@ export async function upsertFeaturedSetGroup(
       uuid: data.uuid,
       name: data.name,
       slug: data.slug,
-      imageUrl: data.imageUrl ?? null,
+      imageUrl: data.imageUrl,
       sortOrder: data.sortOrder ?? 0,
       createdAt: now,
       updatedAt: now,
@@ -145,7 +145,7 @@ export async function upsertFeaturedSetGroup(
       set: {
         name: data.name,
         slug: data.slug,
-        imageUrl: data.imageUrl ?? null,
+        imageUrl: data.imageUrl,
         sortOrder: data.sortOrder ?? 0,
         updatedAt: now,
       },
@@ -176,7 +176,7 @@ export async function upsertSetDefinition(
       prefix: data.prefix,
       name: data.name,
       language: data.language ?? "EN",
-      releaseDate: data.releaseDate ?? null,
+      releaseDate: data.releaseDate,
       createdAt: now,
       updatedAt: now,
     })
@@ -187,7 +187,7 @@ export async function upsertSetDefinition(
         prefix: data.prefix,
         name: data.name,
         language: data.language ?? "EN",
-        releaseDate: data.releaseDate ?? null,
+        releaseDate: data.releaseDate,
         updatedAt: now,
       },
     })
