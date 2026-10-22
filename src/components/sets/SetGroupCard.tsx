@@ -38,15 +38,18 @@ export default function SetGroupCard({
         {/* Shortage pill overlay */}
         {hasShortages && (
           <div className="absolute top-2 right-2">
-            <div className="flex flex-col items-end gap-0.5">
-              <Badge variant="destructive" className="text-xs font-bold">
+            <div className="flex flex-col items-end gap-1">
+              <Badge
+                variant="destructive"
+                className="bg-slate-950/80 backdrop-blur-sm border-rose-500/30 text-rose-200 text-xs font-bold shadow-md px-2 py-0.5"
+              >
                 {t("sets.shortageBadge", { count: group.totalShortageCopies })}
               </Badge>
-              <div className="flex gap-0.5">
-                <span className="inline-flex items-center rounded-full bg-rose-700/80 px-1.5 py-0.5 text-[9px] leading-none text-white">
+              <div className="flex gap-1">
+                <span className="inline-flex items-center rounded-full bg-rose-700/90 border border-rose-500/30 px-1.5 py-0.5 text-[9px] leading-none text-white shadow-sm">
                   {t("sets.hardShortage")}: {group.hardShortageCopies}
                 </span>
-                <span className="inline-flex items-center rounded-full bg-amber-700/80 px-1.5 py-0.5 text-[9px] leading-none text-white">
+                <span className="inline-flex items-center rounded-full bg-amber-700/90 border border-amber-500/30 px-1.5 py-0.5 text-[9px] leading-none text-white shadow-sm">
                   {t("sets.sharedShortage")}: {group.sharedShortageCopies}
                 </span>
               </div>

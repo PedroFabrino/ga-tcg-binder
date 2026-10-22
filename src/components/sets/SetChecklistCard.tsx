@@ -80,7 +80,7 @@ export default function SetChecklistCard({
           <div className="absolute left-2 top-2">
             <Badge
               variant="destructive"
-              className="text-[10px] font-bold"
+              className="bg-slate-950/80 backdrop-blur-sm border-rose-500/30 text-rose-200 text-[10px] font-bold shadow-md"
               aria-label={`${t(shortageKey)}: ${badgeCount}`}
             >
               <AlertTriangle className="mr-1 h-3 w-3" />
@@ -94,7 +94,7 @@ export default function SetChecklistCard({
           <div className="absolute right-2 top-2">
             <Badge
               variant="default"
-              className="text-[10px]"
+              className="bg-slate-950/80 backdrop-blur-sm border-white/[0.12] text-slate-200 text-[10px] shadow-md"
               aria-label={t("sets.checklist.requiredBy", { count: deckCount })}
             >
               <Users className="mr-1 h-3 w-3" />
