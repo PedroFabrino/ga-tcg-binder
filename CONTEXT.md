@@ -96,6 +96,18 @@ _Avoid_: User profile, public page, bio
 The aggregated read-only presentation of Shortages (both Hard Shortages and Shared Shortages) published on a Collector's Public Collector Profile to facilitate trading, borrowing, and purchasing within playgroups and marketplaces.
 _Avoid_: Wishlist, shopping list, shortage export
 
+**Personal Want** (_pt-BR_: **Desejo Direto**):
+A specific Card or Printing explicitly flagged by a Collector to acquire, independent of active constructed Decks, tracked with desired quantity, optional finish preference, and optional price target.
+_Avoid_: Wishlist item, manual shortage, buy order
+
+**Aggregate Wantlist**:
+The comprehensive unified view of all cards a Collector is seeking to acquire, consolidating both deck-derived Shortages (Hard and Shared) and independent Personal Wants into a single partitioned presentation.
+_Avoid_: Full shortage list, combined wishlist
+
+**Collector Alert Subscription**:
+A Collector's preference to receive direct notifications (such as Discord direct messages) when external Marketplace Listings matching their Shortages or Personal Wants are discovered.
+_Avoid_: Webhook ping, price alert
+
 **Target Deck**:
 A Collector's public Deck displayed on their Public Collector Profile with its live physical assembly completion percentage and exact missing cards required to sleeve the list.
 _Avoid_: Goal deck, wanted deck, project deck
