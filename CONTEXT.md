@@ -76,6 +76,22 @@ _Avoid_: Deck match score, buildability rate
 The canonical reference repository of Cards and Printings synchronized from the official game API.
 _Avoid_: Card master list, card index
 
+**Featured Set Group**:
+An official Grand Archive product release grouping published by the game API (e.g. Dawn of Ashes, Alchemical Revolution), aggregating multiple related set editions, starter decks, and supplementary sets under a single thematic release.
+_Avoid_: Product line, expansion group, box category
+
+**Set Shortage**:
+The aggregate count of Deck Shortages (missing copies across constructed Decks) that can be pulled from a specific Featured Set Group or Set.
+_Avoid_: Missing set cards, pack deficit
+
+**Set Completion**:
+The percentage and count of unique Cards or Printings within a Featured Set Group or Set currently held as Owned Copies in the Collector's Binder.
+_Avoid_: Set progress, binder rate, master set score
+
+**Hidden Set**:
+A Featured Set Group or Set explicitly excluded by the Collector from the primary ranked view and relegated to a collapsed hidden sets archive.
+_Avoid_: Archived set, disabled set, muted collection
+
 **Deck Assignment**:
 The explicit allocation of an Owned Copy of a Dedicated Card to a specific Deck.
 _Avoid_: Card reservation, card attachment

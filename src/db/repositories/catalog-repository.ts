@@ -289,3 +289,25 @@ export async function queryDeckUsageForUserCards(
       )
     );
 }
+
+/**
+ * Fast search of catalog cards by name for autocomplete suggestions (max limit).
+ */
+export async function searchCardsForAutocomplete(
+  query: string,
+  limit: number = 25,
+  database: CatalogDatabase = db
+) {
+  const clean = query.trim().toLowerCase();
+  return database
+    .select({
+      slug: cards.slug,
+      name: cards.name,
+      element: cards.element,
+      type: cards.type,
+      class: cards.class,
+    })
+    .from(cards)
+    .where(sql`LOWER(${cards.name}) LIKE ${"%" + clean + "%"}`)
+    .limit(limit);
+}

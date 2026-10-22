@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAssistantAuthorized, resolveAssistantCaller } from "@/services/assistant-auth";
 import { searchCollectorCollection } from "@/services/collector-assistant";
+import { getCollectorPortfolioSummary } from "@/services/collector-portfolio";
 
 export async function GET(request: Request) {
   if (!isAssistantAuthorized(request)) {
@@ -13,7 +14,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const provider = searchParams.get("provider");
   const providerUserId = searchParams.get("providerUserId");
-  const query = searchParams.get("query") || "";
+  const query = searchParams.get("query");
 
   const resolution = await resolveAssistantCaller(provider, providerUserId);
   if (resolution.error) {
@@ -24,6 +25,15 @@ export async function GET(request: Request) {
   }
 
   const { collectorId } = resolution.context!;
+
+  if (!query) {
+    const portfolio = await getCollectorPortfolioSummary(collectorId);
+    return NextResponse.json({
+      collectorId,
+      portfolio,
+    });
+  }
+
   const result = await searchCollectorCollection(collectorId, query);
 
   return NextResponse.json(result);

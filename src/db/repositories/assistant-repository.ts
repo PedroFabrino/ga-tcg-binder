@@ -282,3 +282,21 @@ export async function loadAssistantCollectorDecksData(
   return { userDecks, allDeckCards, userInventory };
 }
 
+/**
+ * Retrieves all linked identities for a provider with wantlist deal notifications enabled.
+ */
+export async function findIdentitiesWithNotificationsEnabled(
+  provider: string,
+  database = db
+): Promise<CollectorIdentity[]> {
+  return database
+    .select()
+    .from(collectorIdentities)
+    .where(
+      and(
+        eq(collectorIdentities.provider, provider),
+        eq(collectorIdentities.wantlistNotificationsEnabled, true)
+      )
+    );
+}
+

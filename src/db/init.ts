@@ -546,6 +546,7 @@ async function doRunMigrations(customClient: typeof client) {
     "ALTER TABLE `market_stores` ADD COLUMN `last_latest_card_ref_id` text;",
     "ALTER TABLE `market_stores` ADD COLUMN `last_notified_at` integer;",
     "ALTER TABLE `market_cards` ADD COLUMN `first_seen_at` integer DEFAULT 0 NOT NULL;",
+    "ALTER TABLE `collector_identities` ADD COLUMN `wantlist_notifications_enabled` integer DEFAULT 0 NOT NULL;",
   ];
 
   for (const alterStmt of alterColumns) {
