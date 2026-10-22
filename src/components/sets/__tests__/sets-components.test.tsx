@@ -4,8 +4,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { I18nProvider } from "@/lib/i18n";
 import SetGroupCard from "../SetGroupCard";
 import SetGroupRow from "../SetGroupRow";
+import SetsToolbar from "../SetsToolbar";
 import HiddenSetsAccordion from "../HiddenSetsAccordion";
-import type { FeaturedSetSummary } from "@ga/contracts";
+import type { FeaturedSetSummary, SetTargetDeck } from "@ga/contracts";
 
 vi.stubGlobal("React", React);
 
@@ -186,5 +187,45 @@ describe("SetGroupRow", () => {
     const html = renderRow({ ownedCards: 40, totalCards: 100, completionPercent: 40 });
     expect(html).toContain("40/100");
     expect(html).toContain("40%");
+  });
+
+  it("appends target to browse link when target is active", () => {
+    const group = makeGroup({ slug: "dawn-of-ashes" });
+    const html = renderToStaticMarkup(
+      <I18nProvider>
+        <SetGroupRow group={group} onToggleHide={() => {}} target="deck-123" />
+      </I18nProvider>,
+    );
+    expect(html).toContain('/sets/dawn-of-ashes?target=deck-123');
+  });
+});
+
+describe("SetsToolbar with Target Selector", () => {
+  const sampleDecks: SetTargetDeck[] = [
+    { id: "deck-1", name: "Arthur Fire Aggro" },
+    { id: "deck-2", name: "Merlin Water Control" },
+  ];
+
+  it("renders the target dropdown and active target label", () => {
+    const html = renderToStaticMarkup(
+      <I18nProvider>
+        <SetsToolbar
+          query=""
+          onQueryChange={() => {}}
+          sortMode="shortages"
+          onSortChange={() => {}}
+          category="all"
+          onCategoryChange={() => {}}
+          viewMode="grid"
+          onViewModeChange={() => {}}
+          target="deck-1"
+          onTargetChange={() => {}}
+          availableDecks={sampleDecks}
+          hasPersonalWants={true}
+        />
+      </I18nProvider>,
+    );
+    expect(html).toContain("Target:");
+    expect(html).toContain("Arthur Fire Aggro");
   });
 });

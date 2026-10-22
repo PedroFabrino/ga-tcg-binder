@@ -18,10 +18,10 @@ import type { SetRepositoryDatabase } from "@/db/repositories/set-repository";
 import {
   cardToGroupsMap,
   categoryFromNames,
-  hasDeckReleases,
-  hasBoosterReleases,
   computeCardShortage,
   computeShortages,
+  computeSummariesFromData,
+  filterTargetDemandCards,
   groupDefs,
   prefixToGroupMap,
   slugsInGroup,
@@ -29,6 +29,7 @@ import {
 import { matchesSetChecklistFilters } from "@ga/contracts";
 import type {
   FeaturedSetSummary,
+  FeaturedSetsResponse,
   SetGroupStats,
   SetChecklistFilters,
   SetShortageLevel,
@@ -38,6 +39,10 @@ import type {
   SetGroupChecklistReport,
 } from "@ga/contracts";
 
+export interface SetShortageOptions {
+  target?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -45,101 +50,55 @@ import type {
 /** Rank all featured set groups by deck shortages and set completion. */
 export async function calculateFeaturedSetSummaries(
   userId: string,
+  optionsOrDatabase?: SetShortageOptions | SetRepositoryDatabase,
   database?: SetRepositoryDatabase,
 ): Promise<FeaturedSetSummary[]> {
-  const { allDeckCards, userCollection, allEditions, allGroups, allDefs, hidden } =
-    await loadSetShortageAndInventoryData(userId, database);
+  const options =
+    optionsOrDatabase && "target" in optionsOrDatabase
+      ? optionsOrDatabase
+      : undefined;
+  const db =
+    optionsOrDatabase && !("target" in optionsOrDatabase)
+      ? (optionsOrDatabase as SetRepositoryDatabase)
+      : database;
 
-  if (allGroups.length === 0) return [];
+  const data = await loadSetShortageAndInventoryData(userId, db);
+  return computeSummariesFromData(data, options?.target);
+}
 
-  const shortages = computeShortages(allDeckCards, userCollection);
-  const prefixToGroup = prefixToGroupMap(allDefs);
-  const cardToGroups = cardToGroupsMap(allEditions, prefixToGroup);
-  const defsByGroup = groupDefs(allDefs);
-  const slugsByGroup = slugsInGroup(allEditions, prefixToGroup);
+/** Returns all data needed for the /sets dashboard view including available target decks. */
+export async function getFeaturedSetsDashboardData(
+  userId: string,
+  optionsOrDatabase?: SetShortageOptions | SetRepositoryDatabase,
+  database?: SetRepositoryDatabase,
+): Promise<FeaturedSetsResponse> {
+  const options =
+    optionsOrDatabase && "target" in optionsOrDatabase
+      ? optionsOrDatabase
+      : undefined;
+  const db =
+    optionsOrDatabase && !("target" in optionsOrDatabase)
+      ? (optionsOrDatabase as SetRepositoryDatabase)
+      : database;
 
-  // Owned slugs (any card with qty > 0)
-  const ownedSlugs = new Set<string>();
-  for (const ci of userCollection) {
-    if (ci.quantity > 0) ownedSlugs.add(ci.cardSlug);
-  }
+  const data = await loadSetShortageAndInventoryData(userId, db);
+  const groups = computeSummariesFromData(data, options?.target);
+  const hiddenCount = groups.filter((g) => g.isHidden).length;
 
-  const summaries: FeaturedSetSummary[] = [];
-  for (const group of allGroups) {
-    const defs = defsByGroup.get(group.uuid) ?? [];
-    const groupSlugs = slugsByGroup.get(group.uuid);
-    const totalCards = groupSlugs?.size ?? 0;
-
-    let ownedCards = 0;
-    if (groupSlugs) {
-      for (const s of groupSlugs) {
-        if (ownedSlugs.has(s)) ownedCards++;
-      }
-    }
-
-    const prefixes = [...new Set(defs.map((d) => d.prefix))].sort();
-    const relDates = defs
-      .map((d) => d.releaseDate)
-      .filter((d): d is string => Boolean(d))
-      .sort();
-    const releaseDate = relDates[0] ?? null;
-
-    let hard = 0;
-    let shared = 0;
-    let uniqueShort = 0;
-    const impactedDecks = new Set<string>();
-
-    for (const [slug, sh] of shortages) {
-      if (sh.concurrentMissing <= 0 && sh.peakMissing <= 0) continue;
-      const cardGroups = cardToGroups.get(slug);
-      if (!cardGroups?.has(group.uuid)) continue;
-      hard += sh.peakMissing;
-      shared += sh.concurrentMissing - sh.peakMissing;
-      uniqueShort++;
-      for (const dId of sh.deckIds) impactedDecks.add(dId);
-    }
-
-    summaries.push({
-      groupUuid: group.uuid,
-      groupName: group.name,
-      slug: group.slug,
-      imageUrl: group.imageUrl ?? null,
-      sortOrder: group.sortOrder,
-      hardShortageCopies: hard,
-      sharedShortageCopies: shared,
-      totalShortageCopies: hard + shared,
-      uniqueShortageCards: uniqueShort,
-      impactedDecks: impactedDecks.size,
-      ownedCards,
-      totalCards,
-      completionPercent:
-        totalCards > 0 ? Math.round((ownedCards / totalCards) * 100) : 0,
-      releaseDate,
-      childPrefixes: prefixes,
-      category: categoryFromNames(defs.map((d) => d.name)),
-      hasDecks: hasDeckReleases(defs.map((d) => d.name)),
-      hasBooster: hasBoosterReleases(defs.map((d) => d.name)),
-      isHidden: hidden.includes(group.uuid),
-    });
-  }
-
-  summaries.sort((a, b) => {
-    if (a.isHidden !== b.isHidden) return a.isHidden ? 1 : -1;
-    if (a.totalShortageCopies !== b.totalShortageCopies)
-      return b.totalShortageCopies - a.totalShortageCopies;
-    if (a.completionPercent !== b.completionPercent)
-      return a.completionPercent - b.completionPercent;
-    return a.groupName.localeCompare(b.groupName);
-  });
-
-  return summaries;
+  return {
+    groups,
+    hiddenCount,
+    availableDecks: data.userDecks ?? [],
+    hasPersonalWants: (data.personalWants ?? []).length > 0,
+    currentTarget: options?.target ?? "all",
+  };
 }
 
 /** Build a checklist report (group stats + one row per distinct card slug). */
 export async function getSetGroupChecklistReport(
   slugOrUuid: string,
   userId: string,
-  options?: { filters?: SetChecklistFilters },
+  options?: { filters?: SetChecklistFilters; target?: string },
   database?: SetRepositoryDatabase,
 ): Promise<SetGroupChecklistReport | null> {
   // Resolve group
@@ -169,7 +128,14 @@ export async function getSetGroupChecklistReport(
 
   const checklist = await loadSetGroupChecklist(group.uuid, userId, database);
   if (!checklist) return null;
-  const { editions, cards: cardRows, collection, deckCards: allDeckCards = [] } = checklist;
+  const {
+    editions,
+    cards: cardRows,
+    collection,
+    deckCards: allDeckCards = [],
+    userDecks = [],
+    personalWants = [],
+  } = checklist;
 
   // Lookups: card metadata, editions by slug
   const edsBySlug = new Map<string, typeof editions>();
@@ -201,14 +167,20 @@ export async function getSetGroupChecklistReport(
     }
   }
 
-  // Deck demand: group-scoped deck cards loaded directly with checklist
+  // Filter demand according to target
   const groupSlugSet = new Set(cardRows.map((c) => c.slug));
+  const targetDemandCards = filterTargetDemandCards(
+    allDeckCards,
+    personalWants,
+    options?.target,
+  );
+
   const deckDemandBySlug = new Map<string, number[]>();
   const deckMetaBySlug = new Map<
     string,
     { deckId: string; deckName: string; quantity: number }[]
   >();
-  for (const dc of allDeckCards) {
+  for (const dc of targetDemandCards) {
     if (!groupSlugSet.has(dc.cardSlug)) continue;
     const qs = deckDemandBySlug.get(dc.cardSlug) ?? [];
     qs.push(dc.quantity);
@@ -333,7 +305,14 @@ export async function getSetGroupChecklistReport(
         : 0,
   };
 
-  return { group, stats, cards: filtered };
+  return {
+    group,
+    stats,
+    cards: filtered,
+    availableDecks: userDecks,
+    hasPersonalWants: personalWants.length > 0,
+    currentTarget: options?.target ?? "all",
+  };
 }
 
 /** Toggle visibility. */

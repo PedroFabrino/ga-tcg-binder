@@ -36,19 +36,32 @@ export default function SetChecklistPage() {
   const [search, setSearch] = useState("");
   const [element, setElement] = useState<string | null>(null);
   const [rarity, setRarity] = useState<number | null>(null);
+  const [target, setTarget] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return new URLSearchParams(window.location.search).get("target") || "all";
+    }
+    return "all";
+  });
 
   // Quantity loading state per card slug (to serialize concurrent clicks)
   const loadingCardsRef = useRef<Set<string>>(new Set());
   const [loadingCards, setLoadingCards] = useState<Set<string>>(new Set());
 
   // Fetch the checklist
-  const fetchChecklist = useCallback(async () => {
+  const fetchChecklist = useCallback(async (activeTarget: string) => {
     if (!groupSlug) return;
     setLoading(true);
     setError(false);
     setNotFound(false);
     try {
-      const res = await fetch(`/api/sets/${encodeURIComponent(groupSlug)}`);
+      const url = new URL(
+        `/api/sets/${encodeURIComponent(groupSlug)}`,
+        window.location.origin,
+      );
+      if (activeTarget && activeTarget !== "all") {
+        url.searchParams.set("target", activeTarget);
+      }
+      const res = await fetch(url.toString());
       if (res.status === 404) {
         setNotFound(true);
         setLoading(false);
@@ -63,6 +76,9 @@ export default function SetChecklistPage() {
         group: data.group,
         stats: data.summary,
         cards: data.checklist as SetChecklistReportCard[],
+        availableDecks: data.availableDecks,
+        hasPersonalWants: data.hasPersonalWants,
+        currentTarget: data.currentTarget,
       });
     } catch {
       setError(true);
@@ -72,8 +88,8 @@ export default function SetChecklistPage() {
   }, [groupSlug]);
 
   useEffect(() => {
-    fetchChecklist();
-  }, [fetchChecklist]);
+    fetchChecklist(target);
+  }, [fetchChecklist, target]);
 
   // Stepper: POST delta then optimistically update + refetch
   const handleQuantityChange = useCallback(
@@ -116,17 +132,17 @@ export default function SetChecklistPage() {
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         // Refetch to get accurate server state
-        await fetchChecklist();
+        await fetchChecklist(target);
       } catch {
         showToast(t("common.error"), "error");
         // Refetch to rollback
-        await fetchChecklist();
+        await fetchChecklist(target);
       } finally {
         loadingCardsRef.current.delete(slug);
         setLoadingCards(new Set(loadingCardsRef.current));
       }
     },
-    [fetchChecklist, showToast, t],
+    [fetchChecklist, showToast, t, target],
   );
 
   // Derived: filtered cards
@@ -199,6 +215,9 @@ export default function SetChecklistPage() {
         onElementChange={setElement}
         selectedRarity={rarity}
         onRarityChange={setRarity}
+        target={target}
+        onTargetChange={setTarget}
+        availableDecks={report.availableDecks}
       />
 
       {/* Cards grid */}

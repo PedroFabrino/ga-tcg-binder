@@ -142,6 +142,21 @@ export interface SetChecklistReportCard extends SetChecklistCard {
 // Set Group Checklist Report (returned by /api/sets/[groupSlug])
 // ---------------------------------------------------------------------------
 
+/** A deck available as a target for shortage calculations. */
+export interface SetTargetDeck {
+  id: string;
+  name: string;
+}
+
+/** Dashboard response returned by GET /api/sets */
+export interface FeaturedSetsResponse {
+  groups: FeaturedSetSummary[];
+  hiddenCount: number;
+  availableDecks: SetTargetDeck[];
+  hasPersonalWants: boolean;
+  currentTarget?: string;
+}
+
 export interface SetGroupChecklistReport {
   group: {
     uuid: string;
@@ -154,6 +169,9 @@ export interface SetGroupChecklistReport {
   };
   stats: SetGroupStats;
   cards: SetChecklistReportCard[];
+  availableDecks?: SetTargetDeck[];
+  hasPersonalWants?: boolean;
+  currentTarget?: string;
 }
 
 // ---------------------------------------------------------------------------

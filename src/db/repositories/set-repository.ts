@@ -1,6 +1,7 @@
 import { db } from "../index";
 import { featuredSetGroups, setDefinitions } from "../featured-set-schema";
 import { users, cards, cardEditions, collectionItems, decks, deckCards } from "../schema";
+import { collectorWants } from "../assistant-schema";
 import { eq, asc, inArray, and } from "drizzle-orm";
 import type { FeaturedSetGroup, InsertFeaturedSetGroup, SetDefinition, InsertSetDefinition } from "../featured-set-schema";
 
@@ -257,6 +258,8 @@ export async function loadSetShortageAndInventoryData(
     allGroups,
     allDefs,
     hiddenRaw,
+    userDecks,
+    personalWants,
   ] = await Promise.all([
     d.select({
       id: deckCards.id, deckId: deckCards.deckId, cardSlug: deckCards.cardSlug,
@@ -277,10 +280,24 @@ export async function loadSetShortageAndInventoryData(
     d.select().from(featuredSetGroups).orderBy(asc(featuredSetGroups.sortOrder), asc(featuredSetGroups.name)),
     d.select().from(setDefinitions).orderBy(asc(setDefinitions.name)),
     d.select({ hiddenSetUuids: users.hiddenSetUuids }).from(users).where(eq(users.id, userId)),
+    d.select({ id: decks.id, name: decks.name }).from(decks).where(eq(decks.userId, userId)).orderBy(asc(decks.name)),
+    d.select({
+      id: collectorWants.id,
+      cardSlug: collectorWants.cardSlug,
+      quantity: collectorWants.desiredQuantity,
+    }).from(collectorWants).where(eq(collectorWants.collectorId, userId)),
   ]);
 
-  return { allDeckCards, userCollection, allEditions, allGroups, allDefs,
-    hidden: parseHiddenSetUuids(hiddenRaw[0]?.hiddenSetUuids) };
+  return {
+    allDeckCards,
+    userCollection,
+    allEditions,
+    allGroups,
+    allDefs,
+    hidden: parseHiddenSetUuids(hiddenRaw[0]?.hiddenSetUuids),
+    userDecks,
+    personalWants,
+  };
 }
 
 export async function loadSetGroupChecklist(
@@ -316,18 +333,36 @@ export async function loadSetGroupChecklist(
   }).from(collectionItems).innerJoin(cardEditions, eq(collectionItems.editionId, cardEditions.id))
     .where(eq(collectionItems.userId, userId));
 
-  const deckCardRows = slugs.length > 0
-    ? await d.select({
-        deckId: deckCards.deckId, deckName: decks.name, cardSlug: deckCards.cardSlug,
-        quantity: deckCards.quantity,
-      }).from(deckCards).innerJoin(decks, eq(deckCards.deckId, decks.id))
-        .where(and(eq(decks.userId, userId), inArray(deckCards.cardSlug, slugs)))
-    : [];
+  const [deckCardRows, personalWants, userDecks] = await Promise.all([
+    slugs.length > 0
+      ? d.select({
+          deckId: deckCards.deckId, deckName: decks.name, cardSlug: deckCards.cardSlug,
+          quantity: deckCards.quantity,
+        }).from(deckCards).innerJoin(decks, eq(deckCards.deckId, decks.id))
+          .where(and(eq(decks.userId, userId), inArray(deckCards.cardSlug, slugs)))
+      : [],
+    slugs.length > 0
+      ? d.select({
+          id: collectorWants.id,
+          cardSlug: collectorWants.cardSlug,
+          quantity: collectorWants.desiredQuantity,
+        }).from(collectorWants).where(and(eq(collectorWants.collectorId, userId), inArray(collectorWants.cardSlug, slugs)))
+      : [],
+    d.select({ id: decks.id, name: decks.name }).from(decks).where(eq(decks.userId, userId)).orderBy(asc(decks.name)),
+  ]);
 
   const slugSet = new Set(slugs);
-  return { group, defs, prefixes, editions, cards: cardRows,
+  return {
+    group,
+    defs,
+    prefixes,
+    editions,
+    cards: cardRows,
     collection: allCollection.filter((c) => slugSet.has(c.cardSlug)),
-    deckCards: deckCardRows };
+    deckCards: deckCardRows,
+    userDecks,
+    personalWants,
+  };
 }
 
 // ---------------------------------------------------------------------------

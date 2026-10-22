@@ -11,11 +11,16 @@ import type { FeaturedSetSummary } from "@ga/contracts";
 interface Props {
   group: FeaturedSetSummary;
   onToggleHide: (groupUuid: string) => void;
+  target?: string;
 }
 
-export default function SetGroupRow({ group, onToggleHide }: Props) {
+export default function SetGroupRow({ group, onToggleHide, target }: Props) {
   const { t } = useTranslation();
   const hasShortages = group.totalShortageCopies > 0;
+  const browseHref =
+    target && target !== "all"
+      ? `/sets/${group.slug}?target=${encodeURIComponent(target)}`
+      : `/sets/${group.slug}`;
 
   const categoryLabel =
     group.category === "both"
@@ -47,7 +52,7 @@ export default function SetGroupRow({ group, onToggleHide }: Props) {
         {/* Name and Meta */}
         <div className="min-w-0 flex-1">
           <Link
-            href={`/sets/${group.slug}`}
+            href={browseHref}
             className="truncate text-sm font-semibold text-white hover:text-amber-400 transition-colors block"
             title={group.groupName}
           >
@@ -120,7 +125,7 @@ export default function SetGroupRow({ group, onToggleHide }: Props) {
             size="sm"
             className="h-8 gap-1 text-xs text-slate-300 hover:text-white"
           >
-            <Link href={`/sets/${group.slug}`}>
+            <Link href={browseHref}>
               {t("sets.browseSet")}
               <ArrowRight className="h-3 w-3" />
             </Link>

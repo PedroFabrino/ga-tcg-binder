@@ -12,13 +12,19 @@ import type { FeaturedSetSummary } from "@ga/contracts";
 export default function SetGroupCard({
   group,
   onToggleHide,
+  target,
 }: {
   group: FeaturedSetSummary;
   onToggleHide: (groupUuid: string) => void;
+  target?: string;
 }) {
   const { t } = useTranslation();
 
   const hasShortages = group.totalShortageCopies > 0;
+  const browseHref =
+    target && target !== "all"
+      ? `/sets/${group.slug}?target=${encodeURIComponent(target)}`
+      : `/sets/${group.slug}`;
 
   return (
     <div className="group relative flex flex-col rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden transition-colors hover:border-white/[0.10]">
@@ -122,7 +128,7 @@ export default function SetGroupCard({
       {/* Actions */}
       <div className="flex items-center gap-1 border-t border-white/[0.04] p-2">
         <Button variant="outline" size="sm" className="flex-1 text-[11px]" asChild>
-          <Link href={`/sets/${group.slug}`}>
+          <Link href={browseHref}>
             <Package className="h-3.5 w-3.5" />
             {t("sets.browseSet")}
           </Link>

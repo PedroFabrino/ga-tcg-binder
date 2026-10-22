@@ -4,7 +4,7 @@ import { Search, X } from "lucide-react";
 import { ALL_ELEMENTS, ELEMENT_LABELS } from "@/lib/elements";
 import { RARITIES } from "@/lib/rarities";
 import { useTranslation } from "@/lib/i18n";
-import type { SetChecklistFilterStatus, TranslationKey } from "@ga/contracts";
+import type { SetChecklistFilterStatus, SetTargetDeck, TranslationKey } from "@ga/contracts";
 import FilterChip from "./FilterChip";
 
 interface Props {
@@ -16,6 +16,9 @@ interface Props {
   onElementChange: (element: string | null) => void;
   selectedRarity: number | null;
   onRarityChange: (rarity: number | null) => void;
+  target?: string;
+  onTargetChange?: (target: string) => void;
+  availableDecks?: SetTargetDeck[];
 }
 
 const STATUS_OPTIONS: { value: SetChecklistFilterStatus; key: TranslationKey }[] = [
@@ -34,6 +37,9 @@ export default function SetChecklistFilters({
   onElementChange,
   selectedRarity,
   onRarityChange,
+  target = "all",
+  onTargetChange,
+  availableDecks = [],
 }: Props) {
   const { t } = useTranslation();
 
@@ -76,6 +82,28 @@ export default function SetChecklistFilters({
             </button>
           )}
         </div>
+
+        {/* Target select */}
+        {onTargetChange && (
+          <select
+            value={target}
+            onChange={(e) => onTargetChange(e.target.value)}
+            aria-label={t("sets.targetLabel")}
+            className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/30 appearance-none cursor-pointer"
+          >
+            <option value="all" className="bg-slate-900">
+              {t("sets.targetAll")}
+            </option>
+            <option value="wantlist" className="bg-slate-900">
+              {t("sets.targetWantlist")}
+            </option>
+            {availableDecks.map((d) => (
+              <option key={d.id} value={d.id} className="bg-slate-900">
+                {d.name}
+              </option>
+            ))}
+          </select>
+        )}
 
         {/* Element select */}
         <select

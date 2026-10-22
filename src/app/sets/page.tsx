@@ -5,7 +5,7 @@ import { useToast } from "@/components/ToastProvider";
 import SetsDashboardView from "@/components/sets/SetsDashboardView";
 import { applyHiddenFlag } from "@/lib/sets-view";
 import { useTranslation } from "@/lib/i18n";
-import type { FeaturedSetSummary } from "@ga/contracts";
+import type { FeaturedSetSummary, SetTargetDeck } from "@ga/contracts";
 
 export default function SetsPage() {
   const { t } = useTranslation();
@@ -14,19 +14,32 @@ export default function SetsPage() {
   const [groups, setGroups] = useState<FeaturedSetSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [target, setTarget] = useState<string>("all");
+  const [availableDecks, setAvailableDecks] = useState<SetTargetDeck[]>([]);
+  const [hasPersonalWants, setHasPersonalWants] = useState(false);
 
   // Serialize concurrent hide/unhide toggles per group
   const pendingToggles = useRef<Map<string, Promise<void>>>(new Map());
 
   // -------------------- Fetch --------------------
-  const fetchSets = useCallback(async () => {
+  const fetchSets = useCallback(async (activeTarget: string) => {
     try {
       setLoading(true);
       setError(false);
-      const res = await fetch("/api/sets");
+      const url =
+        activeTarget && activeTarget !== "all"
+          ? `/api/sets?target=${encodeURIComponent(activeTarget)}`
+          : "/api/sets";
+      const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setGroups((data as { groups: FeaturedSetSummary[] }).groups ?? []);
+      if (Array.isArray(data.availableDecks)) {
+        setAvailableDecks(data.availableDecks);
+      }
+      if (typeof data.hasPersonalWants === "boolean") {
+        setHasPersonalWants(data.hasPersonalWants);
+      }
     } catch {
       setError(true);
     } finally {
@@ -35,8 +48,8 @@ export default function SetsPage() {
   }, []);
 
   useEffect(() => {
-    fetchSets();
-  }, [fetchSets]);
+    fetchSets(target);
+  }, [fetchSets, target]);
 
   // -------------------- Hide / Unhide --------------------
   const handleToggleHide = useCallback(
@@ -86,6 +99,10 @@ export default function SetsPage() {
       loading={loading}
       error={error}
       onToggleHide={handleToggleHide}
+      target={target}
+      onTargetChange={setTarget}
+      availableDecks={availableDecks}
+      hasPersonalWants={hasPersonalWants}
     />
   );
 }

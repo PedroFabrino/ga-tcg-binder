@@ -16,8 +16,14 @@ export async function GET(
 
     const { groupSlug } = await params;
     const filters = parseSetChecklistQuery(req.nextUrl.searchParams);
+    const target =
+      req.nextUrl.searchParams.get("target") ||
+      req.nextUrl.searchParams.get("deckId") ||
+      undefined;
+
     const report = await getSetGroupChecklistReport(groupSlug, userId, {
       filters,
+      target,
     });
 
     if (!report) {
@@ -28,6 +34,9 @@ export async function GET(
       group: report.group,
       checklist: report.cards,
       summary: report.stats,
+      availableDecks: report.availableDecks,
+      hasPersonalWants: report.hasPersonalWants,
+      currentTarget: report.currentTarget,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Internal Server Error";

@@ -2,9 +2,11 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { eq } from "drizzle-orm";
 import { createTestDb } from "../../db/test-utils";
 import { cards, cardEditions, users, decks, deckCards, collectionItems } from "../../db/schema";
+import { collectorWants } from "../../db/assistant-schema";
 import { featuredSetGroups, setDefinitions } from "../../db/featured-set-schema";
 import {
   calculateFeaturedSetSummaries,
+  getFeaturedSetsDashboardData,
   getSetGroupChecklistReport,
   toggleUserSetHidden,
   SetGroupNotFoundError,
@@ -282,7 +284,65 @@ describe("set-shortage", () => {
       const doa = summaries.find((s: any) => s.groupUuid === "grp-doa")!;
       expect(doa.hardShortageCopies).toBe(4);
       expect(doa.sharedShortageCopies).toBe(3);
+    });
+
+    it("filters shortages to a specific deck when target is a deckId", async () => {
+      await seedAll();
+      await db.insert(decks).values([
+        { id: "deck-fire", userId: "user-1", name: "Fire Aggro" },
+        { id: "deck-water", userId: "user-1", name: "Water Control" },
+      ]);
+      await db.insert(deckCards).values([
+        { id: "dc-1", deckId: "deck-fire", cardSlug: "fire-slash", zone: "main", quantity: 2 },
+        { id: "dc-2", deckId: "deck-water", cardSlug: "water-bolt", zone: "main", quantity: 3 },
+      ]);
+
+      const fireSummaries = await calculateFeaturedSetSummaries("user-1", { target: "deck-fire" }, db);
+      const doaFire = fireSummaries.find((s: any) => s.groupUuid === "grp-doa")!;
+      expect(doaFire.totalShortageCopies).toBe(2);
+      expect(doaFire.uniqueShortageCards).toBe(1);
+      expect(doaFire.impactedDecks).toBe(1);
+
+      const waterSummaries = await calculateFeaturedSetSummaries("user-1", { target: "deck-water" }, db);
+      const doaWater = waterSummaries.find((s: any) => s.groupUuid === "grp-doa")!;
+      expect(doaWater.totalShortageCopies).toBe(3);
+      expect(doaWater.uniqueShortageCards).toBe(1);
+      expect(doaWater.impactedDecks).toBe(1);
+
+      const allSummaries = await calculateFeaturedSetSummaries("user-1", { target: "all" }, db);
+      const doaAll = allSummaries.find((s: any) => s.groupUuid === "grp-doa")!;
+      expect(doaAll.totalShortageCopies).toBe(5);
+      expect(doaAll.uniqueShortageCards).toBe(2);
+      expect(doaAll.impactedDecks).toBe(2);
+    });
+
+    it("filters shortages to personal wants when target is wantlist", async () => {
+      await seedAll();
+      await db.insert(collectorWants).values([
+        { id: "want-1", collectorId: "user-1", cardSlug: "fire-slash", desiredQuantity: 1 },
+      ]);
+
+      const summaries = await calculateFeaturedSetSummaries("user-1", { target: "wantlist" }, db);
+      const doa = summaries.find((s: any) => s.groupUuid === "grp-doa")!;
+      expect(doa.totalShortageCopies).toBe(1);
       expect(doa.uniqueShortageCards).toBe(1);
+    });
+
+    it("getFeaturedSetsDashboardData returns availableDecks and currentTarget", async () => {
+      await seedAll();
+      await db.insert(decks).values([
+        { id: "deck-fire", userId: "user-1", name: "Fire Aggro" },
+      ]);
+      await db.insert(collectorWants).values([
+        { id: "want-1", collectorId: "user-1", cardSlug: "fire-slash", desiredQuantity: 1 },
+      ]);
+
+      const data = await getFeaturedSetsDashboardData("user-1", { target: "deck-fire" }, db);
+      expect(data.availableDecks).toHaveLength(1);
+      expect(data.availableDecks[0].name).toBe("Fire Aggro");
+      expect(data.hasPersonalWants).toBe(true);
+      expect(data.currentTarget).toBe("deck-fire");
+      expect(data.groups.length).toBeGreaterThan(0);
     });
   });
 
@@ -409,6 +469,39 @@ describe("set-shortage", () => {
       for (const c of report!.cards) {
         expect(c.prefixes).toContain("DOA 1st");
       }
+    });
+
+    it("filters checklist demands to a specific deck when target is supplied", async () => {
+      await seedAll();
+      await db.insert(decks).values([
+        { id: "deck-1", userId: "user-1", name: "Fire Deck" },
+        { id: "deck-2", userId: "user-1", name: "Water Deck" },
+      ]);
+      await db.insert(deckCards).values([
+        { id: "dc-1", deckId: "deck-1", cardSlug: "fire-slash", zone: "main", quantity: 2 },
+        { id: "dc-2", deckId: "deck-2", cardSlug: "water-bolt", zone: "main", quantity: 3 },
+      ]);
+
+      const report = await getSetGroupChecklistReport(
+        "grp-doa",
+        "user-1",
+        { target: "deck-1" },
+        db,
+      );
+      expect(report).not.toBeNull();
+      const fireCard = report!.cards.find((c) => c.cardSlug === "fire-slash")!;
+      expect(fireCard.isShortage).toBe(true);
+      expect(fireCard.requiredQuantity).toBe(2);
+      expect(fireCard.deckRequirements).toHaveLength(1);
+      expect(fireCard.deckRequirements[0].deckId).toBe("deck-1");
+
+      const waterCard = report!.cards.find((c) => c.cardSlug === "water-bolt")!;
+      expect(waterCard.isShortage).toBe(false);
+      expect(waterCard.requiredQuantity).toBe(0);
+      expect(waterCard.deckRequirements).toHaveLength(0);
+
+      expect(report!.currentTarget).toBe("deck-1");
+      expect(report!.availableDecks).toHaveLength(2);
     });
   });
 

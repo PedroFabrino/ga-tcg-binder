@@ -18,7 +18,7 @@ import {
   type SetViewMode,
 } from "@/lib/sets-view";
 import { useTranslation } from "@/lib/i18n";
-import type { FeaturedSetSummary } from "@ga/contracts";
+import type { FeaturedSetSummary, SetTargetDeck } from "@ga/contracts";
 
 export interface SetsDashboardViewProps {
   groups: FeaturedSetSummary[];
@@ -29,6 +29,10 @@ export interface SetsDashboardViewProps {
   initialSortMode?: SetSortMode;
   initialCategory?: SetCategoryFilter;
   initialViewMode?: SetViewMode;
+  target?: string;
+  onTargetChange?: (target: string) => void;
+  availableDecks?: SetTargetDeck[];
+  hasPersonalWants?: boolean;
 }
 
 export default function SetsDashboardView({
@@ -40,6 +44,10 @@ export default function SetsDashboardView({
   initialSortMode = "shortages",
   initialCategory = "all",
   initialViewMode = "grid",
+  target = "all",
+  onTargetChange,
+  availableDecks = [],
+  hasPersonalWants = false,
 }: SetsDashboardViewProps) {
   const { t } = useTranslation();
   const [query, setQuery] = useState(initialQuery);
@@ -100,6 +108,10 @@ export default function SetsDashboardView({
         onCategoryChange={setCategory}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
+        target={target}
+        onTargetChange={onTargetChange}
+        availableDecks={availableDecks}
+        hasPersonalWants={hasPersonalWants}
       />
 
       {/* Active groups grid or list */}
@@ -116,6 +128,7 @@ export default function SetsDashboardView({
               key={group.groupUuid}
               group={group}
               onToggleHide={onToggleHide}
+              target={target}
             />
           ))}
         </div>
@@ -126,6 +139,7 @@ export default function SetsDashboardView({
               key={group.groupUuid}
               group={group}
               onToggleHide={onToggleHide}
+              target={target}
             />
           ))}
         </div>

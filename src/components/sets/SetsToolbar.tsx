@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, ChevronDown, LayoutGrid, List } from "lucide-react";
+import { Search, ChevronDown, LayoutGrid, List, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -12,6 +12,7 @@ import {
 import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { SetCategoryFilter, SetSortMode, SetViewMode } from "@/lib/sets-view";
+import type { SetTargetDeck } from "@ga/contracts";
 
 const CATEGORY_OPTIONS: { value: SetCategoryFilter; tKey: "sets.filterAll" | "sets.filterBoosters" | "sets.filterDecks" }[] = [
   { value: "all", tKey: "sets.filterAll" },
@@ -46,6 +47,10 @@ export default function SetsToolbar({
   onCategoryChange,
   viewMode,
   onViewModeChange,
+  target = "all",
+  onTargetChange,
+  availableDecks = [],
+  hasPersonalWants = false,
 }: {
   query: string;
   onQueryChange: (q: string) => void;
@@ -55,10 +60,22 @@ export default function SetsToolbar({
   onCategoryChange: (cat: SetCategoryFilter) => void;
   viewMode: SetViewMode;
   onViewModeChange: (mode: SetViewMode) => void;
+  target?: string;
+  onTargetChange?: (target: string) => void;
+  availableDecks?: SetTargetDeck[];
+  hasPersonalWants?: boolean;
 }) {
   const { t } = useTranslation();
 
   const activeSortLabel = SORT_OPTIONS.find((o) => o.value === sortMode)?.tKey ?? "sets.sortByShortages";
+
+  let activeTargetLabel = t("sets.targetAll");
+  if (target === "wantlist") {
+    activeTargetLabel = t("sets.targetWantlist");
+  } else if (target && target !== "all") {
+    const matchedDeck = availableDecks.find((d) => d.id === target);
+    activeTargetLabel = matchedDeck?.name ?? target;
+  }
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -94,6 +111,61 @@ export default function SetsToolbar({
             </button>
           ))}
         </div>
+
+        {/* Target dropdown */}
+        {onTargetChange && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="text-[11px] gap-1.5">
+                <Target className="h-3 w-3 text-cyan-400" />
+                <span>{t("sets.targetLabel")}:</span>
+                <span className="font-normal text-slate-300 max-w-[120px] truncate">
+                  {activeTargetLabel}
+                </span>
+                <ChevronDown className="h-3 w-3 text-slate-500" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto">
+              <DropdownMenuItem
+                onClick={() => onTargetChange("all")}
+                className={cn(
+                  "text-sm",
+                  (!target || target === "all") && "text-cyan-400 font-medium",
+                )}
+              >
+                {t("sets.targetAll")}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => onTargetChange("wantlist")}
+                className={cn(
+                  "text-sm",
+                  target === "wantlist" && "text-cyan-400 font-medium",
+                )}
+              >
+                {t("sets.targetWantlist")}
+              </DropdownMenuItem>
+              {availableDecks.length > 0 && (
+                <>
+                  <div className="px-2 py-1 text-[10px] font-semibold text-slate-500 uppercase tracking-wider border-t border-white/[0.06] mt-1 pt-1">
+                    {t("sets.targetDecksHeader")}
+                  </div>
+                  {availableDecks.map((deck) => (
+                    <DropdownMenuItem
+                      key={deck.id}
+                      onClick={() => onTargetChange(deck.id)}
+                      className={cn(
+                        "text-sm",
+                        target === deck.id && "text-cyan-400 font-medium",
+                      )}
+                    >
+                      {deck.name}
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
 
         {/* Sort dropdown */}
         <DropdownMenu>
