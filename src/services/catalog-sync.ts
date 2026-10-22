@@ -3,6 +3,7 @@ import {
   upsertCatalogCardEdition,
   upsertCatalogCardCirculation,
 } from "@/db/repositories/catalog-repository";
+import { syncFeaturedSetsFromApi } from "./featured-set-sync";
 
 export interface GatcgApiCirculation {
   uuid?: string;
@@ -57,6 +58,8 @@ export interface SyncStats {
   circulationsSynced: number;
   pagesFetched: number;
   durationMs: number;
+  featuredSetGroupsSynced: number;
+  setDefinitionsSynced: number;
 }
 
 function resolveBaseElement(card: GatcgApiCard): string {
@@ -80,6 +83,9 @@ export async function syncCatalogFromApi(
   let totalCardsCount = 0;
   let totalEditionsCount = 0;
   let totalCirculationsCount = 0;
+
+  // Phase 1: Ingest featured sets before cards/editions
+  const featuredStats = await syncFeaturedSetsFromApi(database);
 
   while (currentPage <= totalPages) {
     if (options.maxPages && currentPage > options.maxPages) {
@@ -188,6 +194,8 @@ export async function syncCatalogFromApi(
     circulationsSynced: totalCirculationsCount,
     pagesFetched: currentPage - 1,
     durationMs: Date.now() - startTime,
+    featuredSetGroupsSynced: featuredStats.featuredSetGroupsSynced,
+    setDefinitionsSynced: featuredStats.setDefinitionsSynced,
   };
 }
 
