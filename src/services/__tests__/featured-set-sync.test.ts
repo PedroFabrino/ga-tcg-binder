@@ -236,7 +236,7 @@ describe("featured-set-sync", () => {
     expect(hasDate?.releaseDate).toBe("2025-11-15");
 
     const noDate = defs.find((d: { id: string }) => d.id === "rd2");
-    expect(noDate?.releaseDate).toBeNull();
+    expect(noDate?.releaseDate).toBe("");
 
     const dateOnly = defs.find((d: { id: string }) => d.id === "rd3");
     expect(dateOnly?.releaseDate).toBe("2024-01-01");
