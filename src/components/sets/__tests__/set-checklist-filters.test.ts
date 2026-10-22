@@ -9,6 +9,7 @@ function makeCard(overrides: Partial<SetChecklistCard> = {}): SetChecklistCard {
     class: "Mage",
     type: "action",
     rarity: 3,
+    rarities: [3],
     imageUrl: null,
     prefixes: ["DOA 1st", "DOA Alter"],
     ownedQuantity: 2,
@@ -75,6 +76,7 @@ describe("Set Checklist filter combinations", () => {
       prefixes: ["DOA 1st"],
       element: "WIND",
       rarity: 2,
+      rarities: [2],
       cardName: "Gust",
       ownedQuantity: 0,
     });

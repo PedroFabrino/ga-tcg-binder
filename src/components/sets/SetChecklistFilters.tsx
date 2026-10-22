@@ -3,9 +3,9 @@
 import { Search, X } from "lucide-react";
 import { ALL_ELEMENTS, ELEMENT_LABELS } from "@/lib/elements";
 import { RARITIES } from "@/lib/rarities";
-import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
 import type { SetChecklistFilterStatus, TranslationKey } from "@ga/contracts";
+import FilterChip from "./FilterChip";
 
 interface Props {
   status: SetChecklistFilterStatus;
@@ -42,19 +42,13 @@ export default function SetChecklistFilters({
       {/* Status chips */}
       <div className="flex flex-wrap gap-1.5">
         {STATUS_OPTIONS.map((opt) => (
-          <button
+          <FilterChip
             key={opt.value}
-            type="button"
+            label={t(opt.key)}
+            pressed={status === opt.value}
             onClick={() => onStatusChange(opt.value)}
-            className={cn(
-              "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-              status === opt.value
-                ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
-                : "bg-white/[0.04] text-slate-400 border border-white/[0.06] hover:bg-white/[0.08] hover:text-white",
-            )}
-          >
-            {t(opt.key)}
-          </button>
+            variant="accent"
+          />
         ))}
       </div>
 

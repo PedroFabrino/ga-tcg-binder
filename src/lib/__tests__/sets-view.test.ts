@@ -4,6 +4,7 @@ import {
   filterSetsByCategory,
   sortSets,
   splitActiveHidden,
+  applyHiddenFlag,
   type SetSortMode,
   type SetCategoryFilter,
 } from "../sets-view";
@@ -167,5 +168,30 @@ describe("splitActiveHidden", () => {
     const { active, hidden } = splitActiveHidden(allActive);
     expect(active).toHaveLength(4);
     expect(hidden).toHaveLength(0);
+  });
+});
+
+describe("applyHiddenFlag", () => {
+  it("sets isHidden to true for the matching group", () => {
+    const result = applyHiddenFlag(groups, "uuid-1", true);
+    expect(result.find((g) => g.groupUuid === "uuid-1")?.isHidden).toBe(true);
+    // Non-matching groups unchanged
+    expect(result.find((g) => g.groupUuid === "uuid-2")?.isHidden).toBe(false);
+  });
+
+  it("sets isHidden to false for the matching group", () => {
+    const result = applyHiddenFlag(groups, "uuid-4", false);
+    expect(result.find((g) => g.groupUuid === "uuid-4")?.isHidden).toBe(false);
+  });
+
+  it("does not mutate the original array", () => {
+    const original = [...groups];
+    applyHiddenFlag(groups, "uuid-1", true);
+    expect(groups).toEqual(original);
+  });
+
+  it("returns unchanged array when uuid not found", () => {
+    const result = applyHiddenFlag(groups, "nonexistent", true);
+    expect(result).toEqual(groups);
   });
 });

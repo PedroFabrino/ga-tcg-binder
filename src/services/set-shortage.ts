@@ -14,9 +14,11 @@ import {
   getFeaturedSetGroupBySlug,
   getFeaturedSetGroupByUuid,
 } from "@/db/repositories/set-repository";
+import type { SetRepositoryDatabase } from "@/db/repositories/set-repository";
 import {
   cardToGroupsMap,
   categoryFromNames,
+  computeCardShortage,
   computeShortages,
   groupDefs,
   prefixToGroupMap,
@@ -26,64 +28,22 @@ import { matchesSetChecklistFilters } from "@ga/contracts";
 import type {
   FeaturedSetSummary,
   SetGroupStats,
-  SetChecklistCard,
   SetChecklistFilters,
-  SetCategory,
+  SetShortageLevel,
+  SetDeckRequirement,
+  SetPrinting,
+  SetChecklistReportCard,
+  SetGroupChecklistReport,
 } from "@ga/contracts";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export type SetShortageLevel = "hard" | "shared" | "none";
-
-export interface DeckRequirement {
-  deckId: string;
-  deckName: string;
-  quantity: number;
-}
-
-export interface SetChecklistReportCard extends SetChecklistCard {
-  /** All printings (editions) of this card within the group. */
-  printings: Array<{
-    editionId: string;
-    setPrefix: string;
-    setName: string;
-    collectorNumber: string;
-    rarity: number;
-    imageUrl: string | null;
-  }>;
-  /** Preferred edition ID: first (lowest collector number) in narrowest prefix. */
-  preferredEditionId: string | null;
-  ownedNormal: number;
-  ownedFoil: number;
-  peakMissing: number;
-  concurrentMissing: number;
-  shortage: SetShortageLevel;
-  /** Per-deck quantity requirements (deckId, deckName, quantity). */
-  deckRequirements: DeckRequirement[];
-}
-
-export interface SetGroupChecklistReport {
-  group: {
-    uuid: string;
-    name: string;
-    slug: string;
-    imageUrl: string | null;
-    releaseDate: string | null;
-    childPrefixes: string[];
-    category: SetCategory;
-  };
-  stats: SetGroupStats;
-  cards: SetChecklistReportCard[];
-}
-
-export class SetGroupNotFoundError extends Error {
-  constructor(identifier: string) {
-    super(`Set group not found: ${identifier}`);
-    this.name = "SetGroupNotFoundError";
-  }
-}
+// Re-export for backward compatibility (finding #8)
+export type {
+  SetShortageLevel,
+  SetDeckRequirement,
+  SetPrinting,
+  SetChecklistReportCard,
+  SetGroupChecklistReport,
+};
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -92,8 +52,7 @@ export class SetGroupNotFoundError extends Error {
 /** Rank all featured set groups by deck shortages and set completion. */
 export async function calculateFeaturedSetSummaries(
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test db passthrough
-  database?: any,
+  database?: SetRepositoryDatabase,
 ): Promise<FeaturedSetSummary[]> {
   const { allDeckCards, userCollection, allEditions, allGroups, allDefs, hidden } =
     await loadSetShortageAndInventoryData(userId, database);
@@ -119,7 +78,11 @@ export async function calculateFeaturedSetSummaries(
     const totalCards = groupSlugs?.size ?? 0;
 
     let ownedCards = 0;
-    if (groupSlugs) for (const s of groupSlugs) { if (ownedSlugs.has(s)) ownedCards++; }
+    if (groupSlugs) {
+      for (const s of groupSlugs) {
+        if (ownedSlugs.has(s)) ownedCards++;
+      }
+    }
 
     const prefixes = [...new Set(defs.map((d) => d.prefix))].sort();
     const relDates = defs
@@ -128,7 +91,9 @@ export async function calculateFeaturedSetSummaries(
       .sort();
     const releaseDate = relDates[0] ?? null;
 
-    let hard = 0; let shared = 0; let uniqueShort = 0;
+    let hard = 0;
+    let shared = 0;
+    let uniqueShort = 0;
     const impactedDecks = new Set<string>();
 
     for (const [slug, sh] of shortages) {
@@ -154,7 +119,8 @@ export async function calculateFeaturedSetSummaries(
       impactedDecks: impactedDecks.size,
       ownedCards,
       totalCards,
-      completionPercent: totalCards > 0 ? Math.round((ownedCards / totalCards) * 100) : 0,
+      completionPercent:
+        totalCards > 0 ? Math.round((ownedCards / totalCards) * 100) : 0,
       releaseDate,
       childPrefixes: prefixes,
       category: categoryFromNames(defs.map((d) => d.name)),
@@ -164,8 +130,10 @@ export async function calculateFeaturedSetSummaries(
 
   summaries.sort((a, b) => {
     if (a.isHidden !== b.isHidden) return a.isHidden ? 1 : -1;
-    if (a.totalShortageCopies !== b.totalShortageCopies) return b.totalShortageCopies - a.totalShortageCopies;
-    if (a.completionPercent !== b.completionPercent) return a.completionPercent - b.completionPercent;
+    if (a.totalShortageCopies !== b.totalShortageCopies)
+      return b.totalShortageCopies - a.totalShortageCopies;
+    if (a.completionPercent !== b.completionPercent)
+      return a.completionPercent - b.completionPercent;
     return a.groupName.localeCompare(b.groupName);
   });
 
@@ -176,34 +144,33 @@ export async function calculateFeaturedSetSummaries(
 export async function getSetGroupChecklistReport(
   slugOrUuid: string,
   userId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test db passthrough
-  database?: any,
   options?: { filters?: SetChecklistFilters },
+  database?: SetRepositoryDatabase,
 ): Promise<SetGroupChecklistReport | null> {
   // Resolve group
-  let group: {
-    uuid: string;
-    name: string;
-    slug: string;
-    imageUrl: string | null;
-    releaseDate: string | null;
-    childPrefixes: string[];
-    category: SetCategory;
-  };
   const bySlug = await getFeaturedSetGroupBySlug(slugOrUuid, database);
-  const resolved = bySlug ?? (await getFeaturedSetGroupByUuid(slugOrUuid, database));
+  const resolved =
+    bySlug ?? (await getFeaturedSetGroupByUuid(slugOrUuid, database));
   if (!resolved) return null;
+
   const defs = resolved.setDefinitions;
   const releaseDates = defs
     .map((d) => d.releaseDate)
     .filter((d): d is string => Boolean(d))
     .sort();
-  group = {
+
+  // Parse release date at T12:00:00 to avoid timezone shifts
+  const rawReleaseDate = releaseDates[0] ?? null;
+  const parsedReleaseDate = rawReleaseDate
+    ? rawReleaseDate + "T12:00:00"
+    : null;
+
+  const group = {
     uuid: resolved.uuid,
     name: resolved.name,
     slug: resolved.slug,
     imageUrl: resolved.imageUrl ?? null,
-    releaseDate: releaseDates[0] ?? null,
+    releaseDate: parsedReleaseDate,
     childPrefixes: [...new Set(defs.map((d) => d.prefix))].sort(),
     category: categoryFromNames(defs.map((d) => d.name)),
   };
@@ -216,114 +183,193 @@ export async function getSetGroupChecklistReport(
   const edsBySlug = new Map<string, typeof editions>();
   for (const e of editions) {
     const l = edsBySlug.get(e.cardSlug);
-    if (l) l.push(e); else edsBySlug.set(e.cardSlug, [e]);
+    if (l) l.push(e);
+    else edsBySlug.set(e.cardSlug, [e]);
+  }
+
+  const colBySlug = new Map<string, number>();
+  const normalBySlug = new Map<string, number>();
+  const foilBySlug = new Map<string, number>();
+  for (const ci of collection) {
+    colBySlug.set(
+      ci.cardSlug,
+      (colBySlug.get(ci.cardSlug) ?? 0) + ci.quantity,
+    );
+    // foil is integer (0/1) from the repository query
+    if (ci.foil) {
+      foilBySlug.set(
+        ci.cardSlug,
+        (foilBySlug.get(ci.cardSlug) ?? 0) + ci.quantity,
+      );
+    } else {
+      normalBySlug.set(
+        ci.cardSlug,
+        (normalBySlug.get(ci.cardSlug) ?? 0) + ci.quantity,
+      );
+    }
   }
 
   // Deck demand: load all user deck cards, filter to group slugs
   const { allDeckCards } = await loadSetShortageAndInventoryData(userId, database);
   const groupSlugSet = new Set(cardRows.map((c) => c.slug));
-  const demandBySlug = new Map<string, { deckId: string; deckName: string; quantity: number }[]>();
+  const deckDemandBySlug = new Map<string, number[]>();
+  const deckMetaBySlug = new Map<
+    string,
+    { deckId: string; deckName: string; quantity: number }[]
+  >();
   for (const dc of allDeckCards) {
     if (!groupSlugSet.has(dc.cardSlug)) continue;
-    const l = demandBySlug.get(dc.cardSlug);
-    if (l) l.push({ deckId: dc.deckId, deckName: dc.deckName, quantity: dc.quantity });
-    else demandBySlug.set(dc.cardSlug, [{ deckId: dc.deckId, deckName: dc.deckName, quantity: dc.quantity }]);
-  }
-
-  // Owned per slug (normal / foil)
-  const ownedBySlug = new Map<string, { normal: number; foil: number }>();
-  for (const ci of collection) {
-    const prev = ownedBySlug.get(ci.cardSlug) ?? { normal: 0, foil: 0 };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- foil from repo
-    if ((ci as any).foil) prev.foil += ci.quantity;
-    else prev.normal += ci.quantity;
-    ownedBySlug.set(ci.cardSlug, prev);
-  }
-
-  const cards: SetChecklistReportCard[] = [];
-  let ownedCardCount = 0;
-  let totalHard = 0;
-  let totalShared = 0;
-  let totalConcurrent = 0;
-
-  for (const { slug, name, element, class: cls, type } of cardRows) {
-    const slugEds = edsBySlug.get(slug) ?? [];
-    const owned = ownedBySlug.get(slug) ?? { normal: 0, foil: 0 };
-    const ownedTotal = owned.normal + owned.foil;
-    const deckReqs = demandBySlug.get(slug) ?? [];
-    const demands = deckReqs.map((r) => r.quantity);
-    const peak = demands.reduce((max, q) => Math.max(max, q), 0);
-    const total = demands.reduce((sum, q) => sum + q, 0);
-    const peakM = Math.max(0, peak - ownedTotal);
-    const concM = Math.max(0, total - ownedTotal);
-    let shortage: SetShortageLevel = "none";
-    if (peakM > 0) shortage = "hard";
-    else if (concM > 0) shortage = "shared";
-
-    /** Preferred edition: first by collectorNumber in narrowest prefix */
-    const fp = options?.filters?.prefix ?? null;
-    const cands = fp ? slugEds.filter((e) => e.setPrefix === fp) : slugEds;
-    cands.sort((a, b) => {
-      const na = parseInt(a.collectorNumber, 10) || 0;
-      const nb = parseInt(b.collectorNumber, 10) || 0;
-      return na !== nb ? na - nb : a.id.localeCompare(b.id);
+    const qs = deckDemandBySlug.get(dc.cardSlug) ?? [];
+    qs.push(dc.quantity);
+    deckDemandBySlug.set(dc.cardSlug, qs);
+    const metas = deckMetaBySlug.get(dc.cardSlug) ?? [];
+    metas.push({
+      deckId: dc.deckId,
+      deckName: dc.deckName ?? "",
+      quantity: dc.quantity,
     });
+    deckMetaBySlug.set(dc.cardSlug, metas);
+  }
+
+  // Build cards
+  const allCards: SetChecklistReportCard[] = [];
+  for (const row of cardRows) {
+    const eds = edsBySlug.get(row.slug) ?? [];
+    const ownedTotal = colBySlug.get(row.slug) ?? 0;
+    const ownedNormal = normalBySlug.get(row.slug) ?? 0;
+    const ownedFoil = foilBySlug.get(row.slug) ?? 0;
+    const demands = deckDemandBySlug.get(row.slug) ?? [];
+    const deckReqs = deckMetaBySlug.get(row.slug) ?? [];
+
+    const { peakMissing, concurrentMissing } = computeCardShortage(
+      demands,
+      ownedTotal,
+    );
+
+    const required = demands.reduce((s, q) => s + q, 0);
+    const missing = Math.max(0, required - ownedTotal);
+
+    // Prefer first (lowest collector number) edition in narrowest prefix
+    const sortedEds = [...eds].sort(
+      (a, b) =>
+        Number.parseInt(a.collectorNumber.replace(/\D/g, "") || "0", 10) -
+        Number.parseInt(b.collectorNumber.replace(/\D/g, "") || "0", 10),
+    );
+    const preferredEditionId = sortedEds[0]?.id ?? null;
+
+    // Derive shortage level
+    let shortage: SetShortageLevel = "none";
+    if (peakMissing > 0) {
+      shortage = "hard";
+    } else if (concurrentMissing > 0) {
+      shortage = "shared";
+    }
+
+    // Rarities: collect all distinct rarities across printings
+    const rarityValues = [...new Set(eds.map((e) => e.rarity))];
+    // Highest rarity (lowest number = highest rarity in GA)
+    const highestRarity = rarityValues.length > 0 ? Math.min(...rarityValues) : 0;
+
+    const printings: SetPrinting[] = eds.map((e) => ({
+      editionId: e.id,
+      setPrefix: e.setPrefix,
+      setName: e.setName,
+      collectorNumber: e.collectorNumber,
+      rarity: e.rarity,
+      imageUrl: e.imageUrl ?? null,
+    }));
+
+    const prefixes = [...new Set(eds.map((e) => e.setPrefix))].sort();
 
     const card: SetChecklistReportCard = {
-      cardSlug: slug, cardName: name, element, class: cls, type,
-      rarity: slugEds.length > 0 ? Math.max(...slugEds.map((e) => e.rarity)) : 1,
-      imageUrl: slugEds[0]?.imageUrl ?? null,
-      prefixes: [...new Set(slugEds.map((e) => e.setPrefix))].sort(),
-      printings: slugEds.map((e) => ({
-        editionId: e.id, setPrefix: e.setPrefix, setName: e.setName,
-        collectorNumber: e.collectorNumber, rarity: e.rarity, imageUrl: e.imageUrl,
-      })),
-      preferredEditionId: cands[0]?.id ?? null,
-      ownedNormal: owned.normal, ownedFoil: owned.foil, ownedQuantity: ownedTotal,
-      deckRequirements: deckReqs.map((r) => ({ deckId: r.deckId, deckName: r.deckName, quantity: r.quantity })),
-      requiredQuantity: total, peakMissing: peakM, concurrentMissing: concM, shortage,
-      isShortage: shortage !== "none", missingQuantity: concM,
-      requiringDeckIds: deckReqs.map((r) => r.deckId),
+      cardSlug: row.slug,
+      cardName: row.name,
+      element: row.element ?? "",
+      class: row.class ?? "",
+      type: row.type ?? "",
+      rarity: highestRarity,
+      rarities: rarityValues,
+      imageUrl: eds[0]?.imageUrl ?? null,
+      prefixes,
+      ownedQuantity: ownedTotal,
+      requiredQuantity: required,
+      missingQuantity: missing,
+      isShortage: missing > 0,
+      requiringDeckIds: [...new Set(deckReqs.map((dr) => dr.deckId))],
+      printings,
+      preferredEditionId,
+      ownedNormal,
+      ownedFoil,
+      peakMissing,
+      concurrentMissing,
+      shortage,
+      deckRequirements: deckReqs,
     };
 
-    if (ownedTotal > 0) ownedCardCount++;
-    totalHard += peakM;
-    totalShared += concM - peakM;
-    totalConcurrent += concM;
-    if (options?.filters && !matchesSetChecklistFilters(card, options.filters)) continue;
-    cards.push(card);
+    allCards.push(card);
   }
 
-  const totalCards = cardRows.length;
+  // Apply filters if provided
+  const filters = options?.filters;
+  const filtered = filters
+    ? allCards.filter((c) => matchesSetChecklistFilters(c, filters))
+    : allCards;
+
+  // Stats
   const stats: SetGroupStats = {
     totalGroups: 1,
-    totalHardShortageCopies: totalHard,
-    totalSharedShortageCopies: totalShared,
-    totalShortageCopies: totalConcurrent,
-    totalCardsAcrossGroups: totalCards,
-    totalOwnedCardsAcrossGroups: ownedCardCount,
-    overallCompletionPercent: totalCards > 0 ? Math.round((ownedCardCount / totalCards) * 100) : 0,
+    totalHardShortageCopies: allCards
+      .filter((c) => c.shortage === "hard")
+      .reduce((s, c) => s + c.peakMissing, 0),
+    totalSharedShortageCopies: allCards
+      .filter((c) => c.shortage === "shared")
+      .reduce((s, c) => s + c.concurrentMissing - c.peakMissing, 0),
+    totalShortageCopies: allCards
+      .filter((c) => c.shortage !== "none")
+      .reduce((s, c) => s + c.concurrentMissing, 0),
+    totalCardsAcrossGroups: allCards.length,
+    totalOwnedCardsAcrossGroups: allCards.filter((c) => c.ownedQuantity > 0)
+      .length,
+    overallCompletionPercent:
+      allCards.length > 0
+        ? Math.round(
+            (allCards.filter((c) => c.ownedQuantity > 0).length /
+              allCards.length) *
+              100,
+          )
+        : 0,
   };
 
-  return { group, stats, cards };
+  return { group, stats, cards: filtered };
 }
 
-/** Toggle a featured set group's hidden state. @throws SetGroupNotFoundError */
+/** Toggle visibility. */
 export async function toggleUserSetHidden(
   userId: string,
   groupUuid: string,
   isHidden: boolean,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test db passthrough
-  database?: any,
+  database?: SetRepositoryDatabase,
 ): Promise<string[]> {
-  const group = await getFeaturedSetGroupByUuid(groupUuid, database);
-  if (!group) throw new SetGroupNotFoundError(groupUuid);
+  const resolved = await getFeaturedSetGroupByUuid(groupUuid, database);
+  if (!resolved) throw new SetGroupNotFoundError(groupUuid);
 
   const current = await getUserHiddenSetUuids(userId, database);
-  const updated = isHidden
-    ? [...new Set([...current, groupUuid])]
-    : current.filter((u) => u !== groupUuid);
+  let next: string[];
+  if (isHidden && !current.includes(groupUuid)) {
+    next = [...current, groupUuid];
+  } else if (!isHidden) {
+    next = current.filter((u) => u !== groupUuid);
+  } else {
+    return current;
+  }
 
-  await setUserHiddenSetUuids(userId, updated, database);
-  return updated;
+  await setUserHiddenSetUuids(userId, next, database);
+  return next;
+}
+
+export class SetGroupNotFoundError extends Error {
+  constructor(identifier: string) {
+    super(`Set group not found: ${identifier}`);
+    this.name = "SetGroupNotFoundError";
+  }
 }

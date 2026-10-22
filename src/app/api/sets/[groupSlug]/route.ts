@@ -12,7 +12,7 @@ export async function GET(req: NextRequest, { params }: { params: { groupSlug: s
       req.nextUrl.searchParams.get("userId") || session?.user?.id || DEFAULT_USER_ID;
 
     const filters = parseSetChecklistQuery(req.nextUrl.searchParams);
-    const report = await getSetGroupChecklistReport(params.groupSlug, userId, undefined, {
+    const report = await getSetGroupChecklistReport(params.groupSlug, userId, {
       filters,
     });
 
