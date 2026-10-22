@@ -1,4 +1,26 @@
 import { ASSISTANT_COMMANDS } from "../src/commands";
+import { readFileSync, existsSync } from "fs";
+import { join } from "path";
+
+// Auto-load from root or workspace .env if present
+const envCandidates = [
+  join(__dirname, "..", ".env"),
+  join(__dirname, "..", "..", "..", ".env"),
+  join(process.cwd(), ".env"),
+];
+for (const envPath of envCandidates) {
+  if (existsSync(envPath)) {
+    for (const line of readFileSync(envPath, "utf8").split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eq = trimmed.indexOf("=");
+      if (eq === -1) continue;
+      const key = trimmed.slice(0, eq).trim();
+      const val = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, "");
+      if (!(key in process.env)) process.env[key] = val;
+    }
+  }
+}
 
 async function registerCommands() {
   const appId = process.env.DISCORD_APPLICATION_ID;
