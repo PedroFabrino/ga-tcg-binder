@@ -65,7 +65,7 @@ export default function SetGroupCard({
             <Calendar className="h-3 w-3" />
             {t("sets.releaseDate")}
             {group.releaseDate ? (
-              <>: {new Date(group.releaseDate).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</>
+              <>: {new Date(`${group.releaseDate}T12:00:00`).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</>
             ) : (
               <>: —</>
             )}

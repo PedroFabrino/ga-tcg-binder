@@ -177,7 +177,9 @@ export default function SetsPage() {
       )}
 
       {/* Hidden accordion */}
-      <HiddenSetsAccordion groups={hidden} onToggleHide={handleToggleHide} />
+      {hidden.length > 0 && (
+        <HiddenSetsAccordion groups={hidden} onToggleHide={handleToggleHide} />
+      )}
     </div>
   );
 }
