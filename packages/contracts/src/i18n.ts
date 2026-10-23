@@ -651,6 +651,14 @@ export const enCatalog = {
     trackingNumber: "Tracking: {code}",
     copyTracking: "Copy tracking code",
   },
+  table: {
+    title: "GrandTable",
+    tagline: "Play Grand Archive over webcam",
+    createTable: "Create a table",
+    joinHint: "Share the link with your opponent to start",
+    roomCode: "Room code",
+    comingSoon: "The table is being built",
+  },
 };
 
 export type TranslationCatalog = typeof enCatalog;
@@ -1298,6 +1306,14 @@ export const ptBRCatalog: TranslationCatalog = {
     confirmedAt: "Confirmado em {date}",
     trackingNumber: "Rastreio: {code}",
     copyTracking: "Copiar código de rastreio",
+  },
+  table: {
+    title: "GrandTable",
+    tagline: "Jogue Grand Archive por webcam",
+    createTable: "Criar uma mesa",
+    joinHint: "Compartilhe o link com seu oponente para começar",
+    roomCode: "Código da sala",
+    comingSoon: "A mesa está em construção",
   },
 };
 

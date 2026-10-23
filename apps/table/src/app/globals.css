@@ -1,0 +1,40 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 222 42% 5%;
+  --foreground: 214 32% 91%;
+  --card: 223 39% 7%;
+  --card-foreground: 214 32% 91%;
+  --popover: 223 39% 7%;
+  --popover-foreground: 214 32% 91%;
+  --primary: 0 0% 100%;
+  --primary-foreground: 222 47% 11%;
+  --secondary: 222 30% 12%;
+  --secondary-foreground: 214 32% 91%;
+  --muted: 222 30% 10%;
+  --muted-foreground: 215 20% 65%;
+  --accent: 222 30% 13%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 350 89% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 222 20% 15%;
+  --input: 222 20% 17%;
+  --ring: 187 85% 53%;
+  --radius: 0.5rem;
+}
+
+body {
+  color: #e2e8f0;
+  background: hsl(var(--background));
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.font-mono {
+  font-family: "JetBrains Mono", monospace;
+}

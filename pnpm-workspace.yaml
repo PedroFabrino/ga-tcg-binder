@@ -1,6 +1,7 @@
 packages:
   - "."
   - "apps/mobile"
+  - "apps/table"
   - "packages/*"
   - "services/*"
 
