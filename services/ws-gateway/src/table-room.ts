@@ -1,4 +1,5 @@
 import { type UnifiedSocket } from "./room-manager";
+import { sendTableError } from "./table-messages";
 import {
   type SeatId,
   type TableRole,
@@ -79,12 +80,12 @@ export class TableRoom {
     try {
       parsed = JSON.parse(rawData);
     } catch {
-      this.sendError(socket, "BAD_REQUEST", "Payload must be valid JSON");
+      sendTableError(socket, "BAD_REQUEST", "Payload must be valid JSON");
       return;
     }
 
     if (!isTableClientMessage(parsed)) {
-      this.sendError(socket, "INVALID_MESSAGE", "Payload does not conform to TableClientMessage");
+      sendTableError(socket, "INVALID_MESSAGE", "Payload does not conform to TableClientMessage");
       return;
     }
 
@@ -145,7 +146,7 @@ export class TableRoom {
 
   private join(socket: UnifiedSocket, msg: HelloMessage): void {
     if (msg.code !== this.code) {
-      this.sendError(socket, "WRONG_CODE", "Room code does not match this table");
+      sendTableError(socket, "WRONG_CODE", "Room code does not match this table");
       return;
     }
 
@@ -154,12 +155,12 @@ export class TableRoom {
     switch (msg.role) {
       case "seat": {
         if (!seatId) {
-          this.sendError(socket, "INVALID_TOKEN", "Token does not grant a seat at this table");
+          sendTableError(socket, "INVALID_TOKEN", "Token does not grant a seat at this table");
           return;
         }
         const existing = this.seatSockets.get(seatId);
         if (existing && existing !== socket) {
-          this.sendError(existing, "DISPLACED", "This seat was opened in another tab");
+          sendTableError(existing, "DISPLACED", "This seat was opened in another tab");
           this.connectionInfo.set(existing, { role: "seat", seatId: null });
         }
         this.seatSockets.set(seatId, socket);
@@ -174,7 +175,7 @@ export class TableRoom {
       }
       case "capture": {
         if (!seatId) {
-          this.sendError(socket, "INVALID_TOKEN", "Token does not grant a seat at this table");
+          sendTableError(socket, "INVALID_TOKEN", "Token does not grant a seat at this table");
           return;
         }
         this.captureSockets.set(seatId, socket);
@@ -183,7 +184,7 @@ export class TableRoom {
       }
       case "viewer": {
         if (this.viewerToken && msg.token !== this.viewerToken) {
-          this.sendError(socket, "INVALID_TOKEN", "Token does not grant viewer access");
+          sendTableError(socket, "INVALID_TOKEN", "Token does not grant viewer access");
           return;
         }
         this.connectionInfo.set(socket, { role: "viewer", seatId: null });
@@ -202,7 +203,7 @@ export class TableRoom {
   private seatUpdate(socket: UnifiedSocket, patch: Partial<SeatState>): void {
     const seatId = this.seatOf(socket);
     if (!seatId) {
-      this.sendError(socket, "FORBIDDEN", "No seat to update");
+      sendTableError(socket, "FORBIDDEN", "No seat to update");
       return;
     }
     const current = this.state.seats[seatId] ?? defaultSeat(seatId);
@@ -214,11 +215,11 @@ export class TableRoom {
   private turnStart(socket: UnifiedSocket): void {
     const seatId = this.seatOf(socket);
     if (!seatId) {
-      this.sendError(socket, "FORBIDDEN", "No seat to act from");
+      sendTableError(socket, "FORBIDDEN", "No seat to act from");
       return;
     }
     if (this.state.active !== null) {
-      this.sendError(socket, "NOT_YOUR_TURN", "A turn is already active");
+      sendTableError(socket, "NOT_YOUR_TURN", "A turn is already active");
       return;
     }
     this.state.active = seatId;
@@ -229,11 +230,11 @@ export class TableRoom {
   private turnEnd(socket: UnifiedSocket): void {
     const seatId = this.seatOf(socket);
     if (!seatId) {
-      this.sendError(socket, "FORBIDDEN", "No seat to act from");
+      sendTableError(socket, "FORBIDDEN", "No seat to act from");
       return;
     }
     if (this.state.active !== seatId) {
-      this.sendError(socket, "NOT_YOUR_TURN", "Only the active seat may end the turn");
+      sendTableError(socket, "NOT_YOUR_TURN", "Only the active seat may end the turn");
       return;
     }
     this.state.active = null;
@@ -244,7 +245,7 @@ export class TableRoom {
   private pinSet(socket: UnifiedSocket, msg: PinSetMessage): void {
     const seatId = this.seatOf(socket);
     if (!seatId) {
-      this.sendError(socket, "FORBIDDEN", "No seat to pin from");
+      sendTableError(socket, "FORBIDDEN", "No seat to pin from");
       return;
     }
     const pin: Pin = {
@@ -262,7 +263,7 @@ export class TableRoom {
   private pinClear(socket: UnifiedSocket): void {
     const seatId = this.seatOf(socket);
     if (!seatId) {
-      this.sendError(socket, "FORBIDDEN", "No seat to unpin from");
+      sendTableError(socket, "FORBIDDEN", "No seat to unpin from");
       return;
     }
     delete this.state.pins[seatId];
@@ -273,7 +274,7 @@ export class TableRoom {
   private ripple(socket: UnifiedSocket, x: number, y: number): void {
     const seatId = this.seatOf(socket);
     if (!seatId) {
-      this.sendError(socket, "FORBIDDEN", "No seat to ripple from");
+      sendTableError(socket, "FORBIDDEN", "No seat to ripple from");
       return;
     }
     this.state.ripples = [...this.state.ripples, { seat: seatId, x, y, at: Date.now() }].slice(-8);
@@ -288,12 +289,12 @@ export class TableRoom {
   private relaySignal(socket: UnifiedSocket, to: SignalTarget, data: unknown): void {
     const from = this.connectionInfo.get(socket);
     if (!from || (from.role !== "seat" && from.role !== "capture") || from.seatId === null) {
-      this.sendError(socket, "FORBIDDEN", "Not permitted to signal");
+      sendTableError(socket, "FORBIDDEN", "Not permitted to signal");
       return;
     }
     const target = this.resolveTarget(to);
     if (!target) {
-      this.sendError(socket, "NO_TARGET", "Signal target is not connected");
+      sendTableError(socket, "NO_TARGET", "Signal target is not connected");
       return;
     }
     const msg: TableServerMessage = {
@@ -359,12 +360,4 @@ export class TableRoom {
     });
   }
 
-  private sendError(socket: UnifiedSocket, code: string, message: string): void {
-    const msg: TableServerMessage = { type: "TABLE_ERROR", code, message };
-    try {
-      socket.send(JSON.stringify(msg));
-    } catch {
-      // Ignore send failures on a dead socket.
-    }
-  }
 }

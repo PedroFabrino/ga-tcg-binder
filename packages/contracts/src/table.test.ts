@@ -7,9 +7,11 @@ import {
   isPin,
   isTableClientMessage,
   isTableServerMessage,
+  isTableCredentials,
   type SeatState,
   type Pin,
   type TableClientMessage,
+  type TableCredentials,
 } from "./index";
 
 const seatState: SeatState = {
@@ -85,6 +87,19 @@ describe("table contracts", () => {
     expect(isTableServerMessage({ type: "TABLE_STATE" })).toBe(false);
     expect(isTableServerMessage({ type: "PRESENCE", participants: "nope" })).toBe(false);
     expect(isTableServerMessage({ type: "NOPE" })).toBe(false);
+  });
+
+  it("validates TableCredentials", () => {
+    const creds: TableCredentials = {
+      code: "ABC234",
+      p1Token: "a1",
+      p2Token: "b2",
+      viewerToken: "c3",
+    };
+    expect(isTableCredentials(creds)).toBe(true);
+    expect(isTableCredentials({ ...creds, viewerToken: undefined })).toBe(false);
+    expect(isTableCredentials({ ...creds, code: 7 })).toBe(false);
+    expect(isTableCredentials(null)).toBe(false);
   });
 
   it("does not accept a server SIGNAL as a client message, or vice versa", () => {

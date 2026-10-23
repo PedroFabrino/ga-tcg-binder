@@ -1,41 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { TableRoom } from "./table-room";
-import type { UnifiedSocket } from "./room-manager";
-import type { TableState, TableServerMessage } from "@ga/contracts";
-
-class MockSocket implements UnifiedSocket {
-  sent: TableServerMessage[] = [];
-
-  send(data: string): void {
-    this.sent.push(JSON.parse(data) as TableServerMessage);
-  }
-
-  lastState(): TableState | undefined {
-    for (let i = this.sent.length - 1; i >= 0; i--) {
-      const m = this.sent[i];
-      if (m.type === "TABLE_STATE") return m.state;
-    }
-    return undefined;
-  }
-
-  errors(): string[] {
-    const codes: string[] = [];
-    for (const m of this.sent) {
-      if (m.type === "TABLE_ERROR") codes.push(m.code);
-    }
-    return codes;
-  }
-
-  lastSignal(): Extract<TableServerMessage, { type: "SIGNAL" }> | undefined {
-    return this.sent.find(
-      (m): m is Extract<TableServerMessage, { type: "SIGNAL" }> => m.type === "SIGNAL"
-    );
-  }
-}
-
-function hello(code: string, token: string, role: string, displayName?: string): string {
-  return JSON.stringify({ type: "TABLE_HELLO", code, token, role, displayName });
-}
+import { MockSocket, hello } from "./mock-socket";
 
 describe("TableRoom state machine", () => {
   it("mirrors state between two seats", () => {

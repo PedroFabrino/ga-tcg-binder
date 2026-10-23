@@ -95,6 +95,18 @@ export type TableServerMessage =
   | { type: "PRESENCE"; participants: ParticipantInfo[] }
   | { type: "TABLE_ERROR"; code: string; message: string };
 
+/**
+ * The secrets a Table is born with, returned by the create endpoint. The p1
+ * token stays with the creator, the p2 token travels in the invite link, and
+ * the viewer token grants read-only access. They are never part of TableState.
+ */
+export interface TableCredentials {
+  code: string;
+  p1Token: string;
+  p2Token: string;
+  viewerToken: string;
+}
+
 // ---------------------------------------------------------------------------
 // Type guards
 // ---------------------------------------------------------------------------
@@ -173,6 +185,17 @@ export function isTableClientMessage(value: unknown): value is TableClientMessag
     default:
       return false;
   }
+}
+
+export function isTableCredentials(value: unknown): value is TableCredentials {
+  if (typeof value !== "object" || value === null) return false;
+  const c = value as Record<string, unknown>;
+  return (
+    typeof c.code === "string" &&
+    typeof c.p1Token === "string" &&
+    typeof c.p2Token === "string" &&
+    typeof c.viewerToken === "string"
+  );
 }
 
 export function isTableServerMessage(value: unknown): value is TableServerMessage {

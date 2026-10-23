@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import WebSocket from "ws";
-import { WsGatewayServer } from "./node-server";
+import { WsGatewayServer, TABLE_WS_PATH } from "./node-server";
 import type {
   WsJoinMessage,
   WsStatusMessage,
@@ -10,6 +10,8 @@ import type {
   WsPongMessage,
   WsCardUpdateFinishMessage,
   WsBroadcastFinishUpdateMessage,
+  TableCredentials,
+  TableServerMessage,
 } from "@ga/contracts";
 
 function createClient(port: number): Promise<WebSocket> {
@@ -310,5 +312,132 @@ describe("WebSocket Session Gateway Integration", () => {
     expect(res.candidates[0].confidence).toBe(95.2);
 
     client.close();
+  });
+
+  describe("Table gateway integration", () => {
+    async function createTable(): Promise<TableCredentials> {
+      const res = await fetch(`http://127.0.0.1:${port}/api/table`, { method: "POST" });
+      expect(res.status).toBe(201);
+      return (await res.json()) as TableCredentials;
+    }
+
+    function openTable(): Promise<WebSocket> {
+      return new Promise((resolve, reject) => {
+        const ws = new WebSocket(`ws://127.0.0.1:${port}${TABLE_WS_PATH}`);
+        ws.on("open", () => resolve(ws));
+        ws.on("error", reject);
+      });
+    }
+
+    /** Buffers table messages so tests can wait for a type without racing PRESENCE. */
+    function collect(ws: WebSocket) {
+      const messages: TableServerMessage[] = [];
+      ws.on("message", (raw) => {
+        messages.push(JSON.parse(raw.toString()) as TableServerMessage);
+      });
+
+      return {
+        async waitFor<T extends TableServerMessage["type"]>(
+          type: T,
+          timeoutMs = 2000
+        ): Promise<Extract<TableServerMessage, { type: T }>> {
+          const deadline = Date.now() + timeoutMs;
+          while (Date.now() < deadline) {
+            const index = messages.findIndex((m) => m.type === type);
+            if (index !== -1) {
+              const [msg] = messages.splice(index, 1);
+              return msg as Extract<TableServerMessage, { type: T }>;
+            }
+            await new Promise((resolve) => setTimeout(resolve, 5));
+          }
+          throw new Error(`Timed out waiting for ${type}`);
+        },
+      };
+    }
+
+    function helloSocket(code: string, token: string, displayName: string): string {
+      return JSON.stringify({ type: "TABLE_HELLO", code, token, role: "seat", displayName });
+    }
+
+    it("creates a table over HTTP", async () => {
+      const creds = await createTable();
+      expect(creds.code).toMatch(/^[A-HJ-NP-Z2-9]{6}$/);
+      expect(new Set([creds.p1Token, creds.p2Token, creds.viewerToken]).size).toBe(3);
+    });
+
+    it("routes TABLE_HELLO and mirrors two seats end to end", async () => {
+      const creds = await createTable();
+      const p1 = await openTable();
+      const p2 = await openTable();
+      const q1 = collect(p1);
+      const q2 = collect(p2);
+
+      p1.send(helloSocket(creds.code, creds.p1Token, "Alice"));
+      const joined = await q1.waitFor("TABLE_STATE");
+      expect(joined.state.seats.p1?.displayName).toBe("Alice");
+
+      p2.send(helloSocket(creds.code, creds.p2Token, "Bob"));
+      const both = await q2.waitFor("TABLE_STATE");
+      expect(both.state.seats.p1?.displayName).toBe("Alice");
+      expect(both.state.seats.p2?.displayName).toBe("Bob");
+
+      p1.send(JSON.stringify({ type: "SEAT_UPDATE", patch: { damage: 4 } }));
+      expect((await q2.waitFor("TABLE_STATE")).state.seats.p1?.damage).toBe(4);
+
+      p1.send(JSON.stringify({ type: "TURN_START" }));
+      expect((await q2.waitFor("TABLE_STATE")).state.active).toBe("p1");
+
+      p1.send(JSON.stringify({ type: "TURN_END" }));
+      expect((await q2.waitFor("TABLE_STATE")).state.active).toBeNull();
+
+      p1.send(JSON.stringify({ type: "PIN_SET", cardSlug: "cremation-ritual" }));
+      expect((await q2.waitFor("TABLE_STATE")).state.pins.p1?.cardSlug).toBe("cremation-ritual");
+
+      p1.close();
+      p2.close();
+    });
+
+    it("forwards a disconnect to the room", async () => {
+      const creds = await createTable();
+      const p1 = await openTable();
+      const p2 = await openTable();
+      const q1 = collect(p1);
+      const q2 = collect(p2);
+
+      p1.send(helloSocket(creds.code, creds.p1Token, "Alice"));
+      await q1.waitFor("TABLE_STATE");
+
+      p2.send(helloSocket(creds.code, creds.p2Token, "Bob"));
+      await q2.waitFor("TABLE_STATE");
+
+      p1.close();
+
+      const after = await q2.waitFor("TABLE_STATE");
+      expect(after.state.log.some((e) => e.kind === "disconnect" && e.seat === "p1")).toBe(true);
+
+      p2.close();
+    });
+
+    it("rejects an unknown table code", async () => {
+      const client = await openTable();
+      const inbox = collect(client);
+
+      client.send(helloSocket("ZZZZZZ", "tok", "Nobody"));
+
+      const err = await inbox.waitFor("TABLE_ERROR");
+      expect(err.code).toBe("NO_SUCH_TABLE");
+      client.close();
+    });
+
+    it("rejects a first message that is not TABLE_HELLO", async () => {
+      const client = await openTable();
+      const inbox = collect(client);
+
+      client.send(JSON.stringify({ type: "TURN_START" }));
+
+      const err = await inbox.waitFor("TABLE_ERROR");
+      expect(err.code).toBe("BAD_REQUEST");
+      client.close();
+    });
   });
 });
