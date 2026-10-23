@@ -4,6 +4,8 @@ import {
   tableCameraPath,
   tableCameraUrl,
   tableInviteUrl,
+  tableOverlayPath,
+  tableOverlayUrl,
   tableSeatPath,
 } from "../table-links";
 
@@ -43,6 +45,17 @@ describe("tableInviteUrl", () => {
   it("anchors the link at the origin root even if the origin has a path", () => {
     expect(tableInviteUrl("https://table.example/preview", "ABC123", "tok")).toBe(
       "https://table.example/t/ABC123?seat=p2&token=tok"
+    );
+  });
+});
+
+describe("tableOverlayPath and tableOverlayUrl", () => {
+  it("builds the viewer-token overlay path and URL", () => {
+    expect(tableOverlayPath("abc123", "viewer-token")).toBe(
+      "/t/ABC123/overlay?token=viewer-token"
+    );
+    expect(tableOverlayUrl("https://table.example", "abc123", "viewer-token")).toBe(
+      "https://table.example/t/ABC123/overlay?token=viewer-token"
     );
   });
 });

@@ -2,8 +2,8 @@
  * The browser's card data client.
  *
  * The Table reads `api.gatcg.com` directly (MVP_SPEC §6.8): `/cards/all` once
- * for name → slug search, cached for seven days, then `/cards/search?slug=` on
- * demand for level, life, rules text and printings. Nothing here is sent to the
+ * for name → slug search, cached for seven days, then `/cards/{slug}` on demand
+ * for level, life, rules text and printings. Nothing here is sent to the
  * Table server; a decklist and its art choices stay in this browser.
  */
 
@@ -23,7 +23,7 @@ export type CardStorage = Pick<Storage, "getItem" | "setItem">;
  */
 export function fetchWithTimeout(
   fetcher: FetchLike = fetch,
-  timeoutMs = 8_000
+  timeoutMs = 15_000
 ): FetchLike {
   return async (input, init) => {
     const controller = new AbortController();
@@ -228,14 +228,6 @@ export function searchCardNames(
   return ranked.slice(0, limit).map((entry) => entry.card);
 }
 
-function detailFromResponse(body: unknown, slug: string): CardDetail | null {
-  if (!isRecord(body) || !Array.isArray(body.data)) return null;
-  const candidates = body.data
-    .map(mapCardDetail)
-    .filter((card): card is CardDetail => card !== null);
-  return candidates.find((card) => card.slug === slug) ?? null;
-}
-
 /**
  * Fetch one card's full detail, preferring a fresh cache. Network or shape
  * failures return stale cached detail when possible, then `null`; callers draw
@@ -253,12 +245,14 @@ export async function getCardDetail(
 
   try {
     const response = await fetcher(
-      `${CARD_API_BASE}/cards/search?slug=${encodeURIComponent(slug)}`,
+      `${CARD_API_BASE}/cards/${encodeURIComponent(slug)}`,
       { headers: { Accept: "application/json" } }
     );
     if (!response.ok) throw new Error(`Card detail request failed (${response.status})`);
-    const detail = detailFromResponse(await response.json(), slug);
-    if (!detail) throw new Error("Card detail returned an unexpected response");
+    const detail = mapCardDetail(await response.json());
+    if (!detail || detail.slug !== slug) {
+      throw new Error("Card detail returned an unexpected response");
+    }
     await cache.set(slug, { detail, fetchedAt: now });
     return detail;
   } catch {

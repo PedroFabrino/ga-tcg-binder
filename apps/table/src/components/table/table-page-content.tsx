@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { type SeatState, type TranslationKey } from "@ga/contracts";
+import { type SeatState } from "@ga/contracts";
 import { ActionLog } from "@/components/table/action-log";
 import { CameraPairing } from "@/components/table/camera-pairing";
 import { DeckPanel } from "@/components/table/deck-panel";
@@ -31,6 +31,7 @@ import {
   saveDeck,
   type StoredDeck,
 } from "@/lib/deck-storage";
+import { tableErrorKey } from "@/lib/table-errors";
 import { useTableFeed } from "@/lib/use-table-feed";
 import { useTranslation } from "@/lib/i18n";
 import { readTableInvite, type TableInvite } from "@/lib/table-invite";
@@ -41,22 +42,6 @@ import {
   saveSeatSession,
   type SeatSession,
 } from "@/lib/table-session";
-
-const ERROR_KEYS: Record<string, TranslationKey> = {
-  INVALID_TOKEN: "table.errors.invalidToken",
-  WRONG_CODE: "table.errors.wrongCode",
-  NO_SUCH_TABLE: "table.errors.noSuchTable",
-  DISPLACED: "table.errors.displaced",
-  FORBIDDEN: "table.errors.forbidden",
-  NOT_YOUR_TURN: "table.errors.notYourTurn",
-  BAD_REQUEST: "table.errors.badRequest",
-  INVALID_MESSAGE: "table.errors.invalidMessage",
-  NO_TARGET: "table.errors.noTarget",
-};
-
-function errorKey(code: string): TranslationKey {
-  return ERROR_KEYS[code] ?? "table.errors.generic";
-}
 
 function ConnectedTable({
   code,
@@ -261,7 +246,7 @@ function ConnectedTable({
           role="alert"
           className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm"
         >
-          <span>{t(errorKey(state.error.code))}</span>
+          <span>{t(tableErrorKey(state.error.code))}</span>
           <div className="flex items-center gap-2">
             {state.error.code === "DISPLACED" && (
               <button
@@ -280,7 +265,11 @@ function ConnectedTable({
       )}
 
       {invite && session.seat === "p1" && (
-        <InvitePanel code={code} p2Token={invite.p2Token} />
+        <InvitePanel
+          code={code}
+          p2Token={invite.p2Token}
+          viewerToken={invite.viewerToken}
+        />
       )}
 
       {!table ? (

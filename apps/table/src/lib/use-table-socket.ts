@@ -16,16 +16,9 @@ import {
   tableClientReducer,
   type TableClientState,
 } from "./table-reducer";
+import { HANDSHAKE_ERROR_CODES } from "./table-errors";
 
 export type TableConnectionStatus = "connecting" | "open" | "closed";
-
-/** Errors that a blind reconnect would make worse (e.g. stealing back a displaced Seat). */
-const FATAL_RECONNECT_ERRORS = new Set([
-  "DISPLACED",
-  "INVALID_TOKEN",
-  "WRONG_CODE",
-  "NO_SUCH_TABLE",
-]);
 
 /** Exponential backoff capped at 15s, exported for a fast unit test. */
 export function reconnectDelayMs(attempt: number): number {
@@ -135,7 +128,7 @@ export function useTableSocket(options: UseTableSocketOptions): UseTableSocketRe
 
       // Network loss reconnects on its own. A displaced or invalid Seat stays
       // closed until the player explicitly takes over or fixes the link.
-      if (lastErrorRef.current && FATAL_RECONNECT_ERRORS.has(lastErrorRef.current.code)) {
+      if (lastErrorRef.current && HANDSHAKE_ERROR_CODES.has(lastErrorRef.current.code)) {
         return;
       }
       const delay = reconnectDelayMs(retryCountRef.current);

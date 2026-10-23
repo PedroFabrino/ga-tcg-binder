@@ -34,6 +34,12 @@ function transactionDone(transaction: IDBTransaction): Promise<void> {
 
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
+    // A blocked upgrade/delete (e.g. another tab holding a connection) can
+    // queue `open` indefinitely. Time out so the caller falls back to network.
+    const timer = setTimeout(
+      () => reject(new Error("Card cache open timed out")),
+      3_000
+    );
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
@@ -41,9 +47,14 @@ function openDatabase(): Promise<IDBDatabase> {
         db.createObjectStore(STORE_NAME);
       }
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () =>
+    request.onsuccess = () => {
+      clearTimeout(timer);
+      resolve(request.result);
+    };
+    request.onerror = () => {
+      clearTimeout(timer);
       reject(request.error ?? new Error("Could not open the card cache database"));
+    };
   });
 }
 
@@ -91,7 +102,7 @@ export function createIndexedDbDetailCache(): CardDetailCache {
   };
 }
 
-export function createNoopDetailCache(): CardDetailCache {
+function createNoopDetailCache(): CardDetailCache {
   return {
     get: async () => null,
     set: async () => undefined,

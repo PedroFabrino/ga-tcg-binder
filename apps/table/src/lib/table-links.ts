@@ -20,6 +20,18 @@ export function tableInviteUrl(origin: string, code: string, p2Token: string): s
   return new URL(tableSeatPath(code, "p2", p2Token), origin).toString();
 }
 
+/** The app path for the read-only OBS overlay. */
+export function tableOverlayPath(code: string, viewerToken: string): string {
+  const normalized = code.trim().toUpperCase();
+  const query = new URLSearchParams({ token: viewerToken });
+  return `/t/${encodeURIComponent(normalized)}/overlay?${query.toString()}`;
+}
+
+/** The absolute overlay URL shown to the host. */
+export function tableOverlayUrl(origin: string, code: string, viewerToken: string): string {
+  return new URL(tableOverlayPath(code, viewerToken), origin).toString();
+}
+
 /** The app path for this Seat's Capture Device page. */
 export function tableCameraPath(code: string, seat: SeatId, token: string): string {
   const normalized = code.trim().toUpperCase();

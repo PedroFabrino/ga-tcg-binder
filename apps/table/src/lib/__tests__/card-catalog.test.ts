@@ -104,22 +104,18 @@ describe("card catalog client", () => {
     const cache = memoryCache();
     const fetcher = vi.fn(async () =>
       jsonResponse({
-        data: [
+        name: "Spirit of Slime",
+        slug: "spirit-of-slime",
+        level: 0,
+        life: 15,
+        types: ["CHAMPION"],
+        editions: [
           {
-            name: "Spirit of Slime",
-            slug: "spirit-of-slime",
-            level: 0,
-            life: 15,
-            types: ["CHAMPION"],
-            editions: [
-              {
-                slug: "spirit-of-slime-doa",
-                image: "/cards/images/slime.jpg",
-                collector_number: "001",
-                rarity: 3,
-                set: { prefix: "DOA", name: "Dawn of Ashes" },
-              },
-            ],
+            slug: "spirit-of-slime-doa",
+            image: "/cards/images/slime.jpg",
+            collector_number: "001",
+            rarity: 3,
+            set: { prefix: "DOA", name: "Dawn of Ashes" },
           },
         ],
       })
@@ -179,7 +175,7 @@ describe("card catalog client", () => {
   it("returns null instead of a different card when the slug does not match", async () => {
     const detail = await getCardDetail(
       "wanted-card",
-      async () => jsonResponse({ data: [{ name: "Other Card", slug: "other-card" }] }),
+      async () => jsonResponse({ name: "Other Card", slug: "other-card" }),
       memoryCache(),
       1
     );

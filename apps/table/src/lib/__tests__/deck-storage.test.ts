@@ -42,7 +42,7 @@ const catalog: CardName[] = [
 
 function detailFetcher() {
   return async (input: string) => {
-    const slug = new URL(input).searchParams.get("slug");
+    const slug = new URL(input).pathname.split("/").pop() ?? null;
     const levels: Record<string, number | null> = {
       "assassins-mantle": null,
       "spirit-of-slime": 0,
@@ -51,17 +51,13 @@ function detailFetcher() {
     };
     return new Response(
       JSON.stringify({
-        data: [
-          {
-            name: catalog.find((card) => card.slug === slug)?.name ?? slug,
-            slug,
-            level: levels[slug ?? ""] ?? null,
-            editions:
-              slug === "spirit-of-slime"
-                ? [{ slug: "spirit-of-slime-doa", image: "/cards/images/slime.jpg" }]
-                : [],
-          },
-        ],
+        name: catalog.find((card) => card.slug === slug)?.name ?? slug,
+        slug,
+        level: levels[slug ?? ""] ?? null,
+        editions:
+          slug === "spirit-of-slime"
+            ? [{ slug: "spirit-of-slime-doa", image: "/cards/images/slime.jpg" }]
+            : [],
       }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );

@@ -10,10 +10,10 @@ import {
 } from "@ga/contracts";
 import { useFeedReceiver } from "./use-feed-receiver";
 import { useIceServers } from "./use-ice-servers";
+import { HANDSHAKE_ERROR_CODES } from "./table-errors";
 import { useTableSocket } from "./use-table-socket";
 
 const EMPTY_ICE_SERVERS: IceServerConfig[] = [];
-const BLOCKING_ERRORS = new Set(["DISPLACED", "INVALID_TOKEN", "WRONG_CODE", "NO_SUCH_TABLE"]);
 
 export interface UseTableFeedOptions {
   code: string;
@@ -32,7 +32,7 @@ export function useTableFeed({ code, token, seat, role = "seat" }: UseTableFeedO
   const { state, status, send, subscribeSignal } = socket;
   const iceServers = useIceServers();
   const otherSeat: SeatId = seat === "p1" ? "p2" : "p1";
-  const blockingError = state.error !== null && BLOCKING_ERRORS.has(state.error.code);
+  const blockingError = state.error !== null && HANDSHAKE_ERROR_CODES.has(state.error.code);
 
   const signaling = useMemo<FeedSignaling>(
     () => ({

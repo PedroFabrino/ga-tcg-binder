@@ -19,6 +19,18 @@ export interface TableRoomOptions {
   onBindingChange?: (socket: UnifiedSocket, role: TableRole, seatId: SeatId | null) => void;
 }
 
+export function emptyTableState(code: string): TableState {
+  return {
+    code,
+    seats: {},
+    active: null,
+    pins: {},
+    recent: [],
+    ripples: [],
+    log: [],
+  };
+}
+
 export function defaultSeat(seatId: SeatId, displayName?: string): SeatState {
   return {
     displayName: displayName ?? seatId,

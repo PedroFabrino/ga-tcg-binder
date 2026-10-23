@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createIndexedDbDetailCache, createNoopDetailCache } from "../card-detail-cache";
+import { createIndexedDbDetailCache } from "../card-detail-cache";
 
 describe("card detail cache", () => {
   it("degrades to a no-op cache when IndexedDB is unavailable", async () => {
@@ -14,12 +14,4 @@ describe("card detail cache", () => {
     await expect(cache.get("spirit-of-slime")).resolves.toBeNull();
   });
 
-  it("exposes an explicit no-op cache", async () => {
-    const cache = createNoopDetailCache();
-    await cache.set("x", {
-      detail: { name: "X", slug: "x", level: null, editions: [] },
-      fetchedAt: 1,
-    });
-    await expect(cache.get("x")).resolves.toBeNull();
-  });
 });

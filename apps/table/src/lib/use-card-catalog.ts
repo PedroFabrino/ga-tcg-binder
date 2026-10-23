@@ -72,6 +72,7 @@ export interface CardDetailState {
 }
 
 const loadedDetails = new Map<string, CardDetail>();
+const inFlightDetails = new Map<string, Promise<CardDetail | null>>();
 
 /** On-demand card detail for one slug; the cache is shared by every card widget. */
 export function useCardDetail(slug: string | null | undefined): CardDetailState {
@@ -94,7 +95,16 @@ export function useCardDetail(slug: string | null | undefined): CardDetailState 
 
     let cancelled = false;
     setState({ detail: null, loading: true });
-    getCardDetail(slug, cardFetch, detailCache())
+    // CardArt and PinCardLabel ask for the same slug in one render; share the
+    // one request instead of fetching the card twice.
+    let request = inFlightDetails.get(slug);
+    if (!request) {
+      request = getCardDetail(slug, cardFetch, detailCache()).finally(() => {
+        inFlightDetails.delete(slug);
+      });
+      inFlightDetails.set(slug, request);
+    }
+    request
       .then((detail) => {
         if (cancelled) return;
         if (detail) loadedDetails.set(slug, detail);

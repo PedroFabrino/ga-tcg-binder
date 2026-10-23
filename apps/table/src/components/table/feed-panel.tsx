@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type MouseEvent } from "react";
-import type { Ripple } from "@ga/contracts";
+import { RIPPLE_TTL_MS, type Ripple } from "@ga/contracts";
 import { useTranslation } from "@/lib/i18n";
 import { useTrackMuted } from "@/lib/use-track-muted";
 
@@ -40,6 +40,7 @@ export function FeedPanel({
   // immediately instead of flashing the asleep badge over a blank video.
   const [frameStream, setFrameStream] = useState<MediaStream | null>(null);
   const hasFrame = stream !== null && frameStream === stream;
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     const video = videoRef.current;
@@ -50,6 +51,16 @@ export function FeedPanel({
     };
   }, [stream]);
 
+  // The server prunes and broadcasts at 4s, but the client also hides an old
+  // marker locally so a missed timer can never leave a stale pointer.
+  useEffect(() => {
+    if (ripples.length === 0) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(timer);
+  }, [ripples.length]);
+
+  const liveRipples = ripples.filter((ripple) => now - ripple.at < RIPPLE_TTL_MS);
   const connecting = stream !== null && !hasFrame;
 
   function handleClick(event: MouseEvent<HTMLDivElement>) {
@@ -117,7 +128,7 @@ export function FeedPanel({
             )}
           </div>
         )}
-        {ripples.map((ripple) => (
+        {liveRipples.map((ripple) => (
           <span
             key={`${ripple.seat}-${ripple.n}-${ripple.at}`}
             role="img"

@@ -36,6 +36,9 @@ export interface Pin {
   at: number;
 }
 
+/** How long a pointer marker stays on the Table. It is never persisted. */
+export const RIPPLE_TTL_MS = 4_000;
+
 /** A transient pointer marker dropped on a Feed, at normalized 0..1 coordinates. */
 export interface Ripple {
   seat: SeatId;

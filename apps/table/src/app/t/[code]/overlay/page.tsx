@@ -8,6 +8,7 @@ import {
   TablePins,
 } from "@/components/table/table-status";
 import { TableLoading } from "@/components/table/table-page-shell";
+import { tableErrorKey } from "@/lib/table-errors";
 import { useTableSocket } from "@/lib/use-table-socket";
 import { browserStorage } from "@/lib/table-session";
 import { readTableInvite } from "@/lib/table-invite";
@@ -66,6 +67,16 @@ function OverlayContent() {
     return (
       <main className="flex min-h-screen items-center justify-center bg-transparent p-8">
         <p className="max-w-lg text-center text-sm text-white/80">{t("table.viewerMissing")}</p>
+      </main>
+    );
+  }
+
+  if (!table && state.error) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-transparent p-8">
+        <p className="max-w-lg text-center text-sm text-white/80">
+          {t(tableErrorKey(state.error.code))}
+        </p>
       </main>
     );
   }

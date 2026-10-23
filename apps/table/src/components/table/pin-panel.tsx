@@ -5,6 +5,7 @@ import type { Pin, SeatId, TableState } from "@ga/contracts";
 import { CardArt, PinCardLabel } from "@/components/table/card-art";
 import { searchCardNames, type CardName } from "@/lib/card-catalog";
 import { searchDeck, type StoredDeck } from "@/lib/deck-storage";
+import { seatDisplayName } from "@/lib/seat-name";
 import { useCardDetail, type CardCatalogState } from "@/lib/use-card-catalog";
 import { useTranslation } from "@/lib/i18n";
 
@@ -16,10 +17,6 @@ export interface PinPanelProps {
   canAct: boolean;
   onPin: (cardSlug: string, printingSlug?: string) => void;
   onClear: () => void;
-}
-
-function seatName(table: TableState, seat: SeatId, fallback: string): string {
-  return table.seats[seat]?.displayName.trim() || fallback;
 }
 
 function SeatPin({
@@ -37,7 +34,7 @@ function SeatPin({
 }) {
   const { t } = useTranslation();
   const fallback = seat === "p1" ? t("table.seat1") : t("table.seat2");
-  const name = seatName(table, seat, fallback);
+  const name = seatDisplayName(table.seats, seat, fallback);
 
   return (
     <div className="flex min-w-0 flex-col gap-2 rounded-md border border-border bg-background/40 p-2">
@@ -104,8 +101,8 @@ function RecentPins({ table }: { table: TableState }) {
                 />
                 <span className="text-[10px] text-muted-foreground">
                   {t("table.pinBySeat", {
-                    name: seatName(
-                      table,
+                    name: seatDisplayName(
+                      table.seats,
                       pin.seat,
                       pin.seat === "p1" ? t("table.seat1") : t("table.seat2")
                     ),
@@ -133,13 +130,9 @@ function PinSelection({
 }) {
   const { t } = useTranslation();
   const { detail, loading } = useCardDetail(card.slug);
+  // Undefined means the canonical Pin: no printing is stored, and the default
+  // art is rendered. Choosing an edition stores only that explicit choice.
   const [printingSlug, setPrintingSlug] = useState<string | undefined>(undefined);
-
-  useEffect(() => {
-    if (detail?.editions[0] && !printingSlug) {
-      setPrintingSlug(detail.editions[0].slug);
-    }
-  }, [detail, printingSlug]);
 
   return (
     <div className="grid gap-2 rounded-md border border-primary/40 bg-primary/5 p-2">
@@ -159,7 +152,7 @@ function PinSelection({
       {!loading && !detail && (
         <p className="text-xs text-amber-700">{t("table.pinCardUnavailable")}</p>
       )}
-      {detail && detail.editions.length > 1 && (
+      {detail && detail.editions.length > 0 && (
         <label className="grid gap-1 text-xs">
           <span className="text-muted-foreground">{t("table.pinPrinting")}</span>
           <select
@@ -167,6 +160,7 @@ function PinSelection({
             onChange={(event) => setPrintingSlug(event.target.value || undefined)}
             className="rounded-md border border-input bg-background px-2 py-1 text-foreground"
           >
+            <option value="">{t("table.pinDefaultPrinting")}</option>
             {detail.editions.map((printing) => (
               <option key={printing.slug} value={printing.slug}>
                 {[printing.setPrefix, printing.collectorNumber].filter(Boolean).join(" ") ||
@@ -290,7 +284,9 @@ export function PinPanel({ table, seat, deck, catalog, canAct, onPin, onClear }:
                   className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1 text-left text-xs hover:bg-secondary"
                 >
                   <span className="min-w-0 break-words">{entry.name}</span>
-                  <span className="shrink-0 text-muted-foreground">{entry.quantity}×</span>
+                  <span className="shrink-0 text-muted-foreground">
+                    {t("table.quantity", { count: entry.quantity })}
+                  </span>
                 </button>
               </li>
             ))}

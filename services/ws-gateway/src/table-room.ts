@@ -20,12 +20,11 @@ import {
   type PinSetMessage,
   type TableRoomOptions,
   defaultSeat,
+  emptyTableState,
 } from "./table-room-types";
+import { RippleTracker } from "./ripple-tracker";
 
 export type { TableRoomOptions };
-
-/** How long a pointer ripple stays on the Table; ephemeral and never stored. */
-export const RIPPLE_TTL_MS = 4_000;
 
 /**
  * The state machine for a single Table: two Seats, partitioned writes, Turn
@@ -47,8 +46,7 @@ export class TableRoom {
   private readonly connectionInfo = new Map<UnifiedSocket, ConnectionInfo>();
 
   private state: TableState;
-  private rippleSequence = 0;
-
+  private readonly ripples = new RippleTracker(() => this.broadcastState());
   constructor(
     code: string,
     p1Token: string,
@@ -61,18 +59,9 @@ export class TableRoom {
     this.p2Token = p2Token;
     this.viewerToken = viewerToken;
     this.options = options;
-    // Ripples are ephemeral: never rehydrate markers from an older snapshot.
     this.state = options?.initialState
       ? { ...options.initialState, ripples: [] }
-      : {
-          code,
-          seats: {},
-          active: null,
-          pins: {},
-          recent: [],
-          ripples: [],
-          log: [],
-        };
+      : emptyTableState(code);
   }
 
   public getState(): TableState {
@@ -292,27 +281,15 @@ export class TableRoom {
       sendTableError(socket, "FORBIDDEN", "No seat to ripple from");
       return;
     }
-    const now = Date.now();
-    this.pruneRipples(now);
-    this.rippleSequence += 1;
-    this.state.ripples = [
-      ...this.state.ripples,
-      { seat: seatId, x, y, n: this.rippleSequence, at: now },
-    ].slice(-8);
-    this.appendLog(seatId, "ripple", `${x},${y}`);
+    const next = this.ripples.add(seatId, x, y);
+    this.state.ripples = [...this.ripples.prune(this.state.ripples), next].slice(-8);
+    // A pointer marker is not a durable event: it is not appended to the log.
     this.broadcastState();
 
     // A lone ripple has no other event to trigger its removal, so schedule one
     // cleanup broadcast. The marker is still pruned on every later broadcast,
     // which covers timers that are suspended (e.g. a hibernating DO).
-    const timer = setTimeout(() => this.broadcastState(), RIPPLE_TTL_MS + 25);
-    (timer as { unref?: () => void }).unref?.();
-  }
-
-  /** Drop markers older than the TTL before any state is observed or persisted. */
-  private pruneRipples(now: number = Date.now()): void {
-    const live = this.state.ripples.filter((ripple) => now - ripple.at < RIPPLE_TTL_MS);
-    if (live.length !== this.state.ripples.length) this.state.ripples = live;
+    this.ripples.schedule();
   }
 
   // -------------------------------------------------------------------------
@@ -391,7 +368,7 @@ export class TableRoom {
   }
 
   private broadcastState(): void {
-    this.pruneRipples();
+    this.state.ripples = this.ripples.prune(this.state.ripples);
     this.options?.onStateChange?.(this.state);
     this.broadcast({ type: "TABLE_STATE", state: this.state });
   }

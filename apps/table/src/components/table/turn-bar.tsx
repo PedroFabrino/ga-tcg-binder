@@ -1,6 +1,7 @@
 "use client";
 
 import type { SeatId, SeatState } from "@ga/contracts";
+import { seatDisplayName } from "@/lib/seat-name";
 import { useTranslation } from "@/lib/i18n";
 
 export interface TurnBarProps {
@@ -29,7 +30,7 @@ export function TurnBar({
 }: TurnBarProps) {
   const { t } = useTranslation();
   const activeName = active
-    ? seats[active]?.displayName || (active === "p1" ? t("table.seat1") : t("table.seat2"))
+    ? seatDisplayName(seats, active, active === "p1" ? t("table.seat1") : t("table.seat2"))
     : null;
 
   const buttonClass =

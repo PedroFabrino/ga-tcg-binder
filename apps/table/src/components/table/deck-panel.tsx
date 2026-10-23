@@ -28,13 +28,14 @@ function ZoneColumn({
   entries: StoredDeckEntry[];
   unresolvedLabel: string;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="min-w-0">
       <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {title}
       </h4>
       {entries.length === 0 ? (
-        <p className="text-xs text-muted-foreground">—</p>
+        <p className="text-xs text-muted-foreground">{t("table.emptyValue")}</p>
       ) : (
         <ul className="grid max-h-56 gap-1 overflow-auto pr-1 text-xs">
           {entries.map((entry, index) => (
@@ -46,7 +47,7 @@ function ZoneColumn({
               }`}
             >
               <span className="w-6 shrink-0 font-mono text-muted-foreground">
-                {entry.quantity}×
+                {t("table.quantity", { count: entry.quantity })}
               </span>
               <span className="min-w-0 break-words">{entry.name}</span>
             </li>
@@ -225,7 +226,7 @@ export function DeckPanel({ deck, catalog, onImport, onClear }: DeckPanelProps) 
             <button
               type="button"
               onClick={submit}
-              disabled={importing || !rawText.trim() || catalog.status === "loading"}
+              disabled={importing || !rawText.trim() || catalog.status !== "ready"}
               className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
             >
               {importing ? t("table.deckImporting") : t("table.deckImport")}

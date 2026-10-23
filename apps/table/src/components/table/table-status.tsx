@@ -2,12 +2,9 @@
 
 import type { SeatId, TableState } from "@ga/contracts";
 import { CardArt, PinCardLabel } from "@/components/table/card-art";
+import { seatDisplayName } from "@/lib/seat-name";
 import { useCardDetail } from "@/lib/use-card-catalog";
 import { useTranslation } from "@/lib/i18n";
-
-function seatName(table: TableState, seat: SeatId, fallback: string): string {
-  return table.seats[seat]?.displayName.trim() || fallback;
-}
 
 /**
  * A read-only scoreboard for the overlay and `/stage`: the same HUD facts as the
@@ -26,7 +23,7 @@ export function SeatScoreboard({
   const state = table.seats[seat];
   const { detail } = useCardDetail(state?.championSlug ?? null);
   const fallback = seat === "p1" ? t("table.seat1") : t("table.seat2");
-  const name = seatName(table, seat, fallback);
+  const name = seatDisplayName(table.seats, seat, fallback);
   const damage = state?.damage ?? 0;
   const memory = state?.memory ?? 0;
   const hand = state?.hand ?? 0;
@@ -66,11 +63,11 @@ export function SeatScoreboard({
         <div className="mt-1 grid grid-cols-3 gap-x-3 gap-y-0.5 text-[11px]">
           <span>
             <span className="text-white/50">{t("table.level")} </span>
-            {detail?.level ?? "—"}
+            {detail?.level ?? t("table.emptyValue")}
           </span>
           <span>
             <span className="text-white/50">{t("table.life")} </span>
-            {detail?.life ?? "—"}
+            {detail?.life ?? t("table.emptyValue")}
           </span>
           <span>
             <span className="text-white/50">{t("table.damage")} </span>
@@ -112,7 +109,7 @@ export function TablePins({
         return (
           <div key={seat} className="flex min-w-0 flex-col gap-1 text-white">
             <p className="truncate text-[11px] text-white/60">
-              {t("table.pinBySeat", { name: seatName(table, seat, fallback) })}
+              {t("table.pinBySeat", { name: seatDisplayName(table.seats, seat, fallback) })}
             </p>
             {pin ? (
               <>
@@ -160,7 +157,7 @@ export function RecentPinStrip({ table }: { table: TableState }) {
                 className="h-12 w-9 shrink-0"
               />
               <span className="max-w-28 truncate text-[11px]">
-                {t("table.pinBySeat", { name: seatName(table, pin.seat, fallback) })}
+                {t("table.pinBySeat", { name: seatDisplayName(table.seats, pin.seat, fallback) })}
               </span>
             </div>
           );
