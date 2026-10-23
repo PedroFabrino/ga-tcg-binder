@@ -7,7 +7,7 @@ import {
   type InsertMarketNotification,
 } from "../db/repositories/marketplace-repository";
 
-function extractCollectorNumber(
+export function extractCollectorNumber(
   rawName: string,
   itemId?: string | null
 ): string {

@@ -376,6 +376,14 @@ CREATE TABLE IF NOT EXISTS \`notification_deliveries\` (
 	FOREIGN KEY (\`notification_id\`) REFERENCES \`market_notifications\`(\`id\`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
+CREATE TABLE IF NOT EXISTS \`deal_alert_messages\` (
+	\`discord_user_id\` text PRIMARY KEY NOT NULL,
+	\`channel_id\` text NOT NULL,
+	\`message_id\` text NOT NULL,
+	\`last_listing_keys\` text DEFAULT '[]' NOT NULL,
+	\`updated_at\` integer DEFAULT (strftime('%s', 'now')) NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS \`collector_identities\` (
 	\`id\` text PRIMARY KEY NOT NULL,
 	\`collector_id\` text NOT NULL,

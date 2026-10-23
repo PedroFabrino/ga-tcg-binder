@@ -1,54 +1,81 @@
 import { findIdentitiesWithNotificationsEnabled } from "../db/repositories/assistant-repository";
-import { listPersonalWants, type PersonalWantItem } from "../db/repositories/personal-wants-repository";
+import {
+  getDealAlertMessage,
+  upsertDealAlertMessage,
+} from "../db/repositories/deal-alert-repository";
+import {
+  listPersonalWants,
+  type PersonalWantItem,
+} from "../db/repositories/personal-wants-repository";
 import {
   getMarketCards,
   type MarketCard,
   type MarketplaceDatabase,
 } from "../db/repositories/marketplace-repository";
 import { getDeckPartitionedWantlist } from "./collector-assistant";
-import { DISCORD_COLORS, type DiscordEmbed } from "./discord-interactions/types";
+import {
+  formatDealAlertMessage,
+  hasNewListings,
+  listingKey,
+  type DealAlertMatch,
+  type DealAlertSource,
+} from "./deal-alert-format";
+import type { AssistantWantlistResponse } from "@ga/contracts";
+import type { DiscordEmbed } from "./discord-interactions/types";
 
-export interface DealAlertMatch {
-  collectorId: string;
-  discordUserId: string;
-  listing: MarketCard;
-  reason: string;
-}
+export { formatDealAlertMessage };
+export type { DealAlertMatch, DealAlertSource };
 
-// In-memory alert cache for 24-hour alert deduplication
-const sentAlertsCache = new Map<string, number>();
-const DEDUPE_TTL_MS = 24 * 60 * 60 * 1000;
+function resolveDealAlertSource(
+  listing: MarketCard,
+  personalWants: PersonalWantItem[],
+  wantlist: AssistantWantlistResponse
+): DealAlertSource | null {
+  const matchingWant = personalWants.find((w) => {
+    if (w.cardSlug !== listing.cardSlug) return false;
+    if (w.editionId && listing.editionId && w.editionId !== listing.editionId) return false;
+    if (w.foil !== null && w.foil !== listing.isFoil) return false;
+    if (w.targetMaxPrice !== null && listing.priceNumeric > w.targetMaxPrice) return false;
+    return true;
+  });
 
-export function getDedupeKey(collectorId: string, listing: MarketCard): string {
-  return `${collectorId}:${listing.cardSlug || listing.cardName}:${listing.storeId}:${listing.priceNumeric}:${listing.isFoil ? 1 : 0}`;
-}
-
-export function isAlertRecentlySent(key: string, now = Date.now()): boolean {
-  const lastSent = sentAlertsCache.get(key);
-  if (!lastSent) return false;
-  if (now - lastSent > DEDUPE_TTL_MS) {
-    sentAlertsCache.delete(key);
-    return false;
+  if (matchingWant) {
+    return { kind: "personal-want", desiredQuantity: matchingWant.desiredQuantity };
   }
-  return true;
-}
 
-export function recordAlertSent(key: string, now = Date.now()): void {
-  sentAlertsCache.set(key, now);
-}
+  for (const deck of wantlist.decks) {
+    const hard = deck.hardShortages.find((h) => h.cardSlug === listing.cardSlug);
+    if (hard) {
+      return {
+        kind: "hard",
+        deckId: deck.deckId,
+        deckName: deck.deckName,
+        missingQuantity: hard.missingQuantity,
+      };
+    }
+    const shared = deck.sharedShortages.find((s) => s.cardSlug === listing.cardSlug);
+    if (shared) {
+      return {
+        kind: "shared",
+        deckId: deck.deckId,
+        deckName: deck.deckName,
+        sharedQuantity: shared.sharedQuantity,
+      };
+    }
+  }
 
-export function clearAlertsCache(): void {
-  sentAlertsCache.clear();
+  return null;
 }
 
 /**
- * Matches market listings against collectors with active wantlists and enabled deal alerts.
+ * Matches market listings against every enabled collector's wantlists and deck
+ * shortages. Returns all current matches; deduplication and message lifecycle
+ * are handled by `dispatchDealAlerts`.
  */
 export async function matchDealAlerts(
   listings: MarketCard[],
   database?: unknown
 ): Promise<DealAlertMatch[]> {
-  // Find all Discord identities with notifications enabled
   const identities = await findIdentitiesWithNotificationsEnabled("discord", database as any);
 
   const matches: DealAlertMatch[] = [];
@@ -61,48 +88,14 @@ export async function matchDealAlerts(
     ]);
 
     for (const listing of listings) {
-      const dedupeKey = getDedupeKey(collectorId, listing);
-      if (isAlertRecentlySent(dedupeKey)) {
-        continue;
-      }
-
-      let matchedReason: string | null = null;
-
-      // 1. Check Personal Wants (Direct Wants)
-      const matchingWant = personalWants.find((w) => {
-        if (w.cardSlug !== listing.cardSlug) return false;
-        if (w.editionId && listing.editionId && w.editionId !== listing.editionId) return false;
-        if (w.foil !== null && w.foil !== listing.isFoil) return false;
-        if (w.targetMaxPrice !== null && listing.priceNumeric > w.targetMaxPrice) return false;
-        return true;
-      });
-
-      if (matchingWant) {
-        matchedReason = `🎯 Personal Want (needs ${matchingWant.desiredQuantity})`;
-      } else {
-        // 2. Check Deck Shortages (Hard and Shared)
-        for (const deck of wantlist.decks) {
-          const hard = deck.hardShortages.find((h) => h.cardSlug === listing.cardSlug);
-          if (hard) {
-            matchedReason = `🔴 Hard Shortage for ${deck.deckName} (needs ${hard.missingQuantity})`;
-            break;
-          }
-          const shared = deck.sharedShortages.find((s) => s.cardSlug === listing.cardSlug);
-          if (shared) {
-            matchedReason = `🟡 Shared Shortage for ${deck.deckName} (needs ${shared.sharedQuantity})`;
-            break;
-          }
-        }
-      }
-
-      if (matchedReason) {
+      const source = resolveDealAlertSource(listing, personalWants, wantlist);
+      if (source) {
         matches.push({
           collectorId,
           discordUserId: identity.providerUserId,
           listing,
-          reason: matchedReason,
+          source,
         });
-        recordAlertSent(dedupeKey);
       }
     }
   }
@@ -115,89 +108,103 @@ export interface DealAlertDispatchResult {
   sent: number;
 }
 
+export interface DealAlertMessageRef {
+  channelId: string;
+  messageId: string;
+}
+
+export interface DealAlertTransport {
+  send(discordUserId: string, content: string): Promise<DealAlertMessageRef | null>;
+  delete(ref: DealAlertMessageRef): Promise<void>;
+}
+
+const defaultDealAlertTransport: DealAlertTransport = {
+  send: (discordUserId, content) => sendDiscordDirectContent(discordUserId, content),
+  delete: (ref) => deleteDiscordDirectMessage(ref.channelId, ref.messageId),
+};
+
 /**
- * Fetches every in-stock marketplace listing and dispatches private deal-alert
- * DMs to collectors whose wantlists or deck shortages match. Runs as a single
- * pass after all stores have synced so matching sees the complete listing set.
+ * Fetches every in-stock marketplace listing, matches them against enabled
+ * collectors' wantlists and deck shortages, and maintains a single rolling DM
+ * per collector. The previous snapshot message is deleted and a fresh one is
+ * sent only when at least one new matching listing appears.
  */
 export async function dispatchDealAlerts(
   database?: MarketplaceDatabase,
-  send: (match: DealAlertMatch) => Promise<boolean> = (match) =>
-    sendDiscordDirectMessage(match.discordUserId, formatDealAlertEmbed(match))
+  transport: DealAlertTransport = defaultDealAlertTransport,
+  now: Date = new Date()
 ): Promise<DealAlertDispatchResult> {
   const listings = await getMarketCards({ inStockOnly: true }, database);
   const matches = await matchDealAlerts(listings, database);
 
-  let sent = 0;
+  const byUser = new Map<string, DealAlertMatch[]>();
   for (const match of matches) {
-    if (await send(match)) {
-      sent++;
+    const list = byUser.get(match.discordUserId);
+    if (list) {
+      list.push(match);
+    } else {
+      byUser.set(match.discordUserId, [match]);
     }
+  }
+
+  let sent = 0;
+  for (const [discordUserId, userMatches] of byUser) {
+    const currentKeys = userMatches.map((match) => listingKey(match.listing));
+    const stored = await getDealAlertMessage(discordUserId, database);
+
+    if (!hasNewListings(currentKeys, stored?.lastListingKeys)) {
+      continue;
+    }
+
+    if (stored) {
+      await transport.delete({
+        channelId: stored.channelId,
+        messageId: stored.messageId,
+      });
+    }
+
+    const ref = await transport.send(
+      discordUserId,
+      formatDealAlertMessage(userMatches, now)
+    );
+    if (!ref) {
+      continue;
+    }
+
+    await upsertDealAlertMessage(
+      {
+        discordUserId,
+        channelId: ref.channelId,
+        messageId: ref.messageId,
+        lastListingKeys: JSON.stringify(currentKeys),
+        updatedAt: now,
+      },
+      database
+    );
+    sent++;
   }
 
   return { matched: matches.length, sent };
 }
 
-/**
- * Formats a Discord embed for a private bot Direct Message deal alert.
- */
-export function formatDealAlertEmbed(match: DealAlertMatch): DiscordEmbed {
-  const { listing, reason } = match;
-  const finish = listing.isFoil ? "★ Foil" : "Normal";
-  const url = listing.productUrl || listing.vendorUrl || undefined;
-
-  return {
-    title: `🚨 Deal Alert: ${listing.cardName}`,
-    description: `A card matching your wantlist is now available!`,
-    color: DISCORD_COLORS.GREEN,
-    fields: [
-      {
-        name: "Printing & Finish",
-        value: `${listing.setPrefix} | ${finish} (${listing.quality})`,
-        inline: true,
-      },
-      {
-        name: "Price",
-        value: `**${listing.price}**`,
-        inline: true,
-      },
-      {
-        name: "Store / Seller",
-        value: listing.vendorName || listing.storeId,
-        inline: true,
-      },
-      {
-        name: "Reason",
-        value: reason,
-        inline: false,
-      },
-      url
-        ? {
-            name: "Direct Store Link",
-            value: `[Open Store Page](${url})`,
-            inline: false,
-          }
-        : {
-            name: "Direct Store Link",
-            value: "Visit store catalog",
-            inline: false,
-          },
-    ],
-    footer: { text: "Manage notifications anytime with /wantlist notify" },
-  };
+interface DiscordDirectMessagePayload {
+  content?: string;
+  embeds?: DiscordEmbed[];
 }
 
 /**
- * Dispatches a private bot DM to a Discord user via REST API.
+ * Opens (or reuses) a DM channel with a Discord user and posts a message.
+ * Returns the created message's channel/message ids so callers can edit or
+ * delete it later.
  */
-export async function sendDiscordDirectMessage(
+async function postDiscordDirectMessage(
   discordUserId: string,
-  embed: DiscordEmbed,
-  botToken = process.env.DISCORD_BOT_TOKEN
-): Promise<boolean> {
+  payload: DiscordDirectMessagePayload,
+  botToken?: string
+): Promise<DealAlertMessageRef | null> {
   if (!botToken) {
     console.warn("[discord-dm] DISCORD_BOT_TOKEN is not configured in environment variables.");
-    return false;
+    return null;
   }
 
   const controller = new AbortController();
@@ -219,34 +226,98 @@ export async function sendDiscordDirectMessage(
       clearTimeout(timer);
       const errText = await dmRes.text().catch(() => "");
       console.error(`[discord-dm] Failed to open DM channel (${dmRes.status}):`, errText);
-      return false;
+      return null;
     }
     const dmData = await dmRes.json();
     const channelId = dmData.id;
 
-    // 2. Post embed to DM channel
+    // 2. Post message (embed or plain text) to the DM channel
     const msgRes = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
       method: "POST",
       headers: {
         Authorization: `Bot ${botToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        embeds: [embed],
-      }),
+      body: JSON.stringify(payload),
       signal: controller.signal,
     });
 
     clearTimeout(timer);
     if (!msgRes.ok) {
       const errText = await msgRes.text().catch(() => "");
-      console.error(`[discord-dm] Failed to post DM embed (${msgRes.status}):`, errText);
-      return false;
+      console.error(`[discord-dm] Failed to post DM message (${msgRes.status}):`, errText);
+      return null;
     }
-    return true;
+
+    const msgData = await msgRes.json();
+    if (!msgData?.id) {
+      return null;
+    }
+    return { channelId, messageId: msgData.id };
   } catch (err) {
     clearTimeout(timer);
     console.error("[discord-dm] Error sending DM:", err);
-    return false;
+    return null;
+  }
+}
+
+/**
+ * Dispatches a private bot DM carrying a Discord embed (e.g. the /wantlist
+ * notify confirmation).
+ */
+export async function sendDiscordDirectMessage(
+  discordUserId: string,
+  embed: DiscordEmbed,
+  botToken = process.env.DISCORD_BOT_TOKEN
+): Promise<boolean> {
+  const ref = await postDiscordDirectMessage(
+    discordUserId,
+    { embeds: [embed] },
+    botToken
+  );
+  return ref !== null;
+}
+
+/**
+ * Dispatches a private bot DM carrying plain-text content (e.g. deal alerts)
+ * and returns the created message reference for later edit/delete.
+ */
+export async function sendDiscordDirectContent(
+  discordUserId: string,
+  content: string,
+  botToken = process.env.DISCORD_BOT_TOKEN
+): Promise<DealAlertMessageRef | null> {
+  return postDiscordDirectMessage(discordUserId, { content }, botToken);
+}
+
+/**
+ * Deletes a previously sent DM message. Best-effort: missing messages and
+ * network failures are logged and ignored so a stale alert never blocks a new
+ * one from being delivered.
+ */
+export async function deleteDiscordDirectMessage(
+  channelId: string,
+  messageId: string,
+  botToken = process.env.DISCORD_BOT_TOKEN
+): Promise<void> {
+  if (!botToken) {
+    return;
+  }
+
+  try {
+    const res = await fetch(
+      `https://discord.com/api/v10/channels/${channelId}/messages/${messageId}`,
+      {
+        method: "DELETE",
+        headers: { Authorization: `Bot ${botToken}` },
+      }
+    );
+
+    if (!res.ok && res.status !== 404) {
+      const errText = await res.text().catch(() => "");
+      console.error(`[discord-dm] Failed to delete DM message (${res.status}):`, errText);
+    }
+  } catch (err) {
+    console.error("[discord-dm] Error deleting DM message:", err);
   }
 }

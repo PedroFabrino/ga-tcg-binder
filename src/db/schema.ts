@@ -396,3 +396,4 @@ export const shippingTickets = sqliteTable("shipping_tickets", {
 // Featured-set tables live in ./featured-set-schema to stay under 400 lines.
 export * from "./featured-set-schema";
 export * from "./assistant-schema";
+export * from "./deal-alert-schema";
