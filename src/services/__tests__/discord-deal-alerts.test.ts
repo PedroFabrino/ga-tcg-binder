@@ -13,7 +13,10 @@ import { upsertPersonalWant } from "../../db/repositories/personal-wants-reposit
 import {
   matchDealAlerts,
   formatDealAlertMessage,
+  formatDealAlertChunks,
   dispatchDealAlerts,
+  parseMessageIds,
+  DEAL_ALERT_MAX_LENGTH,
   type DealAlertMatch,
   type DealAlertMessageRef,
   type DealAlertTransport,
@@ -365,5 +368,151 @@ describe("Discord Deal Alerts Matcher and Notifier", () => {
         "🎯 [Creative Shock](<https://loot.local/shock>) - DOA 064 - R$ 50,00",
       ].join("\n")
     );
+  });
+
+  describe("parseMessageIds", () => {
+    it("handles single IDs, comma-separated IDs, JSON arrays, and edge cases", () => {
+      expect(parseMessageIds("123456789")).toEqual(["123456789"]);
+      expect(parseMessageIds("123,456, 789")).toEqual(["123", "456", "789"]);
+      expect(parseMessageIds('["msg1", "msg2"]')).toEqual(["msg1", "msg2"]);
+      expect(parseMessageIds("")).toEqual([]);
+      expect(parseMessageIds(null)).toEqual([]);
+      expect(parseMessageIds(undefined)).toEqual([]);
+    });
+  });
+
+  it("splits large deal alerts into chunks <= DEAL_ALERT_MAX_LENGTH", () => {
+    const matches: DealAlertMatch[] = [];
+    for (let i = 1; i <= 50; i++) {
+      matches.push({
+        collectorId: testCollectorId,
+        discordUserId,
+        listing: {
+          id: `mc_bulk_${i}`,
+          storeId: "store_myp",
+          cardSlug: "creative-shock",
+          editionId: null,
+          rawName: `Creative Shock ${i}`,
+          cardName: `Creative Shock Edition With A Rather Long Name ${i}`,
+          setPrefix: "DOA",
+          quantity: 1,
+          price: `R$ ${i},00`,
+          priceNumeric: i,
+          tcgPrice: null,
+          tcgPriceNumeric: null,
+          quality: "NM",
+          isFoil: true,
+          itemId: `item_${i}`,
+          productUrl: `https://mypcards.com/grandarchive/produto/${i}/creative-shock-edition-with-a-rather-long-name-${i}`,
+          vendorName: "Camelot Cards",
+          vendorUrl: null,
+          firstSeenAt: new Date(),
+          lastSeenAt: new Date(),
+          updatedAt: new Date(),
+        },
+        source: { kind: "personal-want", desiredQuantity: 1 },
+      });
+    }
+
+    const full = formatDealAlertMessage(matches);
+    expect(full.length).toBeGreaterThan(DEAL_ALERT_MAX_LENGTH);
+
+    const chunks = formatDealAlertChunks(matches);
+    expect(chunks.length).toBeGreaterThan(1);
+    for (const chunk of chunks) {
+      expect(chunk.length).toBeLessThanOrEqual(DEAL_ALERT_MAX_LENGTH);
+    }
+  });
+
+  it("dispatches multi-chunk messages and deletes all old chunks on update", async () => {
+    // Insert 50 market cards to trigger multi-chunk delivery
+    for (let i = 1; i <= 50; i++) {
+      await db.insert(marketCards).values({
+        id: `mc_large_${i}`,
+        storeId: "store_myp",
+        cardSlug: "creative-shock",
+        rawName: `Creative Shock ${i}`,
+        cardName: `Creative Shock Extended Card Name Edition ${i}`,
+        setPrefix: "DOA",
+        quantity: 1,
+        price: `R$ 50,00`,
+        priceNumeric: 50.0,
+        isFoil: true,
+        itemId: `item_large_${i}`,
+        productUrl: `https://mypcards.com/grandarchive/produto/${i}/creative-shock-extended-card-name-edition-${i}`,
+      });
+    }
+
+    const fake = createFakeTransport();
+    const firstDispatch = await dispatchDealAlerts(db, fake.transport);
+
+    expect(firstDispatch.sent).toBe(1);
+    expect(fake.sent.length).toBeGreaterThan(1);
+    const firstSentCount = fake.sent.length;
+    const firstSentRefs = [...fake.sent.map((s) => s.ref)];
+
+    // Adding another new card triggers rolling update
+    await db.insert(marketCards).values({
+      id: "mc_extra",
+      storeId: "store_myp",
+      cardSlug: "creative-shock",
+      rawName: "Creative Shock Extra",
+      cardName: "Creative Shock Extra",
+      setPrefix: "DOA",
+      quantity: 1,
+      price: "R$ 50,00",
+      priceNumeric: 50.0,
+      isFoil: true,
+      itemId: "item_extra",
+    });
+
+    const secondDispatch = await dispatchDealAlerts(db, fake.transport);
+    expect(secondDispatch.sent).toBe(1);
+    // All previous chunks must have been deleted
+    expect(fake.deleted).toEqual(firstSentRefs);
+    expect(fake.sent.length).toBeGreaterThan(firstSentCount);
+  });
+
+  it("rolls back sent chunks and preserves stored message if a chunk fails", async () => {
+    for (let i = 1; i <= 50; i++) {
+      await db.insert(marketCards).values({
+        id: `mc_fail_${i}`,
+        storeId: "store_myp",
+        cardSlug: "creative-shock",
+        rawName: `Creative Shock ${i}`,
+        cardName: `Creative Shock Extended Card Name Edition ${i}`,
+        setPrefix: "DOA",
+        quantity: 1,
+        price: `R$ 50,00`,
+        priceNumeric: 50.0,
+        isFoil: true,
+        itemId: `item_fail_${i}`,
+        productUrl: `https://mypcards.com/grandarchive/produto/${i}/creative-shock-extended-card-name-edition-${i}`,
+      });
+    }
+
+    let attempt = 0;
+    const sent: DealAlertMessageRef[] = [];
+    const deleted: DealAlertMessageRef[] = [];
+    const failingTransport: DealAlertTransport = {
+      async send(userId, content) {
+        attempt++;
+        if (attempt === 2) {
+          // Second chunk fails (e.g. Discord 400 or network error)
+          return null;
+        }
+        const ref = { channelId: `dm-${userId}`, messageId: `msg-${attempt}` };
+        sent.push(ref);
+        return ref;
+      },
+      async delete(ref) {
+        deleted.push(ref);
+      },
+    };
+
+    const res = await dispatchDealAlerts(db, failingTransport);
+    expect(res.sent).toBe(0);
+    // First chunk that was sent should be cleaned up via delete
+    expect(deleted).toEqual([sent[0]]);
   });
 });

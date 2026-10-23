@@ -4,7 +4,10 @@ import {
   escapeLinkUrl,
   formatDateTimeInBrazil,
   isHttpsUrl,
+  splitMessageContent,
 } from "./market-notification-formatter";
+
+export const DEAL_ALERT_MAX_LENGTH = 2000;
 
 export type DealAlertSource =
   | { kind: "personal-want"; desiredQuantity: number }
@@ -94,6 +97,23 @@ export function formatDealAlertMessage(
     .map((group) => `**${group.title}**\n${group.lines.join("\n")}`);
 
   return [`🕒 Last update: ${formatDateTimeInBrazil(now)}`, ...sections].join("\n\n");
+}
+
+/**
+ * Splits the rolling deal-alert message into chunks no longer than `maxLength`
+ * characters (defaulting to Discord's safe 2000-character boundary), breaking
+ * only on line boundaries.
+ */
+export function formatDealAlertChunks(
+  matches: DealAlertMatch[],
+  now: Date = new Date(),
+  maxLength: number = DEAL_ALERT_MAX_LENGTH
+): string[] {
+  const full = formatDealAlertMessage(matches, now);
+  if (!full) {
+    return [];
+  }
+  return splitMessageContent(full, maxLength);
 }
 
 /**

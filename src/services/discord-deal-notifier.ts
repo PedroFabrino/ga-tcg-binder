@@ -14,17 +14,45 @@ import {
 } from "../db/repositories/marketplace-repository";
 import { getDeckPartitionedWantlist } from "./collector-assistant";
 import {
+  DEAL_ALERT_MAX_LENGTH,
+  formatDealAlertChunks,
   formatDealAlertMessage,
   hasNewListings,
   listingKey,
   type DealAlertMatch,
   type DealAlertSource,
 } from "./deal-alert-format";
+import { splitMessageContent } from "./market-notification-formatter";
 import type { AssistantWantlistResponse } from "@ga/contracts";
 import type { DiscordEmbed } from "./discord-interactions/types";
 
-export { formatDealAlertMessage };
+export { formatDealAlertMessage, formatDealAlertChunks, DEAL_ALERT_MAX_LENGTH };
 export type { DealAlertMatch, DealAlertSource };
+
+/**
+ * Normalizes message ID strings stored in the database. Supports single IDs,
+ * comma-separated ID lists, and JSON-serialized string arrays.
+ */
+export function parseMessageIds(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed.filter(
+          (id): id is string => typeof id === "string" && id.length > 0
+        );
+      }
+    } catch {
+      // fallback to comma separation below
+    }
+  }
+  return trimmed
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
 function resolveDealAlertSource(
   listing: MarketCard,
@@ -156,26 +184,42 @@ export async function dispatchDealAlerts(
       continue;
     }
 
-    if (stored) {
-      await transport.delete({
-        channelId: stored.channelId,
-        messageId: stored.messageId,
-      });
+    const chunks = formatDealAlertChunks(userMatches, now);
+    const sentRefs: DealAlertMessageRef[] = [];
+    for (const chunk of chunks) {
+      const ref = await transport.send(discordUserId, chunk);
+      if (ref) {
+        sentRefs.push(ref);
+      } else {
+        break;
+      }
     }
 
-    const ref = await transport.send(
-      discordUserId,
-      formatDealAlertMessage(userMatches, now)
-    );
-    if (!ref) {
+    if (sentRefs.length !== chunks.length) {
+      console.warn(
+        `[discord-dm] Failed to send all deal alert chunks to ${discordUserId} (${sentRefs.length}/${chunks.length} sent)`
+      );
+      for (const partial of sentRefs) {
+        await transport.delete(partial);
+      }
       continue;
+    }
+
+    if (stored) {
+      const oldMessageIds = parseMessageIds(stored.messageId);
+      for (const oldId of oldMessageIds) {
+        await transport.delete({
+          channelId: stored.channelId,
+          messageId: oldId,
+        });
+      }
     }
 
     await upsertDealAlertMessage(
       {
         discordUserId,
-        channelId: ref.channelId,
-        messageId: ref.messageId,
+        channelId: sentRefs[0].channelId,
+        messageId: sentRefs.map((r) => r.messageId).join(","),
         lastListingKeys: JSON.stringify(currentKeys),
         updatedAt: now,
       },
@@ -280,20 +324,41 @@ export async function sendDiscordDirectMessage(
 
 /**
  * Dispatches a private bot DM carrying plain-text content (e.g. deal alerts)
- * and returns the created message reference for later edit/delete.
+ * and returns the created message reference for later edit/delete. If content
+ * exceeds Discord's length boundary, it is split into chunks and sent sequentially.
  */
 export async function sendDiscordDirectContent(
   discordUserId: string,
   content: string,
   botToken = process.env.DISCORD_BOT_TOKEN
 ): Promise<DealAlertMessageRef | null> {
-  return postDiscordDirectMessage(discordUserId, { content }, botToken);
+  const chunks = splitMessageContent(content, DEAL_ALERT_MAX_LENGTH);
+  if (chunks.length === 0) {
+    return null;
+  }
+
+  const sentRefs: DealAlertMessageRef[] = [];
+  for (const chunk of chunks) {
+    const ref = await postDiscordDirectMessage(discordUserId, { content: chunk }, botToken);
+    if (!ref) {
+      for (const partial of sentRefs) {
+        await deleteDiscordDirectMessage(partial.channelId, partial.messageId, botToken);
+      }
+      return null;
+    }
+    sentRefs.push(ref);
+  }
+
+  return {
+    channelId: sentRefs[0].channelId,
+    messageId: sentRefs.map((r) => r.messageId).join(","),
+  };
 }
 
 /**
- * Deletes a previously sent DM message. Best-effort: missing messages and
- * network failures are logged and ignored so a stale alert never blocks a new
- * one from being delivered.
+ * Deletes a previously sent DM message (or comma-separated list of message IDs).
+ * Best-effort: missing messages and network failures are logged and ignored
+ * so a stale alert never blocks a new one from being delivered.
  */
 export async function deleteDiscordDirectMessage(
   channelId: string,
@@ -304,20 +369,23 @@ export async function deleteDiscordDirectMessage(
     return;
   }
 
-  try {
-    const res = await fetch(
-      `https://discord.com/api/v10/channels/${channelId}/messages/${messageId}`,
-      {
-        method: "DELETE",
-        headers: { Authorization: `Bot ${botToken}` },
-      }
-    );
+  const messageIds = parseMessageIds(messageId);
+  for (const id of messageIds) {
+    try {
+      const res = await fetch(
+        `https://discord.com/api/v10/channels/${channelId}/messages/${id}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bot ${botToken}` },
+        }
+      );
 
-    if (!res.ok && res.status !== 404) {
-      const errText = await res.text().catch(() => "");
-      console.error(`[discord-dm] Failed to delete DM message (${res.status}):`, errText);
+      if (!res.ok && res.status !== 404) {
+        const errText = await res.text().catch(() => "");
+        console.error(`[discord-dm] Failed to delete DM message (${res.status}):`, errText);
+      }
+    } catch (err) {
+      console.error("[discord-dm] Error deleting DM message:", err);
     }
-  } catch (err) {
-    console.error("[discord-dm] Error deleting DM message:", err);
   }
 }
