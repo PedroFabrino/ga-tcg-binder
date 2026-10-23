@@ -22,6 +22,7 @@ import {
   TableShell,
 } from "@/components/table/table-page-shell";
 import { TurnBar } from "@/components/table/turn-bar";
+import { fetchWithTimeout } from "@/lib/card-catalog";
 import { getCardDetailCache, useCardCatalog } from "@/lib/use-card-catalog";
 import {
   clearDeck,
@@ -106,6 +107,7 @@ function ConnectedTable({
       const next = await importDeck(rawText, {
         cards: catalog.cards,
         detailCache: getCardDetailCache(),
+        fetcher: fetchWithTimeout(),
       });
       saveDeck(code, session.seat, next, browserStorage());
       setDeck(next);

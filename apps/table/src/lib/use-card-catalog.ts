@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  fetchWithTimeout,
   getCardDetail,
   loadCardCatalog,
   type CardDetail,
@@ -21,6 +22,8 @@ export interface CardCatalogState {
   /** True when the network failed and an older cache is being used. */
   stale: boolean;
 }
+
+const cardFetch = fetchWithTimeout();
 
 let browserDetailCache: CardDetailCache | null = null;
 
@@ -46,7 +49,7 @@ export function useCardCatalog(): CardCatalogState {
 
   useEffect(() => {
     let cancelled = false;
-    loadCardCatalog(fetch, browserStorage())
+    loadCardCatalog(cardFetch, browserStorage())
       .then((result) => {
         if (!cancelled) {
           setState({ cards: result.cards, status: "ready", stale: result.stale });
@@ -91,7 +94,7 @@ export function useCardDetail(slug: string | null | undefined): CardDetailState 
 
     let cancelled = false;
     setState({ detail: null, loading: true });
-    getCardDetail(slug, fetch, detailCache())
+    getCardDetail(slug, cardFetch, detailCache())
       .then((detail) => {
         if (cancelled) return;
         if (detail) loadedDetails.set(slug, detail);

@@ -3,6 +3,7 @@ import {
   CARD_API_BASE,
   CARD_CATALOG_TTL_MS,
   CARD_DETAIL_TTL_MS,
+  fetchWithTimeout,
   getCardDetail,
   loadCardCatalog,
   mapCardDetail,
@@ -162,6 +163,17 @@ describe("card catalog client", () => {
       CARD_DETAIL_TTL_MS + 2
     );
     expect(detail?.name).toBe("Spirit of Slime");
+  });
+
+  it("aborts a hung card request instead of blocking the Table", async () => {
+    const hung = (_input: string, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+      });
+
+    await expect(fetchWithTimeout(hung, 5)("https://api.gatcg.com/cards/all")).rejects.toThrow(
+      /aborted/
+    );
   });
 
   it("returns null instead of a different card when the slug does not match", async () => {

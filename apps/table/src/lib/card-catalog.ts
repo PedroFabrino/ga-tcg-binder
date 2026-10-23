@@ -16,6 +16,26 @@ export const CARD_DETAIL_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 export type CardStorage = Pick<Storage, "getItem" | "setItem">;
 
+/**
+ * Bound the card API request so a hung endpoint cannot leave the deck import or
+ * a Pin stuck on "loading". The timeout rejects into the existing stale-cache /
+ * placeholder paths.
+ */
+export function fetchWithTimeout(
+  fetcher: FetchLike = fetch,
+  timeoutMs = 8_000
+): FetchLike {
+  return async (input, init) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetcher(input, { ...init, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+}
+
 export interface CardName {
   name: string;
   slug: string;
