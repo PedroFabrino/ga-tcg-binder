@@ -71,6 +71,24 @@ describe("TableRoom state machine", () => {
     expect(p1.lastState()!.active).toBeNull();
   });
 
+  it("caps the action log at 50 entries, newest last", () => {
+    const room = new TableRoom("ABC", "tokP1", "tokP2");
+    const p1 = new MockSocket();
+    room.handleRawMessage(p1, hello("ABC", "tokP1", "seat", "Alice"));
+
+    for (let damage = 0; damage < 60; damage += 1) {
+      room.handleRawMessage(
+        p1,
+        JSON.stringify({ type: "SEAT_UPDATE", patch: { damage } })
+      );
+    }
+
+    const { log } = room.getState();
+    expect(log).toHaveLength(50);
+    expect(log.every((entry) => entry.seat === "p1")).toBe(true);
+    expect(log[log.length - 1]).toMatchObject({ kind: "hud", detail: "damage" });
+  });
+
   it("displaces the older connection when the same seat token reconnects", () => {
     const room = new TableRoom("ABC", "tokP1", "tokP2");
     const first = new MockSocket();

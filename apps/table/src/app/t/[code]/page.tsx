@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import type { SeatId, SeatState, TranslationKey } from "@ga/contracts";
+import { ActionLog } from "@/components/table/action-log";
 import { InvitePanel } from "@/components/table/invite-panel";
 import { SeatHud } from "@/components/table/seat-hud";
+import { TurnBar } from "@/components/table/turn-bar";
 import { useTranslation } from "@/lib/i18n";
 import { readTableInvite, type TableInvite } from "@/lib/table-invite";
 import {
@@ -84,6 +86,7 @@ function ConnectedTable({ code, session }: { code: string; session: SeatSession 
   });
   const [pending, setPending] = useState<Partial<SeatState>>({});
   const [invite, setInvite] = useState<TableInvite | null>(null);
+  const [turnPending, setTurnPending] = useState(false);
 
   useEffect(() => {
     setInvite(readTableInvite(code, browserStorage()));
@@ -96,6 +99,32 @@ function ConnectedTable({ code, session }: { code: string; session: SeatSession 
     },
     [patchSeat, session.seat]
   );
+
+  const startTurn = useCallback(() => {
+    if (turnPending) return;
+    setTurnPending(true);
+    send({ type: "TURN_START" });
+  }, [send, turnPending]);
+
+  const endTurn = useCallback(() => {
+    if (turnPending) return;
+    setTurnPending(true);
+    send({ type: "TURN_END" });
+  }, [send, turnPending]);
+
+  // The server remains the authority; this short local guard only stops a
+  // double click from sending two commands before the broadcast lands.
+  useEffect(() => {
+    if (!turnPending) return;
+    const timer = setTimeout(() => setTurnPending(false), 1500);
+    return () => clearTimeout(timer);
+  }, [turnPending]);
+
+  // A successful turn command changes `active`; release the button as soon as
+  // the authoritative snapshot arrives instead of waiting for the guard.
+  useEffect(() => {
+    setTurnPending(false);
+  }, [state.table?.active]);
 
   // Debounce the wire write so a burst of keystrokes is one SEAT_UPDATE and one
   // log entry, while the optimistic patch above updates this screen immediately.
@@ -184,24 +213,36 @@ function ConnectedTable({ code, session }: { code: string; session: SeatSession 
           <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
         )
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          <SeatHud
-            seat="p1"
-            state={session.seat === "p1" ? ownDisplay : otherState}
-            isOwn={session.seat === "p1"}
-            editable={session.seat === "p1" && canEdit}
-            active={table.active === "p1"}
-            onEdit={editSeat}
+        <>
+          <TurnBar
+            active={table.active}
+            seat={session.seat}
+            seats={table.seats}
+            canAct={canEdit}
+            pending={turnPending}
+            onStart={startTurn}
+            onEnd={endTurn}
           />
-          <SeatHud
-            seat="p2"
-            state={session.seat === "p2" ? ownDisplay : otherState}
-            isOwn={session.seat === "p2"}
-            editable={session.seat === "p2" && canEdit}
-            active={table.active === "p2"}
-            onEdit={editSeat}
-          />
-        </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <SeatHud
+              seat="p1"
+              state={session.seat === "p1" ? ownDisplay : otherState}
+              isOwn={session.seat === "p1"}
+              editable={session.seat === "p1" && canEdit}
+              active={table.active === "p1"}
+              onEdit={editSeat}
+            />
+            <SeatHud
+              seat="p2"
+              state={session.seat === "p2" ? ownDisplay : otherState}
+              isOwn={session.seat === "p2"}
+              editable={session.seat === "p2" && canEdit}
+              active={table.active === "p2"}
+              onEdit={editSeat}
+            />
+          </div>
+          <ActionLog entries={table.log} seats={table.seats} />
+        </>
       )}
     </TableShell>
   );
