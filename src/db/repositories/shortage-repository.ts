@@ -11,7 +11,7 @@ import {
   mypWatchlist,
   metaStaples,
 } from "../schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, and, gt } from "drizzle-orm";
 
 export { loadDeckShortageData } from "./deck-shortage-repository";
 
@@ -155,7 +155,12 @@ export async function loadAggregatedShortageData(
         vendorUrl: marketCards.vendorUrl,
       })
       .from(marketCards)
-      .where(eq(marketCards.storeId, "myp"));
+      .where(
+        and(
+          eq(marketCards.storeId, "myp"),
+          gt(marketCards.quantity, 0)
+        )
+      );
 
     marketListings = rawMarketCards.map((r) => ({
       ...r,

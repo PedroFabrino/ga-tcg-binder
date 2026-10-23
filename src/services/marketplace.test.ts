@@ -8,6 +8,7 @@ import {
   claimMarketplaceCardForBinder,
   getGlobalMarketReport,
   calculateNetMarketStock,
+  isCloudflareChallenge,
   extractTcgPlayerPrice,
   extractProductPageDetails,
   evaluatePriceFairness,
@@ -596,6 +597,26 @@ describe("Marketplace (MyPCards) Sync, Shortage Offset & Claim Seam", () => {
     const result4 = calculateNetMarketStock(noIdListing, noIdSameFoil);
     expect(result4.personalStoreQuantity).toBe(1);
     expect(result4.netExternalStock).toBe(1);
+
+    // 4. Out of stock (quantity: 0 or "0") must yield netExternalStock 0
+    const outOfStockListing = {
+      editionId: "ed-alc-010",
+      quantity: 0,
+    };
+    const resultZero = calculateNetMarketStock(outOfStockListing, []);
+    expect(resultZero.netExternalStock).toBe(0);
+
+    const strZeroListing = {
+      editionId: "ed-alc-010",
+      quantity: "0" as any,
+    };
+    const resultStrZero = calculateNetMarketStock(strZeroListing, []);
+    expect(resultStrZero.netExternalStock).toBe(0);
+
+    // 5. Cloudflare challenge detection
+    expect(isCloudflareChallenge("<title>Just a moment...</title>")).toBe(true);
+    expect(isCloudflareChallenge("<script src='https://challenges.cloudflare.com/turnstile'></script>")).toBe(true);
+    expect(isCloudflareChallenge("<div class='card'>Valid content</div>")).toBe(false);
   });
 
   it("identifies staple deficits vs surplus playset in personal MyP store listings", async () => {

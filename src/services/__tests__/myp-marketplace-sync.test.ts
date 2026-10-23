@@ -3,7 +3,11 @@ import { eq } from "drizzle-orm";
 
 import { createTestDb } from "../../db/test-utils";
 import { cardEditions, cards, marketCards, marketStores } from "../../db/schema";
-import { syncGlobalMarketplace } from "../myp-sync";
+import {
+  syncGlobalMarketplace,
+  clearMypSyncCheckpoint,
+  loadMypSyncCheckpoint,
+} from "../myp-sync";
 
 const CARD_A = {
   itemId: "grandarchive_alc_010",
@@ -202,5 +206,92 @@ describe("syncGlobalMarketplace listing parity", () => {
     const rows = await db.select().from(marketCards);
     const cardB = rows.find((row) => row.itemId === CARD_B.itemId);
     expect(cardB?.quantity).toBe(3);
+  });
+
+  it("retries on Cloudflare challenge and succeeds when retry returns valid page", async () => {
+    const { db } = await createTestDb();
+    await seedCatalog(db);
+    await db.delete(marketCards);
+    clearMypSyncCheckpoint();
+
+    let page2Attempts = 0;
+    const retryFetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/produto/load-more")) {
+        page2Attempts++;
+        if (page2Attempts === 1) {
+          return new Response("<title>Just a moment...</title>", { status: 403 });
+        }
+        return new Response(JSON.stringify({ success: true, html: cardBlock(CARD_B) }));
+      }
+      return new Response(pageHtml([CARD_A], 60));
+    });
+
+    const result = await syncGlobalMarketplace(db, {
+      customFetch: retryFetch as unknown as typeof fetch,
+      retryDelayMs: 5,
+      maxPageRetries: 3,
+    });
+
+    expect(page2Attempts).toBe(2);
+    expect(result.totalSynced).toBe(2);
+    expect(result.complete).toBe(true);
+
+    const rows = await db.select().from(marketCards);
+    expect(rows).toHaveLength(2);
+  });
+
+  it("saves checkpoint on persistent block and resumes from saved page on follow-up scan", async () => {
+    const { db } = await createTestDb();
+    await seedCatalog(db);
+    await db.delete(marketCards);
+    clearMypSyncCheckpoint();
+
+    // Scan 1: Page 1 succeeds with CARD_A. Page 2 is blocked repeatedly.
+    const blockedFetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/produto/load-more")) {
+        return new Response("<title>Just a moment...</title>", { status: 403 });
+      }
+      return new Response(pageHtml([CARD_A], 60));
+    });
+
+    const scan1 = await syncGlobalMarketplace(db, {
+      customFetch: blockedFetch as unknown as typeof fetch,
+      retryDelayMs: 5,
+      maxPageRetries: 2,
+    });
+
+    expect(scan1.complete).toBe(false);
+    expect(scan1.stoppedAtPage).toBe(2);
+    expect(scan1.totalSynced).toBe(1);
+
+    const cp = loadMypSyncCheckpoint();
+    expect(cp?.page).toBe(2);
+    expect(cp?.parsedItems).toHaveLength(1);
+
+    // Scan 2: Follow-up scan after timeout. Page 2 now succeeds with CARD_B!
+    const resumeFetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/produto/load-more")) {
+        return new Response(JSON.stringify({ success: true, html: cardBlock(CARD_B) }));
+      }
+      throw new Error(`Unexpected call to ${url}`);
+    });
+
+    const scan2 = await syncGlobalMarketplace(db, {
+      customFetch: resumeFetch as unknown as typeof fetch,
+      retryDelayMs: 5,
+    });
+
+    expect(scan2.resumedFromPage).toBe(2);
+    expect(scan2.totalSynced).toBe(2);
+    expect(scan2.complete).toBe(true);
+    expect(loadMypSyncCheckpoint()).toBeNull();
+
+    const rows = await db.select().from(marketCards);
+    expect(rows).toHaveLength(2);
+    const cardBRow = rows.find((r) => r.itemId === CARD_B.itemId);
+    expect(cardBRow?.quantity).toBe(3);
   });
 });

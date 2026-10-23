@@ -439,6 +439,17 @@ export function cleanMypUsername(input: string): string {
 
 import { execFileSync } from "child_process";
 
+export function isCloudflareChallenge(text: string): boolean {
+  if (!text) return false;
+  return (
+    text.includes("<title>Just a moment...</title>") ||
+    text.includes("challenges.cloudflare.com") ||
+    text.includes("id=\"challenge-running\"") ||
+    text.includes("cf-mitigated") ||
+    text.includes("Enable JavaScript and cookies to continue")
+  );
+}
+
 export async function fetchMypText(url: string, customFetch?: typeof fetch): Promise<string> {
   const userAgent =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
@@ -453,11 +464,11 @@ export async function fetchMypText(url: string, customFetch?: typeof fetch): Pro
     if (!res.ok) {
       throw new Error(`Failed to fetch MyP URL (${res.status})`);
     }
-    if (typeof res.text === "function") {
-      return await res.text();
+    const text = typeof res.text === "function" ? await res.text() : JSON.stringify(await res.json());
+    if (isCloudflareChallenge(text)) {
+      throw new Error("Blocked by Cloudflare challenge");
     }
-    const json = await res.json();
-    return JSON.stringify(json);
+    return text;
   }
 
   // 1. If FlareSolverr proxy is configured (e.g. in GitHub Actions runner), query it
@@ -476,7 +487,10 @@ export async function fetchMypText(url: string, customFetch?: typeof fetch): Pro
       if (solverRes.ok) {
         const solverJson = await solverRes.json();
         if (solverJson?.solution?.response) {
-          return solverJson.solution.response;
+          const solutionText = solverJson.solution.response;
+          if (!isCloudflareChallenge(solutionText)) {
+            return solutionText;
+          }
         }
       }
     } catch {
@@ -493,9 +507,16 @@ export async function fetchMypText(url: string, customFetch?: typeof fetch): Pro
       },
     });
     if (res.ok) {
-      return await res.text();
+      const text = await res.text();
+      if (isCloudflareChallenge(text)) {
+        throw new Error("Blocked by Cloudflare challenge");
+      }
+      return text;
     }
-  } catch {
+  } catch (err: any) {
+    if (err?.message?.includes("Cloudflare challenge")) {
+      throw err;
+    }
     // Fallback to curl below
   }
 
@@ -507,6 +528,9 @@ export async function fetchMypText(url: string, customFetch?: typeof fetch): Pro
   );
   if (!stdout || stdout.trim().length === 0) {
     throw new Error("Empty response from MyP Cards");
+  }
+  if (isCloudflareChallenge(stdout)) {
+    throw new Error("Blocked by Cloudflare challenge");
   }
   return stdout;
 }
@@ -675,8 +699,11 @@ export function calculateNetMarketStock(
     }
   }
 
-  const rawQty = Number(marketItem.quantity);
-  const globalQty = Number.isFinite(rawQty) && rawQty > 0 ? rawQty : 1;
+  const rawQty =
+    marketItem.quantity !== undefined && marketItem.quantity !== null
+      ? Number(marketItem.quantity)
+      : 1;
+  const globalQty = Number.isFinite(rawQty) ? Math.max(0, rawQty) : 1;
   const netExternalStock = Math.max(0, globalQty - personalStoreQuantity);
   return { personalStoreQuantity, netExternalStock };
 }

@@ -10,7 +10,7 @@ import {
   mypCards,
   marketCards,
 } from "../schema";
-import { eq, inArray, and } from "drizzle-orm";
+import { eq, inArray, and, gt } from "drizzle-orm";
 
 export async function loadDeckShortageData(
   deckId: string,
@@ -198,7 +198,8 @@ export async function loadDeckShortageData(
         .where(
           and(
             eq(marketCards.storeId, "myp"),
-            inArray(marketCards.cardSlug, slugsInDeck)
+            inArray(marketCards.cardSlug, slugsInDeck),
+            gt(marketCards.quantity, 0)
           )
         );
 
