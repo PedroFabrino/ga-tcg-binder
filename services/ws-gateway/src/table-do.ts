@@ -19,12 +19,20 @@ export interface TableStorageSql {
 }
 
 export interface TableObjectState {
-  storage: { sql: TableStorageSql };
+  storage: {
+    sql: TableStorageSql;
+    setAlarm?(scheduledTime: number): Promise<void> | void;
+    deleteAlarm?(): Promise<void> | void;
+    deleteAll?(): Promise<void> | void;
+  };
   acceptWebSocket(ws: TableWebSocket): void;
   getWebSockets(): TableWebSocket[];
 }
 
 const META_TABLE = "table_meta";
+
+/** MVP_SPEC §6.1: a Table is gone 24h after its last disconnect. */
+export const TABLE_IDLE_TTL_MS = 24 * 60 * 60 * 1000;
 
 /**
  * One Durable Object per Table. It owns the `TableRoom` and mirrors every state
@@ -73,6 +81,7 @@ export class TableDO {
     const server = pair[1];
     this.ctx.acceptWebSocket(server);
     this.getUnifiedSocket(server);
+    void this.ctx.storage.deleteAlarm?.();
 
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -163,6 +172,7 @@ export class TableDO {
     this.writeMeta("p2Token", credentials.p2Token);
     this.writeMeta("viewerToken", credentials.viewerToken);
     this.writeMeta("state", JSON.stringify(this.room.getState()));
+    this.scheduleIdleDeletion();
     return credentials;
   }
 
@@ -191,6 +201,23 @@ export class TableDO {
     this.room?.handleDisconnect(unified);
     this.wsToUnified.delete(ws);
     this.unifiedToWs.delete(unified);
+    if (this.wsToUnified.size === 0) this.scheduleIdleDeletion();
+  }
+
+  /** Fired by the Durable Object alarm 24h after the last disconnect. */
+  public async alarm(): Promise<void> {
+    if (!this.room || this.wsToUnified.size > 0) {
+      if (this.room) this.scheduleIdleDeletion();
+      return;
+    }
+    await this.ctx.storage.deleteAll?.();
+    this.room = null;
+    this.wsToUnified.clear();
+    this.unifiedToWs.clear();
+  }
+
+  private scheduleIdleDeletion(): void {
+    void this.ctx.storage.setAlarm?.(Date.now() + TABLE_IDLE_TTL_MS);
   }
 
   private getUnifiedSocket(ws: TableWebSocket): UnifiedSocket {

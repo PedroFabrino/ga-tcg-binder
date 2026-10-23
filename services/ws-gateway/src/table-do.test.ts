@@ -3,6 +3,7 @@ import type { TableCredentials, TableState } from "@ga/contracts";
 import worker, { type Env } from "./cf-worker";
 import { MockSocket, hello } from "./mock-socket";
 import {
+  TABLE_IDLE_TTL_MS,
   TableDO,
   type TableObjectState,
   type TableStorageSql,
@@ -39,11 +40,29 @@ class MockSql implements TableStorageSql {
   public snapshot(): Map<string, string> {
     return new Map(this.rows);
   }
+
+  public clear(): void {
+    this.rows.clear();
+  }
 }
 
 class MockCtx implements TableObjectState {
   public readonly sql = new MockSql();
-  public readonly storage = { sql: this.sql };
+  public alarmAt: number | null = null;
+  public deleteAllCalls = 0;
+  public readonly storage = {
+    sql: this.sql,
+    setAlarm: (scheduledTime: number) => {
+      this.alarmAt = scheduledTime;
+    },
+    deleteAlarm: () => {
+      this.alarmAt = null;
+    },
+    deleteAll: () => {
+      this.deleteAllCalls += 1;
+      this.sql.clear();
+    },
+  };
   private readonly sockets: TableWebSocket[] = [];
 
   public acceptWebSocket(ws: TableWebSocket): void {
@@ -146,6 +165,36 @@ describe("TableDO", () => {
 
     expect(p2.lastState()?.ripples[0]).toMatchObject({ seat: "p1", x: 0.4, y: 0.6, n: 1 });
     expect(readState(ctx).ripples).toEqual([]);
+  });
+
+  it("deletes the Table 24h after the last disconnect", async () => {
+    const ctx = new MockCtx();
+    const door = new TableDO(ctx, {});
+    const credentials = await createTable(door, "ROOMIDLE");
+    expect(ctx.alarmAt).toBeGreaterThan(Date.now());
+
+    const p1 = new MockWebSocket();
+    door.webSocketMessage(p1, hello("ROOMIDLE", credentials.p1Token, "seat", "Alice"));
+    door.webSocketClose(p1, 1000, "bye", true);
+
+    expect(ctx.alarmAt).not.toBeNull();
+    expect(ctx.alarmAt! - Date.now()).toBeLessThanOrEqual(TABLE_IDLE_TTL_MS + 1_000);
+
+    await door.alarm();
+    expect(ctx.deleteAllCalls).toBe(1);
+    expect(door.getRoom()).toBeNull();
+  });
+
+  it("does not delete a Table that still has a live socket", async () => {
+    const ctx = new MockCtx();
+    const door = new TableDO(ctx, {});
+    const credentials = await createTable(door, "ROOMLIVE");
+    const p1 = new MockWebSocket();
+    door.webSocketMessage(p1, hello("ROOMLIVE", credentials.p1Token, "seat", "Alice"));
+
+    await door.alarm();
+    expect(ctx.deleteAllCalls).toBe(0);
+    expect(door.getRoom()).not.toBeNull();
   });
 
   it("clears a replaced capture device's binding and persists viewers", async () => {
