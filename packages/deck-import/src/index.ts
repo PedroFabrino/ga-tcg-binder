@@ -76,7 +76,7 @@ function isZoneHeader(line: string, prefixes: string[]): boolean {
   return prefixes.some((prefix) => line.startsWith(prefix));
 }
 
-function decodeHtmlEntities(text: string): string {
+export function decodeHtmlEntities(text: string): string {
   return text
     .replace(/&#39;/g, "'")
     .replace(/&apos;/g, "'")

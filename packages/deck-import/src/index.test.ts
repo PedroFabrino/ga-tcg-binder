@@ -7,7 +7,7 @@ import {
   parseOmnidexText,
   resolveDecklist,
   type DeckCatalogCard,
-} from "../deck-import";
+} from "./index";
 
 const fixturePath = path.resolve(process.cwd(), "omnidex_export.txt");
 

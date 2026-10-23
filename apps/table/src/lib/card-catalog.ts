@@ -7,7 +7,11 @@
  * Table server; a decklist and its art choices stay in this browser.
  */
 
-import { normalizeCardName, type DeckCatalogCard, type DeckCatalogPrinting } from "./deck-import";
+import {
+  normalizeCardName,
+  type DeckCatalogCard,
+  type DeckCatalogPrinting,
+} from "@ga/deck-import";
 
 export const CARD_API_BASE = "https://api.gatcg.com";
 export const CARD_CATALOG_TTL_MS = 7 * 24 * 60 * 60 * 1000;

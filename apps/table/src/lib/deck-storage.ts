@@ -21,7 +21,7 @@ import {
   type DeckCatalogCard,
   type DeckImportWarning,
   type ParsedDeckCard,
-} from "./deck-import";
+} from "@ga/deck-import";
 
 export interface StoredDeckEntry extends ParsedDeckCard {
   card: DeckCatalogCard | null;

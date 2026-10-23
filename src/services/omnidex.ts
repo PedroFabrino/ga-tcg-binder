@@ -1,85 +1,23 @@
-export interface ParsedDeckCard {
-  name: string;
-  quantity: number;
-  collectorCode?: string; // Optional e.g. "DOA 1st 001"
-}
+import { decodeHtmlEntities, parseOmnidexText as parseDecklistText } from "@ga/deck-import";
+import type { ParsedDecklist } from "@ga/deck-import";
 
-export interface ParsedDecklist {
-  main: ParsedDeckCard[];
-  material: ParsedDeckCard[];
-  side: ParsedDeckCard[];
-  champion?: string;
-}
+export { decodeHtmlEntities } from "@ga/deck-import";
+export type { ParsedDeckCard, ParsedDecklist } from "@ga/deck-import";
 
-export function parseOmnidexText(rawText: string): ParsedDecklist {
-  const result: ParsedDecklist = {
-    main: [],
-    material: [],
-    side: [],
-  };
-
-  const decodedText = decodeHtmlEntities(rawText || "");
-  let currentZone: "main" | "material" | "side" = "main";
-  const lines = decodedText.split(/\r?\n/);
-
-  for (let line of lines) {
-    line = line.trim();
-    if (!line) continue;
-
-    // Detect zone headers
-    const lower = line.toLowerCase();
-    if (lower.startsWith("# material") || lower.startsWith("// material") || lower === "material" || lower === "material deck") {
-      currentZone = "material";
-      continue;
-    }
-    if (lower.startsWith("# main") || lower.startsWith("// main") || lower === "main" || lower === "main deck") {
-      currentZone = "main";
-      continue;
-    }
-    if (lower.startsWith("# sideboard") || lower.startsWith("# side") || lower.startsWith("// side") || lower === "sideboard" || lower === "side") {
-      currentZone = "side";
-      continue;
-    }
-
-    // Skip general comments
-    if (line.startsWith("#") || line.startsWith("//")) {
-      continue;
-    }
-
-    // Match lines like:
-    // "4 Fracturize"
-    // "4x Fracturize"
-    // "1 Rayne, Sword of Light (DOA 1st 001)"
-    // "1x Rayne, Sword of Light [DOA 1st]"
-    const match = line.match(/^(\d+)[xX]?\s+(.+)$/);
-    if (match) {
-      const quantity = parseInt(match[1], 10);
-      let cardName = decodeHtmlEntities(match[2].trim());
-      let collectorCode: string | undefined = undefined;
-
-      // Extract collector code if in brackets or parens
-      const codeMatch = cardName.match(/[\(\[]([A-Za-z0-9\s\-]+)[\)\]]$/);
-      if (codeMatch) {
-        collectorCode = codeMatch[1].trim();
-        cardName = cardName.replace(/[\(\[][A-Za-z0-9\s\-]+[\)\]]$/, "").trim();
-      }
-
-      const cleanName = decodeHtmlEntities(cardName);
-
-      result[currentZone].push({
-        name: cleanName,
-        quantity,
-        collectorCode,
-      });
-
-      // If champion is not set and this is in material deck with level or champion type, can infer
-      if (!result.champion && currentZone === "material") {
-        result.champion = cleanName;
-      }
-    }
-  }
-
-  return result;
+/**
+ * Legacy collection-app wrapper.
+ *
+ * The shared parser is purely structural: GrandTable resolves the true Champion
+ * from the Material-deck card whose printed `level` is 0 (`resolveDecklist`).
+ * The collection app's meta ingestion still expects the historical
+ * first-Material-line hint, so keep that behaviour isolated here rather than
+ * teaching the shared parser the old rule.
+ */
+export function parseOmnidexText(
+  rawText: string
+): ParsedDecklist & { champion?: string } {
+  const parsed = parseDecklistText(rawText);
+  return { ...parsed, champion: parsed.material[0]?.name };
 }
 
 export function serializeOmnidexText(deck: {
@@ -113,19 +51,6 @@ export function serializeOmnidexText(deck: {
   }
 
   return sections.join("\n").trim();
-}
-
-export function decodeHtmlEntities(text: string): string {
-  if (!text) return "";
-  return text
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
 }
 
 export async function fetchDeckFromUrl(url: string): Promise<{
