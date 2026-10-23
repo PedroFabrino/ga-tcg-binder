@@ -2,12 +2,23 @@
 
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useState } from "react";
-import type { SeatId, SeatState, TranslationKey } from "@ga/contracts";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  isSignalPayload,
+  type FeedSignaling,
+  type IceServerConfig,
+  type SeatId,
+  type SeatState,
+  type TranslationKey,
+} from "@ga/contracts";
 import { ActionLog } from "@/components/table/action-log";
+import { CameraPairing } from "@/components/table/camera-pairing";
+import { FeedPanel } from "@/components/table/feed-panel";
 import { InvitePanel } from "@/components/table/invite-panel";
 import { SeatHud } from "@/components/table/seat-hud";
 import { TurnBar } from "@/components/table/turn-bar";
+import { useFeedReceiver } from "@/lib/use-feed-receiver";
+import { useIceServers } from "@/lib/use-ice-servers";
 import { useTranslation } from "@/lib/i18n";
 import { readTableInvite, type TableInvite } from "@/lib/table-invite";
 import {
@@ -18,6 +29,8 @@ import {
   type SeatSession,
 } from "@/lib/table-session";
 import { useTableSocket } from "@/lib/use-table-socket";
+
+const EMPTY_ICE_SERVERS: IceServerConfig[] = [];
 
 const ERROR_KEYS: Record<string, TranslationKey> = {
   INVALID_TOKEN: "table.errors.invalidToken",
@@ -79,7 +92,7 @@ function NoSeat({ code }: { code: string }) {
 
 function ConnectedTable({ code, session }: { code: string; session: SeatSession }) {
   const { t } = useTranslation();
-  const { state, status, send, patchSeat, reconnect } = useTableSocket({
+  const { state, status, send, patchSeat, reconnect, subscribeSignal } = useTableSocket({
     code,
     token: session.token,
     role: "seat",
@@ -87,6 +100,42 @@ function ConnectedTable({ code, session }: { code: string; session: SeatSession 
   const [pending, setPending] = useState<Partial<SeatState>>({});
   const [invite, setInvite] = useState<TableInvite | null>(null);
   const [turnPending, setTurnPending] = useState(false);
+  const iceServers = useIceServers();
+
+  const otherSeat: SeatId = session.seat === "p1" ? "p2" : "p1";
+  const blockingError = state.error !== null && BLOCKING_ERRORS.has(state.error.code);
+
+  // The opponent's phone publishes to this Seat only. The offer goes to their
+  // capture socket; this Seat's own camera is only a preview on `/cam`.
+  const signaling = useMemo<FeedSignaling>(
+    () => ({
+      send: (payload) =>
+        send({
+          type: "SIGNAL",
+          to: { seat: otherSeat, role: "capture" },
+          data: payload,
+        }),
+      onSignal: (handler) =>
+        subscribeSignal((from, data) => {
+          if (from.seat === otherSeat && from.role === "capture" && isSignalPayload(data)) {
+            handler(data);
+          }
+        }),
+    }),
+    [otherSeat, send, subscribeSignal]
+  );
+
+  const opponentCapture = state.participants.some(
+    (participant) => participant.seat === otherSeat && participant.role === "capture"
+  );
+  const localCapture = state.participants.some(
+    (participant) => participant.seat === session.seat && participant.role === "capture"
+  );
+  const remoteStream = useFeedReceiver({
+    enabled: status === "open" && !blockingError && iceServers !== null && opponentCapture,
+    signaling,
+    iceServers: iceServers ?? EMPTY_ICE_SERVERS,
+  });
 
   useEffect(() => {
     setInvite(readTableInvite(code, browserStorage()));
@@ -138,11 +187,9 @@ function ConnectedTable({ code, session }: { code: string; session: SeatSession 
   }, [pending, send]);
 
   const table = state.table;
-  const otherSeat: SeatId = session.seat === "p1" ? "p2" : "p1";
   const ownState = table?.seats[session.seat];
   const otherState = table?.seats[otherSeat];
   const ownDisplay = ownState ? { ...ownState, ...pending } : undefined;
-  const blockingError = state.error !== null && BLOCKING_ERRORS.has(state.error.code);
   const canEdit = status === "open" && !blockingError;
 
   const statusLabel =
@@ -214,6 +261,15 @@ function ConnectedTable({ code, session }: { code: string; session: SeatSession 
         )
       ) : (
         <>
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+            <FeedPanel stream={remoteStream} capturePresent={opponentCapture} />
+            <CameraPairing
+              code={code}
+              seat={session.seat}
+              token={session.token}
+              connected={localCapture}
+            />
+          </div>
           <TurnBar
             active={table.active}
             seat={session.seat}

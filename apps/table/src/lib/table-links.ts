@@ -19,3 +19,20 @@ export function tableSeatPath(code: string, seat: SeatId, token: string): string
 export function tableInviteUrl(origin: string, code: string, p2Token: string): string {
   return new URL(tableSeatPath(code, "p2", p2Token), origin).toString();
 }
+
+/** The app path for this Seat's Capture Device page. */
+export function tableCameraPath(code: string, seat: SeatId, token: string): string {
+  const normalized = code.trim().toUpperCase();
+  const query = new URLSearchParams({ seat, token });
+  return `/t/${encodeURIComponent(normalized)}/cam?${query.toString()}`;
+}
+
+/** The absolute camera URL encoded in the pairing QR. */
+export function tableCameraUrl(
+  origin: string,
+  code: string,
+  seat: SeatId,
+  token: string
+): string {
+  return new URL(tableCameraPath(code, seat, token), origin).toString();
+}

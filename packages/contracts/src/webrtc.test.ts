@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  isIceServersResponse,
   isSignalPayload,
   type SignalPayload,
   type IceServerConfig,
@@ -30,5 +31,32 @@ describe("webrtc contracts", () => {
     };
     expect(response.iceServers).toHaveLength(1);
     expect(signaling).toBeDefined();
+  });
+
+  it("validates the GET /turn body", () => {
+    expect(
+      isIceServersResponse({
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          {
+            urls: ["turn:turn.example.com:3478?transport=udp"],
+            username: "user",
+            credential: "secret",
+          },
+        ],
+        ttlSeconds: 3600,
+      })
+    ).toBe(true);
+
+    expect(isIceServersResponse({ iceServers: [], ttlSeconds: 86400 })).toBe(true);
+    expect(isIceServersResponse({ iceServers: [], ttlSeconds: "3600" })).toBe(false);
+    expect(isIceServersResponse({ iceServers: [], ttlSeconds: -1 })).toBe(false);
+    expect(isIceServersResponse({ iceServers: [{ urls: [] }], ttlSeconds: 1 })).toBe(false);
+    expect(isIceServersResponse({ iceServers: [{ urls: 42 }], ttlSeconds: 1 })).toBe(false);
+    expect(
+      isIceServersResponse({ iceServers: [{ urls: "stun:x", username: 42 }], ttlSeconds: 1 })
+    ).toBe(false);
+    expect(isIceServersResponse({ iceServers: [] })).toBe(false);
+    expect(isIceServersResponse(null)).toBe(false);
   });
 });

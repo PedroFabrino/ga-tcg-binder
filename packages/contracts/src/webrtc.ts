@@ -26,6 +26,32 @@ export interface IceServersResponse {
   ttlSeconds: number;
 }
 
+function isIceServerConfig(value: unknown): value is IceServerConfig {
+  if (typeof value !== "object" || value === null) return false;
+  const server = value as Record<string, unknown>;
+  const urls = server.urls;
+  const validUrls =
+    typeof urls === "string" ||
+    (Array.isArray(urls) && urls.length > 0 && urls.every((url) => typeof url === "string"));
+  if (!validUrls) return false;
+  if ("username" in server && typeof server.username !== "string") return false;
+  if ("credential" in server && typeof server.credential !== "string") return false;
+  return true;
+}
+
+/** Validate the GET /turn body before an ICE server list reaches RTCPeerConnection. */
+export function isIceServersResponse(value: unknown): value is IceServersResponse {
+  if (typeof value !== "object" || value === null) return false;
+  const response = value as Record<string, unknown>;
+  return (
+    Array.isArray(response.iceServers) &&
+    response.iceServers.every(isIceServerConfig) &&
+    typeof response.ttlSeconds === "number" &&
+    Number.isFinite(response.ttlSeconds) &&
+    response.ttlSeconds >= 0
+  );
+}
+
 /** The signaling channel the Feed manager depends on, injected at construction. */
 export interface FeedSignaling {
   send(payload: SignalPayload): void;

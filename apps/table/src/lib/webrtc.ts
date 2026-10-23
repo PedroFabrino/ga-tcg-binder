@@ -11,6 +11,8 @@ export interface FeedConnectionOptions {
   iceServers: IceServerConfig[];
   /** Receiver only: called with the remote stream when the Feed arrives. */
   onTrack?: (stream: MediaStream) => void;
+  /** Publisher only: cap the outgoing video at this many bits per second. */
+  maxVideoBitrate?: number;
 }
 
 /**
@@ -26,6 +28,7 @@ export class FeedConnection {
   private readonly role: "receiver" | "publisher";
   private readonly signaling: FeedSignaling;
   private readonly onTrack?: (stream: MediaStream) => void;
+  private readonly maxVideoBitrate?: number;
   private readonly unsubscribe: () => void;
   private pendingCandidates: RTCIceCandidateInit[] = [];
 
@@ -33,8 +36,15 @@ export class FeedConnection {
     this.role = options.role;
     this.signaling = options.signaling;
     this.onTrack = options.onTrack;
+    this.maxVideoBitrate = options.maxVideoBitrate;
 
     this.pc = new RTCPeerConnection({ iceServers: options.iceServers });
+
+    // The receiver makes the offer, so it must open a video m-section. Without
+    // this the publisher has nowhere to attach its camera track.
+    if (this.role === "receiver") {
+      this.pc.addTransceiver("video", { direction: "recvonly" });
+    }
 
     this.pc.onicecandidate = (event) => {
       if (event.candidate) {
@@ -42,11 +52,18 @@ export class FeedConnection {
       }
     };
 
-    this.pc.ontrack = (event) => {
-      const stream = event.streams[0];
-      if (this.role === "receiver" && stream) {
-        this.onTrack?.(stream);
+    this.pc.onconnectionstatechange = () => {
+      if (this.pc.connectionState === "connected") {
+        void this.applyBitrateCap();
       }
+    };
+
+    this.pc.ontrack = (event) => {
+      if (this.role !== "receiver") return;
+      // A publisher that used addTrack(track) without a stream still needs a
+      // playable stream on this side.
+      const stream = event.streams[0] ?? new MediaStream([event.track]);
+      this.onTrack?.(stream);
     };
 
     this.unsubscribe = this.signaling.onSignal((payload) => {
@@ -55,8 +72,12 @@ export class FeedConnection {
   }
 
   /** Publisher: attach the local camera before the offer arrives. */
-  public addTrack(track: MediaStreamTrack): void {
-    this.pc.addTrack(track);
+  public addTrack(track: MediaStreamTrack, stream?: MediaStream): void {
+    if (stream) {
+      this.pc.addTrack(track, stream);
+    } else {
+      this.pc.addTrack(track);
+    }
   }
 
   /** Receiver: begin the exchange. */
@@ -89,6 +110,7 @@ export class FeedConnection {
             await this.flushPendingCandidates();
             const answer = await this.pc.createAnswer();
             await this.pc.setLocalDescription(answer);
+            await this.applyBitrateCap();
             this.sendLocalDescription("answer");
           }
           break;
@@ -122,6 +144,28 @@ export class FeedConnection {
     while (this.pendingCandidates.length > 0) {
       const next = this.pendingCandidates.shift();
       if (next) await this.pc.addIceCandidate(next);
+    }
+  }
+
+  /**
+   * Best-effort sender cap. It is applied after the answer has established the
+   * sender's encodings, then retried once the connection reaches `connected`.
+   */
+  private async applyBitrateCap(): Promise<void> {
+    if (!this.maxVideoBitrate) return;
+    for (const sender of this.pc.getSenders()) {
+      if (!sender.track || sender.track.kind !== "video") continue;
+      try {
+        const parameters = sender.getParameters();
+        if (parameters.encodings.length === 0) continue;
+        parameters.encodings[0] = {
+          ...parameters.encodings[0],
+          maxBitrate: this.maxVideoBitrate,
+        };
+        await sender.setParameters(parameters);
+      } catch (error) {
+        console.warn("[webrtc] failed to cap the video bitrate", error);
+      }
     }
   }
 

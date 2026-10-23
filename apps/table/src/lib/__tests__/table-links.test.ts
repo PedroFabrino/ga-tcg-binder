@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { parseTableCode, tableInviteUrl, tableSeatPath } from "../table-links";
+import {
+  parseTableCode,
+  tableCameraPath,
+  tableCameraUrl,
+  tableInviteUrl,
+  tableSeatPath,
+} from "../table-links";
 
 describe("parseTableCode", () => {
   it("accepts a six-character code in any case and trims it", () => {
@@ -37,6 +43,23 @@ describe("tableInviteUrl", () => {
   it("anchors the link at the origin root even if the origin has a path", () => {
     expect(tableInviteUrl("https://table.example/preview", "ABC123", "tok")).toBe(
       "https://table.example/t/ABC123?seat=p2&token=tok"
+    );
+  });
+});
+
+describe("tableCameraPath and tableCameraUrl", () => {
+  it("builds the Capture Device path with the Seat token", () => {
+    expect(tableCameraPath("abc123", "p1", "p1-token")).toBe(
+      "/t/ABC123/cam?seat=p1&token=p1-token"
+    );
+    expect(tableCameraPath("ABC123", "p2", "a+b")).toBe(
+      "/t/ABC123/cam?seat=p2&token=a%2Bb"
+    );
+  });
+
+  it("builds the absolute QR URL from the app origin", () => {
+    expect(tableCameraUrl("https://table.example", "abc123", "p1", "tok")).toBe(
+      "https://table.example/t/ABC123/cam?seat=p1&token=tok"
     );
   });
 });

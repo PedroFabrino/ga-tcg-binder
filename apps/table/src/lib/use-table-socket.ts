@@ -5,6 +5,7 @@ import {
   isTableServerMessage,
   type SeatId,
   type SeatState,
+  type SignalTarget,
   type TableClientMessage,
   type TableRole,
 } from "@ga/contracts";
@@ -18,6 +19,9 @@ import {
 
 export type TableConnectionStatus = "connecting" | "open" | "closed";
 
+/** A direct SIGNAL subscription for the Feed manager; React state is too lossy for SDP. */
+export type SignalListener = (from: SignalTarget, data: unknown) => void;
+
 export interface UseTableSocketOptions {
   code: string;
   token: string;
@@ -30,6 +34,7 @@ export interface UseTableSocketResult {
   send: (message: TableClientMessage) => void;
   patchSeat: (seat: SeatId, patch: Partial<SeatState>) => void;
   reconnect: () => void;
+  subscribeSignal: (listener: SignalListener) => () => void;
 }
 
 /**
@@ -44,6 +49,14 @@ export function useTableSocket(options: UseTableSocketOptions): UseTableSocketRe
   const [status, setStatus] = useState<TableConnectionStatus>("connecting");
   const [attempt, setAttempt] = useState(0);
   const socketRef = useRef<WebSocket | null>(null);
+  const signalListenersRef = useRef(new Set<SignalListener>());
+
+  const subscribeSignal = useCallback((listener: SignalListener) => {
+    signalListenersRef.current.add(listener);
+    return () => {
+      signalListenersRef.current.delete(listener);
+    };
+  }, []);
 
   useEffect(() => {
     let socket: WebSocket;
@@ -76,6 +89,17 @@ export function useTableSocket(options: UseTableSocketOptions): UseTableSocketRe
         return;
       }
       if (!isTableServerMessage(parsed)) return;
+      if (parsed.type === "SIGNAL") {
+        // Deliver SDP and ICE directly. The reducer keeps only the last signal,
+        // so an effect keyed on React state would drop a burst of candidates.
+        signalListenersRef.current.forEach((listener) => {
+          try {
+            listener(parsed.from, parsed.data);
+          } catch (error) {
+            console.warn("[table] signal listener failed", error);
+          }
+        });
+      }
       const action = tableClientActionFromMessage(parsed);
       if (action) dispatch(action);
     };
@@ -121,5 +145,5 @@ export function useTableSocket(options: UseTableSocketOptions): UseTableSocketRe
     setAttempt((value) => value + 1);
   }, []);
 
-  return { state, status, send, patchSeat, reconnect };
+  return { state, status, send, patchSeat, reconnect, subscribeSignal };
 }
