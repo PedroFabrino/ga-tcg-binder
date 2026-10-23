@@ -1,0 +1,7 @@
+# Mesh WebRTC with one Capture Device per Seat, not an SFU and not four feeds
+
+Video is peer-to-peer between two browsers, with at most one Capture Device per Seat publishing one stream to the opponent's desktop. A Table therefore has exactly two peer connections, no media server, and no per-minute billing. Both source drafts assumed two Feeds per Seat and a four-peer mesh, but a phone and a desktop webcam are alternatives, not complements: you point one camera at one board. The receiving desktop always makes the offer, because it is the stable peer, and the Capture Device only publishes — its own camera preview is how the player frames the shot.
+
+**Considered options:** two Feeds per Seat sent to both desktops (six connections, the phone encoding twice, and the phone's thermal budget is the scarcest resource in the system); phone relaying through its own desktop (halves phone uplink but doubles desktop uplink and re-encodes); an SFU such as LiveKit or Cloudflare Realtime (per-viewer control and trivial addition of referees, but a vendor in the media path and, on LiveKit's free tier, roughly twenty one-hour matches per month).
+
+**Consequences:** adding a referee or a second angle means a new peer or a new stream, not a migration. An SFU becomes worth revisiting only when many concurrent Tables or per-viewer track control are genuinely needed, and the state layer already models read-only viewers so the room does not have to change.

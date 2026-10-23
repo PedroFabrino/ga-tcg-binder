@@ -1,0 +1,7 @@
+# Standalone web app, not a Root App or a native client
+
+GrandTable ships as a standalone web application on its own domain rather than as an embedded Root App or an Electron/Tauri desktop client. Three product requirements need a plain public URL that the player can paste anywhere: the QR code that opens a phone as a Capture Device, the OBS overlay that is the acquisition surface for content creators, and the invite link handed to a tournament organiser. A Root App's UI is hosted inside Root's Chromium container and is not addressable that way, and a desktop client cannot be the target of a QR scan at all. Root remains the community and voice layer, integrated through a bot and deep links — which also keeps the playgroup reachable if Root itself ever becomes unavailable, the lesson Discord taught this region.
+
+**Considered options:** Root App (free identity, community, distribution, and voice, but no linkable URL and a hard dependency on one platform); Tauri shell (would give LAN signalling without internet, but no venue in scope lacks internet); mobile-native client (an Expo app already exists for collection scanning, but it would gate participation behind an install).
+
+**Consequences:** media and state must be built end to end rather than borrowed. LAN/offline mode is not available if a venue ever needs it — that is the one scenario that would justify a Tauri shell later, wrapping the same codebase.
