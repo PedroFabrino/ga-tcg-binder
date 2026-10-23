@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import type { SeatId, SeatState, TranslationKey } from "@ga/contracts";
+import { InvitePanel } from "@/components/table/invite-panel";
 import { SeatHud } from "@/components/table/seat-hud";
 import { useTranslation } from "@/lib/i18n";
+import { readTableInvite, type TableInvite } from "@/lib/table-invite";
 import {
   browserStorage,
   parseSeatSession,
@@ -81,6 +83,11 @@ function ConnectedTable({ code, session }: { code: string; session: SeatSession 
     role: "seat",
   });
   const [pending, setPending] = useState<Partial<SeatState>>({});
+  const [invite, setInvite] = useState<TableInvite | null>(null);
+
+  useEffect(() => {
+    setInvite(readTableInvite(code, browserStorage()));
+  }, [code]);
 
   const editSeat = useCallback(
     (patch: Partial<SeatState>) => {
@@ -158,7 +165,7 @@ function ConnectedTable({ code, session }: { code: string; session: SeatSession 
                 onClick={reconnect}
                 className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground"
               >
-                {t("table.reconnect")}
+                {t("table.takeOver")}
               </button>
             )}
             <Link href="/" className="text-xs text-muted-foreground underline">
@@ -168,8 +175,14 @@ function ConnectedTable({ code, session }: { code: string; session: SeatSession 
         </div>
       )}
 
+      {invite && session.seat === "p1" && (
+        <InvitePanel code={code} p2Token={invite.p2Token} />
+      )}
+
       {!table ? (
-        <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
+        state.error ? null : (
+          <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
+        )
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           <SeatHud
