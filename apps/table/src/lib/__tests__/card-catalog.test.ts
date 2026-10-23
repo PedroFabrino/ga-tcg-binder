@@ -164,6 +164,16 @@ describe("card catalog client", () => {
     expect(detail?.name).toBe("Spirit of Slime");
   });
 
+  it("returns null instead of a different card when the slug does not match", async () => {
+    const detail = await getCardDetail(
+      "wanted-card",
+      async () => jsonResponse({ data: [{ name: "Other Card", slug: "other-card" }] }),
+      memoryCache(),
+      1
+    );
+    expect(detail).toBeNull();
+  });
+
   it("rejects a malformed card detail", () => {
     expect(mapCardDetail({ name: "No slug" })).toBeNull();
     expect(mapCardDetail(null)).toBeNull();

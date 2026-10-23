@@ -202,8 +202,8 @@ Read-only viewer token, embedded in the URL.
 ### 6.8 Card data
 
 - `GET /cards/all` once, cached in `localStorage` with a 7-day TTL, for name → slug resolution and accent-insensitive fuzzy search.
-- `GET /cards/{slug}` on demand for stats, rules text, and art; results cached in IndexedDB.
-- Art URLs are `editions[].image` (500×700, `access-control-allow-origin: *`). Alt arts are separate printings with separate images; a Pin stores the canonical card slug and optionally the chosen printing.
+- `GET /cards/search?slug={slug}` on demand for stats, rules text, and art; results cached in IndexedDB. (`/cards/{slug}` returns `{"error":"Not found"}` and is not used.)
+- Art URLs are `editions[].image` (500×700, `access-control-allow-origin: *`). The field is API-relative (e.g. `/cards/images/….jpg`), so the client prefixes `https://api.gatcg.com`. Alt arts are separate printings with separate images; a Pin stores the canonical card slug and optionally the chosen printing.
 - If the API is unavailable, search still works from cache and uncached art shows a placeholder. An in-progress Table must not care.
 
 ---
