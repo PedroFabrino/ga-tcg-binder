@@ -42,7 +42,9 @@ Rules are **hard** for all new and modified code. Existing violations are tracke
 
 - Every behavior change ships with a `vitest` test.
 - No `any` and no `@ts-ignore`/`@ts-expect-error` without a one-line reason comment.
-- No dead or commented-out code.
+- No dead or commented-out code. `noUnusedLocals`/`noUnusedParameters` stay enabled for `apps/table` and `services/ws-gateway`; do not disable them.
+- Degradation must be observable: a `catch` that falls back to a placeholder, cache miss, or network path must `console.warn` with a reason or return a typed failure. Never swallow an error silently.
+- Client hooks must not hide mutable state in module-level singletons without a reset seam; expose a test reset or pass state through context.
 - Secrets come from environment variables only; never commit or log them.
 - No new dependency, layer, or language without an ADR in `docs/adr/`. The stack is TypeScript only; no Go or other languages.
 

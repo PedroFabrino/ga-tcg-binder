@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { cards, cardEditions, cardHashes } from "../db/schema";
 import type { CardMatchResult } from "../lib/scanner/contracts";
-import { hamming, visualSimilarity } from "../lib/scanner/phash";
+import { visualSimilarity } from "../lib/scanner/phash";
 import { isOcrNoise, parseFooter, type FooterParse } from "../lib/scanner/ocr-parse";
 import { compositeConfidence, trigramSimilarity } from "../lib/scanner/scoring";
 

@@ -69,6 +69,12 @@ export function createIndexedDbDetailCache(): CardDetailCache {
   }
 
   let database: Promise<IDBDatabase> | null = null;
+  let warned = false;
+  const warnOnce = (error: unknown) => {
+    if (warned) return;
+    warned = true;
+    console.warn("[card-cache] IndexedDB unavailable; falling back to network", error);
+  };
 
   const open = () => {
     database ??= openDatabase();
@@ -85,7 +91,8 @@ export function createIndexedDbDetailCache(): CardDetailCache {
         );
         if (!result) return null;
         return result;
-      } catch {
+      } catch (error) {
+        warnOnce(error);
         return null;
       }
     },
@@ -95,8 +102,9 @@ export function createIndexedDbDetailCache(): CardDetailCache {
         const transaction = db.transaction(STORE_NAME, "readwrite");
         transaction.objectStore(STORE_NAME).put(value, slug);
         await transactionDone(transaction);
-      } catch {
+      } catch (error) {
         // Private mode or a transient quota error: this visit works in-memory.
+        warnOnce(error);
       }
     },
   };

@@ -1,9 +1,8 @@
 import sharp from "sharp";
 import { createWorker } from "tesseract.js";
 import { dHash } from "../lib/scanner/phash";
-import { parseFooter } from "../lib/scanner/ocr-parse";
-import { identifyCard, identifyCardWithDebug } from "./scanner-match";
-import type { CardMatchResult, ScanFrameMetrics } from "@ga/contracts";
+import { identifyCardWithDebug } from "./scanner-match";
+import type { CardMatchResult } from "@ga/contracts";
 
 let ocrWorker: any = null;
 

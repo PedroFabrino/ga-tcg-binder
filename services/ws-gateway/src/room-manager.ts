@@ -66,7 +66,7 @@ export class SessionRoomManager {
     return count;
   }
 
-  public handleConnection(socket: UnifiedSocket): void {
+  public handleConnection(_socket: UnifiedSocket): void {
     // Socket connected, awaiting SESSION_JOIN message
   }
 
@@ -184,7 +184,6 @@ export class SessionRoomManager {
     const room = this.rooms.get(sessionId);
     if (!room) return;
 
-    const participant = room.participants.get(socket);
     room.participants.delete(socket);
 
     if (room.participants.size === 0) {

@@ -122,6 +122,13 @@ export function useCardDetail(slug: string | null | undefined): CardDetailState 
   return state;
 }
 
+/** Test seam: clear the module-level card caches between cases. */
+export function resetCardCachesForTest(): void {
+  browserDetailCache = null;
+  loadedDetails.clear();
+  inFlightDetails.clear();
+}
+
 /** Find a chosen printing, falling back to the default first printing. */
 export function selectPrinting(detail: CardDetail | null, printingSlug?: string) {
   if (!detail || detail.editions.length === 0) return null;
