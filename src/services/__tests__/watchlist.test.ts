@@ -540,7 +540,9 @@ describe("Watchlist Ledger & Quota Reconciliation (src/services/watchlist.ts)", 
         expect(row.status).toBe("pending_add");
         expect(row.targetQuantity).toBe(3);
       }
-      expect(rows.some((r: any) => r.collectorNumber.includes("CSR"))).toBe(false);
+      expect(
+        rows.map((r: any) => `${r.editionSlug}:${r.collectorNumber}`).sort()
+      ).toEqual(["ALC:042", "DOA:001"]);
 
       // Step 2: rows pushed to MyP at quantity 3 → watching.
       await reconcileUserWatchlist("user-1", {
@@ -572,7 +574,9 @@ describe("Watchlist Ledger & Quota Reconciliation (src/services/watchlist.ts)", 
       rows = await testDb.select().from(mypWatchlist);
       expect(rows).toHaveLength(2);
       expect(rows.every((r: any) => r.status === "pending_remove")).toBe(true);
-      expect(rows.some((r: any) => r.collectorNumber.includes("CSR"))).toBe(false);
+      expect(
+        rows.map((r: any) => `${r.editionSlug}:${r.collectorNumber}`).sort()
+      ).toEqual(["ALC:042", "DOA:001"]);
     }, 20000);
 
     it("transitions watching to pending_remove when shortage is completely filled", async () => {
