@@ -6,6 +6,7 @@
 - **Architecture** — read `docs/adr/` before touching the room state machine, media, or state shape.
 - **Scope** — read `docs/MVP_SPEC.md` §2 and §10 before adding any feature; items listed there are not built in v1.
 - **Repo rules** — the root `AGENTS.md` governs i18n (every user string in en + pt-BR via `@ga/contracts`), layering, file size, and dependencies; it applies here unchanged.
+- **Gateway** — the browser talks to `NEXT_PUBLIC_GATEWAY_URL` (see `.env.example`, default `http://localhost:3001`). Run `pnpm dev:ws` from the repo root for the local Node gateway.
 
 ## Contract-first
 
