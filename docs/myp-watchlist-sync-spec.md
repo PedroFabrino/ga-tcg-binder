@@ -144,10 +144,10 @@ interface MypWatchlistRecord {
     1. Reconciles their `myp_watchlist` ledger (`reconcileUserWatchlist`).
     2. If there are `pending_add`, `pending_update`, or `pending_remove` items, decrypts the user's MyP password in memory, creates an isolated FlareSolverr session (or authenticated cookie jar), logs into `mypcards.com`, applies the queued mutations, and updates `myp_watchlist` rows to `watching` (with `syncedQuantity = wantedQuantity`) or `removed`.
 - **Browser Userscript Bridge (`public/scripts/myp-watchlist-sync.user.js` & API Endpoints)**:
-  - `GET /api/marketplace/watchlist`: Returns the Collector's `myp_watchlist` ledger, policy settings, summary counts (`pendingAddCount`, `pendingUpdateCount`, `pendingRemoveCount`, `watchingCount`), and `hasSavedMypCredentials`.
-  - `POST /api/marketplace/watchlist`: Updates policy flags, toggles `ignored` status back to `pending_add`, or triggers an on-demand reconciliation/sync.
-  - `GET /api/marketplace/watchlist/bridge?token=<watchlistSyncToken>`: CORS-enabled endpoint returning the queued `pending_add`, `pending_update`, and `pending_remove` items for the authenticated token.
-  - `POST /api/marketplace/watchlist/bridge`: Marks executed item IDs as `watching` or `removed`.
+  - `GET /api/watchlist`: Returns the Collector's `myp_watchlist` ledger, policy settings, summary counts (`pendingAddCount`, `pendingUpdateCount`, `pendingRemoveCount`, `watchingCount`), and `hasSavedMypCredentials`.
+  - `POST /api/watchlist`: Updates policy flags, toggles `ignored` status back to `pending_add`, or triggers an on-demand reconciliation/sync.
+  - `POST /api/watchlist/confirm`: Token-authenticated callback that marks confirmed `pending_add`/`pending_update` items as `watching` and deletes confirmed `pending_remove` items.
+  - The queued mutations reach `mypcards.com` through a URL-hash payload (`#ga_watchlist_sync=…`) carried by the userscript, which posts its results back to `/api/watchlist/confirm`. There is no `GET bridge` endpoint; the per-user `watchlistSyncToken` authenticates the confirm callback.
 
 ---
 

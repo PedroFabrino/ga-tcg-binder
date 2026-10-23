@@ -459,6 +459,122 @@ describe("Watchlist Ledger & Quota Reconciliation (src/services/watchlist.ts)", 
       expect(row.targetQuantity).toBe(1);
     });
 
+    it("progresses 3 → 1 → remove end-to-end and never touches Collector Printings", async () => {
+      // Deck requires 4 copies of Fracturize (Hard quota = 4).
+      await testDb.insert(decks).values({
+        id: "deck-1",
+        userId: "user-1",
+        name: "Rai Warrior",
+      });
+      await testDb.insert(deckCards).values({
+        id: "dc-1",
+        deckId: "deck-1",
+        cardSlug: "fracturize",
+        zone: "main",
+        quantity: 4,
+      });
+      await testDb.insert(collectionItems).values({
+        id: "col-1",
+        userId: "user-1",
+        editionId: "ed-doa-norm",
+        quantity: 1,
+        foil: false,
+      });
+
+      const discover = async () => [
+        {
+          rawName: "Fracturize",
+          cleanName: "Fracturize",
+          setPrefix: "ALC",
+          collectorNumber: "042",
+          quantity: 1,
+          price: "R$ 6,00",
+          quality: "NM",
+          isFoil: false,
+          mypItemId: "ga_alc_042",
+          mypProductUrl: "https://mypcards.com/produto/fracturize-alc",
+        },
+      ];
+      const fetchNone = async () => [];
+      const fetchLive = async (qty: number) => [
+        {
+          rawName: "Fracturize",
+          cleanName: "Fracturize",
+          setPrefix: "DOA",
+          collectorNumber: "001",
+          quantity: qty,
+          price: "R$ 4,50",
+          quality: "NM",
+          isFoil: false,
+          mypItemId: "ga_doa_001",
+          mypProductUrl: "https://mypcards.com/produto/fracturize-doa",
+        },
+        {
+          rawName: "Fracturize",
+          cleanName: "Fracturize",
+          setPrefix: "ALC",
+          collectorNumber: "042",
+          quantity: qty,
+          price: "R$ 6,00",
+          quality: "NM",
+          isFoil: false,
+          mypItemId: "ga_alc_042",
+          mypProductUrl: "https://mypcards.com/produto/fracturize-alc",
+        },
+      ];
+      const setOwned = async (qty: number) =>
+        testDb
+          .update(collectionItems)
+          .set({ quantity: qty })
+          .where(eq(collectionItems.id, "col-1"));
+
+      // Step 1: owned 1 → missing 3 → pending_add for DOA + ALC only.
+      await reconcileUserWatchlist("user-1", {
+        database: testDb,
+        fetchQuero: fetchNone,
+        discoverPrintings: discover,
+      });
+      let rows = await testDb.select().from(mypWatchlist);
+      expect(rows).toHaveLength(2);
+      for (const row of rows) {
+        expect(row.status).toBe("pending_add");
+        expect(row.targetQuantity).toBe(3);
+      }
+      expect(rows.some((r: any) => r.collectorNumber.includes("CSR"))).toBe(false);
+
+      // Step 2: rows pushed to MyP at quantity 3 → watching.
+      await reconcileUserWatchlist("user-1", {
+        database: testDb,
+        fetchQuero: async () => fetchLive(3),
+        discoverPrintings: discover,
+      });
+      rows = await testDb.select().from(mypWatchlist);
+      expect(rows.every((r: any) => r.status === "watching")).toBe(true);
+
+      // Step 3: owned 3 → missing 1 → pending_update target 1.
+      await setOwned(3);
+      await reconcileUserWatchlist("user-1", {
+        database: testDb,
+        fetchQuero: async () => fetchLive(3),
+        discoverPrintings: discover,
+      });
+      rows = await testDb.select().from(mypWatchlist);
+      expect(rows.every((r: any) => r.status === "pending_update")).toBe(true);
+      expect(rows.every((r: any) => r.targetQuantity === 1)).toBe(true);
+
+      // Step 4: owned 4 → missing 0 → pending_remove; Collector Printings untouched.
+      await setOwned(4);
+      await reconcileUserWatchlist("user-1", {
+        database: testDb,
+        fetchQuero: async () => fetchLive(3),
+        discoverPrintings: discover,
+      });
+      rows = await testDb.select().from(mypWatchlist);
+      expect(rows).toHaveLength(2);
+      expect(rows.every((r: any) => r.status === "pending_remove")).toBe(true);
+      expect(rows.some((r: any) => r.collectorNumber.includes("CSR"))).toBe(false);
+    }, 20000);
+
     it("transitions watching to pending_remove when shortage is completely filled", async () => {
       await testDb.insert(mypWatchlist).values({
         id: "wl-doa",
