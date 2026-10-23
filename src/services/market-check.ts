@@ -6,6 +6,14 @@ type MarketplaceDatabase,
 } from "../db/repositories/marketplace-repository";
 import { parseLigaStoreTotalCount, parseLigaStoreLatestCardRefId } from "./ligastore-parser";
 import { parseLootcardsTotalCount, parseLootcardsLatestCardRefId } from "./lootcards-parser";
+import { fetchMarketHtml } from "./market-fetch";
+import {
+  getActiveBackoff,
+  recordStoreFailure,
+  recordStoreSuccess,
+} from "./market-store-backoff";
+
+export { resetMarketCheckBackoff } from "./market-store-backoff";
 
 export type MarketStorePlatform = "liga_store" | "myp" | "lootcards";
 
@@ -28,6 +36,7 @@ dispatched: boolean;
 latestCardRefId: string | null;
 previousLatestCardRefId: string | null;
 latestCardChanged: boolean;
+skipped?: boolean;
 error?: string;
 }
 
@@ -90,45 +99,6 @@ export function parseMypLatestCardRefId(html: string): string | null {
   return match?.[1]?.trim() || null;
 }
 
-const BROWSER_USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-
-async function fetchHtml(url: string, customFetch = fetch): Promise<string> {
-  try {
-    const response = await customFetch(url, {
-      headers: {
-        "User-Agent": BROWSER_USER_AGENT,
-        Accept: "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
-      },
-      signal: AbortSignal.timeout(15_000),
-    });
-
-    if (response.ok) {
-      return await response.text();
-    }
-  } catch {
-    // Fallback to curl below
-  }
-
-  if (customFetch !== fetch) {
-    throw new Error(`Marketplace request failed for ${url}`);
-  }
-
-  const { execFileSync } = await import("node:child_process");
-  const curlBin = process.platform === "win32" ? "curl.exe" : "curl";
-  const stdout = execFileSync(
-    curlBin,
-    ["-s", "-L", "--max-time", "15", "-A", BROWSER_USER_AGENT, url],
-    { encoding: "utf-8", maxBuffer: 5 * 1024 * 1024 }
-  );
-
-  if (!stdout || stdout.trim().length === 0) {
-    throw new Error(`Empty response from ${url}`);
-  }
-
-  return stdout;
-}
-
 interface StoreObservation {
   count: number | null;
   latestCardRefId: string | null;
@@ -144,7 +114,7 @@ async function fetchStoreObservation(
   customFetch = fetch
 ): Promise<StoreObservation> {
   if (store.platform === "myp") {
-    const html = await fetchHtml(MYP_COUNT_URL, customFetch);
+    const html = await fetchMarketHtml(MYP_COUNT_URL, customFetch);
     return {
       count: parseMypTotalCount(html),
       latestCardRefId: parseMypLatestCardRefId(html),
@@ -154,10 +124,10 @@ async function fetchStoreObservation(
   if (store.platform === "lootcards") {
     const baseUrl = (store.baseUrl ?? "https://lootcards.store").replace(/\/+$/, "");
     const url = `${baseUrl}/api/cards?ordem=chegaram_agora&so_estoque=1`;
-    const jsonText = await fetchHtml(url, customFetch);
+    const jsonText = await fetchMarketHtml(url, customFetch);
     return {
       count: parseLootcardsTotalCount(jsonText),
-      latestCardRefId: null,
+      latestCardRefId: parseLootcardsLatestCardRefId(jsonText),
     };
   }
 
@@ -167,7 +137,7 @@ async function fetchStoreObservation(
     throw new Error("Liga Store has no baseUrl configured");
   }
 
-  const html = await fetchHtml(url, customFetch);
+  const html = await fetchMarketHtml(url, customFetch);
   return {
     count: parseLigaStoreTotalCount(html),
     latestCardRefId: null,
@@ -284,17 +254,32 @@ export async function checkMarketStores(
     latestCardChanged: false,
     };
 
+    const now = Date.now();
+    const backoff = getActiveBackoff(store.id, now);
+    if (backoff) {
+    const minutesLeft = Math.max(1, Math.ceil((backoff.nextPollAt - now) / 60_000));
+    results.push({
+    ...baseResult,
+    skipped: true,
+    error: `Backing off after ${backoff.failures} consecutive failure(s); next attempt in ${minutesLeft}m`,
+    });
+    continue;
+    }
+
     try {
     const observation = await fetchStoreObservation(store, customFetch);
     const observedCount = observation.count;
     
     if (observedCount === null) {
+    recordStoreFailure(store.id, now);
     results.push({
     ...baseResult,
     error: "Could not parse total listed card count",
     });
     continue;
     }
+    
+    recordStoreSuccess(store.id);
     
     const countChanged = observedCount !== store.lastCount;
     
@@ -309,10 +294,6 @@ export async function checkMarketStores(
       );
     } else if (store.platform === "lootcards") {
       try {
-        const baseUrl = (store.baseUrl ?? "https://lootcards.store").replace(/\/+$/, "");
-        const latestUrl = `${baseUrl}/api/cards?ordem=chegaram_agora&so_estoque=1`;
-        const latestJson = await fetchHtml(latestUrl, customFetch);
-        latestCardRefId = parseLootcardsLatestCardRefId(latestJson);
         latestCardChanged = await applyLatestCardChange(
           store,
           latestCardRefId,
@@ -325,7 +306,7 @@ export async function checkMarketStores(
       try {
         const latestUrl = buildLigaStoreSearchUrl(store, "latest");
         if (latestUrl) {
-          const latestHtml = await fetchHtml(latestUrl, customFetch);
+          const latestHtml = await fetchMarketHtml(latestUrl, customFetch);
           latestCardRefId = parseLigaStoreLatestCardRefId(latestHtml);
           latestCardChanged = await applyLatestCardChange(
             store,
@@ -374,6 +355,7 @@ export async function checkMarketStores(
     ...(dispatchError ? { error: dispatchError } : {}),
     });
     } catch (error) {
+    recordStoreFailure(store.id, now);
     results.push({
     ...baseResult,
     error: error instanceof Error ? error.message : "Unknown check error",

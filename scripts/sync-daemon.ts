@@ -6,6 +6,10 @@ const pollIntervalMinutes =
   Number(process.env.CHECK_INTERVAL_MINUTES ?? "5") || 5;
 const pollIntervalMs = pollIntervalMinutes * 60 * 1000;
 
+// Spread polls by up to +/-10% so multiple instances/restarts don't align on the
+// same second and hammer storefronts in sync.
+const pollJitterMs = Math.max(1, Math.floor(pollIntervalMs * 0.1));
+
 const fullSyncIntervalHours =
   Number(process.env.FULL_SYNC_HOURS ?? "6") || 6;
 const fullSyncIntervalMs = fullSyncIntervalHours * 60 * 60 * 1000;
@@ -103,7 +107,7 @@ function shutdown(signal: string) {
   stopping = true;
   console.log(`[sync-daemon] Received ${signal}; shutting down...`);
 
-  if (timer) clearInterval(timer);
+  if (timer) clearTimeout(timer);
   if (fullSyncTimer) clearInterval(fullSyncTimer);
 
   if (currentSync && !currentSync.killed) {
@@ -113,18 +117,27 @@ function shutdown(signal: string) {
   process.exit(0);
 }
 
+function scheduleNextPoll(): void {
+  if (stopping) return;
+
+  const jitter = Math.floor((Math.random() * 2 - 1) * pollJitterMs);
+  const delayMs = Math.max(30_000, pollIntervalMs + jitter);
+
+  timer = setTimeout(() => {
+    void performCheck().finally(scheduleNextPoll);
+  }, delayMs);
+}
+
 async function main() {
   console.log(
-    `[sync-daemon] Initialized. Polling store card counts every ${pollIntervalMinutes} min; periodic full reconciliation every ${fullSyncIntervalHours} hours.`
+    `[sync-daemon] Initialized. Polling store card counts every ${pollIntervalMinutes} min (with jitter); periodic full reconciliation every ${fullSyncIntervalHours} hours.`
   );
 
   // Initial check on startup
   await performCheck();
 
   if (!stopping) {
-    timer = setInterval(() => {
-      void performCheck();
-    }, pollIntervalMs);
+    scheduleNextPoll();
 
     fullSyncTimer = setInterval(() => {
       console.log(

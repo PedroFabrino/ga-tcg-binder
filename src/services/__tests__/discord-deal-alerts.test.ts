@@ -225,7 +225,9 @@ describe("Discord Deal Alerts Matcher and Notifier", () => {
     expect(fake.sent).toHaveLength(1);
     expect(fake.sent[0].discordUserId).toBe(discordUserId);
     expect(fake.sent[0].content).toContain("**Wantlist**");
-    expect(fake.sent[0].content).toContain("🎯 Creative Shock - DOA - R$ 55,00");
+    expect(fake.sent[0].content).toContain(
+      "🎯 [Creative Shock](<https://myp.local/shock>) - DOA - R$ 55,00"
+    );
     expect(fake.deleted).toHaveLength(0);
   });
 
@@ -357,10 +359,10 @@ describe("Discord Deal Alerts Matcher and Notifier", () => {
         "🕒 Last update: 22/10/2026 17:15",
         "",
         "**Burn Deck**",
-        "🔴 Fireball - DOA - R$ 10,00",
+        "🔴 [Fireball](<https://liga.local/fireball>) - DOA - R$ 10,00",
         "",
         "**Wantlist**",
-        "🎯 Creative Shock - DOA 064 - R$ 50,00",
+        "🎯 [Creative Shock](<https://loot.local/shock>) - DOA 064 - R$ 50,00",
       ].join("\n")
     );
   });

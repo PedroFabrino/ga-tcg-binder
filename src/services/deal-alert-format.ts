@@ -1,6 +1,10 @@
 import type { MarketCard } from "../db/repositories/marketplace-repository";
 import { extractCollectorNumber } from "./market-notifications";
-import { formatDateTimeInBrazil } from "./market-notification-formatter";
+import {
+  escapeLinkUrl,
+  formatDateTimeInBrazil,
+  isHttpsUrl,
+} from "./market-notification-formatter";
 
 export type DealAlertSource =
   | { kind: "personal-want"; desiredQuantity: number }
@@ -22,7 +26,12 @@ function formatListingCollection(listing: MarketCard): string {
 }
 
 function formatDealAlertCardLine(listing: MarketCard, ball: string): string {
-  return `${ball} ${listing.cardName} - ${formatListingCollection(listing)} - ${listing.price}`;
+  const url = listing.productUrl || listing.vendorUrl;
+  const cardName = isHttpsUrl(url)
+    ? `[${listing.cardName}](<${escapeLinkUrl(url)}>)`
+    : listing.cardName;
+
+  return `${ball} ${cardName} - ${formatListingCollection(listing)} - ${listing.price}`;
 }
 
 function severityBall(source: DealAlertSource): string {

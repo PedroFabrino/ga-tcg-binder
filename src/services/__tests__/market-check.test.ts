@@ -1,8 +1,16 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestDb } from "../../db/test-utils";
 import * as schema from "../../db/schema";
-import { checkMarketStores, parseMypLatestCardRefId } from "../market-check";
+import {
+  checkMarketStores,
+  parseMypLatestCardRefId,
+  resetMarketCheckBackoff,
+} from "../market-check";
 import { eq } from "drizzle-orm";
+
+beforeEach(() => {
+  resetMarketCheckBackoff();
+});
 
 describe("checkMarketStores dual change detection", () => {
   it("detects change when count changes for LigaStore", async () => {
@@ -380,5 +388,103 @@ describe("checkMarketStores MyP latest-card detection", () => {
       latestCardChanged: false,
       dispatched: false,
     });
+  });
+});
+
+describe("checkMarketStores resilience", () => {
+  it("uses a single request for Lootcards count and latest-card detection", async () => {
+    const { db } = await createTestDb();
+    await db.update(schema.marketStores).set({ enabled: false });
+    await db.insert(schema.marketStores).values({
+      id: "lootcards",
+      platform: "lootcards",
+      name: "Lootcards",
+      baseUrl: "https://lootcards.store",
+      tcgId: "grandarchive",
+      enabled: true,
+      lastCount: 450,
+      lastLatestCardRefId: "ed1:100",
+    });
+
+    const requestedUrls: string[] = [];
+    const mockFetch = vi.fn().mockImplementation(async (url: string) => {
+      requestedUrls.push(url);
+      return {
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            cards: [{ edition_uuid: "ed2", min_price_cents: 250 }],
+            totalCards: 451,
+            totalPages: 19,
+          }),
+      };
+    });
+
+    const report = await checkMarketStores(db, mockFetch as any);
+    const result = report.stores.find((s) => s.storeId === "lootcards");
+
+    expect(result).toMatchObject({
+      observedCount: 451,
+      latestCardRefId: "ed2:250",
+      latestCardChanged: true,
+    });
+    expect(requestedUrls).toHaveLength(1);
+  });
+
+  it("surfaces the upstream HTTP status when a store request fails", async () => {
+    const { db } = await createTestDb();
+    await db.update(schema.marketStores).set({ enabled: false });
+    await db.insert(schema.marketStores).values({
+      id: "brandao",
+      platform: "liga_store",
+      name: "Brandao Card Game",
+      baseUrl: "https://www.brandaocardgame.com.br",
+      tcgId: "21",
+      enabled: true,
+      lastCount: 100,
+    });
+
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({ ok: false, status: 522, text: async () => "" });
+
+    const report = await checkMarketStores(db, mockFetch as any);
+    const result = report.stores.find((s) => s.storeId === "brandao");
+
+    expect(result?.skipped).toBeFalsy();
+    expect(result?.error).toContain("HTTP 522");
+  });
+
+  it("backs off after consecutive failures and retries after the backoff is reset", async () => {
+    const { db } = await createTestDb();
+    await db.update(schema.marketStores).set({ enabled: false });
+    await db.insert(schema.marketStores).values({
+      id: "brandao",
+      platform: "liga_store",
+      name: "Brandao Card Game",
+      baseUrl: "https://www.brandaocardgame.com.br",
+      tcgId: "21",
+      enabled: true,
+      lastCount: 100,
+    });
+
+    const failingFetch = vi
+      .fn()
+      .mockResolvedValue({ ok: false, status: 522, text: async () => "" });
+
+    const first = await checkMarketStores(db, failingFetch as any);
+    expect(first.stores[0].skipped).toBeFalsy();
+    expect(first.stores[0].error).toContain("HTTP 522");
+
+    // The next cycle should skip the store entirely (no new request).
+    const second = await checkMarketStores(db, failingFetch as any);
+    expect(second.stores[0].skipped).toBe(true);
+    expect(failingFetch).toHaveBeenCalledTimes(1);
+
+    // Clearing the backoff lets the store be probed again.
+    resetMarketCheckBackoff();
+    const third = await checkMarketStores(db, failingFetch as any);
+    expect(third.stores[0].skipped).toBeFalsy();
+    expect(failingFetch).toHaveBeenCalledTimes(2);
   });
 });
