@@ -129,6 +129,9 @@ describe("TableRoom state machine", () => {
     room.handleRawMessage(p1, JSON.stringify({ type: "PIN_SET", cardSlug: "cremation-ritual" }));
     expect(p1.lastState()!.pins.p1?.cardSlug).toBe("cremation-ritual");
     expect(p1.lastState()!.recent).toHaveLength(1);
+    // The opponent receives the same broadcast, attributed to p1.
+    expect(p2.lastState()!.pins.p1?.cardSlug).toBe("cremation-ritual");
+    expect(p2.lastState()!.recent[0].seat).toBe("p1");
 
     room.handleRawMessage(p2, JSON.stringify({ type: "PIN_SET", cardSlug: "strike-buckler" }));
     expect(p2.lastState()!.recent).toHaveLength(2);
@@ -137,6 +140,29 @@ describe("TableRoom state machine", () => {
     room.handleRawMessage(p1, JSON.stringify({ type: "PIN_CLEAR" }));
     expect(p1.lastState()!.pins.p1).toBeUndefined();
     expect(p1.lastState()!.recent).toHaveLength(2);
+  });
+
+  it("keeps only the three most recent Pins, newest first", () => {
+    const room = new TableRoom("ABC", "tokP1", "tokP2");
+    const p1 = new MockSocket();
+    const p2 = new MockSocket();
+    room.handleRawMessage(p1, hello("ABC", "tokP1", "seat", "Alice"));
+    room.handleRawMessage(p2, hello("ABC", "tokP2", "seat", "Bob"));
+
+    for (const cardSlug of ["first", "second", "third", "fourth"]) {
+      room.handleRawMessage(p1, JSON.stringify({ type: "PIN_SET", cardSlug }));
+    }
+
+    expect(p1.lastState()!.recent.map((pin) => pin.cardSlug)).toEqual([
+      "fourth",
+      "third",
+      "second",
+    ]);
+    expect(p2.lastState()!.recent.map((pin) => pin.cardSlug)).toEqual([
+      "fourth",
+      "third",
+      "second",
+    ]);
   });
 
   it("relays signals between a capture device and a seat", () => {

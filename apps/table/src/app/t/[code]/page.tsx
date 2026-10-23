@@ -13,10 +13,25 @@ import {
 } from "@ga/contracts";
 import { ActionLog } from "@/components/table/action-log";
 import { CameraPairing } from "@/components/table/camera-pairing";
+import { DeckPanel } from "@/components/table/deck-panel";
 import { FeedPanel } from "@/components/table/feed-panel";
 import { InvitePanel } from "@/components/table/invite-panel";
+import { PinPanel } from "@/components/table/pin-panel";
 import { SeatHud } from "@/components/table/seat-hud";
+import {
+  TableLoading,
+  TableNoSeat,
+  TableShell,
+} from "@/components/table/table-page-shell";
 import { TurnBar } from "@/components/table/turn-bar";
+import { getCardDetailCache, useCardCatalog } from "@/lib/use-card-catalog";
+import {
+  clearDeck,
+  importDeck,
+  readDeck,
+  saveDeck,
+  type StoredDeck,
+} from "@/lib/deck-storage";
 import { useFeedReceiver } from "@/lib/use-feed-receiver";
 import { useIceServers } from "@/lib/use-ice-servers";
 import { useTranslation } from "@/lib/i18n";
@@ -50,46 +65,6 @@ function errorKey(code: string): TranslationKey {
   return ERROR_KEYS[code] ?? "table.errors.generic";
 }
 
-function TableShell({ children }: { children: React.ReactNode }) {
-  return (
-    <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-4 p-4 md:p-6">
-      {children}
-    </main>
-  );
-}
-
-function LoadingPage() {
-  const { t } = useTranslation();
-  return (
-    <TableShell>
-      <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
-    </TableShell>
-  );
-}
-
-function NoSeat({ code }: { code: string }) {
-  const { t } = useTranslation();
-
-  return (
-    <TableShell>
-      <header className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-2xl font-semibold">{t("table.title")}</h1>
-        <span className="font-mono text-sm text-muted-foreground">{code}</span>
-      </header>
-      <section className="rounded-lg border border-border bg-card p-6">
-        <h2 className="text-lg font-semibold">{t("table.noSeatTitle")}</h2>
-        <p className="mt-2 text-sm text-muted-foreground">{t("table.noSeatHint")}</p>
-        <Link
-          href="/"
-          className="mt-4 inline-block rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
-        >
-          {t("table.backHome")}
-        </Link>
-      </section>
-    </TableShell>
-  );
-}
-
 function ConnectedTable({ code, session }: { code: string; session: SeatSession }) {
   const { t } = useTranslation();
   const { state, status, send, patchSeat, reconnect, subscribeSignal } = useTableSocket({
@@ -100,6 +75,8 @@ function ConnectedTable({ code, session }: { code: string; session: SeatSession 
   const [pending, setPending] = useState<Partial<SeatState>>({});
   const [invite, setInvite] = useState<TableInvite | null>(null);
   const [turnPending, setTurnPending] = useState(false);
+  const [deck, setDeck] = useState<StoredDeck | null>(null);
+  const catalog = useCardCatalog();
   const iceServers = useIceServers();
 
   const otherSeat: SeatId = session.seat === "p1" ? "p2" : "p1";
@@ -141,6 +118,10 @@ function ConnectedTable({ code, session }: { code: string; session: SeatSession 
     setInvite(readTableInvite(code, browserStorage()));
   }, [code]);
 
+  useEffect(() => {
+    setDeck(readDeck(code, session.seat, browserStorage()));
+  }, [code, session.seat]);
+
   const editSeat = useCallback(
     (patch: Partial<SeatState>) => {
       patchSeat(session.seat, patch);
@@ -148,6 +129,43 @@ function ConnectedTable({ code, session }: { code: string; session: SeatSession 
     },
     [patchSeat, session.seat]
   );
+
+  const importDeckForSeat = useCallback(
+    async (rawText: string) => {
+      const next = await importDeck(rawText, {
+        cards: catalog.cards,
+        detailCache: getCardDetailCache(),
+      });
+      saveDeck(code, session.seat, next, browserStorage());
+      setDeck(next);
+      // Only fill the HUD from a resolved Champion; a catalog outage must not
+      // wipe a Champion the player already typed in.
+      if (next.champion?.card?.slug) {
+        editSeat({ championSlug: next.champion.card.slug });
+      }
+    },
+    [catalog.cards, code, editSeat, session.seat]
+  );
+
+  const clearDeckForSeat = useCallback(() => {
+    clearDeck(code, session.seat, browserStorage());
+    setDeck(null);
+  }, [code, session.seat]);
+
+  const pinCard = useCallback(
+    (cardSlug: string, printingSlug?: string) => {
+      send(
+        printingSlug
+          ? { type: "PIN_SET", cardSlug, printingSlug }
+          : { type: "PIN_SET", cardSlug }
+      );
+    },
+    [send]
+  );
+
+  const clearPin = useCallback(() => {
+    send({ type: "PIN_CLEAR" });
+  }, [send]);
 
   const startTurn = useCallback(() => {
     if (turnPending) return;
@@ -297,6 +315,23 @@ function ConnectedTable({ code, session }: { code: string; session: SeatSession 
               onEdit={editSeat}
             />
           </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <DeckPanel
+              deck={deck}
+              catalog={catalog}
+              onImport={importDeckForSeat}
+              onClear={clearDeckForSeat}
+            />
+            <PinPanel
+              table={table}
+              seat={session.seat}
+              deck={deck}
+              catalog={catalog}
+              canAct={canEdit}
+              onPin={pinCard}
+              onClear={clearPin}
+            />
+          </div>
           <ActionLog entries={table.log} seats={table.seats} />
         </>
       )}
@@ -305,7 +340,6 @@ function ConnectedTable({ code, session }: { code: string; session: SeatSession 
 }
 
 function TablePageContent() {
-  const { t } = useTranslation();
   const params = useParams<{ code: string }>();
   const search = useSearchParams();
   const code = String(params?.code ?? "").toUpperCase();
@@ -331,8 +365,8 @@ function TablePageContent() {
     if (session) saveSeatSession(code, session, browserStorage());
   }, [code, session]);
 
-  if (!ready && !session) return <LoadingPage />;
-  if (!session) return <NoSeat code={code} />;
+  if (!ready && !session) return <TableLoading />;
+  if (!session) return <TableNoSeat code={code} />;
 
   return (
     <ConnectedTable
@@ -346,7 +380,7 @@ function TablePageContent() {
 export default function TablePage() {
   // `useSearchParams` needs a Suspense boundary during prerendering.
   return (
-    <Suspense fallback={<LoadingPage />}>
+    <Suspense fallback={<TableLoading />}>
       <TablePageContent />
     </Suspense>
   );

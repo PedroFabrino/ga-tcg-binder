@@ -177,9 +177,23 @@ export function isTableClientMessage(value: unknown): value is TableClientMessag
     case "PIN_CLEAR":
       return true;
     case "PIN_SET":
-      return typeof m.cardSlug === "string";
+      return (
+        typeof m.cardSlug === "string" &&
+        m.cardSlug.length > 0 &&
+        (m.printingSlug === undefined ||
+          (typeof m.printingSlug === "string" && m.printingSlug.length > 0))
+      );
     case "RIPPLE":
-      return typeof m.x === "number" && typeof m.y === "number";
+      return (
+        typeof m.x === "number" &&
+        typeof m.y === "number" &&
+        Number.isFinite(m.x) &&
+        Number.isFinite(m.y) &&
+        m.x >= 0 &&
+        m.x <= 1 &&
+        m.y >= 0 &&
+        m.y <= 1
+      );
     case "SIGNAL":
       return isSignalTarget(m.to);
     default:

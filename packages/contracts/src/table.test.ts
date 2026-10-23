@@ -68,12 +68,21 @@ describe("table contracts", () => {
     expect(isTableClientMessage({ type: "TURN_START" })).toBe(true);
     expect(isTableClientMessage({ type: "TURN_END" })).toBe(true);
     expect(isTableClientMessage({ type: "PIN_SET", cardSlug: "x" })).toBe(true);
+    expect(
+      isTableClientMessage({ type: "PIN_SET", cardSlug: "x", printingSlug: "x-doa" })
+    ).toBe(true);
     expect(isTableClientMessage({ type: "PIN_CLEAR" })).toBe(true);
     expect(isTableClientMessage({ type: "RIPPLE", x: 0.5, y: 0.5 })).toBe(true);
     expect(isTableClientMessage({ type: "SIGNAL", to: { seat: "p2", role: "capture" }, data: {} })).toBe(true);
 
     expect(isTableClientMessage({ type: "SEAT_UPDATE", patch: { bogus: 1 } })).toBe(false);
+    expect(isTableClientMessage({ type: "PIN_SET", cardSlug: "" })).toBe(false);
+    expect(
+      isTableClientMessage({ type: "PIN_SET", cardSlug: "x", printingSlug: "" })
+    ).toBe(false);
     expect(isTableClientMessage({ type: "RIPPLE", x: 0.5 })).toBe(false);
+    expect(isTableClientMessage({ type: "RIPPLE", x: 1.5, y: 0.5 })).toBe(false);
+    expect(isTableClientMessage({ type: "RIPPLE", x: Number.NaN, y: 0.5 })).toBe(false);
     expect(isTableClientMessage({ type: "NOPE" })).toBe(false);
     expect(isTableClientMessage(null)).toBe(false);
   });
