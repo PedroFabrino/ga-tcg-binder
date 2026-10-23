@@ -38,7 +38,6 @@ export function StageSurface({
               capturePresent={capturePresent}
               ripples={table.ripples}
               canRipple={false}
-              onRipple={() => undefined}
             />
             <div className="min-h-0 overflow-hidden">
               <TablePins table={table} artClassName="h-[240px] w-full" />

@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   buildDeckLookup,
@@ -9,7 +9,9 @@ import {
   type DeckCatalogCard,
 } from "./index";
 
-const fixturePath = path.resolve(process.cwd(), "omnidex_export.txt");
+const fixturePath = fileURLToPath(
+  new URL("../../../omnidex_export.txt", import.meta.url)
+);
 
 function card(
   name: string,

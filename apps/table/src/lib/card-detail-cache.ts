@@ -65,6 +65,7 @@ function openDatabase(): Promise<IDBDatabase> {
  */
 export function createIndexedDbDetailCache(): CardDetailCache {
   if (typeof indexedDB === "undefined") {
+    console.warn("[card-cache] IndexedDB unavailable; card details will not be cached");
     return createNoopDetailCache();
   }
 
@@ -73,7 +74,7 @@ export function createIndexedDbDetailCache(): CardDetailCache {
   const warnOnce = (error: unknown) => {
     if (warned) return;
     warned = true;
-    console.warn("[card-cache] IndexedDB unavailable; falling back to network", error);
+    console.warn("[card-cache] IndexedDB unavailable; card details will not be cached", error);
   };
 
   const open = () => {

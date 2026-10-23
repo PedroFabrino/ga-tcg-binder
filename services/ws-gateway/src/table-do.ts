@@ -1,4 +1,10 @@
-import type { SeatId, TableCredentials, TableRole, TableState } from "@ga/contracts";
+import {
+  isSeatState,
+  type SeatId,
+  type TableCredentials,
+  type TableRole,
+  type TableState,
+} from "@ga/contracts";
 import { createTableCredentials } from "./table-credentials";
 import { TableRoom } from "./table-room";
 import type { ConnectionInfo } from "./table-room-types";
@@ -21,9 +27,9 @@ export interface TableStorageSql {
 export interface TableObjectState {
   storage: {
     sql: TableStorageSql;
-    setAlarm?(scheduledTime: number): Promise<void> | void;
-    deleteAlarm?(): Promise<void> | void;
-    deleteAll?(): Promise<void> | void;
+    setAlarm(scheduledTime: number): Promise<void> | void;
+    deleteAlarm(): Promise<void> | void;
+    deleteAll(): Promise<void> | void;
   };
   acceptWebSocket(ws: TableWebSocket): void;
   getWebSockets(): TableWebSocket[];
@@ -81,7 +87,7 @@ export class TableDO {
     const server = pair[1];
     this.ctx.acceptWebSocket(server);
     this.getUnifiedSocket(server);
-    void this.ctx.storage.deleteAlarm?.();
+    this.runStorage(() => this.ctx.storage.deleteAlarm(), "deleteAlarm");
 
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -143,7 +149,10 @@ export class TableDO {
     let initialState: TableState | undefined;
     if (stateRaw) {
       try {
-        initialState = JSON.parse(stateRaw) as TableState;
+        const parsed = JSON.parse(stateRaw) as TableState;
+        const seats = parsed.seats ?? {};
+        const seatsValid = Object.values(seats).every((seat) => isSeatState(seat));
+        initialState = seatsValid ? parsed : undefined;
       } catch {
         // Corrupt state: keep the credentials and start the table empty.
         initialState = undefined;
@@ -210,14 +219,33 @@ export class TableDO {
       if (this.room) this.scheduleIdleDeletion();
       return;
     }
-    await this.ctx.storage.deleteAll?.();
-    this.room = null;
-    this.wsToUnified.clear();
-    this.unifiedToWs.clear();
+    try {
+      await this.ctx.storage.deleteAll();
+      this.room = null;
+      this.wsToUnified.clear();
+      this.unifiedToWs.clear();
+    } catch (error) {
+      console.warn("[table-do] idle deletion failed", error);
+    }
   }
 
   private scheduleIdleDeletion(): void {
-    void this.ctx.storage.setAlarm?.(Date.now() + TABLE_IDLE_TTL_MS);
+    this.runStorage(
+      () => this.ctx.storage.setAlarm(Date.now() + TABLE_IDLE_TTL_MS),
+      "setAlarm"
+    );
+  }
+
+  /** Run a storage callback without letting a platform failure crash the DO. */
+  private runStorage(action: () => Promise<void> | void, name: string): void {
+    try {
+      const result = action();
+      if (result && typeof result.catch === "function") {
+        result.catch((error) => console.warn(`[table-do] ${name} failed`, error));
+      }
+    } catch (error) {
+      console.warn(`[table-do] ${name} failed`, error);
+    }
   }
 
   private getUnifiedSocket(ws: TableWebSocket): UnifiedSocket {

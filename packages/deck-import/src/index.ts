@@ -1,11 +1,10 @@
 /**
  * Omnidex / GrandArchiveStats decklist parsing for GrandTable.
  *
- * This is the `parseOmnidexText` implementation from the collection app,
- * copied into the standalone Table app (ADR-0004) and corrected per
- * `MVP_SPEC.md` §6.6: the parser never guesses a Champion from the first
- * Material line, and name resolution is a separate, catalog-aware step so
- * unresolved names can be reported instead of silently disappearing.
+ * Shared by the collection app and GrandTable (ADR-0004, ADR-0024). The
+ * parser never guesses a Champion from the first Material line; name
+ * resolution is a separate, catalog-aware step so unresolved names can be
+ * reported instead of silently disappearing (MVP_SPEC §6.6).
  */
 
 export type DeckZone = "main" | "material" | "side";

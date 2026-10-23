@@ -134,7 +134,7 @@ interface TableState {
 client → server:  hello{token, role} · seat.update{patch} · turn.start · turn.end
                   pin.set{cardSlug, printingSlug?} · pin.clear · ripple{x,y}
                   signal{to:{seat, role}, data}
-server → client:  state{snapshot} · signal{from, data} · presence{...} · error{...}
+server → client:  state{snapshot} · signal{from, data} · presence{...} · tableError{...}
 ```
 
 Signaling addresses peers by `{seat, role}` rather than connection ID, so a Capture Device that reconnects is addressed identically and the negotiation survives.
@@ -193,13 +193,11 @@ The deck is stored in `localStorage` and never sent to the server in v1. No URL 
 
 ### 6.7 Overlay and stage
 
-`/overlay` is transparent, video-free chrome designed at 1920×1080 with CSS scaling: top bar = both Seats (name, champion art, level, damage/life, memory, hand, Active badge); bottom strip = three-Pin log with attribution; plus a static wordmark. No QR or URL until there is a public product to point at.
+`/overlay` is transparent, video-free chrome designed at 1920×1080 with CSS scaling: top bar = both Seats (name, champion art, level, damage/life, memory, hand, Active badge); bottom strip = three-Pin log with attribution; plus a static wordmark. No QR or URL until there is a public product to point at. Read-only viewer token, embedded in the URL.
 
 `/stage` is the Table without controls, for window capture. The streamer layers `/stage` (video, captured as a window) under `/overlay` (transparent browser source). This is deliberate: WebRTC playback inside OBS's CEF browser source is unreliable, so the overlay carries no video.
 
 Because `/stage` authenticates with the Seat token, opening it takes over that Seat from an open `/t/[code]` tab (the normal newest-connection-wins rule). Use `/stage` in place of the Table on the streaming desktop; a read-only broadcast role that can coexist with the interactive Table is deferred (§10).
-
-Read-only viewer token, embedded in the URL.
 
 ### 6.8 Card data
 

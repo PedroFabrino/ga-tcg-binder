@@ -21,6 +21,7 @@ Furthermore, maintaining persistent WebSocket connections in serverless environm
    - At creation (`POST /api/table`), `TableDO` generates and persists `p1Token`, `p2Token`, and `viewerToken`, alongside serialized `TableState`.
    - `/init` is create-only: a second call for an existing DO returns 409, and the worker retries with a fresh code on collision.
    - On wake after hibernation or isolate eviction, `TableDO` rehydrates `TableRoom` and all active seats directly from SQLite storage.
+   - A Durable Object alarm deletes the Table's storage 24h after the last disconnect (MVP_SPEC §6.1); an accepted socket clears the alarm, and an alarm that fires while a socket is live reschedules instead of deleting.
 
 3. **WebSocket Hibernation API**:
    - Incoming WebSocket upgrade requests use `this.ctx.acceptWebSocket(server)` rather than keeping the DO running continuously in memory.

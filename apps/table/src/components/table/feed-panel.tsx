@@ -14,7 +14,7 @@ export interface FeedPanelProps {
   ripples: Ripple[];
   /** True when this Seat may drop a marker (a connected Seat). */
   canRipple: boolean;
-  onRipple: (x: number, y: number) => void;
+  onRipple?: (x: number, y: number) => void;
 }
 
 /**
@@ -64,7 +64,7 @@ export function FeedPanel({
   const connecting = stream !== null && !hasFrame;
 
   function handleClick(event: MouseEvent<HTMLDivElement>) {
-    if (!canRipple) return;
+    if (!canRipple || !onRipple) return;
     const feed = feedRef.current;
     if (!feed) return;
     const rect = feed.getBoundingClientRect();
