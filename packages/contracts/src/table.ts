@@ -124,15 +124,25 @@ export function isTableRole(value: unknown): value is TableRole {
   return value === "seat" || value === "capture" || value === "viewer";
 }
 
+/** A HUD counter: a finite, non-negative integer (MVP_SPEC §6.3). */
+function isCounter(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    Number.isInteger(value) &&
+    value >= 0
+  );
+}
+
 export function isSeatState(value: unknown): value is SeatState {
   if (typeof value !== "object" || value === null) return false;
   const s = value as Record<string, unknown>;
   return (
     typeof s.displayName === "string" &&
     (typeof s.championSlug === "string" || s.championSlug === null) &&
-    typeof s.damage === "number" &&
-    typeof s.memory === "number" &&
-    typeof s.hand === "number"
+    isCounter(s.damage) &&
+    isCounter(s.memory) &&
+    isCounter(s.hand)
   );
 }
 
@@ -147,7 +157,7 @@ export function isSeatStatePatch(value: unknown): value is Partial<SeatState> {
   if ("displayName" in p && typeof p.displayName !== "string") return false;
   if ("championSlug" in p && typeof p.championSlug !== "string" && p.championSlug !== null) return false;
   for (const key of ["damage", "memory", "hand"]) {
-    if (key in p && typeof p[key] !== "number") return false;
+    if (key in p && !isCounter(p[key])) return false;
   }
   return true;
 }

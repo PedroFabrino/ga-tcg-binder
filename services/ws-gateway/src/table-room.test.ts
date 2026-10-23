@@ -39,6 +39,19 @@ describe("TableRoom state machine", () => {
     expect(p1.errors()).toEqual([]);
   });
 
+  it("rejects negative or fractional HUD counters at the boundary", () => {
+    const room = new TableRoom("ABC", "tokP1", "tokP2");
+    const p1 = new MockSocket();
+    room.handleRawMessage(p1, hello("ABC", "tokP1", "seat", "Alice"));
+
+    for (const patch of [{ damage: -1 }, { memory: 1.5 }, { hand: Number.NaN }]) {
+      room.handleRawMessage(p1, JSON.stringify({ type: "SEAT_UPDATE", patch }));
+    }
+
+    expect(p1.errors()).toContain("INVALID_MESSAGE");
+    expect(p1.lastState()!.seats.p1).toMatchObject({ damage: 0, memory: 0, hand: 0 });
+  });
+
   it("rejects writes from a connection with no seat", () => {
     const room = new TableRoom("ABC", "tokP1", "tokP2");
     const capture = new MockSocket();

@@ -51,6 +51,11 @@ describe("table contracts", () => {
     expect(isSeatStatePatch({})).toBe(true);
     expect(isSeatStatePatch({ bogus: 1 })).toBe(false);
     expect(isSeatStatePatch({ damage: "high" })).toBe(false);
+    expect(isSeatStatePatch({ damage: -1 })).toBe(false);
+    expect(isSeatStatePatch({ memory: 1.5 })).toBe(false);
+    expect(isSeatStatePatch({ hand: Number.NaN })).toBe(false);
+    expect(isSeatStatePatch({ hand: Number.POSITIVE_INFINITY })).toBe(false);
+    expect(isSeatStatePatch({ damage: 0, memory: 3, hand: 7 })).toBe(true);
     expect(isSeatStatePatch(null)).toBe(false);
   });
 
