@@ -88,7 +88,7 @@ Seat tokens live in `localStorage` keyed by Room Code. The invite link carries t
 
 ## 5. State model
 
-Held by the TableDO, broadcast as a snapshot on join and deltas thereafter.
+Held by the TableDO and broadcast as a full snapshot after every change (no deltas; the state is small and snapshots are idempotent on reconnect).
 
 ```ts
 type SeatId = 'p1' | 'p2';
@@ -134,7 +134,7 @@ interface TableState {
 client → server:  hello{token, role} · seat.update{patch} · turn.start · turn.end
                   pin.set{cardSlug, printingSlug?} · pin.clear · ripple{x,y}
                   signal{to:{seat, role}, data}
-server → client:  state{snapshot} · state.patch{...} · signal{from, data} · presence{...}
+server → client:  state{snapshot} · signal{from, data} · presence{...} · error{...}
 ```
 
 Signaling addresses peers by `{seat, role}` rather than connection ID, so a Capture Device that reconnects is addressed identically and the negotiation survives.
@@ -159,7 +159,7 @@ The model deliberately allows a third role (`viewer`) with no schema change — 
 - The Capture Device publishes to **the opponent's desktop only**. Its own local preview is how the player frames the shot; the player's desktop does not render their own Feed.
 - **The receiving desktop offers**, because the desktop is the stable peer. The Capture Device answers. ICE restart is initiated by the receiver.
 - Constraints: `1280×720@30` ideal, `contentHint: 'detail'`, bitrate cap ≈2.5 Mbps. `detail` matters: without it the encoder smooths fine card text.
-- ICE servers come from `GET /turn` on the gateway, which mints short-lived Cloudflare Realtime TURN credentials. STUN is public. Assume ~15% of pairs need TURN.
+- ICE servers come from `GET /turn` on the gateway: public STUN is always returned, and a configured static TURN is appended when `TURN_URL`/username/credential are set. Ephemeral Cloudflare Realtime TURN minting is a follow-up behind the same env seam. Assume ~15% of pairs need TURN.
 - iOS: a locked screen mutes (not ends) the camera track, so the viewer sees a frozen frame. Show a "camera asleep" badge over a stale Feed rather than pretending it is live. Screen Wake Lock is requested on the `/cam` page.
 - No camera available anywhere: the Table still works — opponent Feed area shows an empty state, and the HUD, Pins, and search remain fully usable.
 
@@ -181,7 +181,7 @@ Clicking the opponent's Feed drops a numbered marker at that normalized coordina
 
 ### 6.6 Deck import
 
-A textarea on the Table (or in a pre-match step) accepting the Omnidex/GrandArchiveStats text format. Reuses `parseOmnidexText` from `ga-tcg-binder/src/services/omnidex.ts`.
+A textarea on the Table (or in a pre-match step) accepting the Omnidex/GrandArchiveStats text format. Reuses the shared `parseOmnidexText`/`resolveDecklist` from `@ga/deck-import` (also used by the collection app).
 
 Required corrections to that parser for this use:
 
@@ -196,6 +196,8 @@ The deck is stored in `localStorage` and never sent to the server in v1. No URL 
 `/overlay` is transparent, video-free chrome designed at 1920×1080 with CSS scaling: top bar = both Seats (name, champion art, level, damage/life, memory, hand, Active badge); bottom strip = three-Pin log with attribution; plus a static wordmark. No QR or URL until there is a public product to point at.
 
 `/stage` is the Table without controls, for window capture. The streamer layers `/stage` (video, captured as a window) under `/overlay` (transparent browser source). This is deliberate: WebRTC playback inside OBS's CEF browser source is unreliable, so the overlay carries no video.
+
+Because `/stage` authenticates with the Seat token, opening it takes over that Seat from an open `/t/[code]` tab (the normal newest-connection-wins rule). Use `/stage` in place of the Table on the streaming desktop; a read-only broadcast role that can coexist with the interactive Table is deferred (§10).
 
 Read-only viewer token, embedded in the URL.
 
@@ -269,6 +271,7 @@ Overlay layout at 1080p, `/stage`, wordmark, empty states, error copy, and the f
 | Second Feed per Seat | A referee needs a hand-zone view |
 | Deck import by URL | Paste friction is real and the source HTML proves stable |
 | LAN/Tauri | A venue has no usable internet |
+| Read-only broadcast stage role | The streamer must keep the interactive Table open on the same desktop while `/stage` runs |
 | pt-BR translation | The Brazilian community is onboarded (strings already isolated in one module) |
 
 ---
