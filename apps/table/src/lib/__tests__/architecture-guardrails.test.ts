@@ -81,13 +81,19 @@ describe("apps/table architecture guardrails", () => {
       "src/app/layout.tsx",
       "src/app/page.tsx",
       "src/app/t/[code]/page.tsx",
+      "src/app/t/[code]/stage/page.tsx",
+      "src/app/t/[code]/overlay/page.tsx",
     ];
 
     for (const rel of pages) {
       const fullPath = path.join(tableRoot, rel);
       expect(fs.existsSync(fullPath), `Page ${rel} should exist`).toBe(true);
       const content = fs.readFileSync(fullPath, "utf8");
-      const wired = content.includes("useTranslation") || content.includes("@ga/contracts");
+      // A thin route may delegate its strings to the shared translated surface.
+      const wired =
+        content.includes("useTranslation") ||
+        content.includes("@ga/contracts") ||
+        content.includes("TablePageContent");
       expect(wired, `Page ${rel} must use the translation hook or @ga/contracts`).toBe(true);
     }
   });

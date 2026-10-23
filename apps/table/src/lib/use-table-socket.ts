@@ -59,6 +59,10 @@ export function useTableSocket(options: UseTableSocketOptions): UseTableSocketRe
   }, []);
 
   useEffect(() => {
+    if (!token) {
+      setStatus("closed");
+      return;
+    }
     let socket: WebSocket;
     try {
       socket = new WebSocket(tableWebSocketUrl(code));
