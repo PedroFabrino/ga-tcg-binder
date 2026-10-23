@@ -60,7 +60,7 @@ describe("table contracts", () => {
   });
 
   it("validates TableClientMessage", () => {
-    const hello: TableClientMessage = { type: "TABLE_HELLO", token: "t", role: "seat" };
+    const hello: TableClientMessage = { type: "TABLE_HELLO", code: "C", token: "t", role: "seat" };
     expect(isTableClientMessage(hello)).toBe(true);
     expect(isTableClientMessage({ type: "SEAT_UPDATE", patch: { damage: 1 } })).toBe(true);
     expect(isTableClientMessage({ type: "TURN_START" })).toBe(true);

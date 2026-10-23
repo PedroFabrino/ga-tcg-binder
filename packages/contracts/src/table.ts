@@ -74,7 +74,7 @@ export interface SignalTarget {
 }
 
 export type TableClientMessage =
-  | { type: "TABLE_HELLO"; token: string; role: TableRole; displayName?: string }
+  | { type: "TABLE_HELLO"; code: string; token: string; role: TableRole; displayName?: string }
   | { type: "SEAT_UPDATE"; patch: Partial<SeatState> }
   | { type: "TURN_START" }
   | { type: "TURN_END" }
@@ -157,7 +157,7 @@ export function isTableClientMessage(value: unknown): value is TableClientMessag
   const m = value as Record<string, unknown>;
   switch (m.type) {
     case "TABLE_HELLO":
-      return typeof m.token === "string" && isTableRole(m.role);
+      return typeof m.code === "string" && typeof m.token === "string" && isTableRole(m.role);
     case "SEAT_UPDATE":
       return isSeatStatePatch(m.patch);
     case "TURN_START":
