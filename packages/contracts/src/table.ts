@@ -41,6 +41,8 @@ export interface Ripple {
   seat: SeatId;
   x: number;
   y: number;
+  /** Server-assigned marker number, stable for the marker's lifetime. */
+  n: number;
   at: number;
 }
 

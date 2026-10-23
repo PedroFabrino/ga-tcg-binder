@@ -1,6 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { TableRoom } from "./table-room";
 import { MockSocket, hello } from "./mock-socket";
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("TableRoom state machine", () => {
   it("mirrors state between two seats", () => {
@@ -163,6 +167,34 @@ describe("TableRoom state machine", () => {
       "third",
       "second",
     ]);
+  });
+
+  it("broadcasts numbered ripples to both seats and expires them after ~4s", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(10_000);
+
+    const room = new TableRoom("ABC", "tokP1", "tokP2");
+    const p1 = new MockSocket();
+    const p2 = new MockSocket();
+    room.handleRawMessage(p1, hello("ABC", "tokP1", "seat", "Alice"));
+    room.handleRawMessage(p2, hello("ABC", "tokP2", "seat", "Bob"));
+
+    room.handleRawMessage(p1, JSON.stringify({ type: "RIPPLE", x: 0.25, y: 0.75 }));
+    expect(p1.lastState()!.ripples[0]).toMatchObject({
+      seat: "p1",
+      x: 0.25,
+      y: 0.75,
+      n: 1,
+    });
+    expect(p2.lastState()!.ripples[0]).toMatchObject({ seat: "p1", n: 1 });
+
+    room.handleRawMessage(p2, JSON.stringify({ type: "RIPPLE", x: 0.1, y: 0.2 }));
+    expect(p1.lastState()!.ripples.map((ripple) => ripple.n)).toEqual([1, 2]);
+    expect(p2.lastState()!.ripples.map((ripple) => ripple.n)).toEqual([1, 2]);
+
+    vi.advanceTimersByTime(4_100);
+    expect(p1.lastState()!.ripples).toHaveLength(0);
+    expect(p2.lastState()!.ripples).toHaveLength(0);
   });
 
   it("relays signals between a capture device and a seat", () => {

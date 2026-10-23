@@ -174,7 +174,9 @@ export class TableDO {
       credentials.viewerToken,
       {
         initialState,
-        onStateChange: (state) => this.writeMeta("state", JSON.stringify(state)),
+        // Ripples are ephemeral pointer markers; persist the durable state only.
+        onStateChange: (state) =>
+          this.writeMeta("state", JSON.stringify({ ...state, ripples: [] })),
         onBindingChange: (socket, role, seatId) => {
           const ws = this.unifiedToWs.get(socket);
           if (ws) ws.serializeAttachment(attachmentFor(role, seatId));

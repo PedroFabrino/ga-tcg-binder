@@ -167,6 +167,13 @@ function ConnectedTable({ code, session }: { code: string; session: SeatSession 
     send({ type: "PIN_CLEAR" });
   }, [send]);
 
+  const dropRipple = useCallback(
+    (x: number, y: number) => {
+      send({ type: "RIPPLE", x, y });
+    },
+    [send]
+  );
+
   const startTurn = useCallback(() => {
     if (turnPending) return;
     setTurnPending(true);
@@ -280,7 +287,13 @@ function ConnectedTable({ code, session }: { code: string; session: SeatSession 
       ) : (
         <>
           <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-            <FeedPanel stream={remoteStream} capturePresent={opponentCapture} />
+            <FeedPanel
+              stream={remoteStream}
+              capturePresent={opponentCapture}
+              ripples={table.ripples}
+              canRipple={canEdit}
+              onRipple={dropRipple}
+            />
             <CameraPairing
               code={code}
               seat={session.seat}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
+import type { Ripple } from "@ga/contracts";
 import { useTranslation } from "@/lib/i18n";
 import { useTrackMuted } from "@/lib/use-track-muted";
 
@@ -9,15 +10,31 @@ export interface FeedPanelProps {
   stream: MediaStream | null;
   /** True while the opponent's Capture Device is connected to the Table. */
   capturePresent: boolean;
+  /** Live pointer markers from both Seats. */
+  ripples: Ripple[];
+  /** True when this Seat may drop a marker (a connected Seat). */
+  canRipple: boolean;
+  onRipple: (x: number, y: number) => void;
 }
 
 /**
  * The opponent's Feed. It never renders the local camera: a Seat's own Feed is
  * only the preview on its Capture Device.
  */
-export function FeedPanel({ stream, capturePresent }: FeedPanelProps) {
+function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value));
+}
+
+export function FeedPanel({
+  stream,
+  capturePresent,
+  ripples,
+  canRipple,
+  onRipple,
+}: FeedPanelProps) {
   const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const feedRef = useRef<HTMLDivElement>(null);
   const asleep = useTrackMuted(stream);
   // Key the frame flag by stream so a replacement Feed shows "connecting"
   // immediately instead of flashing the asleep badge over a blank video.
@@ -35,6 +52,18 @@ export function FeedPanel({ stream, capturePresent }: FeedPanelProps) {
 
   const connecting = stream !== null && !hasFrame;
 
+  function handleClick(event: MouseEvent<HTMLDivElement>) {
+    if (!canRipple) return;
+    const feed = feedRef.current;
+    if (!feed) return;
+    const rect = feed.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    onRipple(
+      clamp01((event.clientX - rect.left) / rect.width),
+      clamp01((event.clientY - rect.top) / rect.height)
+    );
+  }
+
   return (
     <section
       aria-labelledby="feed-title"
@@ -45,7 +74,12 @@ export function FeedPanel({ stream, capturePresent }: FeedPanelProps) {
           {t("table.feedTitle")}
         </h2>
       </header>
-      <div className="relative aspect-video bg-black">
+      <div
+        ref={feedRef}
+        onClick={handleClick}
+        title={canRipple ? t("table.rippleHint") : undefined}
+        className={`relative aspect-video bg-black ${canRipple ? "cursor-crosshair" : ""}`}
+      >
         {stream ? (
           <>
             <video
@@ -83,6 +117,17 @@ export function FeedPanel({ stream, capturePresent }: FeedPanelProps) {
             )}
           </div>
         )}
+        {ripples.map((ripple) => (
+          <span
+            key={`${ripple.seat}-${ripple.n}-${ripple.at}`}
+            role="img"
+            aria-label={t("table.rippleMarker", { number: ripple.n })}
+            className="pointer-events-none absolute z-10 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white bg-sky-500/90 text-xs font-bold text-white shadow-lg"
+            style={{ left: `${ripple.x * 100}%`, top: `${ripple.y * 100}%` }}
+          >
+            {ripple.n}
+          </span>
+        ))}
       </div>
     </section>
   );

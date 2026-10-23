@@ -63,7 +63,7 @@ describe("tableClientReducer", () => {
 
   it("mirrors turn, pin, ripple, and log transitions from a snapshot", () => {
     const pin = { seat: "p1" as const, cardSlug: "card-1", at: 10 };
-    const ripple = { seat: "p2" as const, x: 0.25, y: 0.5, at: 11 };
+    const ripple = { seat: "p2" as const, x: 0.25, y: 0.5, n: 1, at: 11 };
     const log = [
       { at: 10, seat: "p1" as const, kind: "pin", detail: "card-1" },
       { at: 11, seat: "p2" as const, kind: "turn", detail: "start" },

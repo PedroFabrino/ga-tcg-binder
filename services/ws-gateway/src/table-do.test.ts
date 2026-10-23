@@ -133,6 +133,21 @@ describe("TableDO", () => {
     expect(persisted.seats.p1?.damage).toBe(7);
   });
 
+  it("broadcasts a ripple but never persists it", async () => {
+    const ctx = new MockCtx();
+    const door = new TableDO(ctx, {});
+    const credentials = await createTable(door, "ROOMRIP");
+    const p1 = new MockWebSocket();
+    const p2 = new MockWebSocket();
+    door.webSocketMessage(p1, hello("ROOMRIP", credentials.p1Token, "seat", "Alice"));
+    door.webSocketMessage(p2, hello("ROOMRIP", credentials.p2Token, "seat", "Bob"));
+
+    door.webSocketMessage(p1, JSON.stringify({ type: "RIPPLE", x: 0.4, y: 0.6 }));
+
+    expect(p2.lastState()?.ripples[0]).toMatchObject({ seat: "p1", x: 0.4, y: 0.6, n: 1 });
+    expect(readState(ctx).ripples).toEqual([]);
+  });
+
   it("clears a replaced capture device's binding and persists viewers", async () => {
     const ctx = new MockCtx();
     const door = new TableDO(ctx, {});
