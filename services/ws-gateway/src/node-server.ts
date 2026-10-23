@@ -1,6 +1,7 @@
 import http from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { SessionRoomManager } from "./room-manager";
+import { getIceServersResponse } from "./turn";
 
 export interface WsGatewayServerOptions {
   port?: number;
@@ -32,6 +33,20 @@ export class WsGatewayServer {
               activeRooms: this.roomManager.getRoomCount(),
               timestamp: Date.now(),
             })
+          );
+          return;
+        }
+
+        if (req.url === "/turn") {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(
+            JSON.stringify(
+              getIceServersResponse({
+                turnUrl: process.env.TURN_URL,
+                turnUsername: process.env.TURN_USERNAME,
+                turnCredential: process.env.TURN_CREDENTIAL,
+              })
+            )
           );
           return;
         }

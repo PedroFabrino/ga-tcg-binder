@@ -50,6 +50,15 @@ describe("WebSocket Session Gateway Integration", () => {
     expect(typeof data.activeRooms).toBe("number");
   });
 
+  it("returns ICE servers from /turn", async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/turn`);
+    expect(res.ok).toBe(true);
+    const data = await res.json();
+    expect(Array.isArray(data.iceServers)).toBe(true);
+    expect(data.iceServers[0].urls).toContain("stun:");
+    expect(typeof data.ttlSeconds).toBe("number");
+  });
+
   it("pairs desktop receiver and mobile scanner in the same room", async () => {
     const sessionId = "sess_test_pairing";
     const token = "tok_test_123";
