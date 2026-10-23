@@ -1,7 +1,9 @@
 import http, { type ServerResponse } from "http";
 import { WebSocketServer, WebSocket } from "ws";
+import { CORS_HEADERS } from "./cors-headers";
 import { SessionRoomManager, type UnifiedSocket } from "./room-manager";
 import { TableRoomManager } from "./table-room-manager";
+import { tableCodeFromPath } from "./table-routes";
 import { getIceServersResponse } from "./turn";
 
 /** Table sockets live on their own path so scanner sessions stay untouched. */
@@ -20,13 +22,6 @@ interface SocketHandler {
   handleRawMessage(socket: UnifiedSocket, rawData: string): void;
   handleDisconnect(socket: UnifiedSocket): void;
 }
-
-// Dev-only: the Next app runs on another localhost port. Production is same-origin.
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-};
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { "Content-Type": "application/json", ...CORS_HEADERS });
@@ -109,7 +104,9 @@ export class WsGatewayServer {
       tableWss.on("connection", (ws) => this.bindSocket(ws, this.tableManager));
 
       this.httpServer.on("upgrade", (req, socket, head) => {
-        const target = pathnameOf(req.url) === TABLE_WS_PATH ? tableWss : scannerWss;
+        const pathname = pathnameOf(req.url);
+        const isTablePath = pathname === TABLE_WS_PATH || tableCodeFromPath(pathname) !== null;
+        const target = isTablePath ? tableWss : scannerWss;
         target.handleUpgrade(req, socket, head, (ws) => {
           target.emit("connection", ws, req);
         });

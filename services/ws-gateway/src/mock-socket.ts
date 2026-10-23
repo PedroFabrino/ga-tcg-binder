@@ -1,5 +1,5 @@
 import type { TableState, TableServerMessage } from "@ga/contracts";
-import type { UnifiedSocket } from "./room-manager";
+import type { UnifiedSocket } from "./unified-socket";
 
 /** Shared test double for TableRoom/TableRoomManager tests. */
 export class MockSocket implements UnifiedSocket {

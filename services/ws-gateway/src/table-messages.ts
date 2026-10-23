@@ -1,5 +1,5 @@
 import type { TableServerMessage } from "@ga/contracts";
-import type { UnifiedSocket } from "./room-manager";
+import type { UnifiedSocket } from "./unified-socket";
 
 /** Send a typed TABLE_ERROR, ignoring a socket that is already gone. */
 export function sendTableError(socket: UnifiedSocket, code: string, message: string): void {

@@ -1,62 +1,96 @@
-import { SessionRoomManager, type UnifiedSocket } from "./room-manager";
+import { CORS_HEADERS } from "./cors-headers";
+import { generateTableCode } from "./table-credentials";
+import { TableDO } from "./table-do";
+import { tableCodeFromPath } from "./table-routes";
+import { getIceServersResponse } from "./turn";
 
-const globalRoomManager = new SessionRoomManager();
+export { TableDO };
 
 export interface Env {
-  // Optional bindings for Cloudflare Workers
+  TABLE_DO: DurableObjectNamespace;
+  TURN_URL?: string;
+  TURN_USERNAME?: string;
+  TURN_CREDENTIAL?: string;
 }
 
+const JSON_HEADERS = { "Content-Type": "application/json", ...CORS_HEADERS };
+const CREATE_ATTEMPTS = 3;
+
+/**
+ * Production gateway. Every Table lives in the Durable Object named by its
+ * code, so two players always reach the same authority regardless of which
+ * Cloudflare isolate handles their request.
+ */
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: CORS_HEADERS });
+    }
 
     if (url.pathname === "/health") {
       return new Response(
         JSON.stringify({
           status: "ok",
-          activeRooms: globalRoomManager.getRoomCount(),
           runtime: "cloudflare-workers",
           timestamp: Date.now(),
         }),
-        { headers: { "Content-Type": "application/json" } }
+        { headers: JSON_HEADERS }
       );
     }
 
-    const upgradeHeader = request.headers.get("Upgrade");
-    if (!upgradeHeader || upgradeHeader.toLowerCase() !== "websocket") {
-      return new Response("Expected WebSocket Upgrade", { status: 426 });
+    if (url.pathname === "/turn") {
+      const iceServers = getIceServersResponse({
+        turnUrl: env.TURN_URL,
+        turnUsername: env.TURN_USERNAME,
+        turnCredential: env.TURN_CREDENTIAL,
+      });
+      return new Response(JSON.stringify(iceServers), {
+        headers: JSON_HEADERS,
+      });
     }
 
-    // Cloudflare Workers WebSocketPair
-    // @ts-ignore - WebSocketPair is available in Cloudflare Workers global scope
-    const webSocketPair = new WebSocketPair();
-    const [client, server] = Object.values(webSocketPair) as [any, any];
+    if (request.method === "POST" && url.pathname === "/api/table") {
+      return createTable(env);
+    }
 
-    server.accept();
+    const code = tableCodeFromPath(url.pathname);
+    if (code) {
+      const stub = env.TABLE_DO.get(env.TABLE_DO.idFromName(code));
+      return stub.fetch(request);
+    }
 
-    const unifiedSocket: UnifiedSocket = {
-      send: (data: string) => server.send(data),
-      close: (code?: number, reason?: string) => server.close(code, reason),
-    };
+    const upgrade = request.headers.get("Upgrade");
+    if (upgrade && upgrade.toLowerCase() === "websocket") {
+      return new Response("Expected table code in path, e.g. /t/:code", {
+        status: 400,
+        headers: CORS_HEADERS,
+      });
+    }
 
-    globalRoomManager.handleConnection(unifiedSocket);
-
-    server.addEventListener("message", (event: any) => {
-      globalRoomManager.handleRawMessage(unifiedSocket, event.data.toString());
-    });
-
-    server.addEventListener("close", () => {
-      globalRoomManager.handleDisconnect(unifiedSocket);
-    });
-
-    server.addEventListener("error", () => {
-      globalRoomManager.handleDisconnect(unifiedSocket);
-    });
-
-    return new Response(null, {
-      status: 101,
-      // @ts-ignore
-      webSocket: client,
-    });
+    return new Response("Not found", { status: 404, headers: CORS_HEADERS });
   },
 };
+
+/** Retries only on a code collision (the DO reports 409 when it already exists). */
+async function createTable(env: Env): Promise<Response> {
+  for (let attempt = 0; attempt < CREATE_ATTEMPTS; attempt++) {
+    const code = generateTableCode();
+    const stub = env.TABLE_DO.get(env.TABLE_DO.idFromName(code));
+    const response = await stub.fetch(
+      new Request(`http://do/init?code=${code}`, { method: "POST" })
+    );
+    if (response.status !== 409) {
+      return new Response(await response.text(), {
+        status: response.status,
+        headers: JSON_HEADERS,
+      });
+    }
+  }
+
+  return new Response(JSON.stringify({ error: "Could not allocate a table code" }), {
+    status: 503,
+    headers: JSON_HEADERS,
+  });
+}

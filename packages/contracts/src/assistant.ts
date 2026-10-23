@@ -241,15 +241,19 @@ export class AssistantClient {
       headers,
     });
 
-    const data = await res.json().catch(() => ({}));
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
 
     if (!res.ok) {
-      const code = data?.error || `HTTP_${res.status}`;
-      const message = data?.message || `Assistant API request failed with status ${res.status}`;
+      const code = typeof data.error === "string" ? data.error : `HTTP_${res.status}`;
+      const message =
+        typeof data.message === "string"
+          ? data.message
+          : `Assistant API request failed with status ${res.status}`;
       throw new AssistantApiError(res.status, code, message);
     }
 
-    return data as T;
+    // JSON boundary: the caller owns the response shape.
+    return data as unknown as T;
   }
 
   async link(req: AssistantLinkRequest): Promise<AssistantLinkResponse> {

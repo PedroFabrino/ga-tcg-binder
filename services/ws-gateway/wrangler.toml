@@ -1,0 +1,12 @@
+name = "ga-ws-gateway"
+main = "src/cf-worker.ts"
+compatibility_date = "2025-01-01"
+
+[durable_objects]
+bindings = [
+  { name = "TABLE_DO", class_name = "TableDO" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["TableDO"]

@@ -15,7 +15,7 @@ One shape, one home: `@ga/contracts`. Every cross-boundary shape — room messag
 
 The seam is the room state machine and its message contract; test it, and only it.
 
-- Server: exercise `TableRoom` through the `UnifiedSocket` interface, following `services/ws-gateway/src/gateway.test.ts`.
+- Server: exercise `TableRoom` through the `UnifiedSocket` interface (`services/ws-gateway/src/unified-socket.ts`), following `gateway.test.ts`; exercise `TableDO` through `TableObjectState`/`TableWebSocket` doubles, following `table-do.test.ts`.
 - Client: keep the reducer a pure function of the same contract and test it as such.
 
 There is no end-to-end test. Media and DOM are verified by each ticket's acceptance criteria in a real browser. Write no test past this seam.
@@ -24,7 +24,7 @@ There is no end-to-end test. Media and DOM are verified by each ticket's accepta
 
 Durable Objects and WebRTC are the two areas to copy, not improvise:
 
-- Durable Object wiring: `cf-worker.ts` and `room-manager.ts` in `services/ws-gateway`.
+- Durable Object wiring: `cf-worker.ts`, `table-do.ts`, and `table-room.ts` in `services/ws-gateway`; the DO seam is tested with structural doubles, not a live Worker.
 - WebRTC: one small module, its shape in `@ga/contracts`, its behaviour verified in a browser.
 
 ## Done

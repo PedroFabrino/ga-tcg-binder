@@ -1,10 +1,11 @@
-import { type UnifiedSocket } from "./room-manager";
+import { type UnifiedSocket } from "./unified-socket";
 import { sendTableError } from "./table-messages";
 import {
   type SeatId,
   type TableRole,
   type SeatState,
   type Pin,
+  type TableCredentials,
   type TableState,
   type TableClientMessage,
   type TableServerMessage,
@@ -13,23 +14,15 @@ import {
   isTableClientMessage,
 } from "@ga/contracts";
 
-type HelloMessage = Extract<TableClientMessage, { type: "TABLE_HELLO" }>;
-type PinSetMessage = Extract<TableClientMessage, { type: "PIN_SET" }>;
+import {
+  type ConnectionInfo,
+  type HelloMessage,
+  type PinSetMessage,
+  type TableRoomOptions,
+  defaultSeat,
+} from "./table-room-types";
 
-interface ConnectionInfo {
-  role: TableRole;
-  seatId: SeatId | null;
-}
-
-function defaultSeat(seatId: SeatId, displayName?: string): SeatState {
-  return {
-    displayName: displayName ?? seatId,
-    championSlug: null,
-    damage: 0,
-    memory: 0,
-    hand: 0,
-  };
-}
+export type { TableRoomOptions };
 
 /**
  * The state machine for a single Table: two Seats, partitioned writes, Turn
@@ -44,6 +37,7 @@ export class TableRoom {
   private readonly p1Token: string;
   private readonly p2Token: string;
   private readonly viewerToken?: string;
+  private readonly options?: TableRoomOptions;
 
   private readonly seatSockets = new Map<SeatId, UnifiedSocket>();
   private readonly captureSockets = new Map<SeatId, UnifiedSocket>();
@@ -51,12 +45,19 @@ export class TableRoom {
 
   private state: TableState;
 
-  constructor(code: string, p1Token: string, p2Token: string, viewerToken?: string) {
+  constructor(
+    code: string,
+    p1Token: string,
+    p2Token: string,
+    viewerToken?: string,
+    options?: TableRoomOptions
+  ) {
     this.code = code;
     this.p1Token = p1Token;
     this.p2Token = p2Token;
     this.viewerToken = viewerToken;
-    this.state = {
+    this.options = options;
+    this.state = options?.initialState ?? {
       code,
       seats: {},
       active: null,
@@ -162,6 +163,7 @@ export class TableRoom {
         if (existing && existing !== socket) {
           sendTableError(existing, "DISPLACED", "This seat was opened in another tab");
           this.connectionInfo.set(existing, { role: "seat", seatId: null });
+          this.options?.onBindingChange?.(existing, "seat", null);
         }
         this.seatSockets.set(seatId, socket);
         this.connectionInfo.set(socket, { role: "seat", seatId });
@@ -178,6 +180,11 @@ export class TableRoom {
           sendTableError(socket, "INVALID_TOKEN", "Token does not grant a seat at this table");
           return;
         }
+        const previous = this.captureSockets.get(seatId);
+        if (previous && previous !== socket) {
+          this.connectionInfo.set(previous, { role: "capture", seatId: null });
+          this.options?.onBindingChange?.(previous, "capture", null);
+        }
         this.captureSockets.set(seatId, socket);
         this.connectionInfo.set(socket, { role: "capture", seatId });
         break;
@@ -192,6 +199,7 @@ export class TableRoom {
       }
     }
 
+    this.options?.onBindingChange?.(socket, msg.role, seatId);
     this.broadcastState();
     this.broadcastPresence();
   }
@@ -311,6 +319,31 @@ export class TableRoom {
     return null;
   }
 
+  public rehydrateConnection(
+    socket: UnifiedSocket,
+    role: TableRole,
+    seatId: SeatId | null
+  ): void {
+    if (role === "seat" && seatId) {
+      this.seatSockets.set(seatId, socket);
+      this.connectionInfo.set(socket, { role: "seat", seatId });
+    } else if (role === "capture" && seatId) {
+      this.captureSockets.set(seatId, socket);
+      this.connectionInfo.set(socket, { role: "capture", seatId });
+    } else if (role === "viewer") {
+      this.connectionInfo.set(socket, { role: "viewer", seatId: null });
+    }
+  }
+
+  public getCredentials(): TableCredentials {
+    return {
+      code: this.code,
+      p1Token: this.p1Token,
+      p2Token: this.p2Token,
+      viewerToken: this.viewerToken ?? "",
+    };
+  }
+
   // -------------------------------------------------------------------------
   // Helpers
   // -------------------------------------------------------------------------
@@ -333,6 +366,7 @@ export class TableRoom {
   }
 
   private broadcastState(): void {
+    this.options?.onStateChange?.(this.state);
     this.broadcast({ type: "TABLE_STATE", state: this.state });
   }
 

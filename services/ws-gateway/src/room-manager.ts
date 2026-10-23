@@ -4,11 +4,9 @@ import {
   type SessionRole,
   isWsClientMessage,
 } from "@ga/contracts";
+import type { UnifiedSocket } from "./unified-socket";
 
-export interface UnifiedSocket {
-  send(data: string): void;
-  close?(code?: number, reason?: string): void;
-}
+export type { UnifiedSocket };
 
 export type MatcherFn = (req: {
   phash: string;

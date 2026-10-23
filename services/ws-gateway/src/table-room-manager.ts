@@ -1,26 +1,8 @@
-import { randomBytes } from "node:crypto";
 import { isTableClientMessage, type TableCredentials } from "@ga/contracts";
-import type { UnifiedSocket } from "./room-manager";
+import type { UnifiedSocket } from "./unified-socket";
 import { sendTableError } from "./table-messages";
+import { createTableCredentials, generateTableCode } from "./table-credentials";
 import { TableRoom } from "./table-room";
-
-/** 32 unambiguous characters: no 0/O or 1/I to mistype. 256 is divisible by 32. */
-const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-const CODE_LENGTH = 6;
-const TOKEN_BYTES = 16;
-
-function generateCode(): string {
-  const bytes = randomBytes(CODE_LENGTH);
-  let code = "";
-  for (let i = 0; i < CODE_LENGTH; i++) {
-    code += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
-  }
-  return code;
-}
-
-function generateToken(): string {
-  return randomBytes(TOKEN_BYTES).toString("hex");
-}
 
 /**
  * The dev gateway's in-memory table registry, and the router that binds each
@@ -40,17 +22,12 @@ export class TableRoomManager {
   private readonly socketTables = new Map<UnifiedSocket, TableRoom>();
 
   public createTable(): TableCredentials {
-    let code = generateCode();
+    let code = generateTableCode();
     while (this.tables.has(code)) {
-      code = generateCode();
+      code = generateTableCode();
     }
 
-    const credentials: TableCredentials = {
-      code,
-      p1Token: generateToken(),
-      p2Token: generateToken(),
-      viewerToken: generateToken(),
-    };
+    const credentials = createTableCredentials(code);
     this.tables.set(
       code,
       new TableRoom(code, credentials.p1Token, credentials.p2Token, credentials.viewerToken)
