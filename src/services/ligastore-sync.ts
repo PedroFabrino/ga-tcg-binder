@@ -10,6 +10,7 @@ import {
   parseLigaStoreSearchPage,
   type ParsedLigaStoreItem,
 } from "./ligastore-parser";
+import { resolveListing } from "./listing-resolver";
 import {
   loadCatalogResolutionData,
   type CatalogResolutionData,
@@ -17,92 +18,15 @@ import {
 import { db } from "../db";
 import type { InsertMarketCard } from "../db/schema";
 
-function normalizeAlphaNumeric(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-function normalizeCollectorNumber(value: unknown): string {
-  const normalized = String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "");
-
-  const match = normalized.match(/^(\d+)([a-z]*)$/);
-  if (!match) {
-    return normalized;
-  }
-
-  return `${String(Number(match[1]))}${match[2]}`;
-}
-
-function lookupCatalogCard(
-  source: unknown,
-  key: string
-): { slug: string; id?: string } | undefined {
-  if (source instanceof Map) {
-    return source.get(key);
-  }
-
-  if (source && typeof source === "object") {
-    return (source as Record<string, { slug: string; id?: string }>)[key];
-  }
-
-  return undefined;
-}
-
 export function resolveLigaStoreItem(
   item: ParsedLigaStoreItem,
   catalog: CatalogResolutionData
 ): { cardSlug: string | null; editionId: string | null; setPrefix: string } {
-  const source = item as any;
-  const lowerName = String(source.cardName ?? "").trim().toLowerCase();
-
-  const matchedCard =
-    lookupCatalogCard(catalog.cardByLowerName, lowerName) ??
-    lookupCatalogCard(
-      catalog.cardByAlphaNum,
-      normalizeAlphaNumeric(String(source.cardName ?? ""))
-    );
-
-  if (!matchedCard) {
-    return {
-      cardSlug: null,
-      editionId: null,
-      setPrefix: "UNKNOWN",
-    };
-  }
-
-  const collectorNumber = normalizeCollectorNumber(
-    source.collectorNumber ?? source.collector ?? source.number
+  return resolveListing(
+    { name: item.cardName, collectorNumber: item.collectorNumber },
+    catalog,
+    { keepCardWhenEditionMissing: false }
   );
-
-  const matchedEdition = (catalog.allCatalogEditions as any[]).find(
-    (edition) => {
-      const editionCardMatches =
-        edition.cardSlug === matchedCard.slug ||
-        (matchedCard.id != null && edition.cardId === matchedCard.id);
-
-      const editionCollectorNumber = normalizeCollectorNumber(
-        edition.collectorNumber ?? edition.collector ?? edition.number
-      );
-
-      return editionCardMatches && (editionCollectorNumber === collectorNumber || !collectorNumber);
-    }
-  );
-
-  if (!matchedEdition) {
-    return {
-      cardSlug: null,
-      editionId: null,
-      setPrefix: "UNKNOWN",
-    };
-  }
-
-  return {
-    cardSlug: matchedCard.slug,
-    editionId: matchedEdition.id,
-    setPrefix: matchedEdition.setPrefix,
-  };
 }
 
 export interface LigaStoreSyncResult {

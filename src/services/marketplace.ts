@@ -13,6 +13,7 @@ import {
   metaStaples,
 } from "../db/schema";
 import { DEFAULT_USER_ID } from "./seed";
+import { resolveMypItem as resolveListingMypItem } from "./listing-resolver";
 
 export interface ParsedMypItem {
   rawName: string;
@@ -580,60 +581,7 @@ export function resolveMypItem(
   item: ParsedMypItem,
   catalog: CatalogResolutionData
 ): { matchedCard: { slug: string; name: string } | null; editionId: string | null } {
-  const lowerClean = item.cleanName.toLowerCase().trim();
-
-  let matchedCard = catalog.cardByLowerName.get(lowerClean) || null;
-
-  // Fallback 1: Double-faced card split on `//`
-  if (!matchedCard && lowerClean.includes("//")) {
-    const frontFace = lowerClean.split("//")[0].trim();
-    matchedCard = catalog.cardByLowerName.get(frontFace) || null;
-  }
-
-  // Parse mypItemId (e.g. "grandarchive_ptm_086p1")
-  let parsedSet = item.setPrefix.toUpperCase().split(" ")[0];
-  let parsedNum: string | null = null;
-  if (item.mypItemId) {
-    const m = item.mypItemId.match(/^grandarchive_([a-z0-9]+)_([0-9]+)/i);
-    if (m) {
-      parsedSet = m[1].toUpperCase();
-      parsedNum = m[2];
-    }
-  }
-
-  // Fallback 2: Match by set_prefix + collector_number from mypItemId
-  if (!matchedCard && parsedSet && parsedNum) {
-    const edByNum = catalog.allCatalogEditions.find(
-      (e: any) =>
-        e.setPrefix.toUpperCase() === parsedSet &&
-        e.collectorNumber.padStart(3, "0") === parsedNum!.padStart(3, "0")
-    );
-    if (edByNum) {
-      matchedCard = catalog.allCatalogCards.find((c: any) => c.slug === edByNum.cardSlug) || null;
-    }
-  }
-
-  // Fallback 3: Alphanumeric normalized match
-  if (!matchedCard) {
-    const alpha = lowerClean.split("//")[0].replace(/[^a-z0-9]/g, "");
-    matchedCard = catalog.cardByAlphaNum.get(alpha) || null;
-  }
-
-  let editionId: string | null = null;
-  if (matchedCard) {
-    const edsForSlug = catalog.allCatalogEditions.filter(
-      (e: any) => e.cardSlug === matchedCard!.slug
-    );
-    const exactEd =
-      edsForSlug.find(
-        (e: any) => e.setPrefix.toUpperCase() === item.setPrefix.toUpperCase()
-      ) ||
-      edsForSlug.find((e: any) => e.setPrefix.toUpperCase() === parsedSet) ||
-      edsForSlug[0];
-    editionId = exactEd?.id || null;
-  }
-
-  return { matchedCard, editionId };
+  return resolveListingMypItem(item, catalog);
 }
 
 export interface MarketItemLike {

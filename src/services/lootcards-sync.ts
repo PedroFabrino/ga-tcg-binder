@@ -16,6 +16,7 @@ import {
   parseLootcardsDetailHtml,
   type ParsedLootcardsCard,
 } from "./lootcards-parser";
+import { resolveListing } from "./listing-resolver";
 
 export interface LootcardsSyncOptions {
   storeId?: string;
@@ -35,97 +36,19 @@ export interface LootcardsSyncStats {
 const BROWSER_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
-function normalizeAlphaNumeric(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-function normalizeCollectorNumber(value: unknown): string {
-  const normalized = String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "");
-
-  const match = normalized.match(/^(\d+)([a-z]*)$/);
-  if (!match) {
-    return normalized;
-  }
-
-  return `${String(Number(match[1]))}${match[2]}`;
-}
-
-function lookupCatalogCard(
-  source: unknown,
-  key: string
-): { slug: string; id?: string } | undefined {
-  if (source instanceof Map) {
-    return source.get(key);
-  }
-
-  if (source && typeof source === "object") {
-    return (source as Record<string, { slug: string; id?: string }>)[key];
-  }
-
-  return undefined;
-}
-
 export function resolveLootcardsCard(
   card: ParsedLootcardsCard,
   catalog: CatalogResolutionData
 ): { cardSlug: string | null; editionId: string | null; setPrefix: string } {
-  // 1. Direct match by editionUuid (Lootcards uses official Grand Archive edition UUIDs)
-  if (card.editionUuid) {
-    const matchedEdition = (catalog.allCatalogEditions as any[]).find(
-      (e) => e.id === card.editionUuid
-    );
-    if (matchedEdition) {
-      return {
-        cardSlug: matchedEdition.cardSlug,
-        editionId: matchedEdition.id,
-        setPrefix: matchedEdition.setPrefix ?? card.setPrefix,
-      };
-    }
-  }
-
-  // 2. Fallback to name and collector number matching
-  const lowerName = card.name.trim().toLowerCase();
-  const matchedCard =
-    lookupCatalogCard(catalog.cardByLowerName, lowerName) ??
-    lookupCatalogCard(catalog.cardByAlphaNum, normalizeAlphaNumeric(card.name));
-
-  if (!matchedCard) {
-    return {
-      cardSlug: null,
-      editionId: null,
-      setPrefix: "UNKNOWN",
-    };
-  }
-
-  const collectorNumber = normalizeCollectorNumber(card.collectorNumber);
-  const matchedEdition = (catalog.allCatalogEditions as any[]).find((edition) => {
-    const editionCardMatches =
-      edition.cardSlug === matchedCard.slug ||
-      (matchedCard.id != null && edition.cardId === matchedCard.id);
-
-    const editionCollectorNumber = normalizeCollectorNumber(
-      edition.collectorNumber ?? edition.collector ?? edition.number
-    );
-
-    return editionCardMatches && (editionCollectorNumber === collectorNumber || !collectorNumber);
-  });
-
-  if (!matchedEdition) {
-    return {
-      cardSlug: matchedCard.slug,
-      editionId: null,
-      setPrefix: "UNKNOWN",
-    };
-  }
-
-  return {
-    cardSlug: matchedEdition.cardSlug,
-    editionId: matchedEdition.id,
-    setPrefix: matchedEdition.setPrefix ?? card.setPrefix,
-  };
+  return resolveListing(
+    {
+      name: card.name,
+      collectorNumber: card.collectorNumber,
+      editionUuid: card.editionUuid,
+      setPrefix: card.setPrefix,
+    },
+    catalog
+  );
 }
 
 export async function syncLootcards(
