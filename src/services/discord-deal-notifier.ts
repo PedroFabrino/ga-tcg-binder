@@ -25,8 +25,9 @@ import {
   type DealAlertMatch,
   type DealAlertSource,
 } from "./deal-alert-format";
-import { MESSAGE_MAX_LENGTH } from "../lib/market-vocabulary";
+import { DISCORD_DM_DESTINATION, MESSAGE_MAX_LENGTH } from "../lib/market-vocabulary";
 import { splitMessageContent } from "./market-notification-message";
+import type { DirectMessageSink, DirectMessageRef } from "./market-notification-sink";
 import type { AssistantWantlistResponse } from "@ga/contracts";
 import type { DiscordEmbed } from "./discord-interactions/types";
 
@@ -130,15 +131,13 @@ export interface DealAlertDispatchResult {
   sent: number;
 }
 
-export interface DealAlertMessageRef {
-  channelId: string;
-  messageId: string;
-}
+export type DealAlertMessageRef = DirectMessageRef;
 
-export interface DealAlertTransport {
-  send(discordUserId: string, content: string): Promise<DealAlertMessageRef | null>;
-  delete(ref: DealAlertMessageRef): Promise<void>;
-}
+/** The Deal Alert DM is the `discord-dm` `DirectMessageSink` adapter. */
+export const DEAL_ALERT_DM_DESTINATION = DISCORD_DM_DESTINATION;
+
+/** @deprecated Use `DirectMessageSink` from the delivery-sink module. */
+export type DealAlertTransport = DirectMessageSink;
 
 const defaultDealAlertTransport: DealAlertTransport = {
   send: (discordUserId, content) => sendDiscordDirectContent(discordUserId, content),

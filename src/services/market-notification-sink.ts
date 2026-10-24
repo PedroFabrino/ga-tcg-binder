@@ -26,6 +26,29 @@ export interface MarketNotificationSink {
  ): Promise<void>;
 }
 
+/**
+ * A delivery seam for broadcast messages to a shared channel (Root community
+ * channel, Discord channel/webhook). Adapters satisfy `MarketNotificationSink`;
+ * the Root poller remains a pull-based adapter of this seam.
+ */
+export type ChannelDeliverySink = MarketNotificationSink;
+
+/** A single delivered direct message, referenced for rolling replacement. */
+export interface DirectMessageRef {
+ channelId: string;
+ messageId: string;
+}
+
+/**
+ * A delivery seam for per-recipient rolling messages (Deal Alert DMs). A
+ * Discord-DM adapter exists now; a Root-DM adapter is reserved behind the same
+ * interface without touching the formatter or the Outbox.
+ */
+export interface DirectMessageSink {
+ send(recipient: string, content: string): Promise<DirectMessageRef | null>;
+ delete(ref: DirectMessageRef): Promise<void>;
+}
+
 export interface MarketNotificationDeliveryResult {
  attempted: number;
  delivered: number;
