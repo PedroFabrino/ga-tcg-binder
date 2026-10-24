@@ -393,3 +393,4 @@ export const shippingTickets = sqliteTable("shipping_tickets", {
 export * from "./featured-set-schema";
 export * from "./assistant-schema";
 export * from "./deal-alert-schema";
+export * from "./root-bot-install-schema";
