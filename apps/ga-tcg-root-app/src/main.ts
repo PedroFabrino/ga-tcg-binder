@@ -8,11 +8,22 @@ import { logCommunityContext } from "./channel-diagnostics";
 async function onStarting(state: RootBotStartState) {
   console.log(`[root] Starting bot in community ${state.communityId}`);
 
-  const config = createCommunityConfig(rootServer.dataStore.appData);
-  const [sectionId, broadcastChannelId] = await Promise.all([
-    config.getAlertSectionId(),
-    config.getBroadcastChannelId(),
-  ]);
+  let sectionId: string | undefined;
+  let broadcastChannelId: string | undefined;
+
+  try {
+    const config = createCommunityConfig(rootServer.dataStore.appData);
+    [sectionId, broadcastChannelId] = await Promise.all([
+      config.getAlertSectionId(),
+      config.getBroadcastChannelId(),
+    ]);
+  } catch (err) {
+    console.warn(
+      "[root] Could not read community config yet:",
+      err instanceof Error ? err.message : err
+    );
+  }
+
   void logCommunityContext({ sectionId, broadcastChannelId });
 
   startMarketNotifier();
