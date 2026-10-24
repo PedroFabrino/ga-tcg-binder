@@ -7,7 +7,7 @@ import { ArrowLeft, Copy, Trash2, Crown, BookOpen, Check, LayoutGrid, List } fro
 import { ConfirmModal } from "@/components/common";
 import { SkeletonRow, EmptyState } from "@/components/Skeletons";
 import { useToast } from "@/components/ToastProvider";
-import ShortageTable, { FeasibilityBanner, type ShortageReport } from "@/components/decks/ShortageTable";
+import ShortageTable, { FeasibilityBanner, type ShortageReport, type ShortageItem } from "@/components/decks/ShortageTable";
 import DeckList, { type DeckCard } from "@/components/decks/DeckList";
 import DeckCardGrid from "@/components/decks/DeckCardGrid";
 import { Button } from "@/components/ui/button";
@@ -22,14 +22,18 @@ interface BinderTarget {
 }
 
 export default function DeckDetailPage() {
-const { t } = useTranslation();
-const params = useParams();
-const deckId = params?.id as string;
-const { data: session } = useSession();
-const { showToast } = useToast();
+  const { t } = useTranslation();
+  const params = useParams();
+  const deckId = params?.id as string;
+  const { data: session } = useSession();
+  const { showToast } = useToast();
 
   const [deck, setDeck] = useState<any>(null);
-  const [cards, setCards] = useState<{ material: DeckCard[]; main: DeckCard[]; side: DeckCard[] }>({ material: [], main: [], side: [] });
+  const [cards, setCards] = useState<{ material: DeckCard[]; main: DeckCard[]; side: DeckCard[] }>({
+    material: [],
+    main: [],
+    side: [],
+  });
   const [omnidexText, setOmnidexText] = useState("");
   const [shortage, setShortage] = useState<ShortageReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,7 +43,7 @@ const { showToast } = useToast();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [onlyMissing, setOnlyMissing] = useState(false);
-  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -70,7 +74,7 @@ const { showToast } = useToast();
     } finally {
       setLoading(false);
     }
-  }, [deckId, session?.user?.id, showToast]);
+  }, [deckId, session?.user?.id, showToast, t]);
 
   useEffect(() => {
     if (deckId) load();
@@ -111,7 +115,6 @@ const { showToast } = useToast();
         throw new Error(t("shortages.noPrintingFound"));
       }
 
-      // The collection endpoint treats quantity as a delta, so -1 removes a copy.
       const body = buildCollectionUpdateRequest(resolved.editionId, ownedQuantity, delta);
       if (!body) return;
 
@@ -144,22 +147,33 @@ const { showToast } = useToast();
     try {
       const res = await fetch(`/api/decks/${deckId}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
-      showToast(`Deleted "${deck?.name}"`, "info");
+      showToast(t("decks.deleteDeckModalTitle"), "info");
       window.location.href = "/decks";
     } catch {
-      showToast("Couldn't delete deck", "error");
+      showToast(t("common.error"), "error");
       setDeleting(false);
     }
   };
 
   if (notFound) {
-    return <EmptyState icon={BookOpen} title={t("decks.deleteDeck")} description={t("decks.deleteConfirm")} action={<Button asChild variant="outline"><a href="/decks">{t("settings.backLink")}</a></Button>} />;
+    return (
+      <EmptyState
+        icon={BookOpen}
+        title={t("decks.deleteDeck")}
+        description={t("decks.deleteConfirm")}
+        action={
+          <Button asChild variant="outline">
+            <a href="/decks">{t("settings.backLink")}</a>
+          </Button>
+        }
+      />
+    );
   }
 
   return (
     <div className="space-y-6 pb-12">
       <a href="/decks" className="inline-flex items-center gap-1.5 text-xs text-slate-400 transition-colors hover:text-white">
-        <ArrowLeft className="h-3.5 w-3.5" /> All Decks
+        <ArrowLeft className="h-3.5 w-3.5" /> {t("decks.allDecks")}
       </a>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between animate-fade-in">
@@ -171,21 +185,33 @@ const { showToast } = useToast();
             {deck ? (
               <>
                 <div className="mb-1 flex items-center gap-2">
-                  <span className="rounded-full border border-white/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-300">{deck.format}</span>
+                  <span className="rounded-full border border-white/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-300">
+                    {deck.format}
+                  </span>
                 </div>
                 <h1 className="truncate text-2xl font-semibold tracking-tight text-white sm:text-3xl">{deck.name}</h1>
-                <p className="text-sm text-slate-400">{deck.champion || "No champion set"}</p>
+                <p className="text-sm text-slate-400">{deck.champion || t("decks.noChampionSet")}</p>
               </>
             ) : (
-              <div className="space-y-2"><div className="skeleton h-7 w-56 rounded" /><div className="skeleton h-4 w-32 rounded" /></div>
+              <div className="space-y-2">
+                <div className="skeleton h-7 w-56 rounded" />
+                <div className="skeleton h-4 w-32 rounded" />
+              </div>
             )}
           </div>
         </div>
         <div className="flex gap-2">
           <Button onClick={copyOmnidex} disabled={!omnidexText} variant="outline">
-            {copied ? <Check className="h-4 w-4 text-emerald-300" /> : <Copy className="h-4 w-4" />} Export Omnidex
+            {copied ? <Check className="h-4 w-4 text-emerald-300" /> : <Copy className="h-4 w-4" />}{" "}
+            {t("decks.exportOmnidex")}
           </Button>
-          <Button onClick={() => setConfirmDelete(true)} disabled={!deck} variant="outline" className="hover:border-rose-400/30 hover:bg-rose-500/10 hover:text-rose-300" aria-label="Delete deck">
+          <Button
+            onClick={() => setConfirmDelete(true)}
+            disabled={!deck}
+            variant="outline"
+            className="hover:border-rose-400/30 hover:bg-rose-500/10 hover:text-rose-300"
+            aria-label={t("decks.deleteDeck")}
+          >
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>
@@ -194,68 +220,77 @@ const { showToast } = useToast();
       {loading ? (
         <div className="space-y-4">
           <div className="skeleton h-36 rounded-2xl" />
-          <div className="divide-y divide-white/[0.04] rounded-2xl glass">{Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i}/>)}</div>
+          <div className="divide-y divide-white/[0.04] rounded-2xl glass">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <SkeletonRow key={i} />
+            ))}
+          </div>
         </div>
       ) : (
         <>
-          {shortage && <FeasibilityBanner report={shortage}/>}
+          {shortage && <FeasibilityBanner report={shortage} />}
 
-          {/* View Toggle Bar */}
-          <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
-            <span className="text-xs text-slate-400 font-medium">Deck Content & Visuals</span>
-            <div className="inline-flex rounded-lg border border-white/[0.08] bg-slate-900/60 p-0.5">
-              <button
-                type="button"
-                onClick={() => setViewMode("list")}
-                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                  viewMode === "list"
-                    ? "bg-cyan-500/20 text-cyan-200 border border-cyan-500/30 shadow-sm"
-                    : "text-slate-400 hover:text-slate-200"
-                }`}
-                title="List View with Contention table"
-              >
-                <List className="h-3.5 w-3.5" />
-                <span>List View</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("grid")}
-                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                  viewMode === "grid"
-                    ? "bg-cyan-500/20 text-cyan-200 border border-cyan-500/30 shadow-sm"
-                    : "text-slate-400 hover:text-slate-200"
-                }`}
-                title="Artwork Grid View by Zone"
-              >
-                <LayoutGrid className="h-3.5 w-3.5" />
-                <span>Artwork Grid</span>
-              </button>
+          {/* View Toggle & Filter Bar */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-white/[0.06] pb-3">
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-slate-400 font-medium">{t("decks.contentAndVisuals")}</span>
+              <div className="inline-flex rounded-lg border border-white/[0.08] bg-slate-900/60 p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("grid")}
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                    viewMode === "grid"
+                      ? "bg-cyan-500/20 text-cyan-200 border border-cyan-500/30 shadow-sm"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                  title={t("decks.gridView")}
+                >
+                  <LayoutGrid className="h-3.5 w-3.5" />
+                  <span>{t("decks.gridView")}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("list")}
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                    viewMode === "list"
+                      ? "bg-cyan-500/20 text-cyan-200 border border-cyan-500/30 shadow-sm"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                  title={t("decks.listView")}
+                >
+                  <List className="h-3.5 w-3.5" />
+                  <span>{t("decks.listView")}</span>
+                </button>
+              </div>
             </div>
+
+            <label htmlFor="only-missing" className="flex cursor-pointer items-center gap-2 text-xs text-slate-400 hover:text-slate-200">
+              <Switch id="only-missing" checked={onlyMissing} onCheckedChange={setOnlyMissing} />
+              <span>{t("decks.onlyShowShortages")}</span>
+            </label>
           </div>
 
           {viewMode === "grid" ? (
-            <section className="rounded-2xl glass p-5 animate-fade-in" aria-label="Visual artwork grid">
+            <section className="rounded-2xl glass p-5 animate-fade-in" aria-label={t("decks.gridView")}>
               <DeckCardGrid
                 cards={cards}
                 shortageItems={shortage?.items || []}
+                onlyMissing={onlyMissing}
                 onAddOne={(cardSlug, cardName, assignedEditionId) =>
                   adjustCopies({ cardSlug, cardName, assignedEditionId }, 1, 0)
+                }
+                onAddMissing={(item) =>
+                  adjustCopies(item, item.missingQuantity, item.availableQuantity)
                 }
                 addingSlug={addingSlug}
               />
             </section>
           ) : (
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-              <section className="rounded-2xl glass p-5 lg:col-span-2" aria-label="Demand and contention">
-                <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h2 className="text-sm font-semibold text-white">Demand & Contention</h2>
-                    <p className="text-[11px] text-slate-500">Shared copies may fill several decks; dedicated copies stay with one.</p>
-                  </div>
-                  <label htmlFor="only-missing" className="flex cursor-pointer items-center gap-2 text-xs text-slate-400">
-                    <Switch id="only-missing" checked={onlyMissing} onCheckedChange={setOnlyMissing} />
-                    Only show shortages
-                  </label>
+              <section className="rounded-2xl glass p-5 lg:col-span-2" aria-label={t("decks.demandAndContention")}>
+                <div className="mb-4">
+                  <h2 className="text-sm font-semibold text-white">{t("decks.demandAndContention")}</h2>
+                  <p className="text-[11px] text-slate-500">{t("decks.demandHint")}</p>
                 </div>
                 <ShortageTable
                   items={shortage?.items || []}
@@ -269,8 +304,8 @@ const { showToast } = useToast();
                   onlyMissing={onlyMissing}
                 />
               </section>
-              <aside className="rounded-2xl glass p-5" aria-label="Decklist">
-                <DeckList {...cards}/>
+              <aside className="rounded-2xl glass p-5" aria-label={t("decks.decksTab")}>
+                <DeckList {...cards} />
               </aside>
             </div>
           )}
@@ -279,9 +314,9 @@ const { showToast } = useToast();
 
       {confirmDelete && (
         <ConfirmModal
-          title="Delete deck?"
-          message={`"${deck?.name}" will be removed. Cards in your binder are not affected.`}
-          confirmLabel="Delete Deck"
+          title={t("decks.deleteDeckModalTitle")}
+          message={t("decks.deleteDeckModalMessage", { name: deck?.name || "" })}
+          confirmLabel={t("decks.deleteDeck")}
           busy={deleting}
           onConfirm={doDelete}
           onClose={() => setConfirmDelete(false)}

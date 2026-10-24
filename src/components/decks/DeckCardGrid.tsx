@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import Image from "next/image";
-import { Plus, Check, AlertTriangle, Users, Loader2 } from "lucide-react";
+import { useMemo } from "react";
+import { Plus, Check, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getElementColor } from "@/lib/elements";
 import { CardPreviewTrigger } from "@/components/CardHoverPreview";
+import { useTranslation } from "@/lib/i18n";
 import type { DeckCard } from "./DeckList";
 import type { ShortageItem } from "./ShortageTable";
 
@@ -16,59 +16,124 @@ interface DeckCardGridProps {
     side: DeckCard[];
   };
   shortageItems?: ShortageItem[];
+  onlyMissing?: boolean;
   onAddOne?: (cardSlug: string, cardName?: string | null, assignedEditionId?: string | null) => Promise<void> | void;
+  onAddMissing?: (item: ShortageItem) => Promise<void> | void;
   addingSlug?: string | null;
 }
 
-const ZONE_METADATA: { key: "material" | "main" | "side"; title: string; hint: string; max?: number }[] = [
-  { key: "material", title: "Material Deck", hint: "Champions, weapons, regalia (up to 12 cards)", max: 12 },
-  { key: "main", title: "Main Deck", hint: "60+ cards standard constructed", max: 60 },
-  { key: "side", title: "Sideboard", hint: "Up to 12 situational cards", max: 12 },
+const ZONE_SECTIONS = [
+  {
+    key: "material" as const,
+    titleKey: "decks.zoneMaterial" as const,
+    hintKey: "decks.zoneMaterialHint" as const,
+    max: 12,
+  },
+  {
+    key: "main" as const,
+    titleKey: "decks.zoneMain" as const,
+    hintKey: "decks.zoneMainHint" as const,
+    max: 60,
+  },
+  {
+    key: "side" as const,
+    titleKey: "decks.zoneSide" as const,
+    hintKey: "decks.zoneSideHint" as const,
+    max: 12,
+  },
 ];
 
 export default function DeckCardGrid({
   cards,
   shortageItems = [],
+  onlyMissing = false,
   onAddOne,
+  onAddMissing,
   addingSlug,
 }: DeckCardGridProps) {
-  // Map cardSlug -> ShortageItem for quick access to Have, Need, Status
-  const shortageMap = new Map<string, ShortageItem>();
-  shortageItems.forEach((item) => {
-    // If card appears in multiple zones, we can key by zone-slug or just slug
-    shortageMap.set(`${item.zone}-${item.cardSlug}`, item);
-    // fallback by slug
-    if (!shortageMap.has(item.cardSlug)) {
-      shortageMap.set(item.cardSlug, item);
-    }
-  });
+  const { t } = useTranslation();
+
+  const shortageMap = useMemo(() => {
+    const map = new Map<string, ShortageItem>();
+    shortageItems.forEach((item) => {
+      map.set(`${item.zone}-${item.cardSlug}`, item);
+      if (!map.has(item.cardSlug)) {
+        map.set(item.cardSlug, item);
+      }
+    });
+    return map;
+  }, [shortageItems]);
 
   return (
     <div className="space-y-8 animate-fade-in">
-      {ZONE_METADATA.map(({ key, title, hint, max }) => {
+      {ZONE_SECTIONS.map(({ key, titleKey, hintKey, max }) => {
         const zoneCards = cards[key] || [];
         const totalCount = zoneCards.reduce((acc, c) => acc + c.quantity, 0);
 
+        const zoneMissingCount = zoneCards.reduce((acc, c) => {
+          const item = shortageMap.get(`${c.zone}-${c.cardSlug}`) || shortageMap.get(c.cardSlug);
+          const need = c.quantity;
+          const have = item ? item.availableQuantity : c.quantity;
+          const missing = item ? item.missingQuantity : Math.max(0, need - have);
+          return acc + missing;
+        }, 0);
+
+        const displayedCards = onlyMissing
+          ? zoneCards.filter((card) => {
+              const item = shortageMap.get(`${card.zone}-${card.cardSlug}`) || shortageMap.get(card.cardSlug);
+              const need = card.quantity;
+              const have = item ? item.availableQuantity : card.quantity;
+              const missing = item ? item.missingQuantity : Math.max(0, need - have);
+              return missing > 0;
+            })
+          : zoneCards;
+
+        const zoneTitle = t(titleKey);
+        const zoneHint = t(hintKey);
+
         return (
-          <section key={key} className="space-y-3">
+          <section key={key} className="space-y-3" aria-label={zoneTitle}>
             <div className="flex items-baseline justify-between border-b border-white/[0.08] pb-2">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-semibold text-white tracking-wide">{title}</h3>
-                <span className="text-[11px] text-slate-500 font-normal">({hint})</span>
+                <h3 className="text-sm font-bold text-white tracking-wide">{zoneTitle}</h3>
+                <span className="text-[11px] text-slate-500 font-normal">({zoneHint})</span>
               </div>
-              <span className="font-mono text-xs font-medium text-slate-400">
-                {totalCount}
-                {max ? <span className="text-slate-600"> / {max}</span> : null}
-              </span>
+              <div className="flex items-center gap-2">
+                {onlyMissing ? (
+                  zoneMissingCount > 0 ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/30 bg-rose-500/10 px-2.5 py-0.5 font-mono text-[11px] font-semibold text-rose-300">
+                      <AlertTriangle className="h-3 w-3" />
+                      {t("decks.shortagesCountBadge", { count: zoneMissingCount })}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 font-mono text-[11px] font-semibold text-emerald-300">
+                      <Check className="h-3 w-3" />
+                      {t("decks.ready")}
+                    </span>
+                  )
+                ) : (
+                  <span className="font-mono text-xs font-medium text-slate-400">
+                    {totalCount}
+                    {max ? <span className="text-slate-600"> / {max}</span> : null}
+                  </span>
+                )}
+              </div>
             </div>
 
-            {zoneCards.length === 0 ? (
-              <p className="py-8 text-center text-xs text-slate-500 rounded-xl border border-dashed border-white/[0.06]">
-                No cards in {title.toLowerCase()}.
-              </p>
+            {displayedCards.length === 0 ? (
+              onlyMissing && zoneCards.length > 0 ? (
+                <div className="flex items-center justify-center gap-2 py-8 text-xs text-emerald-300 rounded-xl border border-dashed border-emerald-500/20 bg-emerald-500/[0.03]">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                  <span>{t("decks.noShortagesInZone", { zone: zoneTitle })} ✨</span>
+                </div>
+              ) : (
+                <p className="py-8 text-center text-xs text-slate-500 rounded-xl border border-dashed border-white/[0.06]">
+                  {t("decks.noCardsInZoneNamed", { zone: zoneTitle })}
+                </p>
+              )
             ) : (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-                {zoneCards.map((card) => {
+              <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                {displayedCards.map((card) => {
                   const item = shortageMap.get(`${card.zone}-${card.cardSlug}`) || shortageMap.get(card.cardSlug);
                   const need = card.quantity;
                   const have = item ? item.availableQuantity : card.quantity;
@@ -76,30 +141,10 @@ export default function DeckCardGrid({
                   const isContended = item?.isContended ?? false;
                   const isAdding = addingSlug === card.cardSlug;
 
-                  let statusBadge = (
-                    <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400 border border-emerald-500/20">
-                      <Check className="h-3 w-3" /> Ready
-                    </span>
-                  );
-
-                  if (missing > 0) {
-                    statusBadge = (
-                      <span className="inline-flex items-center gap-1 rounded bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-rose-400 border border-rose-500/20">
-                        <AlertTriangle className="h-3 w-3" /> Short ({missing})
-                      </span>
-                    );
-                  } else if (isContended) {
-                    statusBadge = (
-                      <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 border border-amber-500/20">
-                        <AlertTriangle className="h-3 w-3" /> Shared
-                      </span>
-                    );
-                  }
-
                   return (
                     <div
                       key={card.id || `${card.zone}-${card.cardSlug}`}
-                      className="group flex flex-col justify-between overflow-hidden rounded-xl border border-white/[0.08] bg-slate-900/80 transition-all hover:border-cyan-400/40 hover:shadow-[0_0_20px_-5px_rgba(6,182,212,0.15)]"
+                      className="group flex flex-col justify-between overflow-hidden rounded-2xl border border-white/[0.08] bg-slate-900/90 shadow-md transition-all duration-200 hover:border-cyan-400/40 hover:shadow-[0_0_25px_-5px_rgba(6,182,212,0.2)]"
                     >
                       {/* Card Artwork Image Container */}
                       <CardPreviewTrigger
@@ -128,61 +173,145 @@ export default function DeckCardGrid({
                           </div>
                         )}
 
-                        {/* Top Overlay Badge for Quantity Needed */}
-                        <div className="absolute top-1.5 right-1.5 rounded-md bg-black/75 px-1.5 py-0.5 font-mono text-[11px] font-bold text-white shadow backdrop-blur-sm">
-                          x{card.quantity}
-                        </div>
-
-                        {/* Element Dot Indicator */}
+                        {/* Top-Left: Element Dot */}
                         <div
-                          className="absolute top-2 left-2 h-2.5 w-2.5 rounded-full shadow"
+                          className="absolute top-2 left-2 h-2.5 w-2.5 rounded-full shadow ring-1 ring-black/40"
                           style={{ background: getElementColor(card.element || "NORM") }}
                         />
+
+                        {/* Top-Right: Shortage or Quantity Badge */}
+                        <div className="absolute top-2 right-2">
+                          {missing > 0 ? (
+                            <span className="inline-flex items-center gap-1 rounded-md border border-rose-500/40 bg-rose-950/85 px-1.5 py-0.5 font-mono text-[10px] font-bold text-rose-200 shadow-md backdrop-blur-md">
+                              <AlertTriangle className="h-3 w-3 text-rose-400" />
+                              {t("decks.missingBadge", { count: missing })}
+                            </span>
+                          ) : isContended ? (
+                            <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/40 bg-amber-950/85 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-200 shadow-md backdrop-blur-md">
+                              <AlertTriangle className="h-3 w-3 text-amber-400" />
+                              {t("decks.shared")}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-950/85 px-1.5 py-0.5 font-mono text-[10px] font-bold text-emerald-300 shadow-md backdrop-blur-md">
+                              <Check className="h-3 w-3 text-emerald-400" />
+                              x{card.quantity}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Floating Artwork HUD: Have & Need */}
+                        <div className="absolute bottom-2 inset-x-2 flex items-center justify-between rounded-lg border border-white/[0.12] bg-slate-950/85 px-2.5 py-1 text-xs shadow-lg backdrop-blur-md">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                              {t("decks.have")}
+                            </span>
+                            <span
+                              className={`font-mono text-xs font-bold ${
+                                have >= need ? "text-emerald-400" : have > 0 ? "text-cyan-300" : "text-rose-400"
+                              }`}
+                            >
+                              {have}
+                            </span>
+                          </div>
+                          <span className="text-slate-600 font-mono text-xs">/</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                              {t("decks.need")}
+                            </span>
+                            <span className="font-mono text-xs font-bold text-white">{need}</span>
+                          </div>
+                        </div>
                       </CardPreviewTrigger>
 
                       {/* Card Details & Bottom Metrics Bar */}
                       <div className="flex flex-col p-2.5 gap-2 bg-slate-900/90 border-t border-white/[0.04]">
-                        <div className="min-w-0">
-                          <CardPreviewTrigger
-                            name={card.cardName || card.cardSlug}
-                            slug={card.cardSlug}
-                            imageUrl={card.imageUrl}
-                            element={card.element}
+                        <CardPreviewTrigger
+                          name={card.cardName || card.cardSlug}
+                          slug={card.cardSlug}
+                          imageUrl={card.imageUrl}
+                          element={card.element}
+                        >
+                          <h4
+                            className="truncate text-xs font-semibold text-slate-200 transition-colors hover:text-cyan-300 cursor-pointer"
+                            title={card.cardName || card.cardSlug}
                           >
-                            <h4 className="truncate text-xs font-semibold text-slate-200 transition-colors hover:text-cyan-300 cursor-pointer">
-                              {card.cardName || card.cardSlug}
-                            </h4>
-                          </CardPreviewTrigger>
-                          <div className="mt-1 flex items-center justify-between text-[11px]">
-                            <span className="text-slate-400">
-                              Need: <span className="font-mono font-semibold text-white">{need}</span>
-                            </span>
-                            <span className="text-slate-400">
-                              Have: <span className="font-mono font-semibold text-cyan-200">{have}</span>
-                            </span>
-                          </div>
+                            {card.cardName || card.cardSlug}
+                          </h4>
+                        </CardPreviewTrigger>
+
+                        {/* Visual Progress Bar */}
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.08]">
+                          <div
+                            className={`h-full rounded-full transition-all duration-300 ${
+                              have >= need
+                                ? "bg-emerald-400"
+                                : have > 0
+                                ? "bg-gradient-to-r from-cyan-500 to-amber-400"
+                                : "bg-rose-500/50"
+                            }`}
+                            style={{ width: `${Math.min(100, Math.round((have / Math.max(1, need)) * 100))}%` }}
+                          />
                         </div>
 
-                        <div className="flex items-center justify-between pt-1 border-t border-white/[0.04]">
-                          {statusBadge}
-
-                          {onAddOne && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => onAddOne(card.cardSlug, card.cardName, card.assignedEditionId)}
-                              disabled={isAdding}
-                              className="h-6 px-1.5 text-[10px] gap-1 hover:border-cyan-400/40 hover:bg-cyan-500/10 hover:text-cyan-200"
-                              title="Add 1 copy to Binder"
-                            >
-                              {isAdding ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <Plus className="h-3 w-3" />
-                              )}
-                              <span>+1</span>
-                            </Button>
+                        {/* Actions and Status Row */}
+                        <div className="flex items-center justify-between pt-1 border-t border-white/[0.04] gap-1">
+                          {missing > 0 ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-300">
+                              <AlertTriangle className="h-3 w-3 text-rose-400 shrink-0" />
+                              <span className="truncate">{t("decks.shortCount", { count: missing })}</span>
+                            </span>
+                          ) : isContended ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-300">
+                              <AlertTriangle className="h-3 w-3 text-amber-400 shrink-0" />
+                              <span className="truncate">{t("decks.shared")}</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-300">
+                              <Check className="h-3 w-3 text-emerald-400 shrink-0" />
+                              <span className="truncate">{t("decks.ready")}</span>
+                            </span>
                           )}
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            {onAddOne && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => onAddOne(card.cardSlug, card.cardName, card.assignedEditionId)}
+                                disabled={isAdding}
+                                className="h-6 px-1.5 text-[10px] gap-1 hover:border-cyan-400/40 hover:bg-cyan-500/10 hover:text-cyan-200"
+                                title={t("decks.addOneTitle")}
+                              >
+                                {isAdding ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Plus className="h-3 w-3" />
+                                )}
+                                <span>{t("decks.addOne")}</span>
+                              </Button>
+                            )}
+
+                            {missing > 1 && onAddMissing && item && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => onAddMissing(item)}
+                                disabled={isAdding}
+                                className="h-6 px-1.5 text-[10px] border-rose-400/30 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200"
+                                title={t("decks.addAllMissingTitle", {
+                                  count: missing,
+                                  cardName: card.cardName || card.cardSlug,
+                                })}
+                              >
+                                {isAdding ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Plus className="h-3 w-3" />
+                                )}
+                                <span>{t("decks.addAllMissing", { count: missing })}</span>
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
