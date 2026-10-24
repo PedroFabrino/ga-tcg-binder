@@ -47,6 +47,7 @@ exports.users = (0, sqlite_core_1.sqliteTable)("users", {
     slightlyOverpricedMultiplier: (0, sqlite_core_1.real)("slightly_overpriced_multiplier").notNull().default(1.2),
     heavilyOverpricedMultiplier: (0, sqlite_core_1.real)("heavily_overpriced_multiplier").notNull().default(2.0),
     watchlistSyncToken: (0, sqlite_core_1.text)("watchlist_sync_token"),
+    hiddenSetUuids: (0, sqlite_core_1.text)("hidden_set_uuids").notNull().default("[]"),
     createdAt: (0, sqlite_core_1.integer)("created_at", { mode: "timestamp" }).default((0, drizzle_orm_1.sql) `(strftime('%s', 'now'))`),
 });
 // ---------------------------------------------------------------------------
@@ -240,6 +241,7 @@ exports.marketCards = (0, sqlite_core_1.sqliteTable)("market_cards", {
     vendorName: (0, sqlite_core_1.text)("vendor_name"),
     vendorUrl: (0, sqlite_core_1.text)("vendor_url"),
     firstSeenAt: (0, sqlite_core_1.integer)("first_seen_at", { mode: "timestamp" }).notNull().default((0, drizzle_orm_1.sql) `(strftime('%s', 'now'))`),
+    lastStockedAt: (0, sqlite_core_1.integer)("last_stocked_at", { mode: "timestamp" }),
     lastSeenAt: (0, sqlite_core_1.integer)("last_seen_at", { mode: "timestamp" }).default((0, drizzle_orm_1.sql) `(strftime('%s', 'now'))`),
     updatedAt: (0, sqlite_core_1.integer)("updated_at", { mode: "timestamp" }).default((0, drizzle_orm_1.sql) `(strftime('%s', 'now'))`),
 }, (table) => ({
@@ -360,4 +362,9 @@ exports.shippingTickets = (0, sqlite_core_1.sqliteTable)("shipping_tickets", {
 }, (table) => ({
     userTicketUnique: (0, sqlite_core_1.uniqueIndex)("shipping_tickets_user_ticket_idx").on(table.userId, table.superfreteOrderId),
 }));
+// Featured-set tables live in ./featured-set-schema to stay under 400 lines.
+__exportStar(require("./featured-set-schema"), exports);
 __exportStar(require("./assistant-schema"), exports);
+__exportStar(require("./deal-alert-schema"), exports);
+__exportStar(require("./root-bot-install-schema"), exports);
+__exportStar(require("./root-community-identity-schema"), exports);

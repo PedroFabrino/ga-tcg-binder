@@ -1,14 +1,19 @@
 import { type RootServer } from "@rootsdk/server-bot";
-export type CommunityDirectory = Pick<RootServer["community"], "communities" | "channelGroups" | "channels">;
+export type CommunityDirectory = Pick<RootServer["community"], "communities" | "channelGroups">;
+export interface CommunityContextOptions {
+    sectionId?: string;
+    broadcastChannelId?: string;
+    envCommunityId?: string;
+}
 /**
- * Builds a human-readable listing of the community the bot is attached to:
- * its name and ID, every channel group and channel, and whether the
- * configured notification channel exists in it.
+ * Builds a startup snapshot of the attached community and the Root deal-alert
+ * configuration: the community id (compared with `COMMUNITY_ID`), whether the
+ * configured channel section exists, and whether the bot role exists. This
+ * makes "wrong community" and "wrong id" mix-ups self-diagnosing.
  */
-export declare function describeCommunityChannels(directory: CommunityDirectory, configuredChannelId: string): Promise<string[]>;
+export declare function describeCommunityContext(directory: CommunityDirectory, options?: CommunityContextOptions): Promise<string[]>;
 /**
- * Logs the community/channel listing at startup. The devhost attaches the
- * community shortly after the bot starts, so early calls can fail; retry a
- * few times before giving up. Never throws.
+ * Logs the attached-community snapshot at startup. Retries while the devhost
+ * attaches the community; never throws.
  */
-export declare function logCommunityChannels(configuredChannelId: string, attempts?: number, retryDelayMs?: number, directory?: CommunityDirectory): Promise<void>;
+export declare function logCommunityContext(options?: CommunityContextOptions, attempts?: number, retryDelayMs?: number, directory?: CommunityDirectory): Promise<void>;

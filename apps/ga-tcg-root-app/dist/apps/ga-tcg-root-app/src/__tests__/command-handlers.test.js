@@ -120,4 +120,103 @@ const contracts_1 = require("@ga/contracts");
         (0, vitest_1.expect)(res).toContain("Grand Archive Binder Account Not Linked");
         (0, vitest_1.expect)(res).toContain("/link <code>");
     });
+    (0, vitest_1.describe)("/notify", () => {
+        function createDeps(collectorId = "collector-1") {
+            return {
+                findCollectorId: vitest_1.vi.fn().mockResolvedValue(collectorId),
+                setNotificationPreference: vitest_1.vi.fn().mockResolvedValue(undefined),
+                provisionDealAlerts: vitest_1.vi.fn().mockResolvedValue(undefined),
+                removeDealAlertChannel: vitest_1.vi.fn().mockResolvedValue(undefined),
+                ensureRecipientChannel: vitest_1.vi.fn().mockResolvedValue("chan-private"),
+                configureFromChannel: vitest_1.vi.fn().mockResolvedValue(undefined),
+                isCommunityAdmin: vitest_1.vi.fn().mockResolvedValue(true),
+            };
+        }
+        (0, vitest_1.it)("enables deal alerts and provisions the private channel", async () => {
+            const deps = createDeps();
+            const res = await (0, command_handlers_1.processRootCommand)(mockUserId, "/notify on", {}, deps);
+            (0, vitest_1.expect)(res).toContain("Deal alerts enabled");
+            (0, vitest_1.expect)(res).toContain("root://channel/chan-private");
+            (0, vitest_1.expect)(deps.ensureRecipientChannel).toHaveBeenCalledWith(mockUserId);
+            (0, vitest_1.expect)(deps.setNotificationPreference).toHaveBeenCalledWith(mockUserId, true);
+            (0, vitest_1.expect)(deps.provisionDealAlerts).toHaveBeenCalledTimes(1);
+        });
+        (0, vitest_1.it)("uses the injected API client for the preference by default", async () => {
+            const fakeApi = {
+                getCollector: vitest_1.vi
+                    .fn()
+                    .mockResolvedValue({ collectorId: "collector-1", collectorName: "Ash" }),
+                setNotifyPreference: vitest_1.vi.fn().mockResolvedValue(undefined),
+            };
+            const deps = {
+                ensureRecipientChannel: vitest_1.vi.fn().mockResolvedValue("chan-private"),
+                provisionDealAlerts: vitest_1.vi.fn().mockResolvedValue(undefined),
+            };
+            const res = await (0, command_handlers_1.processRootCommand)(mockUserId, "/notify on", fakeApi, deps);
+            (0, vitest_1.expect)(res).toContain("Deal alerts enabled");
+            (0, vitest_1.expect)(fakeApi.getCollector).toHaveBeenCalledWith(mockUserId);
+            (0, vitest_1.expect)(fakeApi.setNotifyPreference).toHaveBeenCalledWith({
+                providerUserId: mockUserId,
+                enabled: true,
+            });
+        });
+        (0, vitest_1.it)("falls back to a deferred-channel message when creation fails", async () => {
+            const deps = createDeps();
+            deps.ensureRecipientChannel.mockResolvedValue(null);
+            const res = await (0, command_handlers_1.processRootCommand)(mockUserId, "/notify on", {}, deps);
+            (0, vitest_1.expect)(res).toContain("next marketplace sync");
+        });
+        (0, vitest_1.it)("disables deal alerts and removes the private channel", async () => {
+            const deps = createDeps();
+            const res = await (0, command_handlers_1.processRootCommand)(mockUserId, "/notify off", {}, deps);
+            (0, vitest_1.expect)(res).toContain("Deal alerts disabled");
+            (0, vitest_1.expect)(deps.setNotificationPreference).toHaveBeenCalledWith(mockUserId, false);
+            (0, vitest_1.expect)(deps.removeDealAlertChannel).toHaveBeenCalledWith(mockUserId);
+        });
+        (0, vitest_1.it)("returns usage when no action is given", async () => {
+            const deps = createDeps();
+            const res = await (0, command_handlers_1.processRootCommand)(mockUserId, "/notify", {}, deps);
+            (0, vitest_1.expect)(res).toContain("Usage:");
+            (0, vitest_1.expect)(deps.setNotificationPreference).not.toHaveBeenCalled();
+        });
+        (0, vitest_1.it)("prompts to link when the identity is not linked", async () => {
+            const deps = createDeps(null);
+            const res = await (0, command_handlers_1.processRootCommand)(mockUserId, "/notify on", {}, deps);
+            (0, vitest_1.expect)(res).toContain("Account Not Linked");
+            (0, vitest_1.expect)(deps.setNotificationPreference).not.toHaveBeenCalled();
+        });
+    });
+    (0, vitest_1.describe)("/setup", () => {
+        function createDeps(admin = true) {
+            return {
+                configureFromChannel: vitest_1.vi.fn().mockResolvedValue(undefined),
+                isCommunityAdmin: vitest_1.vi.fn().mockResolvedValue(admin),
+            };
+        }
+        (0, vitest_1.it)("warns before changing the dump channel", async () => {
+            const deps = createDeps(true);
+            const res = await (0, command_handlers_1.processRootCommand)(mockUserId, "/setup", {}, deps, "chan-market");
+            (0, vitest_1.expect)(res).toContain("become the market dump");
+            (0, vitest_1.expect)(res).toContain("/setup confirm");
+            (0, vitest_1.expect)(deps.configureFromChannel).not.toHaveBeenCalled();
+        });
+        (0, vitest_1.it)("records the channel when an admin confirms", async () => {
+            const deps = createDeps(true);
+            const res = await (0, command_handlers_1.processRootCommand)(mockUserId, "/setup confirm", {}, deps, "chan-market");
+            (0, vitest_1.expect)(res).toContain("Setup complete");
+            (0, vitest_1.expect)(deps.configureFromChannel).toHaveBeenCalledWith("chan-market");
+        });
+        (0, vitest_1.it)("refuses when the caller is not an admin", async () => {
+            const deps = createDeps(false);
+            const res = await (0, command_handlers_1.processRootCommand)(mockUserId, "/setup confirm", {}, deps, "chan-market");
+            (0, vitest_1.expect)(res).toContain("Only community admins");
+            (0, vitest_1.expect)(deps.configureFromChannel).not.toHaveBeenCalled();
+        });
+        (0, vitest_1.it)("asks to run it inside a channel", async () => {
+            const deps = createDeps(true);
+            const res = await (0, command_handlers_1.processRootCommand)(mockUserId, "/setup confirm", {}, deps);
+            (0, vitest_1.expect)(res).toContain("inside the channel");
+            (0, vitest_1.expect)(deps.configureFromChannel).not.toHaveBeenCalled();
+        });
+    });
 });

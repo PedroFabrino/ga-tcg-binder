@@ -444,6 +444,23 @@ export declare const users: import("drizzle-orm/sqlite-core").SQLiteTableWithCol
             identity: undefined;
             generated: undefined;
         }, object>;
+        hiddenSetUuids: import("drizzle-orm/sqlite-core").SQLiteColumn<{
+            name: "hidden_set_uuids";
+            tableName: "users";
+            dataType: "string";
+            columnType: "SQLiteText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, object>;
         createdAt: import("drizzle-orm/sqlite-core").SQLiteColumn<{
             name: "created_at";
             tableName: "users";
@@ -2820,6 +2837,23 @@ export declare const marketCards: import("drizzle-orm/sqlite-core").SQLiteTableW
             identity: undefined;
             generated: undefined;
         }, object>;
+        lastStockedAt: import("drizzle-orm/sqlite-core").SQLiteColumn<{
+            name: "last_stocked_at";
+            tableName: "market_cards";
+            dataType: "date";
+            columnType: "SQLiteTimestamp";
+            data: Date;
+            driverParam: number;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, object>;
         lastSeenAt: import("drizzle-orm/sqlite-core").SQLiteColumn<{
             name: "last_seen_at";
             tableName: "market_cards";
@@ -4501,4 +4535,8 @@ export declare const shippingTickets: import("drizzle-orm/sqlite-core").SQLiteTa
     };
     dialect: "sqlite";
 }>;
+export * from "./featured-set-schema";
 export * from "./assistant-schema";
+export * from "./deal-alert-schema";
+export * from "./root-bot-install-schema";
+export * from "./root-community-identity-schema";

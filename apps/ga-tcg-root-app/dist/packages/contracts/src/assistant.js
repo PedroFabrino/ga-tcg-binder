@@ -37,12 +37,15 @@ class AssistantClient {
             ...options,
             headers,
         });
-        const data = await res.json().catch(() => ({}));
+        const data = (await res.json().catch(() => ({})));
         if (!res.ok) {
-            const code = data?.error || `HTTP_${res.status}`;
-            const message = data?.message || `Assistant API request failed with status ${res.status}`;
+            const code = typeof data.error === "string" ? data.error : `HTTP_${res.status}`;
+            const message = typeof data.message === "string"
+                ? data.message
+                : `Assistant API request failed with status ${res.status}`;
             throw new AssistantApiError(res.status, code, message);
         }
+        // JSON boundary: the caller owns the response shape.
         return data;
     }
     async link(req) {

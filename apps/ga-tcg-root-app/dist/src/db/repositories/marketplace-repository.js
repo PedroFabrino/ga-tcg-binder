@@ -84,8 +84,29 @@ async function upsertMarketCards(listings, database = index_1.db) {
     for (const listing of listings) {
         const row = {
             ...listing,
+            lastStockedAt: (listing.quantity ?? 1) > 0 ? (listing.lastStockedAt ?? observedAt) : null,
             lastSeenAt: listing.lastSeenAt ?? observedAt,
             updatedAt: listing.updatedAt ?? observedAt,
+        };
+        const conflictUpdate = {
+            cardSlug: row.cardSlug,
+            editionId: row.editionId,
+            rawName: row.rawName,
+            cardName: row.cardName,
+            setPrefix: row.setPrefix,
+            quantity: row.quantity,
+            price: row.price,
+            priceNumeric: row.priceNumeric,
+            tcgPrice: row.tcgPrice,
+            tcgPriceNumeric: row.tcgPriceNumeric,
+            quality: row.quality,
+            isFoil: row.isFoil,
+            productUrl: row.productUrl,
+            vendorName: row.vendorName,
+            vendorUrl: row.vendorUrl,
+            lastStockedAt: (0, drizzle_orm_1.sql) `CASE WHEN ${schema_1.marketCards.quantity} <= 0 AND ${row.quantity} > 0 THEN strftime('%s', 'now') ELSE ${schema_1.marketCards.lastStockedAt} END`,
+            lastSeenAt: row.lastSeenAt,
+            updatedAt: row.updatedAt,
         };
         if (row.itemId) {
             await database
@@ -93,25 +114,7 @@ async function upsertMarketCards(listings, database = index_1.db) {
                 .values(row)
                 .onConflictDoUpdate({
                 target: [schema_1.marketCards.storeId, schema_1.marketCards.itemId],
-                set: {
-                    cardSlug: row.cardSlug,
-                    editionId: row.editionId,
-                    rawName: row.rawName,
-                    cardName: row.cardName,
-                    setPrefix: row.setPrefix,
-                    quantity: row.quantity,
-                    price: row.price,
-                    priceNumeric: row.priceNumeric,
-                    tcgPrice: row.tcgPrice,
-                    tcgPriceNumeric: row.tcgPriceNumeric,
-                    quality: row.quality,
-                    isFoil: row.isFoil,
-                    productUrl: row.productUrl,
-                    vendorName: row.vendorName,
-                    vendorUrl: row.vendorUrl,
-                    lastSeenAt: row.lastSeenAt,
-                    updatedAt: row.updatedAt,
-                },
+                set: conflictUpdate,
             });
         }
         else {
@@ -120,25 +123,7 @@ async function upsertMarketCards(listings, database = index_1.db) {
                 .values(row)
                 .onConflictDoUpdate({
                 target: schema_1.marketCards.id,
-                set: {
-                    cardSlug: row.cardSlug,
-                    editionId: row.editionId,
-                    rawName: row.rawName,
-                    cardName: row.cardName,
-                    setPrefix: row.setPrefix,
-                    quantity: row.quantity,
-                    price: row.price,
-                    priceNumeric: row.priceNumeric,
-                    tcgPrice: row.tcgPrice,
-                    tcgPriceNumeric: row.tcgPriceNumeric,
-                    quality: row.quality,
-                    isFoil: row.isFoil,
-                    productUrl: row.productUrl,
-                    vendorName: row.vendorName,
-                    vendorUrl: row.vendorUrl,
-                    lastSeenAt: row.lastSeenAt,
-                    updatedAt: row.updatedAt,
-                },
+                set: conflictUpdate,
             });
         }
     }
@@ -223,11 +208,19 @@ async function updateStoreLastNotifiedAt(storeId, notifiedAt, database = index_1
  * Returns cards for a store observed after the specified timestamp (or all cards if null/undefined).
  */
 async function getMarketCardsSeenAfter(storeId, since, database = index_1.db) {
-    const conditions = [(0, drizzle_orm_1.eq)(schema_1.marketCards.storeId, storeId)];
+    const conditions = [
+        (0, drizzle_orm_1.eq)(schema_1.marketCards.storeId, storeId),
+        (0, drizzle_orm_1.gt)(schema_1.marketCards.quantity, 0),
+    ];
     if (since) {
-        conditions.push((0, drizzle_orm_1.gt)(schema_1.marketCards.firstSeenAt, since));
+        const sinceSec = Math.floor(since.getTime() / 1000);
+        conditions.push((0, drizzle_orm_1.sql) `COALESCE(${schema_1.marketCards.lastStockedAt}, ${schema_1.marketCards.firstSeenAt}) > ${sinceSec}`);
     }
-    return database.select().from(schema_1.marketCards).where((0, drizzle_orm_1.and)(...conditions));
+    return database
+        .select()
+        .from(schema_1.marketCards)
+        .where((0, drizzle_orm_1.and)(...conditions))
+        .orderBy(schema_1.marketCards.firstSeenAt);
 }
 /**
  * Returns pending (unsent) market notifications.

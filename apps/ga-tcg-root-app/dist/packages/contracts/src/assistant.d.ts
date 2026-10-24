@@ -87,6 +87,56 @@ export interface AssistantCollectionResponse {
     query: string;
     cards: AssistantCollectionCard[];
 }
+export interface AssistantPortfolioElementCount {
+    element: string;
+    count: number;
+}
+export interface AssistantPortfolioSummary {
+    collectorId: string;
+    collectorName: string | null;
+    friendCode: string;
+    totalCards: number;
+    uniqueCards: number;
+    foilCards: number;
+    normalCards: number;
+    dedicatedCards: number;
+    idleCards: number;
+    elements: AssistantPortfolioElementCount[];
+    profileUrl: string;
+}
+export interface AssistantPortfolioResponse {
+    collectorId: string;
+    portfolio: AssistantPortfolioSummary;
+}
+export interface AssistantPersonalWantItem {
+    id: string;
+    collectorId: string;
+    cardSlug: string;
+    cardName: string;
+    element: string;
+    type: string;
+    class: string | null;
+    editionId: string | null;
+    setPrefix: string | null;
+    setName: string | null;
+    collectorNumber: string | null;
+    imageUrl: string | null;
+    desiredQuantity: number;
+    foil: boolean | null;
+    targetMaxPrice: number | null;
+    source: string;
+}
+export interface AssistantAggregateWantlistResponse {
+    collectorId: string;
+    collectorName?: string | null;
+    decks: AssistantDeckWantlistGroup[];
+    personalWants: AssistantPersonalWantItem[];
+    totalDecks: number;
+    totalPersonalWants: number;
+    grandTotalHard: number;
+    grandTotalShared: number;
+    grandTotalPersonal: number;
+}
 export interface AssistantDeckWantlistGroup {
     deckId: string;
     deckName: string;

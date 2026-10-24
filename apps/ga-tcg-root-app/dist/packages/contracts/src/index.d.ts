@@ -188,3 +188,7 @@ export declare function parseFeatureFlag(val: unknown, defaultValue?: boolean): 
 export * from "./i18n";
 export * from "./fulfillment";
 export * from "./assistant";
+export * from "./sets";
+export * from "./table";
+export * from "./webrtc";
+export * from "./root-bot";
