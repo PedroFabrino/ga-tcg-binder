@@ -45,6 +45,8 @@ Rules are **hard** for all new and modified code. Existing violations are tracke
 - No dead or commented-out code. `noUnusedLocals`/`noUnusedParameters` stay enabled for `apps/table` and `services/ws-gateway`; do not disable them.
 - Degradation must be observable: a `catch` that falls back to a placeholder, cache miss, or network path must `console.warn` with a reason or return a typed failure. Never swallow an error silently.
 - Client hooks must not hide mutable state in module-level singletons without a reset seam; expose a test reset or pass state through context.
+- Spec/ADR ↔ code parity: when a change ships behavior that differs from its spec or ADR, update the doc in the same change (or file a blocking follow-up). Never leave spec, ADR, and code disagreeing.
+- Finite state machines ship one orchestration test that walks the full lifecycle — including its exclusion/negative invariants — in addition to per-transition branch tests.
 - Secrets come from environment variables only; never commit or log them.
 - No new dependency, layer, or language without an ADR in `docs/adr/`. The stack is TypeScript only; no Go or other languages.
 
