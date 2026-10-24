@@ -33,12 +33,6 @@ export function readRootDealAlertSectionId(
   );
 }
 
-export function readRootDealAlertBotRoleId(
-  env: Record<string, string | undefined> = process.env
-): string | undefined {
-  return env.ROOT_DEAL_ALERT_BOT_ROLE_ID || undefined;
-}
-
 export interface RootDealAlertNotifierOptions {
   intervalMs?: number;
   api?: RootDealAlertApi;
@@ -77,7 +71,6 @@ export function startDealAlertNotifier(
   const transport = createRootDealAlertTransport({
     channelGroupId,
     api: options.api ?? createRootServerDealAlertApi(),
-    botRoleId: readRootDealAlertBotRoleId(),
   });
   const database = options.database ?? db;
 
@@ -129,7 +122,6 @@ function rootDealAlertTransportFromEnv(
   return createRootDealAlertTransport({
     channelGroupId,
     api: api ?? createRootServerDealAlertApi(),
-    botRoleId: readRootDealAlertBotRoleId(),
   });
 }
 

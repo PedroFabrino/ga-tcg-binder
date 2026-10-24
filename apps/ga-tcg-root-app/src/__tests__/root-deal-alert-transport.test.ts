@@ -23,6 +23,7 @@ function createFakeApi() {
 
   const api: RootDealAlertApi = {
     everyoneRoleId: "role_everyone",
+    botId: "app_bot",
     async createChannel(request) {
       nextChannel += 1;
       const id = `chan-${nextChannel}`;
@@ -74,6 +75,7 @@ describe("Root deal-alert transport", () => {
           channelViewMessageHistory: true,
         },
       },
+      { roleOrMemberId: "app_bot", overlay: { channelFullControl: true } },
     ]);
 
     expect(fake.messages).toEqual([
@@ -82,18 +84,17 @@ describe("Root deal-alert transport", () => {
     expect(ref).toEqual({ channelId: "chan-1", messageId: "msg-1" });
   });
 
-  it("grants the bot role full control when configured", async () => {
+  it("always grants the bot's own app id full control", async () => {
     const fake = createFakeApi();
     const transport = createRootDealAlertTransport({
       channelGroupId: "section_1",
       api: fake.api,
-      botRoleId: "role_bot",
     });
 
     await transport.send("root_user_1", "the list");
 
     expect(fake.channels[0].accessRuleCreates).toContainEqual({
-      roleOrMemberId: "role_bot",
+      roleOrMemberId: "app_bot",
       overlay: { channelFullControl: true },
     });
   });

@@ -31,6 +31,8 @@ export interface RootDealAlertAccessRule {
 
 export interface RootDealAlertApi {
   everyoneRoleId: string;
+  /** The bot's own id; used to grant the bot access to the channels it creates. */
+  botId: string;
   createChannel(request: {
     channelGroupId: string;
     name: string;
@@ -57,6 +59,7 @@ export function createRootServerDealAlertApi(
 ): RootDealAlertApi {
   return {
     everyoneRoleId: String(WellKnownRootGuids.CommunityRoles.EveryoneRole),
+    botId: String(root.appId),
     async createChannel(request) {
       const channel = await root.community.channels.create({
         channelGroupId: request.channelGroupId as ChannelGroupGuid,
@@ -102,12 +105,6 @@ export interface RootDealAlertTransportOptions {
   api: RootDealAlertApi;
   /** `ChannelType.Text` by default. */
   channelType?: number;
-  /**
-   * The community role the bot holds (e.g. "GA Alerts Bot"). Because each
-   * per-user channel denies `channelView` to the Everyone role, the bot needs
-   * an explicit grant or it loses access to the channels it creates.
-   */
-  botRoleId?: string;
 }
 
 function channelNameForRecipient(recipient: string): string {
@@ -124,7 +121,6 @@ export function createRootDealAlertTransport({
   channelGroupId,
   api,
   channelType = ChannelType.Text,
-  botRoleId,
 }: RootDealAlertTransportOptions): DirectMessageSink {
   return {
     async send(recipient, content, previousChannelId) {
@@ -141,14 +137,14 @@ export function createRootDealAlertTransport({
             channelViewMessageHistory: true,
           },
         },
-      ];
-
-      if (botRoleId) {
-        accessRuleCreates.push({
-          roleOrMemberId: botRoleId,
+        {
+          // Each channel denies the Everyone role view, so the bot must grant
+          // itself access explicitly (as a member: an App is a valid
+          // RoleOrMemberGuid).
+          roleOrMemberId: api.botId,
           overlay: { channelFullControl: true },
-        });
-      }
+        },
+      ];
 
       const channelId =
         previousChannelId ??

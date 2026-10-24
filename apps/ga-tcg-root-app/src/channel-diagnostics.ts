@@ -3,7 +3,7 @@ import { describeError } from "./describe-error";
 
 export type CommunityDirectory = Pick<
   RootServer["community"],
-  "communities" | "channelGroups" | "channels" | "communityRoles"
+  "communities" | "channelGroups" | "channels"
 >;
 
 const DEFAULT_ATTEMPTS = 4;
@@ -83,7 +83,6 @@ export async function logCommunityChannels(
 
 export interface CommunityContextOptions {
   sectionId?: string;
-  botRoleId?: string;
   envCommunityId?: string;
 }
 
@@ -130,25 +129,9 @@ export async function describeCommunityContext(
     );
   }
 
-  if (options.botRoleId) {
-    try {
-      const roles = await directory.communityRoles.list();
-      const role = roles.find((candidate) => String(candidate.id) === options.botRoleId);
-      lines.push(
-        role
-          ? `Deal-alert bot role: "${role.name}" (${options.botRoleId})`
-          : `Deal-alert bot role ${options.botRoleId} NOT FOUND in this community.`
-      );
-    } catch (err) {
-      lines.push(
-        `Deal-alert bot role ${options.botRoleId}: could not list roles (${describeError(err)}).`
-      );
-    }
-  } else {
-    lines.push(
-      "Deal-alert bot role: not configured (set ROOT_DEAL_ALERT_BOT_ROLE_ID)."
-    );
-  }
+  lines.push(
+    "Deal-alert access: self-granted via the bot's own app id (no bot role needed)."
+  );
 
   return lines;
 }
