@@ -14,9 +14,9 @@ import {
 } from "../db/schema";
 import { DEFAULT_USER_ID } from "./seed";
 import { resolveMypItem as resolveListingMypItem } from "./listing-resolver";
-import { decodeHtml, parseBrlPrice } from "./market-crawl";
+import { decodeHtml, parseBrlPrice, isCloudflareChallenge } from "./market-crawl";
 
-export { parseBrlPrice };
+export { parseBrlPrice, isCloudflareChallenge };
 
 export interface ParsedMypItem {
   rawName: string;
@@ -427,17 +427,6 @@ export function cleanMypUsername(input: string): string {
 }
 
 import { execFileSync } from "child_process";
-
-export function isCloudflareChallenge(text: string): boolean {
-  if (!text) return false;
-  return (
-    text.includes("<title>Just a moment...</title>") ||
-    text.includes("challenges.cloudflare.com") ||
-    text.includes("id=\"challenge-running\"") ||
-    text.includes("cf-mitigated") ||
-    text.includes("Enable JavaScript and cookies to continue")
-  );
-}
 
 export async function fetchMypText(url: string, customFetch?: typeof fetch): Promise<string> {
   const userAgent =
