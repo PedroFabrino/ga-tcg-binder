@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "es2022",
-    "composite": true,
+    "composite": false,
     "declaration": true,
     "outDir": "dist",
     "module": "commonjs",
@@ -25,13 +25,7 @@
   },
   "include": [
     "src/**/*.ts",
-    "../../packages/contracts/src/**/*.ts",
-    "../../src/db/index.ts",
-    "../../src/db/schema.ts",
-    "../../src/db/assistant-schema.ts",
-    "../../src/db/notification-delivery-schema.ts",
-    "../../src/db/repositories/marketplace-repository.ts",
-    "../../src/services/market-notification-formatter.ts"
+    "../../packages/contracts/src/**/*.ts"
   ],
   "exclude": ["node_modules"]
 }
