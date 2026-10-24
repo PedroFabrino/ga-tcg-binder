@@ -32,8 +32,11 @@ export interface RootCommandDeps {
   isCommunityAdmin?: (userId: string) => Promise<boolean>;
 }
 
-function defaultRootCommandDeps(): Required<RootCommandDeps> {
-  const api = getRootBotApi();
+function defaultRootCommandDeps(
+  communityId?: string
+): Required<RootCommandDeps> {
+  const api = getRootBotApi(communityId);
+  const recipientOptions = { communityId, api };
 
   return {
     async findCollectorId(userId) {
@@ -51,13 +54,13 @@ function defaultRootCommandDeps(): Required<RootCommandDeps> {
       await api.setNotifyPreference({ providerUserId, enabled });
     },
     async provisionDealAlerts() {
-      await provisionRootDealAlerts();
+      await provisionRootDealAlerts(recipientOptions);
     },
     async removeDealAlertChannel(recipientId) {
-      await removeRootDealAlertChannel(recipientId);
+      await removeRootDealAlertChannel(recipientId, recipientOptions);
     },
     async ensureRecipientChannel(recipientId) {
-      return ensureRootRecipientChannel(recipientId);
+      return ensureRootRecipientChannel(recipientId, recipientOptions);
     },
     async configureFromChannel(channelId) {
       const config = createCommunityConfig(rootServer.dataStore.appData);
@@ -101,8 +104,10 @@ function defaultRootCommandDeps(): Required<RootCommandDeps> {
   };
 }
 
-export function getRootBotApi(): RootBotApi {
-  return new RootBotApi({ communityId: process.env.COMMUNITY_ID ?? "" });
+export function getRootBotApi(communityId?: string): RootBotApi {
+  return new RootBotApi({
+    communityId: communityId ?? process.env.COMMUNITY_ID ?? "",
+  });
 }
 
 /**
@@ -114,9 +119,10 @@ export async function processRootCommand(
   messageContent: string,
   client: RootBotApi = getRootBotApi(),
   deps: RootCommandDeps = {},
-  channelId?: string
+  channelId?: string,
+  communityId?: string
 ): Promise<string | null> {
-  const resolvedDeps = { ...defaultRootCommandDeps(), ...deps };
+  const resolvedDeps = { ...defaultRootCommandDeps(communityId), ...deps };
   const trimmed = messageContent.trim();
   if (!trimmed.startsWith("/")) return null;
 
@@ -325,7 +331,7 @@ export async function processRootCommand(
 /**
  * Subscribes to Root channel messages and executes assistant commands.
  */
-export function registerRootCommandHandlers(): void {
+export function registerRootCommandHandlers(communityId?: string): void {
   rootServer.community.channelMessages.on(
     "channelMessage.created" as any,
     async (evt: ChannelMessageCreatedEvent) => {
@@ -335,9 +341,10 @@ export function registerRootCommandHandlers(): void {
       const reply = await processRootCommand(
         evt.userId,
         evt.messageContent,
+        getRootBotApi(communityId),
         undefined,
-        undefined,
-        String(evt.channelId)
+        String(evt.channelId),
+        communityId
       );
       if (!reply) return;
 

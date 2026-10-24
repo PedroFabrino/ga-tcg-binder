@@ -59,6 +59,10 @@ export class RootBotApi {
         communityId: this.communityId,
         apiBaseUrl: this.baseUrl,
         fetchImpl: this.fetchImpl,
+      }).catch((err) => {
+        // Allow a later call to retry the install instead of caching a failure.
+        this.tokenPromise = null;
+        throw err;
       });
     }
     return this.tokenPromise;
