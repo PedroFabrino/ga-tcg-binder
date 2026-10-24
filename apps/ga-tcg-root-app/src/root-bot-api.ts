@@ -128,6 +128,15 @@ export class RootBotApi {
     });
   }
 
+  async getDealAlertChannel(
+    recipientId: string
+  ): Promise<{ channelId: string; messageIds: string[] } | null> {
+    const params = new URLSearchParams({ recipientId });
+    return this.request(
+      `/api/root-bot/deal-alerts/channel?${params.toString()}`
+    );
+  }
+
   async getCollector(providerUserId: string): Promise<RootBotCollectorResponse> {
     const params = new URLSearchParams({ provider: "root", providerUserId });
     return this.request(`/api/root-bot/collector?${params.toString()}`);
