@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Layers, Sparkles, Gem, TrendingUp, Upload, LayoutGrid, Table2, Plus, SearchX, Store } from "lucide-react";
+import { Layers, Sparkles, Gem, TrendingUp, Upload, Download, LayoutGrid, Table2, Plus, SearchX, Store } from "lucide-react";
 import { PageHeader, Tabs } from "@/components/common";
 import { isCollectionViewAvailable, resolveCollectionView, type CollectionView } from "@/lib/collection-views";
 import { readVendorCapability } from "@/lib/settings-capabilities";
@@ -13,6 +13,7 @@ import BinderView from "@/components/collection/BinderView";
 import CollectionSearchBar from "@/components/collection/CollectionSearchBar";
 import QuickAddModal from "@/components/collection/QuickAddModal";
 import BulkImportModal from "@/components/collection/BulkImportModal";
+import CollectionExportModal from "@/components/collection/CollectionExportModal";
 import MypStoreView from "@/components/collection/MypStoreView";
 import { filterCollectionItems } from "@/components/collection/filter";
 import type { CollectionItem } from "@/components/collection/types";
@@ -23,41 +24,41 @@ import { useTranslation } from "@/lib/i18n";
 type View = CollectionView;
 
 const TAB_KEYS: Record<View, "collection.allCardsTab" | "collection.staplesTab" | "collection.lowPopTab" | "collection.idleTab" | "collection.mypStoreTab"> = {
-ALL: "collection.allCardsTab",
-STAPLES: "collection.staplesTab",
-LOW_POP: "collection.lowPopTab",
-IDLE: "collection.idleTab",
-MYP_STORE: "collection.mypStoreTab",
+  ALL: "collection.allCardsTab",
+  STAPLES: "collection.staplesTab",
+  LOW_POP: "collection.lowPopTab",
+  IDLE: "collection.idleTab",
+  MYP_STORE: "collection.mypStoreTab",
 };
 
 const TAB_ICONS: Record<View, any> = {
-ALL: Layers,
-STAPLES: TrendingUp,
-LOW_POP: Gem,
-IDLE: Sparkles,
-MYP_STORE: Store,
+  ALL: Layers,
+  STAPLES: TrendingUp,
+  LOW_POP: Gem,
+  IDLE: Sparkles,
+  MYP_STORE: Store,
 };
 
 const EMPTY_TITLE_KEYS: Record<View, "collection.emptyBinderTitle" | "collection.emptyStaplesTitle" | "collection.emptyLowPopTitle" | "collection.emptyIdleTitle" | "collection.emptyMypStoreTitle"> = {
-ALL: "collection.emptyBinderTitle",
-STAPLES: "collection.emptyStaplesTitle",
-LOW_POP: "collection.emptyLowPopTitle",
-IDLE: "collection.emptyIdleTitle",
-MYP_STORE: "collection.emptyMypStoreTitle",
+  ALL: "collection.emptyBinderTitle",
+  STAPLES: "collection.emptyStaplesTitle",
+  LOW_POP: "collection.emptyLowPopTitle",
+  IDLE: "collection.emptyIdleTitle",
+  MYP_STORE: "collection.emptyMypStoreTitle",
 };
 
 const EMPTY_DESC_KEYS: Record<View, "collection.emptyBinderDesc" | "collection.emptyBinderDescNoScanner" | "collection.emptyStaplesDesc" | "collection.emptyLowPopDesc" | "collection.emptyIdleDesc" | "collection.emptyMypStoreDesc"> = {
-ALL: FEATURES.scanner ? "collection.emptyBinderDesc" : "collection.emptyBinderDescNoScanner",
-STAPLES: "collection.emptyStaplesDesc",
-LOW_POP: "collection.emptyLowPopDesc",
-IDLE: "collection.emptyIdleDesc",
-MYP_STORE: "collection.emptyMypStoreDesc",
+  ALL: FEATURES.scanner ? "collection.emptyBinderDesc" : "collection.emptyBinderDescNoScanner",
+  STAPLES: "collection.emptyStaplesDesc",
+  LOW_POP: "collection.emptyLowPopDesc",
+  IDLE: "collection.emptyIdleDesc",
+  MYP_STORE: "collection.emptyMypStoreDesc",
 };
 
 export default function CollectionPage() {
-const { t } = useTranslation();
-const { data: session } = useSession();
-const { showToast } = useToast();
+  const { t } = useTranslation();
+  const { data: session } = useSession();
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<View>("ALL");
   const [mode, setMode] = useState<"table" | "binder">("table");
   const [items, setItems] = useState<CollectionItem[]>([]);
@@ -65,6 +66,7 @@ const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [hasVendorCapability, setHasVendorCapability] = useState(false);
 
@@ -157,15 +159,15 @@ const { showToast } = useToast();
   const filteredCopies = filteredItems.reduce((s, i) => s + i.quantity, 0);
   const isFiltered = searchQuery.trim().length > 0;
   const visibleTabs = (Object.keys(TAB_KEYS) as View[])
-  .filter((id) => isCollectionViewAvailable(id, hasVendorCapability))
-  .map((id) => ({ id, label: t(TAB_KEYS[id]), icon: TAB_ICONS[id] }));
+    .filter((id) => isCollectionViewAvailable(id, hasVendorCapability))
+    .map((id) => ({ id, label: t(TAB_KEYS[id]), icon: TAB_ICONS[id] }));
 
   return (
     <div className="space-y-6 pb-12">
       <PageHeader
-      eyebrow={t("collection.title")}
-      title={t("collection.title")}
-      description={t("collection.subtitle")}
+        eyebrow={t("collection.title")}
+        title={t("collection.title")}
+        description={t("collection.subtitle")}
         actions={
           <>
             <span
@@ -181,10 +183,13 @@ const { showToast } = useToast();
               )}
             </span>
             <Button onClick={() => setShowAddModal(true)} variant="default">
-            <Plus className="h-4 w-4" /> {t("collection.addCard")}
+              <Plus className="h-4 w-4" /> {t("collection.addCard")}
             </Button>
             <Button onClick={() => setShowBulk(true)} variant="outline">
-            <Upload className="h-4 w-4" /> {t("collection.bulkImport")}
+              <Upload className="h-4 w-4" /> {t("collection.bulkImport")}
+            </Button>
+            <Button onClick={() => setShowExport(true)} variant="outline">
+              <Download className="h-4 w-4" /> {t("collection.exportCollection")}
             </Button>
           </>
         }
@@ -260,6 +265,16 @@ const { showToast } = useToast();
             if (n > 0) showToast(`Imported ${n} ${n === 1 ? "copy" : "copies"} into your binder`, "success");
             fetchCollection(true);
           }}
+        />
+      )}
+
+      {showExport && (
+        <CollectionExportModal
+          onClose={() => setShowExport(false)}
+          currentItems={filteredItems}
+          userId={session?.user?.id}
+          activeTabTitle={t(TAB_KEYS[activeTab])}
+          isFiltered={isFiltered}
         />
       )}
     </div>
