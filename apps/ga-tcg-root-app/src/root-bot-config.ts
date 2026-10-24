@@ -6,4 +6,4 @@
  * only for local development/testing.
  */
 export const ROOT_BOT_API_BASE_URL =
-  process.env.ROOT_BOT_API_BASE_URL ?? "https://YOUR-APP.vercel.app";
+  process.env.ROOT_BOT_API_BASE_URL ?? "https://ga-tcg-binder.vercel.app";
