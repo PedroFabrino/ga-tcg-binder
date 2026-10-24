@@ -142,7 +142,7 @@ describe("Root Command Handlers (processRootCommand)", () => {
         provisionDealAlerts: vi.fn().mockResolvedValue(undefined),
         removeDealAlertChannel: vi.fn().mockResolvedValue(undefined),
         setBroadcastChannel: vi.fn().mockResolvedValue(undefined),
-        isCommunityOwner: vi.fn().mockResolvedValue(true),
+        isCommunityAdmin: vi.fn().mockResolvedValue(true),
       } as RootCommandDeps;
     }
 
@@ -212,19 +212,35 @@ describe("Root Command Handlers (processRootCommand)", () => {
   });
 
   describe("/setup", () => {
-    function createDeps(owner = true): RootCommandDeps {
+    function createDeps(admin = true): RootCommandDeps {
       return {
         setBroadcastChannel: vi.fn().mockResolvedValue(undefined),
-        isCommunityOwner: vi.fn().mockResolvedValue(owner),
+        isCommunityAdmin: vi.fn().mockResolvedValue(admin),
       } as RootCommandDeps;
     }
 
-    it("records the current channel when the owner runs it", async () => {
+    it("warns before changing the dump channel", async () => {
       const deps = createDeps(true);
 
       const res = await processRootCommand(
         mockUserId,
         "/setup",
+        {} as AssistantClient,
+        deps,
+        "chan-market"
+      );
+
+      expect(res).toContain("become the market dump");
+      expect(res).toContain("/setup confirm");
+      expect(deps.setBroadcastChannel).not.toHaveBeenCalled();
+    });
+
+    it("records the channel when an admin confirms", async () => {
+      const deps = createDeps(true);
+
+      const res = await processRootCommand(
+        mockUserId,
+        "/setup confirm",
         {} as AssistantClient,
         deps,
         "chan-market"
@@ -234,27 +250,27 @@ describe("Root Command Handlers (processRootCommand)", () => {
       expect(deps.setBroadcastChannel).toHaveBeenCalledWith("chan-market");
     });
 
-    it("refuses when the caller is not the community owner", async () => {
+    it("refuses when the caller is not an admin", async () => {
       const deps = createDeps(false);
 
       const res = await processRootCommand(
         mockUserId,
-        "/setup",
+        "/setup confirm",
         {} as AssistantClient,
         deps,
         "chan-market"
       );
 
-      expect(res).toContain("Only the community owner");
+      expect(res).toContain("Only community admins");
       expect(deps.setBroadcastChannel).not.toHaveBeenCalled();
     });
 
-    it("asks the owner to run it inside a channel", async () => {
+    it("asks to run it inside a channel", async () => {
       const deps = createDeps(true);
 
       const res = await processRootCommand(
         mockUserId,
-        "/setup",
+        "/setup confirm",
         {} as AssistantClient,
         deps
       );

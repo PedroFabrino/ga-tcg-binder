@@ -2,7 +2,9 @@ import { AssistantClient, AssistantApiError } from "@ga/contracts";
 import {
   rootServer,
   MessageType,
+  WellKnownRootGuids,
   type ChannelMessageCreatedEvent,
+  type UserGuid,
 } from "@rootsdk/server-bot";
 import { findCollectorByIdentity } from "../../../src/db/repositories/assistant-repository";
 import { setWantlistNotificationPreference } from "../../../src/db/repositories/personal-wants-repository";
@@ -25,7 +27,7 @@ export interface RootCommandDeps {
   provisionDealAlerts?: () => Promise<void>;
   removeDealAlertChannel?: (recipientId: string) => Promise<void>;
   setBroadcastChannel?: (channelId: string) => Promise<void>;
-  isCommunityOwner?: (userId: string) => Promise<boolean>;
+  isCommunityAdmin?: (userId: string) => Promise<boolean>;
 }
 
 function defaultRootCommandDeps(): Required<RootCommandDeps> {
@@ -48,9 +50,28 @@ function defaultRootCommandDeps(): Required<RootCommandDeps> {
         rootServer.dataStore.appData
       ).setBroadcastChannelId(channelId);
     },
-    async isCommunityOwner(userId) {
+    async isCommunityAdmin(userId) {
       const community = await rootServer.community.communities.get();
-      return String(community.ownerUserId) === userId;
+      if (String(community.ownerUserId) === userId) {
+        return true;
+      }
+
+      const [member, roles] = await Promise.all([
+        rootServer.community.communityMembers.get({
+          userId: userId as unknown as UserGuid,
+        }),
+        rootServer.community.communityRoles.list(),
+      ]);
+
+      const roleIds = new Set(member.communityRoleIds.map((id) => String(id)));
+      roleIds.add(String(WellKnownRootGuids.CommunityRoles.EveryoneRole));
+
+      return roles.some(
+        (role) =>
+          roleIds.has(String(role.id)) &&
+          (role.communityPermission.communityManageApps ||
+            role.communityPermission.communityFullControl)
+      );
     },
   };
 }
@@ -236,16 +257,20 @@ export async function processRootCommand(
 
     // 7. /setup
     if (command === "setup") {
-      if (!(await resolvedDeps.isCommunityOwner(userId))) {
-        return "⚠️ Only the community owner can run `/setup`.";
+      if (!(await resolvedDeps.isCommunityAdmin(userId))) {
+        return "⚠️ Only community admins (Manage Apps) or the owner can run `/setup`.";
       }
 
       if (!channelId) {
         return "⚠️ Run `/setup` inside the channel you want market updates posted to.";
       }
 
+      if (argString.toLowerCase() !== "confirm") {
+        return "⚠️ **This channel will become the market dump.** Every store update will be posted here.\nRun `/setup confirm` in this channel to apply it.";
+      }
+
       await resolvedDeps.setBroadcastChannel(channelId);
-      return "✅ **Setup complete.** Market updates will now be posted in this channel.";
+      return "✅ **Setup complete.** This channel is now the market dump — store updates will be posted here.";
     }
 
     return null;

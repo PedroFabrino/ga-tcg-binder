@@ -101,7 +101,9 @@ is created automatically on first use.
 **Community (Root client, owner)**
 
 - Install/approve the app with the updated permissions.
-- Run `/setup` in the channel that should receive market updates (owner only).
+- Run `/setup` in the channel that should receive market updates (community
+  admins with Manage Apps, or the owner). It warns that the channel becomes the
+  market dump and requires `/setup confirm` to apply.
 - That's it: the bot creates its own "GA Alerts" channel group on first
   dispatch and grants itself access to each per-user channel via its app id.
 - Notifications need no manifest permission; the app can send them once
