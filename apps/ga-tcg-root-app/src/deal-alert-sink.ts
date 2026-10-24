@@ -46,7 +46,9 @@ export function parseMessageIds(raw: string | null | undefined): string[] {
         );
       }
     } catch {
-      // fall back to comma separation
+      console.warn(
+        "[deal-alert-sink] Could not parse message ids as JSON; falling back to comma separation."
+      );
     }
   }
 

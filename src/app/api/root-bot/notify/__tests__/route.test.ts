@@ -5,10 +5,14 @@ const identityMocks = vi.hoisted(() => ({ findCollectorByIdentity: vi.fn() }));
 const preferenceMocks = vi.hoisted(() => ({
   setWantlistNotificationPreference: vi.fn(),
 }));
+const communityMocks = vi.hoisted(() => ({
+  linkRootCommunityIdentity: vi.fn(),
+}));
 
 vi.mock("@/services/root-bot-auth", () => authMocks);
 vi.mock("@/db/repositories/assistant-repository", () => identityMocks);
 vi.mock("@/db/repositories/personal-wants-repository", () => preferenceMocks);
+vi.mock("@/db/repositories/root-community-identity-repository", () => communityMocks);
 
 import { POST } from "../route";
 

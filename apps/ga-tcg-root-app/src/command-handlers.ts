@@ -33,9 +33,10 @@ export interface RootCommandDeps {
 }
 
 function defaultRootCommandDeps(
-  communityId?: string
+  communityId?: string,
+  client?: RootBotApi
 ): Required<RootCommandDeps> {
-  const api = getRootBotApi(communityId);
+  const api = client ?? getRootBotApi(communityId);
   const recipientOptions = { communityId, api };
 
   return {
@@ -122,7 +123,10 @@ export async function processRootCommand(
   channelId?: string,
   communityId?: string
 ): Promise<string | null> {
-  const resolvedDeps = { ...defaultRootCommandDeps(communityId), ...deps };
+  const resolvedDeps = {
+    ...defaultRootCommandDeps(communityId, client),
+    ...deps,
+  };
   const trimmed = messageContent.trim();
   if (!trimmed.startsWith("/")) return null;
 

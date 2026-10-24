@@ -508,6 +508,24 @@ FOREIGN KEY (\`group_uuid\`) REFERENCES \`featured_set_groups\`(\`uuid\`) ON UPD
 CREATE INDEX IF NOT EXISTS \`idx_set_definitions_group_uuid\` ON \`set_definitions\` (\`group_uuid\`);
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS \`idx_set_definitions_prefix\` ON \`set_definitions\` (\`prefix\`);
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS \`root_bot_installs\` (
+  \`app_id\` text NOT NULL,
+  \`community_id\` text NOT NULL,
+  \`token_hash\` text NOT NULL,
+  \`created_at\` integer DEFAULT (strftime('%s', 'now')) NOT NULL,
+  \`revoked_at\` integer,
+  PRIMARY KEY (\`app_id\`, \`community_id\`)
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS \`root_bot_installs_token_hash_idx\` ON \`root_bot_installs\` (\`token_hash\`);
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS \`root_community_identities\` (
+  \`community_id\` text NOT NULL,
+  \`provider_user_id\` text NOT NULL,
+  \`created_at\` integer DEFAULT (strftime('%s', 'now')) NOT NULL,
+  PRIMARY KEY (\`community_id\`, \`provider_user_id\`)
+);
 `;
 
 let defaultClientMigrationsPromise: Promise<void> | null = null;

@@ -2,9 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const authMocks = vi.hoisted(() => ({ authenticateRootBot: vi.fn() }));
 const repoMocks = vi.hoisted(() => ({ findCollectorByIdentity: vi.fn() }));
+const communityMocks = vi.hoisted(() => ({
+  linkRootCommunityIdentity: vi.fn(),
+}));
 
 vi.mock("@/services/root-bot-auth", () => authMocks);
 vi.mock("@/db/repositories/assistant-repository", () => repoMocks);
+vi.mock("@/db/repositories/root-community-identity-repository", () => communityMocks);
 
 import { GET } from "../route";
 

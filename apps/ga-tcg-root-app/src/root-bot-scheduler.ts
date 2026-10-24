@@ -1,4 +1,8 @@
-import { JobInterval, type JobScheduler } from "@rootsdk/server-bot";
+import {
+  JobInterval,
+  type JobData,
+  type JobScheduler,
+} from "@rootsdk/server-bot";
 
 export interface RootBotPollingOptions {
   scheduler: JobScheduler;
@@ -30,18 +34,35 @@ export async function scheduleRootBotPolling(
     });
   };
 
-  options.scheduler.on("job", (job) => {
+  const handle = (job: JobData): void => {
     if (job.tag !== options.tag) {
       return;
     }
     void (async () => {
       try {
         await options.run();
+      } catch (err) {
+        console.error(
+          `[root-bot-scheduler] Poll failed for ${options.tag}:`,
+          err instanceof Error ? err.message : err
+        );
       } finally {
-        await scheduleNext();
+        try {
+          await scheduleNext();
+        } catch (err) {
+          console.error(
+            `[root-bot-scheduler] Could not reschedule ${options.tag}:`,
+            err instanceof Error ? err.message : err
+          );
+        }
       }
     })();
-  });
+  };
+
+  // `job.missed` fires when a one-time job elapsed while the bot was down, so
+  // handle it the same way; otherwise polling would stop permanently.
+  options.scheduler.on("job", handle);
+  options.scheduler.on("job.missed", handle);
 
   await scheduleNext();
 }

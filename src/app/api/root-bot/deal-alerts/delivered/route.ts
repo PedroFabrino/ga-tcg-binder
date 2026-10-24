@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { authenticateRootBot } from "@/services/root-bot-auth";
-import { upsertDealAlertMessage } from "@/db/repositories/deal-alert-repository";
+import { recordCommunityDealAlertDelivery } from "@/services/root-bot-service";
 
 export async function POST(request: Request) {
   const caller = await authenticateRootBot(request);
@@ -23,23 +23,18 @@ export async function POST(request: Request) {
     !Array.isArray(messageIds) ||
     !Array.isArray(lastListingKeys)
   ) {
-    return NextResponse.json(
-      { error: "MISSING_FIELDS" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "MISSING_FIELDS" }, { status: 400 });
   }
 
-  await upsertDealAlertMessage({
-    destination: `root:${caller.communityId}`,
+  await recordCommunityDealAlertDelivery(caller.communityId, {
     recipientId,
     channelId,
-    messageId: messageIds
-      .filter((id): id is string => typeof id === "string")
-      .join(","),
-    lastListingKeys: JSON.stringify(
-      lastListingKeys.filter((key): key is string => typeof key === "string")
+    messageIds: messageIds.filter(
+      (id): id is string => typeof id === "string"
     ),
-    updatedAt: new Date(),
+    lastListingKeys: lastListingKeys.filter(
+      (key): key is string => typeof key === "string"
+    ),
   });
 
   return NextResponse.json({ ok: true });

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { authenticateRootBot } from "@/services/root-bot-auth";
-import { markNotificationsDelivered } from "@/db/repositories/notification-delivery-repository";
+import { markMarketChunksDelivered } from "@/services/root-bot-service";
 
 export async function POST(request: Request) {
   const caller = await authenticateRootBot(request);
@@ -11,29 +11,22 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "INVALID_BODY" }, { status: 400 });
-  }
-
-  const { notificationIds, messageIds } = (body ?? {}) as {
+  const body = (await request.json().catch(() => ({}))) as {
     notificationIds?: unknown;
     messageIds?: unknown;
   };
 
-  if (!Array.isArray(notificationIds) || !Array.isArray(messageIds)) {
+  if (!Array.isArray(body.notificationIds) || !Array.isArray(body.messageIds)) {
     return NextResponse.json(
       { error: "MISSING_FIELDS", message: "notificationIds and messageIds are required" },
       { status: 400 }
     );
   }
 
-  await markNotificationsDelivered(
-    notificationIds.filter((id): id is string => typeof id === "string"),
-    `root:${caller.communityId}`,
-    messageIds.filter((id): id is string => typeof id === "string").join(",")
+  await markMarketChunksDelivered(
+    caller.communityId,
+    body.notificationIds.filter((id): id is string => typeof id === "string"),
+    body.messageIds.filter((id): id is string => typeof id === "string")
   );
 
   return NextResponse.json({ ok: true });

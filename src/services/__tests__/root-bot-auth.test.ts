@@ -68,6 +68,16 @@ describe("root bot per-install auth", () => {
     ).resolves.toBeNull();
   });
 
+  it("does not revive a revoked install by re-registering", async () => {
+    const { db } = await createTestDb();
+    await issueRootBotToken(DEFAULT_ROOT_BOT_APP_ID, "comm-1", db);
+    await revokeRootBotInstall(DEFAULT_ROOT_BOT_APP_ID, "comm-1", db);
+
+    await expect(
+      issueRootBotToken(DEFAULT_ROOT_BOT_APP_ID, "comm-1", db)
+    ).resolves.toBeNull();
+  });
+
   it("rotates the token on re-issue and invalidates the old one", async () => {
     const { db } = await createTestDb();
     const first = await issueRootBotToken(DEFAULT_ROOT_BOT_APP_ID, "comm-1", db);

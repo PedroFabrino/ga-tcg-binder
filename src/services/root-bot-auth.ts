@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import {
+  findRootBotInstall,
   findRootBotInstallByTokenHash,
   upsertRootBotInstall,
   type RootBotInstallDatabase,
@@ -42,6 +43,16 @@ export async function issueRootBotToken(
 
   const normalizedCommunityId = communityId.trim();
   if (normalizedCommunityId.length === 0) {
+    return null;
+  }
+
+  // A revoked install must not be silently revived by re-registering.
+  const existing = await findRootBotInstall(
+    appId,
+    normalizedCommunityId,
+    database
+  );
+  if (existing?.revokedAt) {
     return null;
   }
 

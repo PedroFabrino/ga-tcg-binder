@@ -41,12 +41,18 @@ export async function runMarketNotificationPoll(
 
   for (const chunk of chunks) {
     const messageId = await deps.postMessage(broadcastChannelId, chunk.content);
+
+    // A thrown post leaves the chunk unrecorded, so the next poll retries it.
+    // A successful post with no id is recorded anyway to avoid duplicates.
     if (!messageId) {
-      return;
+      deps.warn?.(
+        "Posted a market chunk but received no message id; recording delivery to avoid duplicates."
+      );
     }
+
     await deps.api.markMarketNotificationsDelivered({
       notificationIds: chunk.notificationIds,
-      messageIds: [messageId],
+      messageIds: messageId ? [messageId] : [],
     });
   }
 }

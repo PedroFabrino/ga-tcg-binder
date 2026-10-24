@@ -116,6 +116,10 @@ a validated per-install Bearer token, so the bot reuses the same handlers.
 - Deal-alert state reuses `deal_alert_messages` with destination
   `root:<communityId>`; Discord keeps `discord-dm`. Rows are keyed by
   `(destination, recipient_id)`.
+- `root_community_identities` records which Root users have been seen in each
+  community (on `/link`, `/notify`, and identity lookups). Deal-alert planning
+  filters identities to that community, so one install cannot read or trigger
+  another community's alerts.
 - `planDealAlerts` computes plans/cleanup without sending; the bot delivers and
   reports. Matching, formatting, and change detection never run in the bot.
 
@@ -152,8 +156,9 @@ group.
 
 **Web app**
 
-- Apply `drizzle/0008_root_bot_installs.sql` to Turso (the test harness runs it
-  automatically; production needs the normal migration step).
+- Apply `drizzle/0008_root_bot_installs.sql` and
+  `drizzle/0009_root_community_identities.sql` to Turso (the test harness runs
+  them automatically; production needs the normal migration step).
 - Optionally set `ROOT_BOT_APP_ID` (defaults to the manifest id).
 - Deploy. The bot calls `/api/root-bot/install` on first start and stores the
   token in Root's key-value store.
@@ -197,10 +202,10 @@ These were flagged during design and should be confirmed in a real community:
 - Whether a notification's `relativeUrl` can target a Root channel. It is
   documented as resolving against the app's own router, so the fallback is to
   name the channel in the notification text.
-- Identity resolution is per Root user (`collector_identities`), not per
-  community membership. A multi-tenant deployment would need community-scoped
-  identities; the current token and delivery ledgers are already
-  community-scoped, so a single install per community is the supported shape.
+- Identity resolution is per Root user (`collector_identities`) plus the
+  `root_community_identities` membership table. Membership is recorded when a
+  user links or opts in through the bot; a user who linked elsewhere must run
+  `/link` or `/notify` once in the community before they are in scope.
 
 ## 8. Deferred: channel-broadcast unification
 

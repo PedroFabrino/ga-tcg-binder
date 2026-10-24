@@ -36,6 +36,7 @@ function fakeScheduler() {
     created,
     deletedTags,
     emit: (job: { tag?: string }) => handlers.get("job")?.(job),
+    emitMissed: (job: { tag?: string }) => handlers.get("job.missed")?.(job),
   };
 }
 
@@ -69,5 +70,9 @@ describe("scheduleRootBotPolling", () => {
     fake.emit({ tag: "poll" });
     await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(1));
     await vi.waitFor(() => expect(fake.created).toHaveLength(2));
+
+    fake.emitMissed({ tag: "poll" });
+    await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(fake.created).toHaveLength(3));
   });
 });

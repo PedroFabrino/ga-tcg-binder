@@ -31,7 +31,6 @@ export interface RootBotMarketDeliveredRequest {
 
 export interface RootBotDealAlertPlan {
   recipientId: string;
-  collectorName: string | null;
   /** Existing channel for this recipient, or null when it must be created. */
   channelId: string | null;
   previousMessageIds: string[];

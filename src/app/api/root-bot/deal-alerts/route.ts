@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { authenticateRootBot } from "@/services/root-bot-auth";
-import { findIdentitiesWithNotificationsEnabled } from "@/db/repositories/assistant-repository";
-import { planDealAlerts } from "@/services/discord-deal-notifier";
+import { planCommunityDealAlerts } from "@/services/root-bot-service";
 
 export async function GET(request: Request) {
   const caller = await authenticateRootBot(request);
@@ -12,15 +11,5 @@ export async function GET(request: Request) {
     );
   }
 
-  const identities = await findIdentitiesWithNotificationsEnabled("root");
-  const keepRecipients = new Set(
-    identities.map((identity) => identity.providerUserId)
-  );
-
-  const result = await planDealAlerts(undefined, {
-    destination: `root:${caller.communityId}`,
-    keepRecipients,
-  });
-
-  return NextResponse.json(result);
+  return NextResponse.json(await planCommunityDealAlerts(caller.communityId));
 }

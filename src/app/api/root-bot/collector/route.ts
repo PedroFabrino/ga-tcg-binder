@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { authenticateRootBot } from "@/services/root-bot-auth";
-import { findCollectorByIdentity } from "@/db/repositories/assistant-repository";
+import { resolveCommunityCollector } from "@/services/root-bot-service";
 
 export async function GET(request: Request) {
   const caller = await authenticateRootBot(request);
@@ -24,13 +24,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const resolved = await findCollectorByIdentity("root", providerUserId);
-  if (!resolved) {
-    return NextResponse.json(null);
-  }
-
-  return NextResponse.json({
-    collectorId: resolved.collector.id,
-    collectorName: resolved.collector.name,
-  });
+  return NextResponse.json(
+    await resolveCommunityCollector(caller.communityId, providerUserId)
+  );
 }

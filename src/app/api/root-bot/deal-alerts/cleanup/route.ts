@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { authenticateRootBot } from "@/services/root-bot-auth";
-import { deleteDealAlertMessage } from "@/db/repositories/deal-alert-repository";
+import { clearCommunityDealAlert } from "@/services/root-bot-service";
 
 export async function POST(request: Request) {
   const caller = await authenticateRootBot(request);
@@ -18,10 +18,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "MISSING_FIELDS" }, { status: 400 });
   }
 
-  await deleteDealAlertMessage(
-    `root:${caller.communityId}`,
-    body.recipientId
-  );
+  await clearCommunityDealAlert(caller.communityId, body.recipientId);
 
   return NextResponse.json({ ok: true });
 }

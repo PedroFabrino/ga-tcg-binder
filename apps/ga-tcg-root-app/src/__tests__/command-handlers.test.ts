@@ -168,6 +168,33 @@ describe("Root Command Handlers (processRootCommand)", () => {
       expect(deps.provisionDealAlerts).toHaveBeenCalledTimes(1);
     });
 
+    it("uses the injected API client for the preference by default", async () => {
+      const fakeApi = {
+        getCollector: vi
+          .fn()
+          .mockResolvedValue({ collectorId: "collector-1", collectorName: "Ash" }),
+        setNotifyPreference: vi.fn().mockResolvedValue(undefined),
+      } as unknown as RootBotApi;
+      const deps: RootCommandDeps = {
+        ensureRecipientChannel: vi.fn().mockResolvedValue("chan-private"),
+        provisionDealAlerts: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const res = await processRootCommand(
+        mockUserId,
+        "/notify on",
+        fakeApi,
+        deps
+      );
+
+      expect(res).toContain("Deal alerts enabled");
+      expect(fakeApi.getCollector).toHaveBeenCalledWith(mockUserId);
+      expect(fakeApi.setNotifyPreference).toHaveBeenCalledWith({
+        providerUserId: mockUserId,
+        enabled: true,
+      });
+    });
+
     it("falls back to a deferred-channel message when creation fails", async () => {
       const deps = createDeps();
       (deps.ensureRecipientChannel as ReturnType<typeof vi.fn>).mockResolvedValue(

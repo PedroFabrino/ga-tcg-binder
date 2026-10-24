@@ -50,7 +50,7 @@ describe("runMarketNotificationPoll", () => {
     expect(warn).toHaveBeenCalled();
   });
 
-  it("stops on the first failed post so the remainder retries", async () => {
+  it("leaves the chunk undelivered when the post throws", async () => {
     const api = {
       getMarketNotifications: vi.fn().mockResolvedValue({
         chunks: [
@@ -61,11 +61,39 @@ describe("runMarketNotificationPoll", () => {
       markMarketNotificationsDelivered: vi.fn(),
     };
     const config = { getBroadcastChannelId: vi.fn().mockResolvedValue("chan-1") };
-    const postMessage = vi.fn().mockResolvedValueOnce(null);
+    const postMessage = vi.fn().mockRejectedValueOnce(new Error("boom"));
 
-    await runMarketNotificationPoll({ api, config, postMessage });
+    await expect(
+      runMarketNotificationPoll({ api, config, postMessage })
+    ).rejects.toThrow("boom");
 
     expect(postMessage).toHaveBeenCalledTimes(1);
     expect(api.markMarketNotificationsDelivered).not.toHaveBeenCalled();
+  });
+
+  it("records delivery when a posted chunk has no message id", async () => {
+    const api = {
+      getMarketNotifications: vi.fn().mockResolvedValue({
+        chunks: [
+          { storeId: "s", storeName: "MyP", content: "c1", notificationIds: ["n1"] },
+        ],
+      }),
+      markMarketNotificationsDelivered: vi.fn().mockResolvedValue(undefined),
+    };
+    const config = { getBroadcastChannelId: vi.fn().mockResolvedValue("chan-1") };
+    const warn = vi.fn();
+
+    await runMarketNotificationPoll({
+      api,
+      config,
+      postMessage: vi.fn().mockResolvedValue(null),
+      warn,
+    });
+
+    expect(api.markMarketNotificationsDelivered).toHaveBeenCalledWith({
+      notificationIds: ["n1"],
+      messageIds: [],
+    });
+    expect(warn).toHaveBeenCalled();
   });
 });

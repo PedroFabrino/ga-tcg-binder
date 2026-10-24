@@ -14,7 +14,10 @@ export interface AssistantCallerContext {
  * bot bearer token (so the cloud bot can call the same assistant routes without
  * holding the shared secret).
  */
-export async function isAssistantAuthorized(req: Request): Promise<boolean> {
+export async function isAssistantAuthorized(
+  req: Request,
+  database?: Parameters<typeof authenticateRootBot>[1]
+): Promise<boolean> {
   const secret = process.env.ASSISTANT_API_SECRET || process.env.ASSISTANT_TOKEN;
   if (!secret) return true; // Permitted in local development / test without explicit token
 
@@ -22,7 +25,7 @@ export async function isAssistantAuthorized(req: Request): Promise<boolean> {
   if (token === secret) return true;
 
   if (req.headers.get("authorization")) {
-    return (await authenticateRootBot(req)) !== null;
+    return (await authenticateRootBot(req, database)) !== null;
   }
 
   return false;

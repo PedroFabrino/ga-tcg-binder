@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { authenticateRootBot } from "@/services/root-bot-auth";
-import { findCollectorByIdentity } from "@/db/repositories/assistant-repository";
-import { setWantlistNotificationPreference } from "@/db/repositories/personal-wants-repository";
+import { setCommunityNotifyPreference } from "@/services/root-bot-service";
 
 export async function POST(request: Request) {
   const caller = await authenticateRootBot(request);
@@ -17,23 +16,24 @@ export async function POST(request: Request) {
     enabled?: unknown;
   };
 
-  if (typeof body.providerUserId !== "string" || typeof body.enabled !== "boolean") {
+  if (
+    typeof body.providerUserId !== "string" ||
+    typeof body.enabled !== "boolean"
+  ) {
     return NextResponse.json({ error: "MISSING_FIELDS" }, { status: 400 });
   }
 
-  const resolved = await findCollectorByIdentity("root", body.providerUserId);
-  if (!resolved) {
+  const updated = await setCommunityNotifyPreference(
+    caller.communityId,
+    body.providerUserId,
+    body.enabled
+  );
+  if (!updated) {
     return NextResponse.json(
       { error: "IDENTITY_NOT_LINKED" },
       { status: 404 }
     );
   }
-
-  await setWantlistNotificationPreference(
-    resolved.collector.id,
-    "root",
-    body.enabled
-  );
 
   return NextResponse.json({ ok: true });
 }
