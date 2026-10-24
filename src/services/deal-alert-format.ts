@@ -6,9 +6,7 @@ import {
   formatDateTimeInBrazil,
   isHttpsUrl,
   splitMessageContent,
-} from "./market-notification-formatter";
-
-export const DEAL_ALERT_MAX_LENGTH = MESSAGE_MAX_LENGTH;
+} from "./market-notification-message";
 
 export type DealAlertSource =
   | { kind: "personal-want"; desiredQuantity: number }
@@ -117,7 +115,7 @@ export function formatDealAlertMessage(
 export function formatDealAlertChunks(
   matches: DealAlertMatch[],
   now: Date = new Date(),
-  maxLength: number = DEAL_ALERT_MAX_LENGTH
+  maxLength: number = MESSAGE_MAX_LENGTH
 ): string[] {
   const full = formatDealAlertMessage(matches, now);
   if (!full) {

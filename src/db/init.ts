@@ -337,6 +337,7 @@ CREATE TABLE IF NOT EXISTS \`market_cards\` (
 	\`vendor_name\` text,
 	\`vendor_url\` text,
 	\`first_seen_at\` integer DEFAULT (strftime('%s', 'now')) NOT NULL,
+	\`last_stocked_at\` integer,
 	\`last_seen_at\` integer DEFAULT (strftime('%s', 'now')),
 	\`updated_at\` integer DEFAULT (strftime('%s', 'now')),
 	FOREIGN KEY (\`store_id\`) REFERENCES \`market_stores\`(\`id\`) ON UPDATE no action ON DELETE cascade,
@@ -601,7 +602,9 @@ async function doRunMigrations(customClient: typeof client) {
     "ALTER TABLE `market_stores` ADD COLUMN `last_notified_at` integer;",
     "ALTER TABLE `market_cards` ADD COLUMN `first_seen_at` integer DEFAULT 0 NOT NULL;",
     "ALTER TABLE `collector_identities` ADD COLUMN `wantlist_notifications_enabled` integer DEFAULT 0 NOT NULL;",
- "ALTER TABLE `users` ADD COLUMN `hidden_set_uuids` text DEFAULT '[]' NOT NULL;",
+    "ALTER TABLE `users` ADD COLUMN `hidden_set_uuids` text DEFAULT '[]' NOT NULL;",
+    "ALTER TABLE `market_cards` ADD COLUMN `last_stocked_at` integer;",
+    "UPDATE `market_cards` SET `last_stocked_at` = `first_seen_at` WHERE `quantity` > 0 AND `last_stocked_at` IS NULL;",
   ];
 
   for (const alterStmt of alterColumns) {

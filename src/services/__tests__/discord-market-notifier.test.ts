@@ -6,14 +6,12 @@ import {
  groupMarketNotificationsByStore,
  formatMarketNotificationMessage,
  formatMarketNotificationDate,
-} from "../market-notification-formatter";
-import {
- DISCORD_MESSAGE_MAX_LENGTH,
  escapeDiscordMarkdown,
  formatDiscordCardLine,
  formatDiscordMarketNotificationMessage,
  splitDiscordContent,
-} from "../discord-market-notification-formatter";
+} from "../market-notification-message";
+import { MESSAGE_MAX_LENGTH } from "../../lib/market-vocabulary";
 import {
  redactWebhookSecret,
  sendDiscordWebhookMessage,
@@ -188,20 +186,20 @@ describe("splitDiscordContent", () => {
   const line = `• ${"x".repeat(600)}`;
   const message = [line, line, line, line].join("\n");
 
-  const chunks = splitDiscordContent(message, DISCORD_MESSAGE_MAX_LENGTH);
+  const chunks = splitDiscordContent(message, MESSAGE_MAX_LENGTH);
 
   for (const chunk of chunks) {
-   expect(chunk.length).toBeLessThanOrEqual(DISCORD_MESSAGE_MAX_LENGTH);
+   expect(chunk.length).toBeLessThanOrEqual(MESSAGE_MAX_LENGTH);
   }
   // 4 lines of 604 chars => pairs fit (1209 < 2000), so exactly two chunks.
   expect(chunks).toHaveLength(2);
  });
 
  it("hard-slices a single over-long line", () => {
-  const chunks = splitDiscordContent("a".repeat(4500), DISCORD_MESSAGE_MAX_LENGTH);
+  const chunks = splitDiscordContent("a".repeat(4500), MESSAGE_MAX_LENGTH);
   expect(chunks).toHaveLength(3);
   for (const chunk of chunks) {
-   expect(chunk.length).toBeLessThanOrEqual(DISCORD_MESSAGE_MAX_LENGTH);
+   expect(chunk.length).toBeLessThanOrEqual(MESSAGE_MAX_LENGTH);
   }
  });
 });

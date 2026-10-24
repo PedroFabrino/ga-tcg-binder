@@ -6,7 +6,7 @@ import type {
  MarketplaceDatabase,
  MarketNotification,
 } from "../db/repositories/marketplace-repository";
-import { formatDiscordMarketNotificationMessage } from "./discord-market-notification-formatter";
+import { formatDiscordMarketNotificationMessage } from "./market-notification-message";
 import {
  sendDiscordWebhookMessage,
  validateDiscordWebhookUrl,

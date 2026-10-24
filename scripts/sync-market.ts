@@ -126,7 +126,9 @@ async function main() {
   // Deal alert dispatch runs once after all stores have synced so matching
   // sees the complete set of freshly updated listings.
   try {
-    const dealAlerts = await dispatchDealAlerts(db);
+    const dealAlerts = await dispatchDealAlerts(db, undefined, undefined, {
+      forceRefresh: true,
+    });
     console.log(`- Deal Alerts: ${dealAlerts.matched} matched, ${dealAlerts.sent} DMs sent`);
   } catch (err: any) {
     console.error("Failed to dispatch deal alerts:", err.message || err);

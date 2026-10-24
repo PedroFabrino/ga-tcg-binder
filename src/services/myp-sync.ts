@@ -146,8 +146,8 @@ export async function syncGlobalMarketplace(
   const isTest = Boolean(customFetch);
   const persistToDisk = options.persistToDisk ?? !isTest;
   const checkpointFile = options.checkpointFile;
-  const pageDelayMs = options.pageDelayMs ?? (isTest ? 0 : 350);
-  const retryDelayMs = options.retryDelayMs ?? (isTest ? 10 : 3000);
+  const pageDelayMs = options.pageDelayMs ?? (isTest ? 0 : 1200);
+  const retryDelayMs = options.retryDelayMs ?? (isTest ? 10 : 12000);
   const maxPageRetries = options.maxPageRetries ?? 3;
 
   if (options.forceRestart) {
@@ -230,9 +230,11 @@ export async function syncGlobalMarketplace(
         pageItems = items;
         break;
       } catch (err: unknown) {
+        console.warn(
+          `[myp-sync] Page ${p} attempt ${attempt}/${maxPageRetries} failed: ${err instanceof Error ? err.message : String(err)}`
+        );
         if (attempt < maxPageRetries) {
-          const delay = retryDelayMs * attempt;
-          await new Promise((resolve) => setTimeout(resolve, delay));
+          await new Promise((resolve) => setTimeout(resolve, retryDelayMs * attempt));
         }
       }
     }
@@ -281,32 +283,14 @@ export async function syncGlobalMarketplace(
 
     for (const r of existingRows) {
       if (r.tcgPriceNumeric !== null && r.tcgPriceNumeric !== undefined && r.tcgPrice) {
-        if (r.productUrl) {
-          existingTcgMap.set(r.productUrl, {
-            tcgPrice: r.tcgPrice,
-            tcgPriceNumeric: Number(r.tcgPriceNumeric),
-          });
-        }
-        if (r.itemId) {
-          existingTcgMap.set(r.itemId, {
-            tcgPrice: r.tcgPrice,
-            tcgPriceNumeric: Number(r.tcgPriceNumeric),
-          });
-        }
+        const val = { tcgPrice: r.tcgPrice, tcgPriceNumeric: Number(r.tcgPriceNumeric) };
+        if (r.productUrl) existingTcgMap.set(r.productUrl, val);
+        if (r.itemId) existingTcgMap.set(r.itemId, val);
       }
       if (r.vendorName) {
-        if (r.productUrl) {
-          existingVendorMap.set(r.productUrl, {
-            vendorName: r.vendorName,
-            vendorUrl: r.vendorUrl || null,
-          });
-        }
-        if (r.itemId) {
-          existingVendorMap.set(r.itemId, {
-            vendorName: r.vendorName,
-            vendorUrl: r.vendorUrl || null,
-          });
-        }
+        const vVal = { vendorName: r.vendorName, vendorUrl: r.vendorUrl || null };
+        if (r.productUrl) existingVendorMap.set(r.productUrl, vVal);
+        if (r.itemId) existingVendorMap.set(r.itemId, vVal);
       }
     }
   } catch {

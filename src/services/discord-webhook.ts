@@ -1,4 +1,4 @@
-import { DISCORD_MESSAGE_MAX_LENGTH } from "./discord-market-notification-formatter";
+import { MESSAGE_MAX_LENGTH } from "../lib/market-vocabulary";
 
 /**
  * Discord message flag: SUPPRESS_EMBEDS (1 << 2) suppresses all automatic
@@ -114,9 +114,9 @@ export async function sendDiscordWebhookMessage(
  content: string,
  options: DiscordWebhookSendOptions = {}
 ): Promise<string | null> {
- if (content.length > DISCORD_MESSAGE_MAX_LENGTH) {
+ if (content.length > MESSAGE_MAX_LENGTH) {
   console.warn(
-   `[discord-webhook] Refusing to send ${content.length}-character message (limit ${DISCORD_MESSAGE_MAX_LENGTH})`
+   `[discord-webhook] Refusing to send ${content.length}-character message (limit ${MESSAGE_MAX_LENGTH})`
   );
   return null;
  }

@@ -4,7 +4,7 @@ import {
  type MarketNotification,
 } from "../db/repositories/marketplace-repository";
 import { getUndeliveredNotifications } from "../db/repositories/notification-delivery-repository";
-import { groupMarketNotificationsByStore } from "./market-notification-formatter";
+import { groupMarketNotificationsByStore } from "./market-notification-message";
 
 /**
  * A notification sink owns one delivery channel: formatting, sending, and

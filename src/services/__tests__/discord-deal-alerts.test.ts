@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeEach } from "vitest";
+import { eq } from "drizzle-orm";
 import { createTestDb } from "../../db/test-utils";
 import {
   users,
@@ -16,11 +17,11 @@ import {
   formatDealAlertChunks,
   dispatchDealAlerts,
   parseMessageIds,
-  DEAL_ALERT_MAX_LENGTH,
   type DealAlertMatch,
   type DealAlertMessageRef,
   type DealAlertTransport,
 } from "../discord-deal-notifier";
+import { MESSAGE_MAX_LENGTH } from "../../lib/market-vocabulary";
 import type { MarketCard } from "../../db/schema";
 
 function createFakeTransport() {
@@ -148,6 +149,7 @@ describe("Discord Deal Alerts Matcher and Notifier", () => {
       vendorName: "Camelot Cards",
       vendorUrl: null,
       firstSeenAt: new Date(),
+      lastStockedAt: null,
       lastSeenAt: new Date(),
       updatedAt: new Date(),
     };
@@ -193,6 +195,7 @@ describe("Discord Deal Alerts Matcher and Notifier", () => {
       vendorName: "Liga Magic Store",
       vendorUrl: null,
       firstSeenAt: new Date(),
+      lastStockedAt: null,
       lastSeenAt: new Date(),
       updatedAt: new Date(),
     };
@@ -286,6 +289,44 @@ describe("Discord Deal Alerts Matcher and Notifier", () => {
     expect(fake.sent[1].content).toContain("**Burn Deck**");
     expect(fake.sent[1].content).toContain("🔴 Fireball - DOA - R$ 10,00");
     expect(fake.sent[1].content).toContain("**Wantlist**");
+
+    // When card is added to binder (e.g. personal want fulfilled/removed),
+    // next run removes it from the DM!
+    const { removePersonalWant } = await import("../../db/repositories/personal-wants-repository");
+    await removePersonalWant(testCollectorId, "creative-shock", undefined, db);
+
+    const afterCardAcquired = await dispatchDealAlerts(db, fake.transport);
+    expect(afterCardAcquired.sent).toBe(1);
+    expect(fake.sent).toHaveLength(3);
+    expect(fake.deleted).toEqual([fake.sent[0].ref, fake.sent[1].ref]);
+    // The Wantlist section with Creative Shock is gone!
+    expect(fake.sent[2].content).not.toContain("Creative Shock");
+    expect(fake.sent[2].content).toContain("**Burn Deck**");
+
+    // If remaining deck shortages are resolved (0 matches), old message is deleted
+    await db.delete(deckCards).where(eq(deckCards.cardSlug, "fireball"));
+    const afterAllAcquired = await dispatchDealAlerts(db, fake.transport);
+    expect(afterAllAcquired.sent).toBe(0);
+    expect(afterAllAcquired.matched).toBe(0);
+    // Previous message was deleted
+    expect(fake.deleted).toEqual([fake.sent[0].ref, fake.sent[1].ref, fake.sent[2].ref]);
+
+    // Force refresh updates message even if matches are unchanged
+    await db.insert(deckCards).values({
+      id: "dc_readd",
+      deckId: "deck_kay",
+      cardSlug: "fireball",
+      quantity: 1,
+      zone: "main",
+    });
+    await dispatchDealAlerts(db, fake.transport); // initial post
+    const forceRefreshResult = await dispatchDealAlerts(
+      db,
+      fake.transport,
+      new Date(),
+      { forceRefresh: true }
+    );
+    expect(forceRefreshResult.sent).toBe(1);
   });
 
   it("formats one rolling message with per-deck and wantlist sections plus a timestamp", () => {
@@ -309,6 +350,7 @@ describe("Discord Deal Alerts Matcher and Notifier", () => {
       vendorName: "Lootcards",
       vendorUrl: null,
       firstSeenAt: new Date(),
+      lastStockedAt: null,
       lastSeenAt: new Date(),
       updatedAt: new Date(),
     };
@@ -333,6 +375,7 @@ describe("Discord Deal Alerts Matcher and Notifier", () => {
       vendorName: "Liga Magic Store",
       vendorUrl: null,
       firstSeenAt: new Date(),
+      lastStockedAt: null,
       lastSeenAt: new Date(),
       updatedAt: new Date(),
     };
@@ -381,7 +424,7 @@ describe("Discord Deal Alerts Matcher and Notifier", () => {
     });
   });
 
-  it("splits large deal alerts into chunks <= DEAL_ALERT_MAX_LENGTH", () => {
+  it("splits large deal alerts into chunks <= MESSAGE_MAX_LENGTH", () => {
     const matches: DealAlertMatch[] = [];
     for (let i = 1; i <= 50; i++) {
       matches.push({
@@ -407,6 +450,7 @@ describe("Discord Deal Alerts Matcher and Notifier", () => {
           vendorName: "Camelot Cards",
           vendorUrl: null,
           firstSeenAt: new Date(),
+          lastStockedAt: null,
           lastSeenAt: new Date(),
           updatedAt: new Date(),
         },
@@ -415,12 +459,12 @@ describe("Discord Deal Alerts Matcher and Notifier", () => {
     }
 
     const full = formatDealAlertMessage(matches);
-    expect(full.length).toBeGreaterThan(DEAL_ALERT_MAX_LENGTH);
+    expect(full.length).toBeGreaterThan(MESSAGE_MAX_LENGTH);
 
     const chunks = formatDealAlertChunks(matches);
     expect(chunks.length).toBeGreaterThan(1);
     for (const chunk of chunks) {
-      expect(chunk.length).toBeLessThanOrEqual(DEAL_ALERT_MAX_LENGTH);
+      expect(chunk.length).toBeLessThanOrEqual(MESSAGE_MAX_LENGTH);
     }
   });
 

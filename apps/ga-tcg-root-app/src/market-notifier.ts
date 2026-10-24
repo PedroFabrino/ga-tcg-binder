@@ -8,7 +8,7 @@ import {
 import {
   formatMarketNotificationChunks,
   groupMarketNotificationsByStore,
-} from "../../../src/services/market-notification-formatter";
+} from "../../../src/services/market-notification-message";
 import { logCommunityChannels } from "./channel-diagnostics";
 import { describeError } from "./describe-error";
 

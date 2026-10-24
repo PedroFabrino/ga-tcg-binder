@@ -4,8 +4,8 @@ import {
   formatMarketNotificationChunks,
   formatMarketNotificationDate,
   formatMarketNotificationMessage,
-  ROOT_MESSAGE_MAX_LENGTH,
-} from "../../../../src/services/market-notification-formatter";
+} from "../../../../src/services/market-notification-message";
+import { MESSAGE_MAX_LENGTH } from "../../../../src/lib/market-vocabulary";
 import type { MarketNotification } from "../../../../src/db/schema";
 
 describe("formatMarketNotificationMessage", () => {
@@ -173,7 +173,7 @@ describe("formatMarketNotificationChunks", () => {
     );
   });
 
-  it("splits large batches into chunks without exceeding ROOT_MESSAGE_MAX_LENGTH", () => {
+  it("splits large batches into chunks without exceeding MESSAGE_MAX_LENGTH", () => {
     // Generate 100 notifications (~5,000 characters)
     const notifications: MarketNotification[] = Array.from({ length: 100 }, (_, i) => ({
       ...baseNotification,
@@ -192,7 +192,7 @@ describe("formatMarketNotificationChunks", () => {
 
     // Verify all chunks respect character limit
     for (const chunk of chunks) {
-      expect(chunk.content.length).toBeLessThanOrEqual(ROOT_MESSAGE_MAX_LENGTH);
+      expect(chunk.content.length).toBeLessThanOrEqual(MESSAGE_MAX_LENGTH);
     }
 
     // Verify every single notification is accounted for across chunks exactly once

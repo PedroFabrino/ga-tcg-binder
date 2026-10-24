@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, isNull, notInArray } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { db } from "../index";
 import {
 marketCards,
@@ -124,8 +124,30 @@ export async function upsertMarketCards(
   for (const listing of listings) {
     const row = {
       ...listing,
+      lastStockedAt: (listing.quantity ?? 1) > 0 ? (listing.lastStockedAt ?? observedAt) : null,
       lastSeenAt: listing.lastSeenAt ?? observedAt,
       updatedAt: listing.updatedAt ?? observedAt,
+    };
+
+    const conflictUpdate = {
+      cardSlug: row.cardSlug,
+      editionId: row.editionId,
+      rawName: row.rawName,
+      cardName: row.cardName,
+      setPrefix: row.setPrefix,
+      quantity: row.quantity,
+      price: row.price,
+      priceNumeric: row.priceNumeric,
+      tcgPrice: row.tcgPrice,
+      tcgPriceNumeric: row.tcgPriceNumeric,
+      quality: row.quality,
+      isFoil: row.isFoil,
+      productUrl: row.productUrl,
+      vendorName: row.vendorName,
+      vendorUrl: row.vendorUrl,
+      lastStockedAt: sql`CASE WHEN ${marketCards.quantity} <= 0 AND ${row.quantity} > 0 THEN strftime('%s', 'now') ELSE ${marketCards.lastStockedAt} END`,
+      lastSeenAt: row.lastSeenAt,
+      updatedAt: row.updatedAt,
     };
 
     if (row.itemId) {
@@ -134,25 +156,7 @@ export async function upsertMarketCards(
         .values(row)
         .onConflictDoUpdate({
           target: [marketCards.storeId, marketCards.itemId],
-          set: {
-            cardSlug: row.cardSlug,
-            editionId: row.editionId,
-            rawName: row.rawName,
-            cardName: row.cardName,
-            setPrefix: row.setPrefix,
-            quantity: row.quantity,
-            price: row.price,
-            priceNumeric: row.priceNumeric,
-            tcgPrice: row.tcgPrice,
-            tcgPriceNumeric: row.tcgPriceNumeric,
-            quality: row.quality,
-            isFoil: row.isFoil,
-            productUrl: row.productUrl,
-            vendorName: row.vendorName,
-            vendorUrl: row.vendorUrl,
-            lastSeenAt: row.lastSeenAt,
-            updatedAt: row.updatedAt,
-          },
+          set: conflictUpdate,
         });
     } else {
       await database
@@ -160,25 +164,7 @@ export async function upsertMarketCards(
         .values(row)
         .onConflictDoUpdate({
           target: marketCards.id,
-          set: {
-            cardSlug: row.cardSlug,
-            editionId: row.editionId,
-            rawName: row.rawName,
-            cardName: row.cardName,
-            setPrefix: row.setPrefix,
-            quantity: row.quantity,
-            price: row.price,
-            priceNumeric: row.priceNumeric,
-            tcgPrice: row.tcgPrice,
-            tcgPriceNumeric: row.tcgPriceNumeric,
-            quality: row.quality,
-            isFoil: row.isFoil,
-            productUrl: row.productUrl,
-            vendorName: row.vendorName,
-            vendorUrl: row.vendorUrl,
-            lastSeenAt: row.lastSeenAt,
-            updatedAt: row.updatedAt,
-          },
+          set: conflictUpdate,
         });
     }
   }
@@ -299,9 +285,15 @@ export async function getMarketCardsSeenAfter(
   since?: Date | null,
   database: MarketplaceDatabase = db
 ): Promise<MarketCard[]> {
-  const conditions = [eq(marketCards.storeId, storeId)];
+  const conditions = [
+    eq(marketCards.storeId, storeId),
+    gt(marketCards.quantity, 0),
+  ];
   if (since) {
-    conditions.push(gt(marketCards.firstSeenAt, since));
+    const sinceSec = Math.floor(since.getTime() / 1000);
+    conditions.push(
+      sql`COALESCE(${marketCards.lastStockedAt}, ${marketCards.firstSeenAt}) > ${sinceSec}`
+    );
   }
   return database
     .select()

@@ -44,3 +44,24 @@ export async function upsertDealAlertMessage(
       },
     });
 }
+
+/**
+ * Returns all tracked rolling deal-alert messages.
+ */
+export async function listAllDealAlertMessages(
+  database: DealAlertDatabase = db
+): Promise<DealAlertMessageRow[]> {
+  return database.select().from(dealAlertMessages);
+}
+
+/**
+ * Deletes the tracked rolling deal-alert message for a Discord user.
+ */
+export async function deleteDealAlertMessage(
+  discordUserId: string,
+  database: DealAlertDatabase = db
+): Promise<void> {
+  await database
+    .delete(dealAlertMessages)
+    .where(eq(dealAlertMessages.discordUserId, discordUserId));
+}

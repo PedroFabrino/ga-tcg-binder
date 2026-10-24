@@ -35,7 +35,7 @@ import { deliverDiscordNotifications } from "../src/services/discord-market-noti
 import {
   formatMarketNotificationMessage,
   groupMarketNotificationsByStore,
-} from "../src/services/market-notification-formatter";
+} from "../src/services/market-notification-message";
 
 // ---------------------------------------------------------------------------
 // Constants

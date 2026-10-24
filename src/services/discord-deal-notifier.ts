@@ -1,6 +1,8 @@
 import { findIdentitiesWithNotificationsEnabled } from "../db/repositories/assistant-repository";
 import {
+  deleteDealAlertMessage,
   getDealAlertMessage,
+  listAllDealAlertMessages,
   upsertDealAlertMessage,
 } from "../db/repositories/deal-alert-repository";
 import {
@@ -14,19 +16,21 @@ import {
 } from "../db/repositories/marketplace-repository";
 import { getDeckPartitionedWantlist } from "./collector-assistant";
 import {
-  DEAL_ALERT_MAX_LENGTH,
   formatDealAlertChunks,
   formatDealAlertMessage,
+  hasListingChanges,
   hasNewListings,
   listingKey,
+  matchKey,
   type DealAlertMatch,
   type DealAlertSource,
 } from "./deal-alert-format";
-import { splitMessageContent } from "./market-notification-formatter";
+import { MESSAGE_MAX_LENGTH } from "../lib/market-vocabulary";
+import { splitMessageContent } from "./market-notification-message";
 import type { AssistantWantlistResponse } from "@ga/contracts";
 import type { DiscordEmbed } from "./discord-interactions/types";
 
-export { formatDealAlertMessage, formatDealAlertChunks, DEAL_ALERT_MAX_LENGTH };
+export { formatDealAlertMessage, formatDealAlertChunks };
 export type { DealAlertMatch, DealAlertSource };
 
 /**
@@ -74,21 +78,11 @@ function resolveDealAlertSource(
   for (const deck of wantlist.decks) {
     const hard = deck.hardShortages.find((h) => h.cardSlug === listing.cardSlug);
     if (hard) {
-      return {
-        kind: "hard",
-        deckId: deck.deckId,
-        deckName: deck.deckName,
-        missingQuantity: hard.missingQuantity,
-      };
+      return { kind: "hard", deckId: deck.deckId, deckName: deck.deckName, missingQuantity: hard.missingQuantity };
     }
     const shared = deck.sharedShortages.find((s) => s.cardSlug === listing.cardSlug);
     if (shared) {
-      return {
-        kind: "shared",
-        deckId: deck.deckId,
-        deckName: deck.deckName,
-        sharedQuantity: shared.sharedQuantity,
-      };
+      return { kind: "shared", deckId: deck.deckId, deckName: deck.deckName, sharedQuantity: shared.sharedQuantity };
     }
   }
 
@@ -151,16 +145,21 @@ const defaultDealAlertTransport: DealAlertTransport = {
   delete: (ref) => deleteDiscordDirectMessage(ref.channelId, ref.messageId),
 };
 
+export interface DispatchDealAlertsOptions {
+  forceRefresh?: boolean;
+}
+
 /**
  * Fetches every in-stock marketplace listing, matches them against enabled
  * collectors' wantlists and deck shortages, and maintains a single rolling DM
- * per collector. The previous snapshot message is deleted and a fresh one is
- * sent only when at least one new matching listing appears.
+ * per collector. Stale snapshots are deleted and updated snapshots sent
+ * whenever listing matches change or forceRefresh is requested.
  */
 export async function dispatchDealAlerts(
   database?: MarketplaceDatabase,
   transport: DealAlertTransport = defaultDealAlertTransport,
-  now: Date = new Date()
+  now: Date = new Date(),
+  options: DispatchDealAlertsOptions = {}
 ): Promise<DealAlertDispatchResult> {
   const listings = await getMarketCards({ inStockOnly: true }, database);
   const matches = await matchDealAlerts(listings, database);
@@ -168,19 +167,27 @@ export async function dispatchDealAlerts(
   const byUser = new Map<string, DealAlertMatch[]>();
   for (const match of matches) {
     const list = byUser.get(match.discordUserId);
-    if (list) {
-      list.push(match);
-    } else {
-      byUser.set(match.discordUserId, [match]);
+    if (list) list.push(match);
+    else byUser.set(match.discordUserId, [match]);
+  }
+
+  // Clean up stale alerts for users who no longer have any active shortages/matches
+  const storedMessages = await listAllDealAlertMessages(database);
+  for (const stored of storedMessages) {
+    if (!byUser.has(stored.discordUserId)) {
+      for (const oldId of parseMessageIds(stored.messageId)) {
+        await transport.delete({ channelId: stored.channelId, messageId: oldId });
+      }
+      await deleteDealAlertMessage(stored.discordUserId, database);
     }
   }
 
   let sent = 0;
   for (const [discordUserId, userMatches] of byUser) {
-    const currentKeys = userMatches.map((match) => listingKey(match.listing));
+    const currentKeys = userMatches.map(matchKey);
     const stored = await getDealAlertMessage(discordUserId, database);
 
-    if (!hasNewListings(currentKeys, stored?.lastListingKeys)) {
+    if (!hasListingChanges(currentKeys, stored?.lastListingKeys, options.forceRefresh)) {
       continue;
     }
 
@@ -188,30 +195,21 @@ export async function dispatchDealAlerts(
     const sentRefs: DealAlertMessageRef[] = [];
     for (const chunk of chunks) {
       const ref = await transport.send(discordUserId, chunk);
-      if (ref) {
-        sentRefs.push(ref);
-      } else {
-        break;
-      }
+      if (ref) sentRefs.push(ref);
+      else break;
     }
 
     if (sentRefs.length !== chunks.length) {
       console.warn(
         `[discord-dm] Failed to send all deal alert chunks to ${discordUserId} (${sentRefs.length}/${chunks.length} sent)`
       );
-      for (const partial of sentRefs) {
-        await transport.delete(partial);
-      }
+      for (const partial of sentRefs) await transport.delete(partial);
       continue;
     }
 
     if (stored) {
-      const oldMessageIds = parseMessageIds(stored.messageId);
-      for (const oldId of oldMessageIds) {
-        await transport.delete({
-          channelId: stored.channelId,
-          messageId: oldId,
-        });
+      for (const oldId of parseMessageIds(stored.messageId)) {
+        await transport.delete({ channelId: stored.channelId, messageId: oldId });
       }
     }
 
@@ -332,7 +330,7 @@ export async function sendDiscordDirectContent(
   content: string,
   botToken = process.env.DISCORD_BOT_TOKEN
 ): Promise<DealAlertMessageRef | null> {
-  const chunks = splitMessageContent(content, DEAL_ALERT_MAX_LENGTH);
+  const chunks = splitMessageContent(content, MESSAGE_MAX_LENGTH);
   if (chunks.length === 0) {
     return null;
   }

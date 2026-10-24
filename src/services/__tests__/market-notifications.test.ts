@@ -237,4 +237,93 @@ describe("writeMarketNotifications service", () => {
       .where(eq(schema.marketStores.id, "myp"));
     expect(store.lastNotifiedAt).not.toBeNull();
   });
+
+  it("writes notifications when a previously out-of-stock card is restocked", async () => {
+    const { db } = await createTestDb();
+    const lastNotified = new Date("2026-10-21T01:30:00Z");
+
+    await db.insert(schema.marketStores).values({
+      id: "lootcards",
+      platform: "lootcards",
+      name: "Lootcards",
+      baseUrl: "https://lootcards.store",
+      enabled: true,
+      lastNotifiedAt: lastNotified,
+    });
+
+    // Card was first seen before lastNotified, but with 0 stock
+    await db.insert(schema.marketCards).values({
+      id: "c_restock",
+      storeId: "lootcards",
+      itemId: "item_restock",
+      rawName: "Restocked Card (#099)",
+      cardName: "Restocked Card",
+      setPrefix: "FTC",
+      price: "R$ 25,00",
+      priceNumeric: 25,
+      quantity: 0,
+      firstSeenAt: new Date("2026-10-21T01:00:00Z"),
+      lastStockedAt: null,
+    });
+
+    // Before restock: 0 notifications
+    expect(await writeMarketNotifications("lootcards", db)).toBe(0);
+
+    // Restock arrives: quantity becomes 2
+    const { upsertMarketCards } = await import("../../db/repositories/marketplace-repository");
+    await upsertMarketCards(
+      [
+        {
+          id: "c_restock",
+          storeId: "lootcards",
+          itemId: "item_restock",
+          rawName: "Restocked Card (#099)",
+          cardName: "Restocked Card",
+          setPrefix: "FTC",
+          price: "R$ 25,00",
+          priceNumeric: 25,
+          quantity: 2,
+        },
+      ],
+      db
+    );
+
+    // After restock: 1 notification written
+    const count = await writeMarketNotifications("lootcards", db);
+    expect(count).toBe(1);
+
+    const pending = await getPendingNotifications(db);
+    expect(pending).toHaveLength(1);
+    expect(pending[0].cardName).toBe("Restocked Card");
+  });
+
+  it("does not write notifications for cards that remain out-of-stock", async () => {
+    const { db } = await createTestDb();
+    const lastNotified = new Date("2026-10-21T01:30:00Z");
+
+    await db.insert(schema.marketStores).values({
+      id: "brandao_oos",
+      platform: "liga_store",
+      name: "Brandao",
+      baseUrl: "https://brandao.local",
+      enabled: true,
+      lastNotifiedAt: lastNotified,
+    });
+
+    await db.insert(schema.marketCards).values({
+      id: "c_oos",
+      storeId: "brandao_oos",
+      itemId: "item_oos",
+      rawName: "Zero Stock Card (#100)",
+      cardName: "Zero Stock Card",
+      setPrefix: "FTC",
+      price: "R$ 5,00",
+      priceNumeric: 5,
+      quantity: 0,
+      firstSeenAt: new Date("2026-10-21T02:00:00Z"),
+    });
+
+    const count = await writeMarketNotifications("brandao_oos", db);
+    expect(count).toBe(0);
+  });
 });

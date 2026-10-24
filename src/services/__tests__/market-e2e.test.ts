@@ -10,7 +10,7 @@ import {
   markNotificationsSent,
   getMarketStoreById,
 } from "../../db/repositories/marketplace-repository";
-import { formatMarketNotificationMessage } from "../market-notification-formatter";
+import { formatMarketNotificationMessage } from "../market-notification-message";
 
 describe("Market Change Detection and Notification Flow (E2E)", () => {
   it("executes the full cycle from detection to outbox notification and formatting", async () => {

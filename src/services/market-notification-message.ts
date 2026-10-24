@@ -126,11 +126,6 @@ export function formatMarketNotificationCardLine(
  return `• ${cardName} — ${cardDetails}`;
 }
 
-/**
- * Maximum character length for a single chat message (Root, Discord).
- */
-export const ROOT_MESSAGE_MAX_LENGTH = MESSAGE_MAX_LENGTH;
-
 export interface MarketNotificationChunk {
  content: string;
  notificationIds: string[];
@@ -141,7 +136,7 @@ export interface MarketNotificationChunk {
  */
 export function splitMessageContent(
  message: string,
- maxLength: number = ROOT_MESSAGE_MAX_LENGTH
+ maxLength: number = MESSAGE_MAX_LENGTH
 ): string[] {
  if (message.length <= maxLength) {
   return [message];
@@ -193,7 +188,7 @@ export function formatMarketNotificationChunks(
  notifications: MarketNotification[],
  storeName: string,
  lastSyncDate?: Date | string | null,
- maxLength: number = ROOT_MESSAGE_MAX_LENGTH,
+ maxLength: number = MESSAGE_MAX_LENGTH,
  storeUrl?: string | null
 ): MarketNotificationChunk[] {
  if (notifications.length === 0) {
@@ -268,4 +263,58 @@ export function formatMarketNotificationMessage(
  }
 
  return lines.join("\n");
+}
+
+const DISCORD_MARKDOWN_ESCAPE_PATTERN = /([\\*_~`|>@#:])/g;
+
+/**
+ * Escapes Markdown and mention characters so user-controlled values cannot
+ * trigger formatting, channel mentions, or user/role mentions.
+ */
+export function escapeDiscordMarkdown(text: string): string {
+ return text.replace(DISCORD_MARKDOWN_ESCAPE_PATTERN, "\\$1");
+}
+
+/** Renders one card line for Discord, escaping the user-controlled name. */
+export function formatDiscordCardLine(notification: MarketNotification): string {
+ const escapedName = escapeDiscordMarkdown(notification.cardName);
+ const cardName = isHttpsUrl(notification.imageUrl)
+  ? `[${escapedName}](<${escapeLinkUrl(notification.imageUrl as string)}>)`
+  : escapedName;
+
+ return `\u2022 ${cardName} \u2014 ${formatMarketNotificationCardDetails(notification)}`;
+}
+
+/**
+ * Formats a store's notifications into Discord `content` messages. The
+ * structure mirrors the Root message but escapes names and links.
+ */
+export function formatDiscordMarketNotificationMessage(
+ notifications: MarketNotification[],
+ storeName: string,
+ lastSyncDate?: Date | string | null
+): string[] {
+ if (notifications.length === 0) {
+  return [];
+ }
+
+ const dateStr = formatMarketNotificationDate(lastSyncDate);
+ const lines: string[] = [
+  `**${escapeDiscordMarkdown(storeName)}** updated their stock!`,
+  `New cards since ${dateStr}:`,
+ ];
+
+ for (const notification of sortMarketNotificationsByDetectedAt(notifications)) {
+  lines.push(formatDiscordCardLine(notification));
+ }
+
+ return splitMessageContent(lines.join("\n"), MESSAGE_MAX_LENGTH);
+}
+
+/** @deprecated Use `splitMessageContent` from this module. */
+export function splitDiscordContent(
+ message: string,
+ maxLength: number = MESSAGE_MAX_LENGTH
+): string[] {
+ return splitMessageContent(message, maxLength);
 }

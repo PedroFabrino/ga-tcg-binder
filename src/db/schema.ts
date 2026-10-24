@@ -241,6 +241,7 @@ export const marketCards = sqliteTable(
     vendorName: text("vendor_name"),
     vendorUrl: text("vendor_url"),
     firstSeenAt: integer("first_seen_at", { mode: "timestamp" }).notNull().default(sql`(strftime('%s', 'now'))`),
+    lastStockedAt: integer("last_stocked_at", { mode: "timestamp" }),
     lastSeenAt: integer("last_seen_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
     updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
   },
@@ -281,12 +282,7 @@ export { notificationDeliveries, type NotificationDelivery, type InsertNotificat
 // ---------------------------------------------------------------------------
 // Managed MyPCards Watchlist Ledger
 // ---------------------------------------------------------------------------
-export type WatchlistStatus =
-  | "watching"
-  | "pending_add"
-  | "pending_update"
-  | "pending_remove"
-  | "ignored";
+export type WatchlistStatus = "watching" | "pending_add" | "pending_update" | "pending_remove" | "ignored";
 
 export const mypWatchlist = sqliteTable("myp_watchlist", {
   id: text("id").primaryKey(),
