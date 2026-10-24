@@ -300,3 +300,27 @@ export function parseLigaStoreLatestCardRefId(html: string): string | null {
 
   return null;
 }
+
+/**
+ * Retired (ADR-0025): builds the LigaStore search URL. Kept alongside the
+ * retired parser for reference; LigaStore is no longer crawled.
+ */
+export function buildLigaStoreSearchUrl(
+  store: { baseUrl: string | null; tcgId?: string | null; id: string },
+  sort: "count" | "latest" = "count"
+): string | null {
+  if (!store.baseUrl) {
+    return null;
+  }
+
+  const baseUrl = store.baseUrl.replace(/\/+$/, "");
+  const tcgId = store.tcgId ?? "21";
+  const storeIdParam =
+    store.id === "brandao" ? "&id=207836" : `&id=${encodeURIComponent(store.id)}`;
+  const orderParam = sort === "latest" ? "txt_order=12" : "txt_order=6";
+
+  return (
+    `${baseUrl}/?view=ecom/itens&page=1&tcg=${encodeURIComponent(tcgId)}${storeIdParam}` +
+    `&ultimas=1&${orderParam}&txt_limit=30&txt_estoque=1&btFiltrar=Filtrar`
+  );
+}

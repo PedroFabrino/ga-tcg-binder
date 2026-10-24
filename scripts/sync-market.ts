@@ -3,7 +3,6 @@ import { db } from "../src/db";
 import { ensureDefaultUserAndSeed } from "../src/services/seed";
 import { getEnabledMarketStores } from "../src/db/repositories/marketplace-repository";
 import { syncGlobalMarketplace } from "../src/services/myp-sync";
-import { syncLigaStore } from "../src/services/ligastore-sync";
 import { syncLootcards } from "../src/services/lootcards-sync";
 import { writeMarketNotifications } from "../src/services/market-notifications";
 import { deliverDiscordNotifications } from "../src/services/discord-market-notifier";
@@ -95,25 +94,9 @@ async function main() {
         console.log(`- Duration: ${durationSec}s`);
 
         await notifyMarketChanges(store.id);
-      } else if (store.platform === "liga_store") {
-        if (!store.baseUrl) {
-          throw new Error(`Liga Store "${store.id}" has no baseUrl configured.`);
-        }
-
-        const stats = await syncLigaStore({
-          storeId: store.id,
-          database: db,
-        });
-        const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
-        console.log(`- Total Synced: ${stats.totalSynced}`);
-        console.log(`- Matched: ${stats.matchedCount}`);
-        console.log(`- Unmatched: ${stats.unmatchedCount}`);
-        console.log(`- Enriched: ${stats.enrichedCount}`);
-        console.log(`- Duration: ${durationSec}s`);
-
-        await notifyMarketChanges(store.id);
       } else {
-        console.warn(`Unknown platform ${store.platform} for store ${store.id}, skipping.`);
+        // LigaStore is retired (ADR-0025); any other platform is unknown.
+        console.warn(`Skipping retired/unknown platform ${store.platform} for store ${store.id}.`);
         continue;
       }
 

@@ -17,6 +17,7 @@ import {
   type ParsedLootcardsCard,
 } from "./lootcards-parser";
 import { resolveListing } from "./listing-resolver";
+import { fetchHtml } from "./market-crawl";
 
 export interface LootcardsSyncOptions {
   storeId?: string;
@@ -32,9 +33,6 @@ export interface LootcardsSyncStats {
   unmatchedCount: number;
   enrichedCount: number;
 }
-
-const BROWSER_USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
 export function resolveLootcardsCard(
   card: ParsedLootcardsCard,
@@ -66,18 +64,7 @@ export async function syncLootcards(
   const baseUrl = (store.baseUrl ?? "https://lootcards.store").replace(/\/+$/, "");
 
   async function fetchText(url: string): Promise<string> {
-    const response = await fetchFn(url, {
-      headers: {
-        "User-Agent": BROWSER_USER_AGENT,
-        Accept: "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Lootcards request failed (${response.status}) for ${url}`);
-    }
-
-    return response.text();
+    return fetchHtml(url, { customFetch: fetchFn });
   }
 
   // 1. Broad in-stock catalog scan

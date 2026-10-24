@@ -4,7 +4,6 @@ updateStoreCount,
 updateStoreLatestCardRefId,
 type MarketplaceDatabase,
 } from "../db/repositories/marketplace-repository";
-import { parseLigaStoreTotalCount, parseLigaStoreLatestCardRefId } from "./ligastore-parser";
 import { parseLootcardsTotalCount, parseLootcardsLatestCardRefId } from "./lootcards-parser";
 import { fetchMarketHtml } from "./market-fetch";
 import {
@@ -51,25 +50,6 @@ export interface MarketStoreCheckReport {
 
 const MYP_COUNT_URL =
   "https://mypcards.com/grandarchive?ProdutoSearch%5BexibirSomenteVenda%5D=1";
-
-export function buildLigaStoreSearchUrl(
-  store: EnabledMarketStore,
-  sort: "count" | "latest" = "count"
-): string | null {
-  if (!store.baseUrl) {
-    return null;
-  }
-
-  const baseUrl = store.baseUrl.replace(/\/+$/, "");
-  const tcgId = store.tcgId ?? "21";
-  const storeIdParam = store.id === "brandao" ? "&id=207836" : `&id=${encodeURIComponent(store.id)}`;
-  const orderParam = sort === "latest" ? "txt_order=12" : "txt_order=6";
-
-  return (
-    `${baseUrl}/?view=ecom/itens&page=1&tcg=${encodeURIComponent(tcgId)}${storeIdParam}` +
-    `&ultimas=1&${orderParam}&txt_limit=30&txt_estoque=1&btFiltrar=Filtrar`
-  );
-}
 
 export function parseMypTotalCount(html: string): number | null {
   const summaryMatch = html.match(
@@ -134,17 +114,8 @@ async function fetchStoreObservation(
     };
   }
 
-  const url = buildLigaStoreSearchUrl(store);
-
-  if (!url) {
-    throw new Error("Liga Store has no baseUrl configured");
-  }
-
-  const html = await fetchMarketHtml(url, customFetch);
-  return {
-    count: parseLigaStoreTotalCount(html),
-    latestCardRefId: null,
-  };
+  // LigaStore is retired (ADR-0025): it is no longer polled or rescanned.
+  throw new Error(`Unsupported or retired marketplace platform "${store.platform}"`);
 }
 
 async function dispatchMarketSync(
@@ -302,21 +273,6 @@ export async function checkMarketStores(
           latestCardRefId,
           database
         );
-      } catch (err) {
-        warnLatestCardCheckFailure(store, err);
-      }
-    } else if (store.platform === "liga_store") {
-      try {
-        const latestUrl = buildLigaStoreSearchUrl(store, "latest");
-        if (latestUrl) {
-          const latestHtml = await fetchMarketHtml(latestUrl, customFetch);
-          latestCardRefId = parseLigaStoreLatestCardRefId(latestHtml);
-          latestCardChanged = await applyLatestCardChange(
-            store,
-            latestCardRefId,
-            database
-          );
-        }
       } catch (err) {
         warnLatestCardCheckFailure(store, err);
       }

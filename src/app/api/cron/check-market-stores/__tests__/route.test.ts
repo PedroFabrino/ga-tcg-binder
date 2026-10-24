@@ -10,14 +10,8 @@ const authMocks = vi.hoisted(() => ({
   auth: vi.fn(),
 }));
 
-const parserMocks = vi.hoisted(() => ({
-  parseLigaStoreTotalCount: vi.fn(),
-  parseLigaStoreLatestCardRefId: vi.fn(),
-}));
-
 vi.mock("@/db/repositories/marketplace-repository", () => repositoryMocks);
 vi.mock("@/auth", () => authMocks);
-vi.mock("@/services/ligastore-parser", () => parserMocks);
 
 import { GET } from "../route";
 
@@ -59,13 +53,6 @@ describe("GET /api/cron/check-market-stores", () => {
   it("fetches enabled store counts and updates the database when counts changed", async () => {
     repositoryMocks.getEnabledMarketStores.mockResolvedValue([
       {
-        id: "liga-store-1",
-        platform: "liga_store",
-        baseUrl: "https://ligastore.example",
-        tcgId: "21",
-        lastCount: 20,
-      },
-      {
         id: "myp-store-1",
         platform: "myp",
         baseUrl: null,
@@ -74,23 +61,11 @@ describe("GET /api/cron/check-market-stores", () => {
       },
     ]);
 
-    parserMocks.parseLigaStoreTotalCount.mockReturnValue(25);
-    parserMocks.parseLigaStoreLatestCardRefId.mockReturnValue("latest-ref-1");
-
-    const fetchMock = vi.fn<typeof fetch>();
-    fetchMock
-      .mockResolvedValueOnce(
-        new Response("<html>Liga Store Count</html>", { status: 200 })
-      )
-      .mockResolvedValueOnce(
-        new Response("<html>Liga Store Latest</html>", { status: 200 })
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          '<div class="summary"><strong>125</strong> itens</div>',
-          { status: 200 }
-        )
-      );
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response('<div class="summary"><strong>125</strong> itens</div>', {
+        status: 200,
+      })
+    );
 
     vi.stubGlobal("fetch", fetchMock);
 
@@ -104,33 +79,11 @@ describe("GET /api/cron/check-market-stores", () => {
 
     expect(response.status).toBe(200);
 
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      1,
-      expect.stringContaining(
-        "https://ligastore.example/?view=ecom/itens&page=1&tcg=21"
-      ),
-      expect.any(Object)
-    );
-
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
-      expect.stringContaining("txt_order=12"),
-      expect.any(Object)
-    );
-
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      3,
+    expect(fetchMock).toHaveBeenCalledWith(
       "https://mypcards.com/grandarchive?ProdutoSearch%5BexibirSomenteVenda%5D=1",
       expect.any(Object)
     );
 
-    expect(repositoryMocks.updateStoreCount).toHaveBeenCalledTimes(2);
-    expect(repositoryMocks.updateStoreCount).toHaveBeenCalledWith(
-      "liga-store-1",
-      25,
-      expect.any(Date),
-      undefined
-    );
     expect(repositoryMocks.updateStoreCount).toHaveBeenCalledWith(
       "myp-store-1",
       125,
@@ -139,11 +92,8 @@ describe("GET /api/cron/check-market-stores", () => {
     );
 
     const body = await response.json();
-
-    expect(body.changes).toHaveLength(2);
-    expect(body.changes.map((change: { storeId: string }) => change.storeId)).toEqual(
-      ["liga-store-1", "myp-store-1"]
-    );
+    expect(body.changes).toHaveLength(1);
+    expect(body.changes[0].storeId).toBe("myp-store-1");
   });
 
   it("dispatches the market-sync workflow when a count changed", async () => {
@@ -152,21 +102,19 @@ describe("GET /api/cron/check-market-stores", () => {
 
     repositoryMocks.getEnabledMarketStores.mockResolvedValue([
       {
-        id: "liga-store-1",
-        platform: "liga_store",
-        baseUrl: "https://ligastore.example",
-        tcgId: "21",
+        id: "myp-store-1",
+        platform: "myp",
+        baseUrl: null,
+        tcgId: null,
         lastCount: 10,
       },
     ]);
 
-    parserMocks.parseLigaStoreTotalCount.mockReturnValue(12);
-
-    const fetchMock = vi.fn<typeof fetch>();
-    fetchMock
-      .mockResolvedValueOnce(new Response("<html>store</html>", { status: 200 }))
-      .mockResolvedValueOnce(new Response("<html>latest</html>", { status: 200 }))
-      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response('<div class="summary"><strong>12</strong> itens</div>', {
+        status: 200,
+      })
+    );
 
     vi.stubGlobal("fetch", fetchMock);
 
@@ -180,14 +128,14 @@ describe("GET /api/cron/check-market-stores", () => {
 
     expect(response.status).toBe(200);
     expect(repositoryMocks.updateStoreCount).toHaveBeenCalledWith(
-      "liga-store-1",
+      "myp-store-1",
       12,
       expect.any(Date),
       undefined
     );
 
     expect(fetchMock).toHaveBeenNthCalledWith(
-      3,
+      2,
       "https://api.github.com/repos/owner/ga-tcg-binder/actions/workflows/market-sync.yml/dispatches",
       expect.objectContaining({
         method: "POST",
@@ -197,16 +145,15 @@ describe("GET /api/cron/check-market-stores", () => {
         body: JSON.stringify({
           ref: "main",
           inputs: {
-            store_id: "liga-store-1",
+            store_id: "myp-store-1",
           },
         }),
       })
     );
 
     const body = await response.json();
-
     expect(body.changes[0]).toMatchObject({
-      storeId: "liga-store-1",
+      storeId: "myp-store-1",
       observedCount: 12,
       changed: true,
       dispatched: true,

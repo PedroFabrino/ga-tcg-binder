@@ -6,7 +6,7 @@ import {
   parseLigaStoreSearchPage,
   parseLigaStoreTotalCount,
 } from "../ligastore-parser";
-import { buildLigaStoreSearchUrl } from "../market-check";
+import { buildLigaStoreSearchUrl } from "../ligastore-parser";
 
 describe("parseLigaStoreTotalCount", () => {
   it("extracts the count from the LigaStore pagination cell", () => {
