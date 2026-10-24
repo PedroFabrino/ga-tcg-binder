@@ -14,6 +14,9 @@ import {
 } from "../db/schema";
 import { DEFAULT_USER_ID } from "./seed";
 import { resolveMypItem as resolveListingMypItem } from "./listing-resolver";
+import { decodeHtml, parseBrlPrice } from "./market-crawl";
+
+export { parseBrlPrice };
 
 export interface ParsedMypItem {
   rawName: string;
@@ -86,25 +89,7 @@ export interface MarketplaceReport {
 }
 
 function decodeHtmlEntities(str: string): string {
-  return str
-    .replace(/&#039;/g, "'")
-    .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&nbsp;/g, " ")
-    .replace(/\u00a0/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-export function parseBrlPrice(priceStr: string): number {
-  if (!priceStr) return 0;
-  const cleaned = priceStr
-    .replace(/[^0-9,.-]/g, "")
-    .replace(/\./g, "")
-    .replace(",", ".");
-  const val = parseFloat(cleaned);
-  return Number.isFinite(val) ? val : 0;
+  return decodeHtml(str).replace(/\s+/g, " ").trim();
 }
 
 export type PriceFairnessTier =

@@ -2,21 +2,11 @@
  * HTML and sprite parsing utilities for LigaStore markup.
  */
 
-export const DEFAULT_PRICE = "R$ 0,00";
+import { decodeHtml, parseBrlPrice } from "./market-crawl";
 
-export function decodeHtml(value: string): string {
-  return value
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
-    .replace(/&#x([a-f\d]+);/gi, (_, code) =>
-      String.fromCharCode(Number.parseInt(code, 16))
-    );
-}
+export { decodeHtml };
+
+export const DEFAULT_PRICE = "R$ 0,00";
 
 export function stripHtml(value: string): string {
   return decodeHtml(value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim());
@@ -89,17 +79,7 @@ export function normalizePrice(value: string): string {
 }
 
 export function priceToNumeric(price: string): number {
-  const match = price.match(/R\$\s*([\d.]+,\d+|\d+(?:\.\d+)?)/i);
-  if (!match) {
-    return 0;
-  }
-
-  const value = match[1].includes(",")
-    ? match[1].replace(/\./g, "").replace(",", ".")
-    : match[1];
-
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : 0;
+  return parseBrlPrice(price);
 }
 
 export function parseClassList(tag: string): string[] {
