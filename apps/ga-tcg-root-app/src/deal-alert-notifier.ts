@@ -57,6 +57,7 @@ export function startDealAlertNotifier(
   const transport = createRootDealAlertTransport({
     channelGroupId,
     api: options.api ?? createRootServerDealAlertApi(),
+    botRoleId: process.env.ROOT_DEAL_ALERT_BOT_ROLE_ID || undefined,
   });
   const database = options.database ?? db;
 
@@ -98,14 +99,17 @@ export function startDealAlertNotifier(
   void tick();
 }
 
-function rootDealAlertTransportFromEnv(): DirectMessageSink | null {
+function rootDealAlertTransportFromEnv(
+  api?: RootDealAlertApi
+): DirectMessageSink | null {
   const channelGroupId = process.env.ROOT_DEAL_ALERT_SECTION_ID;
   if (!channelGroupId) {
     return null;
   }
   return createRootDealAlertTransport({
     channelGroupId,
-    api: createRootServerDealAlertApi(),
+    api: api ?? createRootServerDealAlertApi(),
+    botRoleId: process.env.ROOT_DEAL_ALERT_BOT_ROLE_ID || undefined,
   });
 }
 

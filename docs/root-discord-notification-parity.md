@@ -82,9 +82,35 @@ immediately; disabling deletes the channel and clears the stored state.
 | `DISCORD_BOT_TOKEN` | Opens/reuses Discord DMs. |
 | `ROOT_DEAL_ALERT_SECTION_ID` | Bot-only channel section holding per-user channels. Unset ⇒ Root deal alerts disabled. |
 | `ROOT_DEAL_ALERT_INTERVAL_MS` | Root dispatch interval (default 300000). |
+| `ROOT_DEAL_ALERT_BOT_ROLE_ID` | The community role the bot holds. Each per-user channel denies Everyone view, so this grants the bot `channelFullControl` on it. |
 | `ROOT_BOT_MARKET_CHANNEL_ID` | Shared broadcast channel (already existed). |
 
-## 6. Verification caveats
+## 6. Root setup checklist (portal + community)
+
+**Developer Portal / manifest**
+
+- The manifest declares `permissions.channel.fullControl = true`. The Root docs
+  require `channel.fullControl` for `channels.create` / `delete` / `edit` and
+  for access rules; it also covers posting and deleting the rolling message.
+- Bump the manifest version and redeploy (`npm run deploy`) so the community is
+  asked to approve the new permission.
+
+**Community (Root client, admin)**
+
+- Install/approve the app with the updated permissions.
+- Create the bot-only channel section (e.g. "GA Alerts") and set
+  `ROOT_DEAL_ALERT_SECTION_ID` to its channel-group id.
+- Grant the app `fullControl` on that channel group via an access rule (the
+  `channels.create` authorization requires it), and do not deny it via an
+  overlay.
+- Create a role for the bot (e.g. "GA Alerts Bot"), assign it to the app, and
+  set `ROOT_DEAL_ALERT_BOT_ROLE_ID` to its id. The transport grants that role
+  `channelFullControl` on each per-user channel, because those channels deny
+  `channelView` to the Everyone role.
+- Notifications need no manifest permission; the app can send them once
+  installed.
+
+## 7. Verification caveats
 
 These were flagged during design and should be confirmed in a real devhost:
 
@@ -98,7 +124,7 @@ These were flagged during design and should be confirmed in a real devhost:
   documented as resolving against the app's own router, so the fallback is to
   name the channel in the notification text.
 
-## 7. Deferred: channel-broadcast unification
+## 8. Deferred: channel-broadcast unification
 
 The shared broadcast still uses its original pull-based poller and its
 `sent_at` / `message_id` ledger, while Discord uses `notification_deliveries`
@@ -107,7 +133,7 @@ pull-based by nature. A future change can introduce a
 `RootMarketNotificationSink` and move the poller onto
 `deliverMarketNotifications`, retiring `sent_at` / `message_id`.
 
-## 8. Out of scope
+## 9. Out of scope
 
 - A full Root client app (UI, onboarding overhaul, deep-link router).
 - A Root DM API (does not exist).

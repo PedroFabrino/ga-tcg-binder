@@ -82,6 +82,22 @@ describe("Root deal-alert transport", () => {
     expect(ref).toEqual({ channelId: "chan-1", messageId: "msg-1" });
   });
 
+  it("grants the bot role full control when configured", async () => {
+    const fake = createFakeApi();
+    const transport = createRootDealAlertTransport({
+      channelGroupId: "section_1",
+      api: fake.api,
+      botRoleId: "role_bot",
+    });
+
+    await transport.send("root_user_1", "the list");
+
+    expect(fake.channels[0].accessRuleCreates).toContainEqual({
+      roleOrMemberId: "role_bot",
+      overlay: { channelFullControl: true },
+    });
+  });
+
   it("reuses an existing channel instead of creating a new one", async () => {
     const fake = createFakeApi();
     const transport = createRootDealAlertTransport({

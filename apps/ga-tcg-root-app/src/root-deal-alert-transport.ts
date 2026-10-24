@@ -102,6 +102,12 @@ export interface RootDealAlertTransportOptions {
   api: RootDealAlertApi;
   /** `ChannelType.Text` by default. */
   channelType?: number;
+  /**
+   * The community role the bot holds (e.g. "GA Alerts Bot"). Because each
+   * per-user channel denies `channelView` to the Everyone role, the bot needs
+   * an explicit grant or it loses access to the channels it creates.
+   */
+  botRoleId?: string;
 }
 
 function channelNameForRecipient(recipient: string): string {
@@ -118,9 +124,32 @@ export function createRootDealAlertTransport({
   channelGroupId,
   api,
   channelType = ChannelType.Text,
+  botRoleId,
 }: RootDealAlertTransportOptions): DirectMessageSink {
   return {
     async send(recipient, content, previousChannelId) {
+      const accessRuleCreates: RootDealAlertAccessRule[] = [
+        {
+          roleOrMemberId: api.everyoneRoleId,
+          overlay: { channelView: false },
+        },
+        {
+          roleOrMemberId: recipient,
+          overlay: {
+            channelView: true,
+            channelCreateMessage: true,
+            channelViewMessageHistory: true,
+          },
+        },
+      ];
+
+      if (botRoleId) {
+        accessRuleCreates.push({
+          roleOrMemberId: botRoleId,
+          overlay: { channelFullControl: true },
+        });
+      }
+
       const channelId =
         previousChannelId ??
         (
@@ -129,20 +158,7 @@ export function createRootDealAlertTransport({
             name: channelNameForRecipient(recipient),
             channelType,
             useChannelGroupPermission: false,
-            accessRuleCreates: [
-              {
-                roleOrMemberId: api.everyoneRoleId,
-                overlay: { channelView: false },
-              },
-              {
-                roleOrMemberId: recipient,
-                overlay: {
-                  channelView: true,
-                  channelCreateMessage: true,
-                  channelViewMessageHistory: true,
-                },
-              },
-            ],
+            accessRuleCreates,
           })
         ).id;
 
