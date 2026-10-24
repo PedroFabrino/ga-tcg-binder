@@ -10,6 +10,7 @@ import {
   provisionRootDealAlerts,
   removeRootDealAlertChannel,
 } from "./deal-alert-notifier";
+import { createCommunityConfig } from "./community-config";
 
 /**
  * Injectable side effects for the Root commands. Defaults use the shared
@@ -23,6 +24,8 @@ export interface RootCommandDeps {
   ) => Promise<void>;
   provisionDealAlerts?: () => Promise<void>;
   removeDealAlertChannel?: (recipientId: string) => Promise<void>;
+  setBroadcastChannel?: (channelId: string) => Promise<void>;
+  isCommunityOwner?: (userId: string) => Promise<boolean>;
 }
 
 function defaultRootCommandDeps(): Required<RootCommandDeps> {
@@ -39,6 +42,15 @@ function defaultRootCommandDeps(): Required<RootCommandDeps> {
     },
     async removeDealAlertChannel(recipientId) {
       await removeRootDealAlertChannel(recipientId);
+    },
+    async setBroadcastChannel(channelId) {
+      await createCommunityConfig(
+        rootServer.dataStore.appData
+      ).setBroadcastChannelId(channelId);
+    },
+    async isCommunityOwner(userId) {
+      const community = await rootServer.community.communities.get();
+      return String(community.ownerUserId) === userId;
     },
   };
 }
@@ -61,7 +73,8 @@ export async function processRootCommand(
   userId: string,
   messageContent: string,
   client: AssistantClient = getAssistantClient(),
-  deps: RootCommandDeps = {}
+  deps: RootCommandDeps = {},
+  channelId?: string
 ): Promise<string | null> {
   const resolvedDeps = { ...defaultRootCommandDeps(), ...deps };
   const trimmed = messageContent.trim();
@@ -221,6 +234,20 @@ export async function processRootCommand(
       return "🔕 **Deal alerts disabled.**\nYour private deal-alert channel has been removed.";
     }
 
+    // 7. /setup
+    if (command === "setup") {
+      if (!(await resolvedDeps.isCommunityOwner(userId))) {
+        return "⚠️ Only the community owner can run `/setup`.";
+      }
+
+      if (!channelId) {
+        return "⚠️ Run `/setup` inside the channel you want market updates posted to.";
+      }
+
+      await resolvedDeps.setBroadcastChannel(channelId);
+      return "✅ **Setup complete.** Market updates will now be posted in this channel.";
+    }
+
     return null;
   } catch (err: any) {
     if (err instanceof AssistantApiError) {
@@ -247,7 +274,13 @@ export function registerRootCommandHandlers(): void {
       if (evt.messageType === MessageType.System) return;
       if (!evt.messageContent || !evt.messageContent.startsWith("/")) return;
 
-      const reply = await processRootCommand(evt.userId, evt.messageContent);
+      const reply = await processRootCommand(
+        evt.userId,
+        evt.messageContent,
+        undefined,
+        undefined,
+        String(evt.channelId)
+      );
       if (!reply) return;
 
       try {

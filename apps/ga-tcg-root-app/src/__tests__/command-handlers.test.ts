@@ -141,6 +141,8 @@ describe("Root Command Handlers (processRootCommand)", () => {
         setNotificationPreference: vi.fn().mockResolvedValue(undefined),
         provisionDealAlerts: vi.fn().mockResolvedValue(undefined),
         removeDealAlertChannel: vi.fn().mockResolvedValue(undefined),
+        setBroadcastChannel: vi.fn().mockResolvedValue(undefined),
+        isCommunityOwner: vi.fn().mockResolvedValue(true),
       } as RootCommandDeps;
     }
 
@@ -206,6 +208,59 @@ describe("Root Command Handlers (processRootCommand)", () => {
 
       expect(res).toContain("Account Not Linked");
       expect(deps.setNotificationPreference).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("/setup", () => {
+    function createDeps(owner = true): RootCommandDeps {
+      return {
+        setBroadcastChannel: vi.fn().mockResolvedValue(undefined),
+        isCommunityOwner: vi.fn().mockResolvedValue(owner),
+      } as RootCommandDeps;
+    }
+
+    it("records the current channel when the owner runs it", async () => {
+      const deps = createDeps(true);
+
+      const res = await processRootCommand(
+        mockUserId,
+        "/setup",
+        {} as AssistantClient,
+        deps,
+        "chan-market"
+      );
+
+      expect(res).toContain("Setup complete");
+      expect(deps.setBroadcastChannel).toHaveBeenCalledWith("chan-market");
+    });
+
+    it("refuses when the caller is not the community owner", async () => {
+      const deps = createDeps(false);
+
+      const res = await processRootCommand(
+        mockUserId,
+        "/setup",
+        {} as AssistantClient,
+        deps,
+        "chan-market"
+      );
+
+      expect(res).toContain("Only the community owner");
+      expect(deps.setBroadcastChannel).not.toHaveBeenCalled();
+    });
+
+    it("asks the owner to run it inside a channel", async () => {
+      const deps = createDeps(true);
+
+      const res = await processRootCommand(
+        mockUserId,
+        "/setup",
+        {} as AssistantClient,
+        deps
+      );
+
+      expect(res).toContain("inside the channel");
+      expect(deps.setBroadcastChannel).not.toHaveBeenCalled();
     });
   });
 });

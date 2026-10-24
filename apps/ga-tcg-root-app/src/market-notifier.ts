@@ -9,39 +9,34 @@ import {
   formatMarketNotificationChunks,
   groupMarketNotificationsByStore,
 } from "../../../src/services/market-notification-message";
-import { logCommunityChannels } from "./channel-diagnostics";
+import {
+  createCommunityConfig,
+  type RootCommunityConfig,
+} from "./community-config";
 import { describeError } from "./describe-error";
 
+export interface MarketNotifierOptions {
+  config?: RootCommunityConfig;
+  pollIntervalMs?: number;
+}
+
 /**
- * Starts the market notification poller.
- *
- * Reads configuration from environment variables and begins polling the
- * `market_notifications` outbox table at the configured interval. Pending
- * notifications are grouped by store, formatted as Markdown chunks under
- * Root message limits, and sent incrementally to the configured Root community
- * channel.
+ * Starts the market notification poller. The broadcast channel is read from
+ * per-community config (set once with `/setup`), so a public bot never relies
+ * on a community-specific `.env`. Pending notifications are grouped by store,
+ * formatted as Markdown chunks under Root message limits, and sent
+ * incrementally. Until `/setup` is run, the poller stays idle.
  */
-export function startMarketNotifier(): void {
-  const pollIntervalMs = Number.parseInt(
-    process.env.ROOT_BOT_POLL_INTERVAL_MS ?? "30000",
-    10
-  );
-  const rawChannelId = process.env.ROOT_BOT_MARKET_CHANNEL_ID;
+export function startMarketNotifier(options: MarketNotifierOptions = {}): void {
+  const pollIntervalMs =
+    options.pollIntervalMs ??
+    Number.parseInt(process.env.ROOT_BOT_POLL_INTERVAL_MS ?? "30000", 10);
+  const config =
+    options.config ?? createCommunityConfig(rootServer.dataStore.appData);
 
-  if (!rawChannelId) {
-    console.warn(
-      "[market-notifier] ROOT_BOT_MARKET_CHANNEL_ID is not set — market notifications disabled"
-    );
-    return;
-  }
+  let warnedUnconfigured = false;
 
-  const channelId = rawChannelId as unknown as ChannelGuid;
-
-  void logCommunityChannels(rawChannelId);
-
-  console.log(
-    `[market-notifier] Starting poller (interval=${pollIntervalMs}ms, channel=${rawChannelId})`
-  );
+  console.log(`[market-notifier] Starting poller (interval=${pollIntervalMs}ms)`);
 
   let running = false;
 
@@ -52,6 +47,20 @@ export function startMarketNotifier(): void {
     running = true;
 
     try {
+      const broadcastChannelId = await config.getBroadcastChannelId();
+
+      if (!broadcastChannelId) {
+        if (!warnedUnconfigured) {
+          console.warn(
+            "[market-notifier] No broadcast channel configured — run /setup in the target channel. Market notifications paused."
+          );
+          warnedUnconfigured = true;
+        }
+        return;
+      }
+      warnedUnconfigured = false;
+
+      const channelId = broadcastChannelId as unknown as ChannelGuid;
       const pending = await getPendingNotifications(db);
 
       if (pending.length === 0) {
@@ -89,7 +98,7 @@ export function startMarketNotifier(): void {
             });
           } catch (err) {
             console.error(
-              `[market-notifier] Failed to send chunk ${i + 1}/${chunks.length} (${chunk.notificationIds.length} cards) for store "${storeName}" to channel ${rawChannelId}: ${describeError(err)}`
+              `[market-notifier] Failed to send chunk ${i + 1}/${chunks.length} (${chunk.notificationIds.length} cards) for store "${storeName}" to channel ${broadcastChannelId}: ${describeError(err)}`
             );
             // Stop processing remaining chunks for this store to keep message ordering intact.
             // Remaining notifications will be retried on the next poll tick.
@@ -121,5 +130,5 @@ export function startMarketNotifier(): void {
   };
 
   setInterval(tick, pollIntervalMs);
-  tick();
+  void tick();
 }
