@@ -253,9 +253,7 @@ export async function runFullSyncPipeline(
   // Stage 2f: Wantlist Deal Alert Dispatch
   const stage2fStart = Date.now();
   try {
-    const res = await dispatchDealAlerts(dbParam, undefined, undefined, {
-      forceRefresh: true,
-    });
+    const res = await dispatchDealAlerts(dbParam);
     stages.push({
       stage: "Stage 2f: Wantlist Deal Alert Dispatch",
       status: "success",
