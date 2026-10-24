@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { linkIdentityWithToken } from "@/services/collector-assistant";
+import { authenticateRootBot } from "@/services/root-bot-auth";
+import { noteRootCommunityMember } from "@/services/root-bot-service";
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,6 +16,13 @@ export async function POST(req: NextRequest) {
     }
     if (!providerUserId || typeof providerUserId !== "string") {
       return NextResponse.json({ error: "Missing providerUserId" }, { status: 400 });
+    }
+
+    if (provider === "root") {
+      const caller = await authenticateRootBot(req);
+      if (caller) {
+        await noteRootCommunityMember(caller.communityId, providerUserId);
+      }
     }
 
     const result = await linkIdentityWithToken({

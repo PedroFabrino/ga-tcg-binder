@@ -5,6 +5,7 @@ import {
 } from "../db/repositories/marketplace-repository";
 import { getUndeliveredNotifications } from "../db/repositories/notification-delivery-repository";
 import { groupMarketNotificationsByStore } from "./market-notification-message";
+import type { DealAlertNotificationSummary } from "./deal-alert-format";
 
 /**
  * A notification sink owns one delivery channel: formatting, sending, and
@@ -40,13 +41,24 @@ export interface DirectMessageRef {
 }
 
 /**
- * A delivery seam for per-recipient rolling messages (Deal Alert DMs). A
- * Discord-DM adapter exists now; a Root-DM adapter is reserved behind the same
- * interface without touching the formatter or the Outbox.
+ * A delivery seam for per-recipient rolling messages (Deal Alerts). Discord
+ * satisfies this with DMs; Root satisfies it with a private per-user channel.
+ * `previousChannelId` lets a channel-backed sink reuse the recipient's channel
+ * across chunks instead of creating a new one per message. `notify` is an
+ * optional "ping" (Root in-app notification); Discord omits it because the DM
+ * is itself the notification.
  */
 export interface DirectMessageSink {
- send(recipient: string, content: string): Promise<DirectMessageRef | null>;
+ send(
+  recipient: string,
+  content: string,
+  previousChannelId?: string
+ ): Promise<DirectMessageRef | null>;
  delete(ref: DirectMessageRef): Promise<void>;
+ notify?(
+  recipient: string,
+  summary: DealAlertNotificationSummary
+ ): Promise<void>;
 }
 
 export interface MarketNotificationDeliveryResult {

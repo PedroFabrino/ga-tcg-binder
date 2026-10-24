@@ -170,7 +170,7 @@ describe("Discord Deal Alerts Matcher and Notifier", () => {
 
     expect(matches).toHaveLength(1);
     expect(matches[0].collectorId).toBe(testCollectorId);
-    expect(matches[0].discordUserId).toBe(discordUserId);
+    expect(matches[0].recipientId).toBe(discordUserId);
     expect(matches[0].source.kind).toBe("personal-want");
   });
 
@@ -383,13 +383,13 @@ describe("Discord Deal Alerts Matcher and Notifier", () => {
     const matches: DealAlertMatch[] = [
       {
         collectorId: testCollectorId,
-        discordUserId,
+        recipientId: discordUserId,
         listing: creativeShockListing,
         source: { kind: "personal-want", desiredQuantity: 1 },
       },
       {
         collectorId: testCollectorId,
-        discordUserId,
+        recipientId: discordUserId,
         listing: fireballListing,
         source: { kind: "hard", deckId: "deck_kay", deckName: "Burn Deck", missingQuantity: 4 },
       },
@@ -429,7 +429,7 @@ describe("Discord Deal Alerts Matcher and Notifier", () => {
     for (let i = 1; i <= 50; i++) {
       matches.push({
         collectorId: testCollectorId,
-        discordUserId,
+        recipientId: discordUserId,
         listing: {
           id: `mc_bulk_${i}`,
           storeId: "store_myp",

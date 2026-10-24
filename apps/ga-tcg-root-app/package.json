@@ -2,15 +2,13 @@
   "name": "@ga/root-app",
   "author": "",
   "description": "Grand Archive TCG Collector Assistant & Market Notifier Root App",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "engines": {
     "node": ">=22"
   },
   "dependencies": {
-    "@rootsdk/server-bot": "*",
-    "@libsql/client": "^0.14.0",
-    "drizzle-orm": "^0.36.4"
+    "@rootsdk/server-bot": "*"
   },
   "devDependencies": {
     "@rootsdk/dev-tools": "*",

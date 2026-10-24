@@ -1,4 +1,5 @@
 import { findCollectorByIdentity } from "../db/repositories/assistant-repository";
+import { authenticateRootBot } from "./root-bot-auth";
 import type { AssistantProvider } from "@ga/contracts";
 
 export interface AssistantCallerContext {
@@ -9,13 +10,25 @@ export interface AssistantCallerContext {
 }
 
 /**
- * Validates the internal shared assistant token header.
+ * Validates the internal shared assistant token header, or a per-install Root
+ * bot bearer token (so the cloud bot can call the same assistant routes without
+ * holding the shared secret).
  */
-export function isAssistantAuthorized(req: Request): boolean {
+export async function isAssistantAuthorized(
+  req: Request,
+  database?: Parameters<typeof authenticateRootBot>[1]
+): Promise<boolean> {
   const secret = process.env.ASSISTANT_API_SECRET || process.env.ASSISTANT_TOKEN;
   if (!secret) return true; // Permitted in local development / test without explicit token
+
   const token = req.headers.get("x-assistant-token");
-  return token === secret;
+  if (token === secret) return true;
+
+  if (req.headers.get("authorization")) {
+    return (await authenticateRootBot(req, database)) !== null;
+  }
+
+  return false;
 }
 
 /**

@@ -1,6 +1,6 @@
 {
   "id": "ADH-6fbvigmppj1_qgZSmw",
-  "version": "1.0.1",
+  "version": "1.0.4",
   "package": {
     "server": {
       "launch": "dist/main.js",
@@ -10,6 +10,14 @@
       "nodeModules": [
         "node_modules"
       ]
+    }
+  },
+  "permissions": {
+    "community": {
+      "createChannelGroup": true
+    },
+    "channel": {
+      "fullControl": true
     }
   }
 }

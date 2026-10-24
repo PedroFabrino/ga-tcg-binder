@@ -3,7 +3,7 @@ import { isAssistantAuthorized, resolveAssistantCaller } from "@/services/assist
 import { getCollectorDecks } from "@/services/collector-assistant";
 
 export async function GET(request: Request) {
-  if (!isAssistantAuthorized(request)) {
+  if (!(await isAssistantAuthorized(request))) {
     return NextResponse.json(
       { error: "UNAUTHORIZED", message: "Invalid assistant authentication token" },
       { status: 401 }

@@ -1,12 +1,16 @@
 import { describe, it, expect, vi } from "vitest";
-import { processRootCommand } from "../command-handlers";
-import { AssistantClient, AssistantApiError } from "@ga/contracts";
+import {
+  processRootCommand,
+  type RootCommandDeps,
+} from "../command-handlers";
+import { AssistantApiError } from "@ga/contracts";
+import type { RootBotApi } from "../root-bot-api";
 
 describe("Root Command Handlers (processRootCommand)", () => {
   const mockUserId = "root-user-123";
 
   it("ignores non-command messages", async () => {
-    const mockClient = {} as AssistantClient;
+    const mockClient = {} as RootBotApi;
     const res = await processRootCommand(mockUserId, "Hello everyone!", mockClient);
     expect(res).toBeNull();
   });
@@ -19,7 +23,7 @@ describe("Root Command Handlers (processRootCommand)", () => {
         collectorName: "Arthur",
         message: "Linked",
       }),
-    } as unknown as AssistantClient;
+    } as unknown as RootBotApi;
 
     const res = await processRootCommand(mockUserId, "/link ABC123", mockClient);
     expect(mockClient.link).toHaveBeenCalledWith({
@@ -61,7 +65,7 @@ describe("Root Command Handlers (processRootCommand)", () => {
           },
         ],
       }),
-    } as unknown as AssistantClient;
+    } as unknown as RootBotApi;
 
     const res = await processRootCommand(mockUserId, "/decks", mockClient);
     expect(res).toContain("Arthur's Decks (2)");
@@ -109,7 +113,7 @@ describe("Root Command Handlers (processRootCommand)", () => {
         totalHardShortages: 1,
         totalSharedShortages: 1,
       }),
-    } as unknown as AssistantClient;
+    } as unknown as RootBotApi;
 
     const res = await processRootCommand(mockUserId, "/shortages Control", mockClient);
     expect(res).toContain("**Shortages for Control** (50%)");
@@ -124,10 +128,202 @@ describe("Root Command Handlers (processRootCommand)", () => {
       getDecks: vi.fn().mockRejectedValue(
         new AssistantApiError(404, "IDENTITY_NOT_LINKED", "No linked account")
       ),
-    } as unknown as AssistantClient;
+    } as unknown as RootBotApi;
 
     const res = await processRootCommand(mockUserId, "/decks", mockClient);
     expect(res).toContain("Grand Archive Binder Account Not Linked");
     expect(res).toContain("/link <code>");
+  });
+
+  describe("/notify", () => {
+    function createDeps(collectorId: string | null = "collector-1"): RootCommandDeps {
+      return {
+        findCollectorId: vi.fn().mockResolvedValue(collectorId),
+        setNotificationPreference: vi.fn().mockResolvedValue(undefined),
+        provisionDealAlerts: vi.fn().mockResolvedValue(undefined),
+        removeDealAlertChannel: vi.fn().mockResolvedValue(undefined),
+        ensureRecipientChannel: vi.fn().mockResolvedValue("chan-private"),
+        configureFromChannel: vi.fn().mockResolvedValue(undefined),
+        isCommunityAdmin: vi.fn().mockResolvedValue(true),
+      } as RootCommandDeps;
+    }
+
+    it("enables deal alerts and provisions the private channel", async () => {
+      const deps = createDeps();
+
+      const res = await processRootCommand(
+        mockUserId,
+        "/notify on",
+        {} as RootBotApi,
+        deps
+      );
+
+      expect(res).toContain("Deal alerts enabled");
+      expect(res).toContain("root://channel/chan-private");
+      expect(deps.ensureRecipientChannel).toHaveBeenCalledWith(mockUserId);
+      expect(deps.setNotificationPreference).toHaveBeenCalledWith(
+        mockUserId,
+        true
+      );
+      expect(deps.provisionDealAlerts).toHaveBeenCalledTimes(1);
+    });
+
+    it("uses the injected API client for the preference by default", async () => {
+      const fakeApi = {
+        getCollector: vi
+          .fn()
+          .mockResolvedValue({ collectorId: "collector-1", collectorName: "Ash" }),
+        setNotifyPreference: vi.fn().mockResolvedValue(undefined),
+      } as unknown as RootBotApi;
+      const deps: RootCommandDeps = {
+        ensureRecipientChannel: vi.fn().mockResolvedValue("chan-private"),
+        provisionDealAlerts: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const res = await processRootCommand(
+        mockUserId,
+        "/notify on",
+        fakeApi,
+        deps
+      );
+
+      expect(res).toContain("Deal alerts enabled");
+      expect(fakeApi.getCollector).toHaveBeenCalledWith(mockUserId);
+      expect(fakeApi.setNotifyPreference).toHaveBeenCalledWith({
+        providerUserId: mockUserId,
+        enabled: true,
+      });
+    });
+
+    it("falls back to a deferred-channel message when creation fails", async () => {
+      const deps = createDeps();
+      (deps.ensureRecipientChannel as ReturnType<typeof vi.fn>).mockResolvedValue(
+        null
+      );
+
+      const res = await processRootCommand(
+        mockUserId,
+        "/notify on",
+        {} as RootBotApi,
+        deps
+      );
+
+      expect(res).toContain("next marketplace sync");
+    });
+
+    it("disables deal alerts and removes the private channel", async () => {
+      const deps = createDeps();
+
+      const res = await processRootCommand(
+        mockUserId,
+        "/notify off",
+        {} as RootBotApi,
+        deps
+      );
+
+      expect(res).toContain("Deal alerts disabled");
+      expect(deps.setNotificationPreference).toHaveBeenCalledWith(
+        mockUserId,
+        false
+      );
+      expect(deps.removeDealAlertChannel).toHaveBeenCalledWith(mockUserId);
+    });
+
+    it("returns usage when no action is given", async () => {
+      const deps = createDeps();
+
+      const res = await processRootCommand(
+        mockUserId,
+        "/notify",
+        {} as RootBotApi,
+        deps
+      );
+
+      expect(res).toContain("Usage:");
+      expect(deps.setNotificationPreference).not.toHaveBeenCalled();
+    });
+
+    it("prompts to link when the identity is not linked", async () => {
+      const deps = createDeps(null);
+
+      const res = await processRootCommand(
+        mockUserId,
+        "/notify on",
+        {} as RootBotApi,
+        deps
+      );
+
+      expect(res).toContain("Account Not Linked");
+      expect(deps.setNotificationPreference).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("/setup", () => {
+    function createDeps(admin = true): RootCommandDeps {
+      return {
+        configureFromChannel: vi.fn().mockResolvedValue(undefined),
+        isCommunityAdmin: vi.fn().mockResolvedValue(admin),
+      } as RootCommandDeps;
+    }
+
+    it("warns before changing the dump channel", async () => {
+      const deps = createDeps(true);
+
+      const res = await processRootCommand(
+        mockUserId,
+        "/setup",
+        {} as RootBotApi,
+        deps,
+        "chan-market"
+      );
+
+      expect(res).toContain("become the market dump");
+      expect(res).toContain("/setup confirm");
+      expect(deps.configureFromChannel).not.toHaveBeenCalled();
+    });
+
+    it("records the channel when an admin confirms", async () => {
+      const deps = createDeps(true);
+
+      const res = await processRootCommand(
+        mockUserId,
+        "/setup confirm",
+        {} as RootBotApi,
+        deps,
+        "chan-market"
+      );
+
+      expect(res).toContain("Setup complete");
+      expect(deps.configureFromChannel).toHaveBeenCalledWith("chan-market");
+    });
+
+    it("refuses when the caller is not an admin", async () => {
+      const deps = createDeps(false);
+
+      const res = await processRootCommand(
+        mockUserId,
+        "/setup confirm",
+        {} as RootBotApi,
+        deps,
+        "chan-market"
+      );
+
+      expect(res).toContain("Only community admins");
+      expect(deps.configureFromChannel).not.toHaveBeenCalled();
+    });
+
+    it("asks to run it inside a channel", async () => {
+      const deps = createDeps(true);
+
+      const res = await processRootCommand(
+        mockUserId,
+        "/setup confirm",
+        {} as RootBotApi,
+        deps
+      );
+
+      expect(res).toContain("inside the channel");
+      expect(deps.configureFromChannel).not.toHaveBeenCalled();
+    });
   });
 });

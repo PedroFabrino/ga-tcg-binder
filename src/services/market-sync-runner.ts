@@ -17,6 +17,10 @@ import { syncLootcards } from "./lootcards-sync";
 import { writeMarketNotifications } from "./market-notifications";
 import { deliverDiscordNotifications } from "./discord-market-notifier";
 import { dispatchDealAlerts } from "./discord-deal-notifier";
+import {
+  DISCORD_DM_DESTINATION,
+  readDealAlertDestinations,
+} from "../lib/market-vocabulary";
 
 export interface MarketSyncResult {
   stores: { storeId: string; status: "success" | "failed"; error?: string }[];
@@ -111,16 +115,24 @@ export async function runMarketSync(options: {
   }
 
   // Deal alert dispatch runs once after all stores have synced so matching
-  // sees the complete set of freshly updated listings.
-  try {
-    const dealAlerts = await dispatchDealAlerts(database);
-    result.dealAlerts = { matched: dealAlerts.matched, sent: dealAlerts.sent };
-    console.log(`- Deal Alerts: ${dealAlerts.matched} matched, ${dealAlerts.sent} DMs sent`);
-  } catch (error) {
-    console.error(
-      "Failed to dispatch deal alerts:",
-      error instanceof Error ? error.message : error
-    );
+  // sees the complete set of freshly updated listings. Root delivery runs in
+  // the Root bot (the only process with the Root SDK); this process owns only
+  // the Discord DM destination.
+  if (readDealAlertDestinations().includes(DISCORD_DM_DESTINATION)) {
+    try {
+      const dealAlerts = await dispatchDealAlerts(database, undefined, undefined, {
+        destination: DISCORD_DM_DESTINATION,
+      });
+      result.dealAlerts = { matched: dealAlerts.matched, sent: dealAlerts.sent };
+      console.log(
+        `- Deal Alerts (Discord): ${dealAlerts.matched} matched, ${dealAlerts.sent} DMs sent`
+      );
+    } catch (error) {
+      console.error(
+        "Failed to dispatch deal alerts:",
+        error instanceof Error ? error.message : error
+      );
+    }
   }
 
   return result;

@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../index";
 import {
   dealAlertMessages,
@@ -9,23 +9,31 @@ import {
 export type DealAlertDatabase = typeof db;
 
 /**
- * Returns the tracked rolling deal-alert message for a Discord user, if any.
+ * Returns the tracked rolling deal-alert message for a recipient on a
+ * destination (e.g. `discord-dm`, `root-alert`), if any.
  */
 export async function getDealAlertMessage(
-  discordUserId: string,
+  destination: string,
+  recipientId: string,
   database: DealAlertDatabase = db
 ): Promise<DealAlertMessageRow | undefined> {
   const [row] = await database
     .select()
     .from(dealAlertMessages)
-    .where(eq(dealAlertMessages.discordUserId, discordUserId))
+    .where(
+      and(
+        eq(dealAlertMessages.destination, destination),
+        eq(dealAlertMessages.recipientId, recipientId)
+      )
+    )
     .limit(1);
 
   return row;
 }
 
 /**
- * Inserts or replaces the tracked rolling deal-alert message for a Discord user.
+ * Inserts or replaces the tracked rolling deal-alert message for a recipient
+ * on a destination.
  */
 export async function upsertDealAlertMessage(
   record: InsertDealAlertMessageRow,
@@ -35,7 +43,7 @@ export async function upsertDealAlertMessage(
     .insert(dealAlertMessages)
     .values(record)
     .onConflictDoUpdate({
-      target: dealAlertMessages.discordUserId,
+      target: [dealAlertMessages.destination, dealAlertMessages.recipientId],
       set: {
         channelId: record.channelId,
         messageId: record.messageId,
@@ -55,13 +63,20 @@ export async function listAllDealAlertMessages(
 }
 
 /**
- * Deletes the tracked rolling deal-alert message for a Discord user.
+ * Deletes the tracked rolling deal-alert message for a recipient on a
+ * destination.
  */
 export async function deleteDealAlertMessage(
-  discordUserId: string,
+  destination: string,
+  recipientId: string,
   database: DealAlertDatabase = db
 ): Promise<void> {
   await database
     .delete(dealAlertMessages)
-    .where(eq(dealAlertMessages.discordUserId, discordUserId));
+    .where(
+      and(
+        eq(dealAlertMessages.destination, destination),
+        eq(dealAlertMessages.recipientId, recipientId)
+      )
+    );
 }

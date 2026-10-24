@@ -1,18 +1,114 @@
-import { AssistantClient, AssistantApiError } from "@ga/contracts";
+import { AssistantApiError } from "@ga/contracts";
 import {
   rootServer,
   MessageType,
+  WellKnownRootGuids,
+  type ChannelGuid,
   type ChannelMessageCreatedEvent,
+  type UserGuid,
 } from "@rootsdk/server-bot";
+import {
+  ensureRootRecipientChannel,
+  provisionRootDealAlerts,
+  removeRootDealAlertChannel,
+} from "./deal-alert-notifier";
+import { createCommunityConfig } from "./community-config";
+import { RootBotApi, RootBotApiError } from "./root-bot-api";
 
-export function getAssistantClient(): AssistantClient {
-  const baseUrl =
-    process.env.ASSISTANT_API_BASE_URL ||
-    process.env.NEXTAUTH_URL ||
-    "http://localhost:3002";
-  const assistantToken =
-    process.env.ASSISTANT_API_SECRET || process.env.ASSISTANT_TOKEN;
-  return new AssistantClient({ baseUrl, assistantToken });
+/**
+ * Injectable side effects for the Root commands. Defaults use the shared
+ * database; tests pass fakes so the command logic stays pure.
+ */
+export interface RootCommandDeps {
+  findCollectorId?: (userId: string) => Promise<string | null>;
+  setNotificationPreference?: (
+    providerUserId: string,
+    enabled: boolean
+  ) => Promise<void>;
+  provisionDealAlerts?: () => Promise<void>;
+  removeDealAlertChannel?: (recipientId: string) => Promise<void>;
+  ensureRecipientChannel?: (recipientId: string) => Promise<string | null>;
+  configureFromChannel?: (channelId: string) => Promise<void>;
+  isCommunityAdmin?: (userId: string) => Promise<boolean>;
+}
+
+function defaultRootCommandDeps(
+  communityId?: string,
+  client?: RootBotApi
+): Required<RootCommandDeps> {
+  const api = client ?? getRootBotApi(communityId);
+  const recipientOptions = { communityId, api };
+
+  return {
+    async findCollectorId(userId) {
+      try {
+        const resolved = await api.getCollector(userId);
+        return resolved?.collectorId ?? null;
+      } catch (err) {
+        if (err instanceof RootBotApiError && err.status === 404) {
+          return null;
+        }
+        throw err;
+      }
+    },
+    async setNotificationPreference(providerUserId, enabled) {
+      await api.setNotifyPreference({ providerUserId, enabled });
+    },
+    async provisionDealAlerts() {
+      await provisionRootDealAlerts(recipientOptions);
+    },
+    async removeDealAlertChannel(recipientId) {
+      await removeRootDealAlertChannel(recipientId, recipientOptions);
+    },
+    async ensureRecipientChannel(recipientId) {
+      return ensureRootRecipientChannel(recipientId, recipientOptions);
+    },
+    async configureFromChannel(channelId) {
+      const config = createCommunityConfig(rootServer.dataStore.appData);
+      await config.setBroadcastChannelId(channelId);
+
+      try {
+        const channel = await rootServer.community.channels.get({
+          id: channelId as unknown as ChannelGuid,
+        });
+        await config.setAlertSectionId(String(channel.channelGroupId));
+      } catch (err) {
+        console.warn(
+          "[setup] Could not resolve the channel's group; the bot will fall back to creating its own deal-alert section.",
+          err instanceof Error ? err.message : err
+        );
+      }
+    },
+    async isCommunityAdmin(userId) {
+      const community = await rootServer.community.communities.get();
+      if (String(community.ownerUserId) === userId) {
+        return true;
+      }
+
+      const [member, roles] = await Promise.all([
+        rootServer.community.communityMembers.get({
+          userId: userId as unknown as UserGuid,
+        }),
+        rootServer.community.communityRoles.list(),
+      ]);
+
+      const roleIds = new Set(member.communityRoleIds.map((id) => String(id)));
+      roleIds.add(String(WellKnownRootGuids.CommunityRoles.EveryoneRole));
+
+      return roles.some(
+        (role) =>
+          roleIds.has(String(role.id)) &&
+          (role.communityPermission.communityManageApps ||
+            role.communityPermission.communityFullControl)
+      );
+    },
+  };
+}
+
+export function getRootBotApi(communityId?: string): RootBotApi {
+  return new RootBotApi({
+    communityId: communityId ?? process.env.COMMUNITY_ID ?? "",
+  });
 }
 
 /**
@@ -22,8 +118,15 @@ export function getAssistantClient(): AssistantClient {
 export async function processRootCommand(
   userId: string,
   messageContent: string,
-  client: AssistantClient = getAssistantClient()
+  client: RootBotApi = getRootBotApi(),
+  deps: RootCommandDeps = {},
+  channelId?: string,
+  communityId?: string
 ): Promise<string | null> {
+  const resolvedDeps = {
+    ...defaultRootCommandDeps(communityId, client),
+    ...deps,
+  };
   const trimmed = messageContent.trim();
   if (!trimmed.startsWith("/")) return null;
 
@@ -48,7 +151,7 @@ export async function processRootCommand(
 
     // 2. /decks
     if (command === "decks") {
-      const res = await client.getDecks("root", userId);
+      const res = await client.getDecks(userId);
       if (res.decks.length === 0) {
         return `🗃️ **${res.collectorName || "Collector"}'s Decks**\nYou don't have any saved decks yet. Create one in the GA Binder web app!`;
       }
@@ -76,7 +179,7 @@ export async function processRootCommand(
         return "⚠️ **Usage:** `/shortages <deck_name>`\nPlease specify which deck to check.";
       }
 
-      const shortages = await client.getShortages("root", userId, argString);
+      const shortages = await client.getShortages(userId, argString);
       const isComplete =
         shortages.hardShortages.length === 0 && shortages.sharedShortages.length === 0;
 
@@ -114,7 +217,7 @@ export async function processRootCommand(
         return "⚠️ **Usage:** `/collection <card_name>`\nPlease specify a card name to search.";
       }
 
-      const res = await client.searchCollection("root", userId, argString);
+      const res = await client.searchCollection(userId, argString);
       if (res.cards.length === 0) {
         return `🔍 **Collection Search: "${argString}"**\nNo matching cards found in your personal Binder.`;
       }
@@ -132,7 +235,7 @@ export async function processRootCommand(
 
     // 5. /wantlist [deck]
     if (command === "wantlist") {
-      const wantlist = await client.getWantlist("root", userId, argString || undefined);
+      const wantlist = await client.getWantlist(userId, argString || undefined);
       if (wantlist.decks.length === 0) {
         return "📋 **Wantlist**\nZero shortages detected across your active decks! Your collection fully covers them.";
       }
@@ -156,6 +259,63 @@ export async function processRootCommand(
       return lines.join("\n");
     }
 
+    // 6. /notify [on|off]
+    if (command === "notify") {
+      const action = argString.toLowerCase();
+
+      if (action !== "on" && action !== "off") {
+        return "⚠️ **Usage:** `/notify on|off`\nTurn private deal alerts on or off.";
+      }
+
+      const collectorId = await resolvedDeps.findCollectorId(userId);
+
+      if (!collectorId) {
+        return "⚠️ **Grand Archive Binder Account Not Linked**\nLink your account first:\n1. Open GA Binder > **Settings > Linked Accounts**\n2. Click **Generate Code**\n3. Run `/link <code>` here in Root.";
+      }
+
+      if (action === "on") {
+        await resolvedDeps.setNotificationPreference(userId, true);
+
+        let alertsChannelId: string | null = null;
+        try {
+          alertsChannelId = await resolvedDeps.ensureRecipientChannel(userId);
+        } catch (err) {
+          console.warn(
+            "[notify] Could not create the private deal-alert channel yet:",
+            err instanceof Error ? err.message : err
+          );
+        }
+
+        await resolvedDeps.provisionDealAlerts();
+
+        return alertsChannelId
+          ? `🔔 **Deal alerts enabled.** Your alerts will arrive in [your private channel](root://channel/${alertsChannelId}).`
+          : "🔔 **Deal alerts enabled.** Your private channel will be created on the next marketplace sync.";
+      }
+
+      await resolvedDeps.setNotificationPreference(userId, false);
+      await resolvedDeps.removeDealAlertChannel(userId);
+      return "🔕 **Deal alerts disabled.**\nYour private deal-alert channel has been removed.";
+    }
+
+    // 7. /setup
+    if (command === "setup") {
+      if (!(await resolvedDeps.isCommunityAdmin(userId))) {
+        return "⚠️ Only community admins (Manage Apps) or the owner can run `/setup`.";
+      }
+
+      if (!channelId) {
+        return "⚠️ Run `/setup` inside the channel you want market updates posted to.";
+      }
+
+      if (argString.toLowerCase() !== "confirm") {
+        return "⚠️ **This channel will become the market dump.** Every store update will be posted here.\nRun `/setup confirm` in this channel to apply it.";
+      }
+
+      await resolvedDeps.configureFromChannel(channelId);
+      return "✅ **Setup complete.** This channel is now the market dump — store updates will be posted here, and per-user alert channels will be created in this channel's group.";
+    }
+
     return null;
   } catch (err: any) {
     if (err instanceof AssistantApiError) {
@@ -175,14 +335,21 @@ export async function processRootCommand(
 /**
  * Subscribes to Root channel messages and executes assistant commands.
  */
-export function registerRootCommandHandlers(): void {
+export function registerRootCommandHandlers(communityId?: string): void {
   rootServer.community.channelMessages.on(
     "channelMessage.created" as any,
     async (evt: ChannelMessageCreatedEvent) => {
       if (evt.messageType === MessageType.System) return;
       if (!evt.messageContent || !evt.messageContent.startsWith("/")) return;
 
-      const reply = await processRootCommand(evt.userId, evt.messageContent);
+      const reply = await processRootCommand(
+        evt.userId,
+        evt.messageContent,
+        getRootBotApi(communityId),
+        undefined,
+        String(evt.channelId),
+        communityId
+      );
       if (!reply) return;
 
       try {
