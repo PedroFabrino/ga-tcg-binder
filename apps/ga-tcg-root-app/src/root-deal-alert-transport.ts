@@ -13,6 +13,7 @@ import type {
   DirectMessageSink,
 } from "../../../src/services/market-notification-sink";
 import type { DealAlertNotificationSummary } from "../../../src/services/deal-alert-format";
+import { parseMessageIds } from "../../../src/services/discord-dm-client";
 
 /**
  * The narrow slice of the Root server SDK the deal-alert transport needs.
@@ -150,11 +151,7 @@ export function createRootDealAlertTransport({
     },
 
     async delete(ref: DirectMessageRef) {
-      const ids = ref.messageId
-        .split(",")
-        .map((id) => id.trim())
-        .filter(Boolean);
-      for (const id of ids) {
+      for (const id of parseMessageIds(ref.messageId)) {
         await api.deleteMessage({ channelId: ref.channelId, id });
       }
     },

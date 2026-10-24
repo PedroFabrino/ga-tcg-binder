@@ -11,6 +11,7 @@ import {
   deleteDealAlertMessage,
   getDealAlertMessage,
 } from "../../../src/db/repositories/deal-alert-repository";
+import { parseMessageIds } from "../../../src/services/discord-dm-client";
 import type { DirectMessageSink } from "../../../src/services/market-notification-sink";
 import {
   createRootDealAlertTransport,
@@ -148,11 +149,7 @@ export async function removeRootDealAlertChannel(
 
   const transport = rootDealAlertTransportFromEnv();
   if (transport) {
-    const messageIds = row.messageId
-      .split(",")
-      .map((id) => id.trim())
-      .filter(Boolean);
-    for (const id of messageIds) {
+    for (const id of parseMessageIds(row.messageId)) {
       await transport.delete({ channelId: row.channelId, messageId: id });
     }
   }

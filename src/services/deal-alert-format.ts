@@ -207,7 +207,7 @@ export function formatDealAlertNotificationSummary(
   ];
 
   const title = truncateSummary(
-    `🔔 ${uniqueCards.length} new card${uniqueCards.length === 1 ? "" : "s"} for your wantlist`,
+    `🔔 ${uniqueCards.length} new card${uniqueCards.length === 1 ? "" : "s"} — check your alerts channel`,
     NOTIFICATION_TITLE_MAX
   );
 

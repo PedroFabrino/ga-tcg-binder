@@ -176,8 +176,6 @@ export interface DispatchDealAlertsOptions {
   forceRefresh?: boolean;
   /** Which platform destination to dispatch to (default: Discord DMs). */
   destination?: Destination;
-  /** Identity provider to match against; derived from `destination` by default. */
-  provider?: "discord" | "root";
 }
 
 function providerForDestination(destination: Destination): "discord" | "root" {
@@ -199,7 +197,7 @@ export async function dispatchDealAlerts(
   options: DispatchDealAlertsOptions = {}
 ): Promise<DealAlertDispatchResult> {
   const destination = options.destination ?? DISCORD_DM_DESTINATION;
-  const provider = options.provider ?? providerForDestination(destination);
+  const provider = providerForDestination(destination);
 
   const listings = await getMarketCards({ inStockOnly: true }, database);
   const matches = await matchDealAlerts(listings, database, provider);

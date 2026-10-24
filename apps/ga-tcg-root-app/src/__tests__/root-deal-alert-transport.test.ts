@@ -38,6 +38,9 @@ function createFakeApi() {
     async deleteMessage(request) {
       deleted.push(request);
     },
+    async deleteChannel() {
+      // no-op for the transport suite
+    },
     async sendNotification(request) {
       notifications.push(request);
     },

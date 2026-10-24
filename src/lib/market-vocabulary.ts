@@ -33,12 +33,22 @@ export function readDealAlertDestinations(
   const raw =
     env.DEAL_ALERT_DM_DESTINATION ??
     `${DISCORD_DM_DESTINATION},${ROOT_ALERT_DESTINATION}`;
-  const parsed = raw
+  const values = raw
     .split(",")
     .map((value) => value.trim())
-    .filter((value): value is Destination =>
-      (KNOWN_DESTINATIONS as readonly string[]).includes(value)
+    .filter(Boolean);
+  const parsed = values.filter((value): value is Destination =>
+    (KNOWN_DESTINATIONS as readonly string[]).includes(value)
+  );
+  const unknown = values.filter(
+    (value) => !(KNOWN_DESTINATIONS as readonly string[]).includes(value)
+  );
+
+  if (unknown.length > 0) {
+    console.warn(
+      `[deal-alerts] Ignoring unknown DEAL_ALERT_DM_DESTINATION values: ${unknown.join(", ")}`
     );
+  }
 
   return parsed.length > 0 ? parsed : [DISCORD_DM_DESTINATION];
 }

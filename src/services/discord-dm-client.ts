@@ -42,6 +42,9 @@ export async function postDiscordDirectMessage(
   botToken = process.env.DISCORD_BOT_TOKEN
 ): Promise<DealAlertMessageRef | null> {
   if (!botToken) {
+    console.warn(
+      "[discord-dm] DISCORD_BOT_TOKEN is not configured in environment variables."
+    );
     return null;
   }
 

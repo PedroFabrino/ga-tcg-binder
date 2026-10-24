@@ -635,8 +635,14 @@ async function migrateDealAlertMessagesShape(customClient: typeof client) {
     const info = await customClient.execute(
       "PRAGMA table_info(`deal_alert_messages`);"
     );
-    columns = info.rows.map((row: any) => String(row.name));
-  } catch {
+    columns = info.rows.map((row) =>
+      String((row as Record<string, unknown>).name ?? "")
+    );
+  } catch (err) {
+    console.warn(
+      "[migrations] Could not inspect deal_alert_messages:",
+      err instanceof Error ? err.message : err
+    );
     return;
   }
 
