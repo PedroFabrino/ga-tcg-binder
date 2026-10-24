@@ -16,11 +16,8 @@ export type {
 
 export type NotificationDeliveryDatabase = typeof db;
 
-/**
- * Stable identifier for the Discord webhook sink. Future destinations reuse
- * the same `notification_deliveries` table keyed by this value.
- */
-export const DISCORD_DESTINATION = "discord";
+// One vocabulary home for every Destination; re-exported for existing callers.
+export { DISCORD_DESTINATION } from "../../lib/market-vocabulary";
 
 /**
  * Returns market notifications that have not yet been delivered to the given

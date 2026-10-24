@@ -15,7 +15,10 @@ import {
 
 export { resetMarketCheckBackoff } from "./market-store-backoff";
 
-export type MarketStorePlatform = "liga_store" | "myp" | "lootcards";
+import type { MarketplacePlatform } from "../lib/market-vocabulary";
+
+/** @deprecated Use `MarketplacePlatform` from the shared vocabulary module. */
+export type MarketStorePlatform = MarketplacePlatform;
 
 export interface EnabledMarketStore {
 id: string;

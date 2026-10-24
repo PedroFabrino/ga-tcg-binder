@@ -1,4 +1,5 @@
 import type { MarketNotification } from "../db/repositories/marketplace-repository";
+import { MESSAGE_MAX_LENGTH } from "../lib/market-vocabulary";
 import {
  formatMarketNotificationCardDetails,
  formatMarketNotificationDate,
@@ -12,7 +13,7 @@ import {
  * Discord enforces a 2000-character limit per message. Chunks are split on
  * line boundaries so card lines are never torn apart.
  */
-export const DISCORD_MESSAGE_MAX_LENGTH = 2000;
+export const DISCORD_MESSAGE_MAX_LENGTH = MESSAGE_MAX_LENGTH;
 
 const DISCORD_MARKDOWN_ESCAPE_PATTERN = /([\\*_~`|>@#:])/g;
 

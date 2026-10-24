@@ -1,4 +1,5 @@
 import type { MarketCard } from "../db/repositories/marketplace-repository";
+import { MESSAGE_MAX_LENGTH } from "../lib/market-vocabulary";
 import { extractCollectorNumber } from "./market-notifications";
 import {
   escapeLinkUrl,
@@ -7,7 +8,7 @@ import {
   splitMessageContent,
 } from "./market-notification-formatter";
 
-export const DEAL_ALERT_MAX_LENGTH = 2000;
+export const DEAL_ALERT_MAX_LENGTH = MESSAGE_MAX_LENGTH;
 
 export type DealAlertSource =
   | { kind: "personal-want"; desiredQuantity: number }
@@ -54,6 +55,15 @@ function severityBall(source: DealAlertSource): string {
  */
 export function listingKey(listing: MarketCard): string {
   return listing.itemId ? `${listing.storeId}:${listing.itemId}` : listing.id;
+}
+
+/**
+ * Stable identity for a match snapshot (listing + price + deck/want source).
+ */
+export function matchKey(match: DealAlertMatch): string {
+  const base = listingKey(match.listing);
+  const deckPart = "deckId" in match.source ? match.source.deckId : match.source.kind;
+  return `${base}:${match.listing.priceNumeric}:${deckPart}`;
 }
 
 /**
@@ -117,13 +127,17 @@ export function formatDealAlertChunks(
 }
 
 /**
- * Returns true when `currentKeys` contains at least one listing key that was
- * not part of the previously sent snapshot.
+ * Returns true when `currentKeys` differs from `lastKeysJson` (new listings appeared,
+ * existing listings were removed, or price/deck shortages changed), or if `forceRefresh` is true.
  */
-export function hasNewListings(
+export function hasListingChanges(
   currentKeys: string[],
-  lastKeysJson?: string | null
+  lastKeysJson?: string | null,
+  forceRefresh: boolean = false
 ): boolean {
+  if (forceRefresh) {
+    return true;
+  }
   if (!lastKeysJson) {
     return currentKeys.length > 0;
   }
@@ -138,6 +152,21 @@ export function hasNewListings(
     lastKeys = [];
   }
 
+  if (currentKeys.length !== lastKeys.length) {
+    return true;
+  }
+
   const seen = new Set(lastKeys);
-  return currentKeys.some((key) => !seen.has(key));
+  if (currentKeys.some((key) => !seen.has(key))) {
+    return true;
+  }
+
+  const currentSet = new Set(currentKeys);
+  if (lastKeys.some((key) => !currentSet.has(key))) {
+    return true;
+  }
+
+  return false;
 }
+
+export const hasNewListings = hasListingChanges;

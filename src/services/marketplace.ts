@@ -23,6 +23,8 @@ export interface ParsedMypItem {
   quality: string;
   isFoil: boolean;
   mypItemId: string | null;
+  /** Canonical alias for `mypItemId` (expand phase). */
+  itemId?: string | null;
   mypProductUrl: string | null;
   vendorName?: string | null;
   vendorUrl?: string | null;
@@ -415,6 +417,7 @@ export function parseMypHtml(
       quality,
       isFoil,
       mypItemId,
+      itemId: mypItemId,
       mypProductUrl,
       vendorName,
       vendorUrl,
@@ -514,10 +517,9 @@ export async function fetchMypText(url: string, customFetch?: typeof fetch): Pro
       return text;
     }
   } catch (err: any) {
-    if (err?.message?.includes("Cloudflare challenge")) {
-      throw err;
-    }
-    // Fallback to curl below
+    console.warn(
+      `[marketplace] Native fetch for ${url} encountered ${err?.message || err}; falling back to system curl.`
+    );
   }
 
   const curlBin = process.platform === "win32" ? "curl.exe" : "curl";

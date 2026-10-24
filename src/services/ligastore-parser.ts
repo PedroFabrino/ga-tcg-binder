@@ -22,11 +22,15 @@ export { decodeLigaStoreSpriteClasses } from "./ligastore-html-utils";
 
 export interface ParsedLigaStoreItem {
   rawTitle: string;
+  /** Canonical alias for `rawTitle` (expand phase). */
+  rawName?: string;
   cardName: string;
   collectorNumber: string;
   isFoil: boolean;
   productUrl: string;
   refId: string;
+  /** Canonical alias for `refId` (expand phase). */
+  itemId?: string | null;
   imageUrl: string;
   price: string;
   priceNumeric: number;
@@ -237,13 +241,16 @@ export function parseLigaStoreSearchPage(html: string): ParsedLigaStoreSearchRes
 
     const price = extractPlainOrSpritePrice(cardHtml, spriteClasses);
 
+    const refId = extractRefId(productUrl);
     return {
       rawTitle,
+      rawName: rawTitle,
       cardName: title.cardName,
       collectorNumber: title.collectorNumber,
       isFoil: /<img\b[^>]*\balt=(['"])FOIL\1/i.test(cardHtml),
       productUrl,
-      refId: extractRefId(productUrl),
+      refId,
+      itemId: refId,
       imageUrl,
       price,
       priceNumeric: priceToNumeric(price),

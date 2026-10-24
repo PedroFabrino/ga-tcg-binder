@@ -1,4 +1,5 @@
 import type { MarketNotification } from "../db/repositories/marketplace-repository";
+import { MESSAGE_MAX_LENGTH } from "../lib/market-vocabulary";
 
 export const BRAZIL_TIMEZONE = "America/Sao_Paulo";
 
@@ -128,7 +129,7 @@ export function formatMarketNotificationCardLine(
 /**
  * Maximum character length for a single chat message (Root, Discord).
  */
-export const ROOT_MESSAGE_MAX_LENGTH = 2000;
+export const ROOT_MESSAGE_MAX_LENGTH = MESSAGE_MAX_LENGTH;
 
 export interface MarketNotificationChunk {
  content: string;

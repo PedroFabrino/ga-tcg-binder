@@ -210,9 +210,9 @@ _Avoid_: Normal price, cheap listing
 An external seller or store offering one or more Market Listings, used to group Buyable Shortages into multi-card packages that consolidate shipping costs.
 _Avoid_: Merchant, third-party shop, dealer
 
-**Market Store**:
-A registered external marketplace or singles retail source (such as MyP Cards, Brandão Card Game, or Lootcards) whose public catalog is periodically crawled and matched against the Card Catalog to discover Buyable Shortages and notify of new stock.
-_Avoid_: External shop, merchant platform, store provider
+**Marketplace Store**:
+A registered external marketplace or singles retail source (such as MyP Cards, Brandão Card Game, or Lootcards) whose public catalog is periodically crawled and matched against the Card Catalog to discover Buyable Shortages and notify of new stock. It is tracked with its own identity, base URL, platform, external TCG identifier, enabled state, listing count, and sync timestamps.
+_Avoid_: External shop, merchant platform, store provider, Market Store
 
 **Quota**:
 The target copy count of a Card that a Collector aims to hold in their active Binder, governed by their configured shortage policy (Hard Shortage, Shared Shortage, or Staple Deficit).
@@ -277,9 +277,6 @@ _Avoid_: State sync, diff check, order auditor
 **Marketplace Platform**:
 The external marketplace commerce system or technical integration adapter (such as `myp` or `liga_store`) used to discover and crawl listings.
 _Avoid_: Shop engine, site type, crawler adapter
-
-**Marketplace Store**:
-A specific configured external storefront or seller source (such as MyP Cards or Brandão Card Game) tracked with its own identity, base URL, platform, external TCG identifier, enabled state, listing count, and sync timestamps.
 
 **Latest Card Detection**:
 A change-detection strategy for LigaStore marketplaces that compares the most recently added product (`txt_order=12&ultimas=1`) against a previously recorded reference ID (`lastLatestCardRefId`), catching single-card swaps that count-based detection would miss.
