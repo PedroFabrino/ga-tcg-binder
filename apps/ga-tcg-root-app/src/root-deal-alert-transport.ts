@@ -8,12 +8,12 @@ import {
   type RoleOrMemberGuid,
   type UserGuid,
 } from "@rootsdk/server-bot";
-import type {
-  DirectMessageRef,
-  DirectMessageSink,
-} from "../../../src/services/market-notification-sink";
-import type { DealAlertNotificationSummary } from "../../../src/services/deal-alert-format";
-import { parseMessageIds } from "../../../src/services/discord-dm-client";
+import {
+  parseMessageIds,
+  type DealAlertNotificationSummary,
+  type DirectMessageRef,
+  type DirectMessageSink,
+} from "./deal-alert-sink";
 
 /**
  * The narrow slice of the Root server SDK the deal-alert transport needs.

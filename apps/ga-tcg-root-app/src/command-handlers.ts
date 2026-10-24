@@ -1,4 +1,4 @@
-import { AssistantClient, AssistantApiError } from "@ga/contracts";
+import { AssistantApiError } from "@ga/contracts";
 import {
   rootServer,
   MessageType,
@@ -7,14 +7,13 @@ import {
   type ChannelMessageCreatedEvent,
   type UserGuid,
 } from "@rootsdk/server-bot";
-import { findCollectorByIdentity } from "../../../src/db/repositories/assistant-repository";
-import { setWantlistNotificationPreference } from "../../../src/db/repositories/personal-wants-repository";
 import {
   ensureRootRecipientChannel,
   provisionRootDealAlerts,
   removeRootDealAlertChannel,
 } from "./deal-alert-notifier";
 import { createCommunityConfig } from "./community-config";
+import { RootBotApi, RootBotApiError } from "./root-bot-api";
 
 /**
  * Injectable side effects for the Root commands. Defaults use the shared
@@ -23,7 +22,7 @@ import { createCommunityConfig } from "./community-config";
 export interface RootCommandDeps {
   findCollectorId?: (userId: string) => Promise<string | null>;
   setNotificationPreference?: (
-    collectorId: string,
+    providerUserId: string,
     enabled: boolean
   ) => Promise<void>;
   provisionDealAlerts?: () => Promise<void>;
@@ -34,13 +33,22 @@ export interface RootCommandDeps {
 }
 
 function defaultRootCommandDeps(): Required<RootCommandDeps> {
+  const api = getRootBotApi();
+
   return {
     async findCollectorId(userId) {
-      const resolved = await findCollectorByIdentity("root", userId);
-      return resolved?.identity.collectorId ?? null;
+      try {
+        const resolved = await api.getCollector(userId);
+        return resolved?.collectorId ?? null;
+      } catch (err) {
+        if (err instanceof RootBotApiError && err.status === 404) {
+          return null;
+        }
+        throw err;
+      }
     },
-    async setNotificationPreference(collectorId, enabled) {
-      await setWantlistNotificationPreference(collectorId, "root", enabled);
+    async setNotificationPreference(providerUserId, enabled) {
+      await api.setNotifyPreference({ providerUserId, enabled });
     },
     async provisionDealAlerts() {
       await provisionRootDealAlerts();
@@ -93,14 +101,8 @@ function defaultRootCommandDeps(): Required<RootCommandDeps> {
   };
 }
 
-export function getAssistantClient(): AssistantClient {
-  const baseUrl =
-    process.env.ASSISTANT_API_BASE_URL ||
-    process.env.NEXTAUTH_URL ||
-    "http://localhost:3002";
-  const assistantToken =
-    process.env.ASSISTANT_API_SECRET || process.env.ASSISTANT_TOKEN;
-  return new AssistantClient({ baseUrl, assistantToken });
+export function getRootBotApi(): RootBotApi {
+  return new RootBotApi({ communityId: process.env.COMMUNITY_ID ?? "" });
 }
 
 /**
@@ -110,7 +112,7 @@ export function getAssistantClient(): AssistantClient {
 export async function processRootCommand(
   userId: string,
   messageContent: string,
-  client: AssistantClient = getAssistantClient(),
+  client: RootBotApi = getRootBotApi(),
   deps: RootCommandDeps = {},
   channelId?: string
 ): Promise<string | null> {
@@ -139,7 +141,7 @@ export async function processRootCommand(
 
     // 2. /decks
     if (command === "decks") {
-      const res = await client.getDecks("root", userId);
+      const res = await client.getDecks(userId);
       if (res.decks.length === 0) {
         return `🗃️ **${res.collectorName || "Collector"}'s Decks**\nYou don't have any saved decks yet. Create one in the GA Binder web app!`;
       }
@@ -167,7 +169,7 @@ export async function processRootCommand(
         return "⚠️ **Usage:** `/shortages <deck_name>`\nPlease specify which deck to check.";
       }
 
-      const shortages = await client.getShortages("root", userId, argString);
+      const shortages = await client.getShortages(userId, argString);
       const isComplete =
         shortages.hardShortages.length === 0 && shortages.sharedShortages.length === 0;
 
@@ -205,7 +207,7 @@ export async function processRootCommand(
         return "⚠️ **Usage:** `/collection <card_name>`\nPlease specify a card name to search.";
       }
 
-      const res = await client.searchCollection("root", userId, argString);
+      const res = await client.searchCollection(userId, argString);
       if (res.cards.length === 0) {
         return `🔍 **Collection Search: "${argString}"**\nNo matching cards found in your personal Binder.`;
       }
@@ -223,7 +225,7 @@ export async function processRootCommand(
 
     // 5. /wantlist [deck]
     if (command === "wantlist") {
-      const wantlist = await client.getWantlist("root", userId, argString || undefined);
+      const wantlist = await client.getWantlist(userId, argString || undefined);
       if (wantlist.decks.length === 0) {
         return "📋 **Wantlist**\nZero shortages detected across your active decks! Your collection fully covers them.";
       }
@@ -262,7 +264,7 @@ export async function processRootCommand(
       }
 
       if (action === "on") {
-        await resolvedDeps.setNotificationPreference(collectorId, true);
+        await resolvedDeps.setNotificationPreference(userId, true);
 
         let alertsChannelId: string | null = null;
         try {
@@ -281,7 +283,7 @@ export async function processRootCommand(
           : "🔔 **Deal alerts enabled.** Your private channel will be created on the next marketplace sync.";
       }
 
-      await resolvedDeps.setNotificationPreference(collectorId, false);
+      await resolvedDeps.setNotificationPreference(userId, false);
       await resolvedDeps.removeDealAlertChannel(userId);
       return "🔕 **Deal alerts disabled.**\nYour private deal-alert channel has been removed.";
     }

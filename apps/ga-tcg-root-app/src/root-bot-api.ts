@@ -137,7 +137,9 @@ export class RootBotApi {
     );
   }
 
-  async getCollector(providerUserId: string): Promise<RootBotCollectorResponse> {
+  async getCollector(
+    providerUserId: string
+  ): Promise<RootBotCollectorResponse | null> {
     const params = new URLSearchParams({ provider: "root", providerUserId });
     return this.request(`/api/root-bot/collector?${params.toString()}`);
   }

@@ -1,8 +1,5 @@
 import { rootServer, type JobScheduler } from "@rootsdk/server-bot";
-import type {
-  DirectMessageRef,
-  DirectMessageSink,
-} from "../../../src/services/market-notification-sink";
+import type { DirectMessageRef, DirectMessageSink } from "./deal-alert-sink";
 import {
   createCommunityConfig,
   type RootCommunityConfig,

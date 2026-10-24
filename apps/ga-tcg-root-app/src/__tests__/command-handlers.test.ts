@@ -3,13 +3,14 @@ import {
   processRootCommand,
   type RootCommandDeps,
 } from "../command-handlers";
-import { AssistantClient, AssistantApiError } from "@ga/contracts";
+import { AssistantApiError } from "@ga/contracts";
+import type { RootBotApi } from "../root-bot-api";
 
 describe("Root Command Handlers (processRootCommand)", () => {
   const mockUserId = "root-user-123";
 
   it("ignores non-command messages", async () => {
-    const mockClient = {} as AssistantClient;
+    const mockClient = {} as RootBotApi;
     const res = await processRootCommand(mockUserId, "Hello everyone!", mockClient);
     expect(res).toBeNull();
   });
@@ -22,7 +23,7 @@ describe("Root Command Handlers (processRootCommand)", () => {
         collectorName: "Arthur",
         message: "Linked",
       }),
-    } as unknown as AssistantClient;
+    } as unknown as RootBotApi;
 
     const res = await processRootCommand(mockUserId, "/link ABC123", mockClient);
     expect(mockClient.link).toHaveBeenCalledWith({
@@ -64,7 +65,7 @@ describe("Root Command Handlers (processRootCommand)", () => {
           },
         ],
       }),
-    } as unknown as AssistantClient;
+    } as unknown as RootBotApi;
 
     const res = await processRootCommand(mockUserId, "/decks", mockClient);
     expect(res).toContain("Arthur's Decks (2)");
@@ -112,7 +113,7 @@ describe("Root Command Handlers (processRootCommand)", () => {
         totalHardShortages: 1,
         totalSharedShortages: 1,
       }),
-    } as unknown as AssistantClient;
+    } as unknown as RootBotApi;
 
     const res = await processRootCommand(mockUserId, "/shortages Control", mockClient);
     expect(res).toContain("**Shortages for Control** (50%)");
@@ -127,7 +128,7 @@ describe("Root Command Handlers (processRootCommand)", () => {
       getDecks: vi.fn().mockRejectedValue(
         new AssistantApiError(404, "IDENTITY_NOT_LINKED", "No linked account")
       ),
-    } as unknown as AssistantClient;
+    } as unknown as RootBotApi;
 
     const res = await processRootCommand(mockUserId, "/decks", mockClient);
     expect(res).toContain("Grand Archive Binder Account Not Linked");
@@ -153,7 +154,7 @@ describe("Root Command Handlers (processRootCommand)", () => {
       const res = await processRootCommand(
         mockUserId,
         "/notify on",
-        {} as AssistantClient,
+        {} as RootBotApi,
         deps
       );
 
@@ -161,7 +162,7 @@ describe("Root Command Handlers (processRootCommand)", () => {
       expect(res).toContain("root://channel/chan-private");
       expect(deps.ensureRecipientChannel).toHaveBeenCalledWith(mockUserId);
       expect(deps.setNotificationPreference).toHaveBeenCalledWith(
-        "collector-1",
+        mockUserId,
         true
       );
       expect(deps.provisionDealAlerts).toHaveBeenCalledTimes(1);
@@ -176,7 +177,7 @@ describe("Root Command Handlers (processRootCommand)", () => {
       const res = await processRootCommand(
         mockUserId,
         "/notify on",
-        {} as AssistantClient,
+        {} as RootBotApi,
         deps
       );
 
@@ -189,13 +190,13 @@ describe("Root Command Handlers (processRootCommand)", () => {
       const res = await processRootCommand(
         mockUserId,
         "/notify off",
-        {} as AssistantClient,
+        {} as RootBotApi,
         deps
       );
 
       expect(res).toContain("Deal alerts disabled");
       expect(deps.setNotificationPreference).toHaveBeenCalledWith(
-        "collector-1",
+        mockUserId,
         false
       );
       expect(deps.removeDealAlertChannel).toHaveBeenCalledWith(mockUserId);
@@ -207,7 +208,7 @@ describe("Root Command Handlers (processRootCommand)", () => {
       const res = await processRootCommand(
         mockUserId,
         "/notify",
-        {} as AssistantClient,
+        {} as RootBotApi,
         deps
       );
 
@@ -221,7 +222,7 @@ describe("Root Command Handlers (processRootCommand)", () => {
       const res = await processRootCommand(
         mockUserId,
         "/notify on",
-        {} as AssistantClient,
+        {} as RootBotApi,
         deps
       );
 
@@ -244,7 +245,7 @@ describe("Root Command Handlers (processRootCommand)", () => {
       const res = await processRootCommand(
         mockUserId,
         "/setup",
-        {} as AssistantClient,
+        {} as RootBotApi,
         deps,
         "chan-market"
       );
@@ -260,7 +261,7 @@ describe("Root Command Handlers (processRootCommand)", () => {
       const res = await processRootCommand(
         mockUserId,
         "/setup confirm",
-        {} as AssistantClient,
+        {} as RootBotApi,
         deps,
         "chan-market"
       );
@@ -275,7 +276,7 @@ describe("Root Command Handlers (processRootCommand)", () => {
       const res = await processRootCommand(
         mockUserId,
         "/setup confirm",
-        {} as AssistantClient,
+        {} as RootBotApi,
         deps,
         "chan-market"
       );
@@ -290,7 +291,7 @@ describe("Root Command Handlers (processRootCommand)", () => {
       const res = await processRootCommand(
         mockUserId,
         "/setup confirm",
-        {} as AssistantClient,
+        {} as RootBotApi,
         deps
       );
 
