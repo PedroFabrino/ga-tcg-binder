@@ -1,3 +1,4 @@
+import { rootServer } from "@rootsdk/server-bot";
 import { db } from "../../../src/db";
 import {
   adaptDirectMessageSink,
@@ -12,7 +13,11 @@ import {
   getDealAlertMessage,
 } from "../../../src/db/repositories/deal-alert-repository";
 import { parseMessageIds } from "../../../src/services/discord-dm-client";
-import type { DirectMessageSink } from "../../../src/services/market-notification-sink";
+import {
+  createCommunityConfig,
+  type RootCommunityConfig,
+} from "./community-config";
+import { ensureAlertSection } from "./root-deal-alert-section";
 import {
   createRootDealAlertTransport,
   createRootServerDealAlertApi,
@@ -20,8 +25,9 @@ import {
 } from "./root-deal-alert-transport";
 
 /**
- * The bot-only channel section (channel group). `ROOT_DEAL_ALERT_CHANNEL_ID` is
- * the primary name; `ROOT_DEAL_ALERT_SECTION_ID` is accepted as an alias.
+ * Legacy env-based section lookup, kept only for the startup diagnostics.
+ * The notifier now resolves the section from per-community config and creates
+ * it automatically.
  */
 export function readRootDealAlertSectionId(
   env: Record<string, string | undefined> = process.env
@@ -36,6 +42,7 @@ export function readRootDealAlertSectionId(
 export interface RootDealAlertNotifierOptions {
   intervalMs?: number;
   api?: RootDealAlertApi;
+  config?: RootCommunityConfig;
   database?: typeof db;
 }
 
@@ -43,21 +50,12 @@ export interface RootDealAlertNotifierOptions {
  * Starts the Root deal-alert notifier. It runs continuously inside the Root
  * bot (the only process that holds the Root SDK), dispatching to the
  * `root-alert` destination through the shared Deal Alert matcher/dispatcher.
- * Disabled unless `ROOT_DEAL_ALERT_SECTION_ID` names the bot-only channel
- * section that holds the per-user channels.
+ * The bot-only section is resolved from per-community config and created on
+ * first use.
  */
 export function startDealAlertNotifier(
   options: RootDealAlertNotifierOptions = {}
 ): void {
-  const channelGroupId = readRootDealAlertSectionId();
-
-  if (!channelGroupId) {
-    console.warn(
-      "[deal-alert-notifier] ROOT_DEAL_ALERT_CHANNEL_ID / ROOT_DEAL_ALERT_SECTION_ID is not set — Root deal alerts disabled"
-    );
-    return;
-  }
-
   if (!readDealAlertDestinations().includes(ROOT_ALERT_DESTINATION)) {
     console.warn(
       "[deal-alert-notifier] root-alert is not in DEAL_ALERT_DM_DESTINATION — Root deal alerts disabled"
@@ -68,10 +66,9 @@ export function startDealAlertNotifier(
   const intervalMs =
     options.intervalMs ??
     Number.parseInt(process.env.ROOT_DEAL_ALERT_INTERVAL_MS ?? "300000", 10);
-  const transport = createRootDealAlertTransport({
-    channelGroupId,
-    api: options.api ?? createRootServerDealAlertApi(),
-  });
+  const api = options.api ?? createRootServerDealAlertApi();
+  const config =
+    options.config ?? createCommunityConfig(rootServer.dataStore.appData);
   const database = options.database ?? db;
 
   let running = false;
@@ -83,6 +80,8 @@ export function startDealAlertNotifier(
     running = true;
 
     try {
+      const channelGroupId = await ensureAlertSection(api, config);
+      const transport = createRootDealAlertTransport({ channelGroupId, api });
       const result = await dispatchDealAlerts(
         database,
         adaptDirectMessageSink(transport),
@@ -104,31 +103,16 @@ export function startDealAlertNotifier(
     }
   };
 
-  console.log(
-    `[deal-alert-notifier] Starting (interval=${intervalMs}ms, section=${channelGroupId})`
-  );
+  console.log(`[deal-alert-notifier] Starting (interval=${intervalMs}ms)`);
 
   setInterval(tick, intervalMs);
   void tick();
 }
 
-function rootDealAlertTransportFromEnv(
-  api?: RootDealAlertApi
-): DirectMessageSink | null {
-  const channelGroupId = readRootDealAlertSectionId();
-  if (!channelGroupId) {
-    return null;
-  }
-  return createRootDealAlertTransport({
-    channelGroupId,
-    api: api ?? createRootServerDealAlertApi(),
-  });
-}
-
 /**
  * Runs one Root deal-alert dispatch immediately (used after opt-in so the
  * newly-enabled recipient gets their channel without waiting for the next
- * scheduled tick). No-op when the section is not configured.
+ * scheduled tick). Ensures the section exists first.
  */
 export async function provisionRootDealAlerts(
   database: typeof db = db
@@ -136,19 +120,24 @@ export async function provisionRootDealAlerts(
   if (!readDealAlertDestinations().includes(ROOT_ALERT_DESTINATION)) {
     return;
   }
-  const transport = rootDealAlertTransportFromEnv();
-  if (!transport) {
-    return;
-  }
-  await dispatchDealAlerts(database, adaptDirectMessageSink(transport), new Date(), {
-    destination: ROOT_ALERT_DESTINATION,
-  });
+
+  const api = createRootServerDealAlertApi();
+  const config = createCommunityConfig(rootServer.dataStore.appData);
+  const channelGroupId = await ensureAlertSection(api, config);
+  const transport = createRootDealAlertTransport({ channelGroupId, api });
+
+  await dispatchDealAlerts(
+    database,
+    adaptDirectMessageSink(transport),
+    new Date(),
+    { destination: ROOT_ALERT_DESTINATION }
+  );
 }
 
 /**
  * Removes a recipient's private deal-alert channel and rolling-message state
- * (used on opt-out). Best-effort: a missing channel or an unconfigured section
- * still clears the stored state.
+ * (used on opt-out). Best-effort: a missing channel still clears the stored
+ * state.
  */
 export async function removeRootDealAlertChannel(
   recipientId: string,
@@ -163,15 +152,19 @@ export async function removeRootDealAlertChannel(
     return;
   }
 
-  const transport = rootDealAlertTransportFromEnv();
-  if (transport) {
-    for (const id of parseMessageIds(row.messageId)) {
-      await transport.delete({ channelId: row.channelId, messageId: id });
-    }
+  const api = createRootServerDealAlertApi();
+
+  for (const id of parseMessageIds(row.messageId)) {
+    await api.deleteMessage({ channelId: row.channelId, id });
   }
 
-  if (readRootDealAlertSectionId()) {
-    await createRootServerDealAlertApi().deleteChannel(row.channelId);
+  try {
+    await api.deleteChannel(row.channelId);
+  } catch (err) {
+    console.warn(
+      `[deal-alert-notifier] Could not delete channel ${row.channelId}:`,
+      err instanceof Error ? err.message : err
+    );
   }
 
   await deleteDealAlertMessage(ROOT_ALERT_DESTINATION, recipientId, database);

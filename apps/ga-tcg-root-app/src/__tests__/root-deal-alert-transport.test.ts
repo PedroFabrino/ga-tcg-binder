@@ -30,6 +30,9 @@ function createFakeApi() {
       channels.push({ ...request, id });
       return { id };
     },
+    async createChannelGroup() {
+      return { id: "grp-created" };
+    },
     async createMessage(request) {
       nextMessage += 1;
       const id = `msg-${nextMessage}`;

@@ -40,6 +40,7 @@ export interface RootDealAlertApi {
     useChannelGroupPermission: boolean;
     accessRuleCreates: RootDealAlertAccessRule[];
   }): Promise<{ id: string }>;
+  createChannelGroup(name: string): Promise<{ id: string }>;
   createMessage(request: {
     channelId: string;
     content: string;
@@ -72,6 +73,10 @@ export function createRootServerDealAlertApi(
         })),
       });
       return { id: String(channel.id) };
+    },
+    async createChannelGroup(name) {
+      const group = await root.community.channelGroups.create({ name });
+      return { id: String(group.id) };
     },
     async createMessage(request) {
       const message = await root.community.channelMessages.create({
