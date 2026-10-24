@@ -2,7 +2,7 @@
  * HTML and sprite parsing utilities for LigaStore markup.
  */
 
-import { decodeHtml, parseBrlPrice } from "./market-crawl";
+import { decodeHtml } from "./market-crawl";
 
 export { decodeHtml };
 
@@ -79,7 +79,17 @@ export function normalizePrice(value: string): string {
 }
 
 export function priceToNumeric(price: string): number {
-  return parseBrlPrice(price);
+  const match = price.match(/R\$\s*([\d.]+,\d+|\d+(?:\.\d+)?)/i);
+  if (!match) {
+    return 0;
+  }
+
+  const value = match[1].includes(",")
+    ? match[1].replace(/\./g, "").replace(",", ".")
+    : match[1];
+
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
 }
 
 export function parseClassList(tag: string): string[] {

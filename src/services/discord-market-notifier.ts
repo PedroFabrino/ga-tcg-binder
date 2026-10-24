@@ -14,7 +14,7 @@ import {
 import {
  deliverMarketNotifications,
  type MarketNotificationDeliveryResult,
- type MarketNotificationSink,
+ type ChannelDeliverySink,
 } from "./market-notification-sink";
 
 export type { MarketNotificationDeliveryResult };
@@ -29,7 +29,7 @@ export interface DiscordDeliveryOutcome {
  * Discord implementation of the notification sink. Runs inside the sync
  * process, separate from the Root bot poller.
  */
-export class DiscordMarketNotificationSink implements MarketNotificationSink {
+export class DiscordMarketNotificationSink implements ChannelDeliverySink {
  readonly destination = DISCORD_DESTINATION;
 
  constructor(private readonly webhookUrl: string) {}
