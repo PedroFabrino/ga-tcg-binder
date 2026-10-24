@@ -82,6 +82,22 @@ export async function findCardByNameCaseInsensitive(
   return card;
 }
 
+export async function findCardsByNamesCaseInsensitive(
+  cardNames: string[],
+  database = db
+) {
+  if (cardNames.length === 0) return [];
+  const lowerNames = Array.from(
+    new Set(cardNames.map((n) => n.toLowerCase().trim()))
+  ).filter(Boolean);
+  if (lowerNames.length === 0) return [];
+
+  return database
+    .select()
+    .from(cards)
+    .where(inArray(sql`lower(${cards.name})`, lowerNames));
+}
+
 export async function findEditionsByCardSlug(
   cardSlug: string,
   database = db

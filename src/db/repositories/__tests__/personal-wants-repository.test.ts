@@ -5,6 +5,7 @@ import { collectorIdentities } from "../../assistant-schema";
 import {
   listPersonalWants,
   upsertPersonalWant,
+  batchUpsertPersonalWants,
   removePersonalWant,
   setWantlistNotificationPreference,
   getWantlistNotificationPreference,
@@ -185,5 +186,47 @@ describe("personal-wants-repository", () => {
 
     const updated = await getWantlistNotificationPreference(testCollectorId, "discord", db);
     expect(updated).toBe(true);
+  });
+
+  it("inserts and increments multiple wants via batchUpsertPersonalWants", async () => {
+    const count = await batchUpsertPersonalWants(
+      [
+        {
+          collectorId: testCollectorId,
+          cardSlug: "creative-shock",
+          desiredQuantity: 2,
+          source: "omnidex",
+        },
+        {
+          collectorId: testCollectorId,
+          cardSlug: "fracture-storm",
+          desiredQuantity: 3,
+          source: "omnidex",
+        },
+      ],
+      db
+    );
+
+    expect(count).toBe(2);
+
+    let list = await listPersonalWants(testCollectorId, db);
+    expect(list).toHaveLength(2);
+    expect(list.find((i) => i.cardSlug === "creative-shock")?.desiredQuantity).toBe(2);
+    expect(list.find((i) => i.cardSlug === "fracture-storm")?.desiredQuantity).toBe(3);
+
+    // Increment existing via batch
+    await batchUpsertPersonalWants(
+      [
+        {
+          collectorId: testCollectorId,
+          cardSlug: "creative-shock",
+          desiredQuantity: 2,
+        },
+      ],
+      db
+    );
+
+    list = await listPersonalWants(testCollectorId, db);
+    expect(list.find((i) => i.cardSlug === "creative-shock")?.desiredQuantity).toBe(4);
   });
 });

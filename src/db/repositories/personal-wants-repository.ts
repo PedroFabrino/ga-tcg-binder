@@ -169,6 +169,72 @@ export async function upsertPersonalWant(
 }
 
 /**
+ * Inserts or increments multiple personal wants in a single optimized batch.
+ */
+export async function batchUpsertPersonalWants(
+  items: UpsertPersonalWantInput[],
+  database = db
+): Promise<number> {
+  if (items.length === 0) return 0;
+  const collectorId = items[0].collectorId;
+
+  const existingWants = await database
+    .select()
+    .from(collectorWants)
+    .where(eq(collectorWants.collectorId, collectorId));
+
+  const existingMap = new Map<string, typeof existingWants[number]>();
+  for (const w of existingWants) {
+    const key = `${w.cardSlug}:${w.editionId ?? ""}:${w.foil ?? ""}`;
+    existingMap.set(key, w);
+  }
+
+  const now = new Date();
+  const toInsert: InsertCollectorWant[] = [];
+
+  for (const item of items) {
+    const desiredQty = item.desiredQuantity ?? 1;
+    const foilVal = item.foil === undefined ? null : item.foil === null ? null : item.foil;
+    const editionVal = item.editionId ?? null;
+    const key = `${item.cardSlug}:${editionVal ?? ""}:${foilVal ?? ""}`;
+
+    const existing = existingMap.get(key);
+    if (existing) {
+      existing.desiredQuantity += desiredQty;
+      await database
+        .update(collectorWants)
+        .set({
+          desiredQuantity: existing.desiredQuantity,
+          targetMaxPrice:
+            item.targetMaxPrice !== undefined ? item.targetMaxPrice : existing.targetMaxPrice,
+          source: item.source ?? existing.source,
+          updatedAt: now,
+        })
+        .where(eq(collectorWants.id, existing.id));
+    } else {
+      toInsert.push({
+        id: randomUUID(),
+        collectorId: item.collectorId,
+        cardSlug: item.cardSlug,
+        editionId: editionVal,
+        desiredQuantity: desiredQty,
+        foil: foilVal,
+        targetMaxPrice: item.targetMaxPrice ?? null,
+        source: item.source ?? "manual",
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+  }
+
+  if (toInsert.length > 0) {
+    await database.insert(collectorWants).values(toInsert);
+  }
+
+  return items.length;
+}
+
+/**
  * Decrements or deletes a personal want for a collector by card slug.
  */
 export async function removePersonalWant(

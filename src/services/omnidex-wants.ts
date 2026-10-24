@@ -1,8 +1,15 @@
 import { parseOmnidexText, decodeHtmlEntities, fetchDeckFromUrl } from "./omnidex";
 import { createDeckService } from "./deck";
-import { findCardByNameCaseInsensitive } from "../db/repositories/collection-repository";
-import { upsertPersonalWant } from "../db/repositories/personal-wants-repository";
-import { getUserCollectionItems } from "../db/repositories/collection-repository";
+import {
+  findCardByNameCaseInsensitive,
+  findCardsByNamesCaseInsensitive,
+  getUserCollectionItems,
+} from "../db/repositories/collection-repository";
+import {
+  upsertPersonalWant,
+  batchUpsertPersonalWants,
+  type UpsertPersonalWantInput,
+} from "../db/repositories/personal-wants-repository";
 import { upsertCatalogCard } from "../db/repositories/catalog-repository";
 
 export interface OmnidexWantsImportResult {
@@ -38,16 +45,30 @@ export async function importOmnidexDeckToPersonalWants(
     }
   }
 
-  // Load user inventory to determine idle copies
-  const inventory = await getUserCollectionItems(collectorId, database as any);
+  if (requirements.size === 0) {
+    return { addedCardsCount: 0, addedCopiesCount: 0, skippedCopiesCount: 0 };
+  }
+
+  // Load user inventory and matching catalog cards in parallel
+  const cardNames = Array.from(requirements.keys());
+  const [inventory, matchedCards] = await Promise.all([
+    getUserCollectionItems(collectorId, database as any),
+    findCardsByNamesCaseInsensitive(cardNames, database as any),
+  ]);
+
+  const cardByName = new Map<string, { slug: string; name: string }>();
+  for (const c of matchedCards) {
+    cardByName.set(c.name.toLowerCase(), c);
+  }
 
   let addedCardsCount = 0;
   let addedCopiesCount = 0;
   let skippedCopiesCount = 0;
+  const wantsToUpsert: UpsertPersonalWantInput[] = [];
 
   for (const [cardName, req] of requirements.entries()) {
     let slug = cardName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-    const matchCard = await findCardByNameCaseInsensitive(cardName, database as any);
+    const matchCard = cardByName.get(cardName.toLowerCase());
 
     if (matchCard) {
       slug = matchCard.slug;
@@ -77,16 +98,17 @@ export async function importOmnidexDeckToPersonalWants(
     if (deficit > 0) {
       addedCardsCount += 1;
       addedCopiesCount += deficit;
-      await upsertPersonalWant(
-        {
-          collectorId,
-          cardSlug: slug,
-          desiredQuantity: deficit,
-          source: "omnidex",
-        },
-        database as any
-      );
+      wantsToUpsert.push({
+        collectorId,
+        cardSlug: slug,
+        desiredQuantity: deficit,
+        source: "omnidex",
+      });
     }
+  }
+
+  if (wantsToUpsert.length > 0) {
+    await batchUpsertPersonalWants(wantsToUpsert, database as any);
   }
 
   return {
