@@ -7,6 +7,7 @@ vi.mock("@rootsdk/server-bot", () => ({
 
 import {
   describeCommunityChannels,
+  describeCommunityContext,
   logCommunityChannels,
   type CommunityDirectory,
 } from "../channel-diagnostics";
@@ -63,6 +64,55 @@ describe("describeCommunityChannels", () => {
 
     expect(directory.channels.list).toHaveBeenCalledWith({ channelGroupId: "grp-1" });
     expect(directory.channels.list).toHaveBeenCalledWith({ channelGroupId: "grp-2" });
+  });
+});
+
+describe("describeCommunityContext", () => {
+  function directoryWithRoles(): CommunityDirectory {
+    return fakeDirectory({
+      communityRoles: {
+        list: vi.fn().mockResolvedValue([{ id: "role_bot", name: "GA Alerts Bot" }]),
+      },
+    });
+  }
+
+  it("reports the attached community, matching COMMUNITY_ID, section, and bot role", async () => {
+    const lines = await describeCommunityContext(directoryWithRoles(), {
+      sectionId: "grp-1",
+      botRoleId: "role_bot",
+      envCommunityId: "comm-1",
+    });
+    const text = lines.join("\n");
+
+    expect(text).toContain('Attached community: "Dev Community" (comm-1)');
+    expect(text).toContain("COMMUNITY_ID env: comm-1");
+    expect(text).not.toContain("WARNING");
+    expect(text).toContain('Deal-alert section: "Text Channels" (grp-1)');
+    expect(text).toContain('Deal-alert bot role: "GA Alerts Bot" (role_bot)');
+  });
+
+  it("warns on a community mismatch and names missing ids", async () => {
+    const lines = await describeCommunityContext(directoryWithRoles(), {
+      sectionId: "grp-missing",
+      botRoleId: "role_missing",
+      envCommunityId: "comm-other",
+    });
+    const text = lines.join("\n");
+
+    expect(text).toContain("WARNING");
+    expect(text).toContain("grp-missing NOT FOUND");
+    expect(text).toContain("role_missing NOT FOUND");
+  });
+
+  it("explains when the deal-alert ids are unconfigured", async () => {
+    const lines = await describeCommunityContext(directoryWithRoles(), {
+      envCommunityId: "",
+    });
+    const text = lines.join("\n");
+
+    expect(text).toContain("COMMUNITY_ID env: (unset)");
+    expect(text).toContain("Deal-alert section: not configured");
+    expect(text).toContain("Deal-alert bot role: not configured");
   });
 });
 

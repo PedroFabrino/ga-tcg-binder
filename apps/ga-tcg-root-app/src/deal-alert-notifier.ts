@@ -19,6 +19,26 @@ import {
   type RootDealAlertApi,
 } from "./root-deal-alert-transport";
 
+/**
+ * The bot-only channel section (channel group). `ROOT_DEAL_ALERT_CHANNEL_ID` is
+ * the primary name; `ROOT_DEAL_ALERT_SECTION_ID` is accepted as an alias.
+ */
+export function readRootDealAlertSectionId(
+  env: Record<string, string | undefined> = process.env
+): string | undefined {
+  return (
+    env.ROOT_DEAL_ALERT_SECTION_ID ||
+    env.ROOT_DEAL_ALERT_CHANNEL_ID ||
+    undefined
+  );
+}
+
+export function readRootDealAlertBotRoleId(
+  env: Record<string, string | undefined> = process.env
+): string | undefined {
+  return env.ROOT_DEAL_ALERT_BOT_ROLE_ID || undefined;
+}
+
 export interface RootDealAlertNotifierOptions {
   intervalMs?: number;
   api?: RootDealAlertApi;
@@ -35,11 +55,11 @@ export interface RootDealAlertNotifierOptions {
 export function startDealAlertNotifier(
   options: RootDealAlertNotifierOptions = {}
 ): void {
-  const channelGroupId = process.env.ROOT_DEAL_ALERT_SECTION_ID;
+  const channelGroupId = readRootDealAlertSectionId();
 
   if (!channelGroupId) {
     console.warn(
-      "[deal-alert-notifier] ROOT_DEAL_ALERT_SECTION_ID is not set — Root deal alerts disabled"
+      "[deal-alert-notifier] ROOT_DEAL_ALERT_CHANNEL_ID / ROOT_DEAL_ALERT_SECTION_ID is not set — Root deal alerts disabled"
     );
     return;
   }
@@ -57,7 +77,7 @@ export function startDealAlertNotifier(
   const transport = createRootDealAlertTransport({
     channelGroupId,
     api: options.api ?? createRootServerDealAlertApi(),
-    botRoleId: process.env.ROOT_DEAL_ALERT_BOT_ROLE_ID || undefined,
+    botRoleId: readRootDealAlertBotRoleId(),
   });
   const database = options.database ?? db;
 
@@ -102,14 +122,14 @@ export function startDealAlertNotifier(
 function rootDealAlertTransportFromEnv(
   api?: RootDealAlertApi
 ): DirectMessageSink | null {
-  const channelGroupId = process.env.ROOT_DEAL_ALERT_SECTION_ID;
+  const channelGroupId = readRootDealAlertSectionId();
   if (!channelGroupId) {
     return null;
   }
   return createRootDealAlertTransport({
     channelGroupId,
     api: api ?? createRootServerDealAlertApi(),
-    botRoleId: process.env.ROOT_DEAL_ALERT_BOT_ROLE_ID || undefined,
+    botRoleId: readRootDealAlertBotRoleId(),
   });
 }
 
@@ -158,7 +178,7 @@ export async function removeRootDealAlertChannel(
     }
   }
 
-  if (process.env.ROOT_DEAL_ALERT_SECTION_ID) {
+  if (readRootDealAlertSectionId()) {
     await createRootServerDealAlertApi().deleteChannel(row.channelId);
   }
 

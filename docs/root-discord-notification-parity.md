@@ -80,7 +80,8 @@ immediately; disabling deletes the channel and clears the stored state.
 |---|---|
 | `DEAL_ALERT_DM_DESTINATION` | Comma-separated destinations (`discord-dm,root-alert`). Defaults to both. |
 | `DISCORD_BOT_TOKEN` | Opens/reuses Discord DMs. |
-| `ROOT_DEAL_ALERT_SECTION_ID` | Bot-only channel section holding per-user channels. Unset ⇒ Root deal alerts disabled. |
+| `COMMUNITY_ID` | The Root community the bot attaches to. Required by the SDK at startup. |
+| `ROOT_DEAL_ALERT_CHANNEL_ID` | Bot-only channel section (channel group) holding per-user channels. `ROOT_DEAL_ALERT_SECTION_ID` is an alias. Unset ⇒ Root deal alerts disabled. |
 | `ROOT_DEAL_ALERT_INTERVAL_MS` | Root dispatch interval (default 300000). |
 | `ROOT_DEAL_ALERT_BOT_ROLE_ID` | The community role the bot holds. Each per-user channel denies Everyone view, so this grants the bot `channelFullControl` on it. |
 | `ROOT_BOT_MARKET_CHANNEL_ID` | Shared broadcast channel (already existed). |
@@ -97,9 +98,13 @@ immediately; disabling deletes the channel and clears the stored state.
 
 **Community (Root client, admin)**
 
+- Set `COMMUNITY_ID` to the community the bot should attach to. The SDK exits
+  at startup if it is missing, and the bot logs a warning if it does not match
+  the community it actually attached to.
 - Install/approve the app with the updated permissions.
 - Create the bot-only channel section (e.g. "GA Alerts") and set
-  `ROOT_DEAL_ALERT_SECTION_ID` to its channel-group id.
+  `ROOT_DEAL_ALERT_CHANNEL_ID` (or the `ROOT_DEAL_ALERT_SECTION_ID` alias) to
+  its channel-group id.
 - Grant the app `fullControl` on that channel group via an access rule (the
   `channels.create` authorization requires it), and do not deny it via an
   overlay.
