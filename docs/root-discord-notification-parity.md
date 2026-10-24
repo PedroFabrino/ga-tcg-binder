@@ -80,38 +80,30 @@ immediately; disabling deletes the channel and clears the stored state.
 |---|---|
 | `DEAL_ALERT_DM_DESTINATION` | Comma-separated destinations (`discord-dm,root-alert`). Defaults to both. |
 | `DISCORD_BOT_TOKEN` | Opens/reuses Discord DMs. |
-| `COMMUNITY_ID` | The Root community the bot attaches to. Required by the SDK at startup. |
-| `ROOT_DEAL_ALERT_CHANNEL_ID` | Bot-only channel section (channel group) holding per-user channels. `ROOT_DEAL_ALERT_SECTION_ID` is an alias. Unset ⇒ Root deal alerts disabled. |
+| `DEV_TOKEN` | Local devhost only: selects the community the bot attaches to. Root's cloud supplies the community in production. |
+| `ROOT_BOT_POLL_INTERVAL_MS` | Market notification poll interval (default 30000). |
 | `ROOT_DEAL_ALERT_INTERVAL_MS` | Root dispatch interval (default 300000). |
-| `ROOT_DEAL_ALERT_BOT_ROLE_ID` | The community role the bot holds. Each per-user channel denies Everyone view, so this grants the bot `channelFullControl` on it. |
-| `ROOT_BOT_MARKET_CHANNEL_ID` | Shared broadcast channel (already existed). |
+
+Community-specific channel configuration is **not** in `.env`. It lives in the
+bot's per-community key-value store (`rootServer.dataStore.appData`): the
+broadcast channel is set by `/setup`, and the deal-alert section ("GA Alerts")
+is created automatically on first use.
 
 ## 6. Root setup checklist (portal + community)
 
 **Developer Portal / manifest**
 
-- The manifest declares `permissions.channel.fullControl = true`. The Root docs
-  require `channel.fullControl` for `channels.create` / `delete` / `edit` and
-  for access rules; it also covers posting and deleting the rolling message.
-- Bump the manifest version and redeploy (`npm run deploy`) so the community is
-  asked to approve the new permission.
+- The manifest declares `channel.fullControl = true` (channel create/delete/edit
+  plus posting) and `community.createChannelGroup = true` (to create the
+  "GA Alerts" section). Bump the version and redeploy (`npm run deploy`) so the
+  community is asked to approve the permissions.
 
-**Community (Root client, admin)**
+**Community (Root client, owner)**
 
-- Set `COMMUNITY_ID` to the community the bot should attach to. The SDK exits
-  at startup if it is missing, and the bot logs a warning if it does not match
-  the community it actually attached to.
 - Install/approve the app with the updated permissions.
-- Create the bot-only channel section (e.g. "GA Alerts") and set
-  `ROOT_DEAL_ALERT_CHANNEL_ID` (or the `ROOT_DEAL_ALERT_SECTION_ID` alias) to
-  its channel-group id.
-- Grant the app `fullControl` on that channel group via an access rule (the
-  `channels.create` authorization requires it), and do not deny it via an
-  overlay.
-- Create a role for the bot (e.g. "GA Alerts Bot"), assign it to the app, and
-  set `ROOT_DEAL_ALERT_BOT_ROLE_ID` to its id. The transport grants that role
-  `channelFullControl` on each per-user channel, because those channels deny
-  `channelView` to the Everyone role.
+- Run `/setup` in the channel that should receive market updates (owner only).
+- That's it: the bot creates its own "GA Alerts" channel group on first
+  dispatch and grants itself access to each per-user channel via its app id.
 - Notifications need no manifest permission; the app can send them once
   installed.
 
@@ -140,6 +132,9 @@ pull-based by nature. A future change can introduce a
 
 ## 9. Out of scope
 
+- **Root cloud secret storage** for the bot's Turso/Discord credentials. Root
+  does not expose `.env`/secrets to cloud-hosted code yet, so the data plane
+  still runs under local devhost (or must call an external service).
 - A full Root client app (UI, onboarding overhaul, deep-link router).
 - A Root DM API (does not exist).
 - Web-app Settings toggle for Root opt-in (the Root command is the surface).

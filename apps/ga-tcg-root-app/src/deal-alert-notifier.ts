@@ -24,21 +24,6 @@ import {
   type RootDealAlertApi,
 } from "./root-deal-alert-transport";
 
-/**
- * Legacy env-based section lookup, kept only for the startup diagnostics.
- * The notifier now resolves the section from per-community config and creates
- * it automatically.
- */
-export function readRootDealAlertSectionId(
-  env: Record<string, string | undefined> = process.env
-): string | undefined {
-  return (
-    env.ROOT_DEAL_ALERT_SECTION_ID ||
-    env.ROOT_DEAL_ALERT_CHANNEL_ID ||
-    undefined
-  );
-}
-
 export interface RootDealAlertNotifierOptions {
   intervalMs?: number;
   api?: RootDealAlertApi;
