@@ -26,7 +26,7 @@ async function onStarting(state: RootBotStartState) {
 
   void logCommunityContext({ sectionId, broadcastChannelId });
 
-  startMarketNotifier();
+  await startMarketNotifier();
   startDealAlertNotifier();
   registerRootCommandHandlers();
 }

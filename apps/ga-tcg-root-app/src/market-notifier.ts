@@ -1,134 +1,102 @@
-import { rootServer, type ChannelGuid } from "@rootsdk/server-bot";
-import { db } from "../../../src/db";
 import {
-  getPendingNotifications,
-  markNotificationsSent,
-  getMarketStoreById,
-} from "../../../src/db/repositories/marketplace-repository";
-import {
-  formatMarketNotificationChunks,
-  groupMarketNotificationsByStore,
-} from "../../../src/services/market-notification-message";
+  rootServer,
+  type ChannelGuid,
+  type JobScheduler,
+} from "@rootsdk/server-bot";
 import {
   createCommunityConfig,
   type RootCommunityConfig,
 } from "./community-config";
+import { RootBotApi } from "./root-bot-api";
+import { scheduleRootBotPolling } from "./root-bot-scheduler";
 import { describeError } from "./describe-error";
 
-export interface MarketNotifierOptions {
-  config?: RootCommunityConfig;
-  pollIntervalMs?: number;
+export interface MarketNotificationPollDeps {
+  api: Pick<
+    RootBotApi,
+    "getMarketNotifications" | "markMarketNotificationsDelivered"
+  >;
+  config: Pick<RootCommunityConfig, "getBroadcastChannelId">;
+  postMessage: (channelId: string, content: string) => Promise<string | null>;
+  warn?: (message: string) => void;
 }
 
 /**
- * Starts the market notification poller. The broadcast channel is read from
- * per-community config (set once with `/setup`), so a public bot never relies
- * on a community-specific `.env`. Pending notifications are grouped by store,
- * formatted as Markdown chunks under Root message limits, and sent
- * incrementally. Until `/setup` is run, the poller stays idle.
+ * One market-notification poll: pull pending chunks from the API, post them to
+ * the `/setup` channel, and report each delivered chunk. Stops on the first
+ * failed post so the remainder is retried on the next poll.
  */
-export function startMarketNotifier(options: MarketNotifierOptions = {}): void {
-  const pollIntervalMs =
-    options.pollIntervalMs ??
-    Number.parseInt(process.env.ROOT_BOT_POLL_INTERVAL_MS ?? "30000", 10);
-  const config =
-    options.config ?? createCommunityConfig(rootServer.dataStore.appData);
+export async function runMarketNotificationPoll(
+  deps: MarketNotificationPollDeps
+): Promise<void> {
+  const broadcastChannelId = await deps.config.getBroadcastChannelId();
+  if (!broadcastChannelId) {
+    deps.warn?.(
+      "No broadcast channel configured — run /setup in the target channel. Market notifications paused."
+    );
+    return;
+  }
 
-  let warnedUnconfigured = false;
+  const { chunks } = await deps.api.getMarketNotifications();
 
-  console.log(`[market-notifier] Starting poller (interval=${pollIntervalMs}ms)`);
-
-  let running = false;
-
-  const tick = async () => {
-    if (running) {
+  for (const chunk of chunks) {
+    const messageId = await deps.postMessage(broadcastChannelId, chunk.content);
+    if (!messageId) {
       return;
     }
-    running = true;
+    await deps.api.markMarketNotificationsDelivered({
+      notificationIds: chunk.notificationIds,
+      messageIds: [messageId],
+    });
+  }
+}
 
-    try {
-      const broadcastChannelId = await config.getBroadcastChannelId();
+export interface MarketNotifierOptions {
+  communityId?: string;
+  api?: RootBotApi;
+  config?: RootCommunityConfig;
+  intervalMs?: number;
+  scheduler?: JobScheduler;
+  postMessage?: (channelId: string, content: string) => Promise<string | null>;
+}
 
-      if (!broadcastChannelId) {
-        if (!warnedUnconfigured) {
-          console.warn(
-            "[market-notifier] No broadcast channel configured — run /setup in the target channel. Market notifications paused."
-          );
-          warnedUnconfigured = true;
-        }
-        return;
-      }
-      warnedUnconfigured = false;
+/**
+ * Starts the market-notification poller on Root's job scheduler. The broadcast
+ * channel comes from per-community config (`/setup`); all data comes from the
+ * API, so the bot holds no database or Discord secrets.
+ */
+export async function startMarketNotifier(
+  options: MarketNotifierOptions = {}
+): Promise<void> {
+  const communityId = options.communityId ?? process.env.COMMUNITY_ID ?? "";
+  const api = options.api ?? new RootBotApi({ communityId });
+  const config =
+    options.config ?? createCommunityConfig(rootServer.dataStore.appData);
+  const postMessage =
+    options.postMessage ??
+    (async (channelId, content) => {
+      const message = await rootServer.community.channelMessages.create({
+        channelId: channelId as unknown as ChannelGuid,
+        content,
+      });
+      return message?.id ? String(message.id) : null;
+    });
 
-      const channelId = broadcastChannelId as unknown as ChannelGuid;
-      const pending = await getPendingNotifications(db);
-
-      if (pending.length === 0) {
-        return;
-      }
-
-      // Group by storeId
-      const byStore = groupMarketNotificationsByStore(pending);
-
-      for (const [storeId, notifications] of byStore) {
-        const store = await getMarketStoreById(storeId, db);
-        const storeName = store?.name ?? storeId;
-        const lastSyncDate = store?.lastFullScanAt ?? null;
-        const storeUrl = store?.baseUrl ?? null;
-
-        const chunks = formatMarketNotificationChunks(
-          notifications,
-          storeName,
-          lastSyncDate,
-          undefined,
-          storeUrl
+  await scheduleRootBotPolling({
+    scheduler: options.scheduler ?? rootServer.jobScheduler,
+    resourceId: "ga-market-notifications",
+    tag: "market-notifications",
+    intervalMs:
+      options.intervalMs ??
+      Number.parseInt(process.env.ROOT_BOT_POLL_INTERVAL_MS ?? "30000", 10),
+    run: async () => {
+      try {
+        await runMarketNotificationPoll({ api, config, postMessage });
+      } catch (err) {
+        console.error(
+          `[market-notifier] Poll error: ${describeError(err)}`
         );
-
-        if (chunks.length === 0) {
-          continue;
-        }
-
-        for (let i = 0; i < chunks.length; i++) {
-          const chunk = chunks[i];
-          let sentMessage;
-          try {
-            sentMessage = await rootServer.community.channelMessages.create({
-              channelId,
-              content: chunk.content,
-            });
-          } catch (err) {
-            console.error(
-              `[market-notifier] Failed to send chunk ${i + 1}/${chunks.length} (${chunk.notificationIds.length} cards) for store "${storeName}" to channel ${broadcastChannelId}: ${describeError(err)}`
-            );
-            // Stop processing remaining chunks for this store to keep message ordering intact.
-            // Remaining notifications will be retried on the next poll tick.
-            break;
-          }
-
-          const messageId = sentMessage?.id ? String(sentMessage.id) : "sent";
-          try {
-            await markNotificationsSent(chunk.notificationIds, messageId, new Date(), db);
-            console.log(
-              `[market-notifier] Sent chunk ${i + 1}/${chunks.length} (${chunk.notificationIds.length} cards) for store "${storeName}" (message=${messageId})`
-            );
-          } catch (err) {
-            console.error(
-              `[market-notifier] Message ${messageId} was posted but ${chunk.notificationIds.length} notifications for store "${storeName}" could not be marked as sent (ids: ${chunk.notificationIds.join(", ")}) — they will be re-sent on the next tick: ${describeError(err)}`
-            );
-          }
-
-          if (i < chunks.length - 1) {
-            await new Promise((resolve) => setTimeout(resolve, 250));
-          }
-        }
       }
-    } catch (err) {
-      console.error(`[market-notifier] Poll tick error: ${describeError(err)}`);
-    } finally {
-      running = false;
-    }
-  };
-
-  setInterval(tick, pollIntervalMs);
-  void tick();
+    },
+  });
 }
