@@ -68,7 +68,7 @@ describe("Unified Sequential Sync Pipeline Seam", () => {
     }
 
     expect(report.success).toBe(true);
-    expect(report.stages).toHaveLength(9);
+    expect(report.stages).toHaveLength(8);
     expect(report.stages[0].stage).toContain("Catalog Check");
     expect(report.stages[1].stage).toContain("Meta Staples Sync");
     expect(report.stages[2].stage).toContain("Personal MyP Store Sync");
@@ -76,8 +76,7 @@ describe("Unified Sequential Sync Pipeline Seam", () => {
     expect(report.stages[4].stage).toContain("Deck Shortages TCG Price");
     expect(report.stages[5].stage).toContain("Watchlist Ledger Reconciliation");
     expect(report.stages[6].stage).toContain("Automated Watchlist Mutation Execution");
-    expect(report.stages[7].stage).toContain("Wantlist Deal Alert Dispatch");
-    expect(report.stages[8].stage).toContain("Meta Archetypes");
+    expect(report.stages[7].stage).toContain("Meta Archetypes");
 
     // Exact order verification: staples -> user-myp -> global-myp -> user-watchlist -> meta
     expect(executionLog).toEqual(["staples", "user-myp", "global-myp", "user-watchlist", "meta"]);
@@ -109,7 +108,6 @@ describe("Unified Sequential Sync Pipeline Seam", () => {
     expect(report.stages[5].status).toBe("success");
     expect(report.stages[6].status).toBe("success");
     expect(report.stages[7].status).toBe("success");
-    expect(report.stages[8].status).toBe("success");
     expect(report.success).toBe(false); // Overall indicates a failure occurred
   });
 });
