@@ -1,193 +1,115 @@
 # Root ↔ Discord Notification Parity
 
-Status: **Proposal** · Owner: TBD · Last updated: 2026-10-24
+Status: **Implemented** (spec #136, tickets #137–#141) · Last updated: 2026-10-24
 
-This document maps what Discord notifications do today, what the Root
-app/bot does today, and the concrete work needed to make Root a first-class
-peer of Discord for market notifications and deal-alert DMs.
-
-The consolidation work in spec #129 already laid most of the groundwork: a
-shared vocabulary (`Destination`), two delivery seams (`ChannelDeliverySink`
-for broadcasts, `DirectMessageSink` for per-recipient rolling DMs), and a
-reserved `root-dm` destination. This document is the "what's left" list.
+This document records how Root deal alerts map onto Discord's behavior, the
+architecture chosen because Root has no DM API, and the one deferred
+unification.
 
 ---
 
-## 1. Two delivery systems
+## 1. What Root offers (and what it doesn't)
 
-| Capability | Discord (today) | Root (today) |
-|---|---|---|
-| **Channel broadcast** | Push via webhook. `deliverDiscordNotifications()` → `DiscordMarketNotificationSink` → `deliverMarketNotifications()`. Delivery tracked in `notification_deliveries` (keyed `destination = "discord"`). | Pull via poller. `startMarketNotifier()` polls `market_notifications` every 30s, posts to a community channel. Delivery tracked on the outbox row itself: `market_notifications.sent_at` / `message_id`. |
-| **Per-recipient rolling DM** (Deal Alerts) | `dispatchDealAlerts()` matches in-stock listings to wantlists/deck shortages, keeps one rolling DM per Discord user, deletes + re-sends only when the match list changes. State in `deal_alert_messages` keyed by `discord_user_id`. | **None.** No DM adapter ships. |
-| **Opt-in toggle** | `/wantlist notify` (Discord) sets `collector_identities.wantlist_notifications_enabled` for `provider = "discord"`. | **None.** No Root surface sets the flag. |
-| **Identity linking** | OAuth + bot onboarding → `collector_identities` rows with `provider = "discord"`. | `/link <code>` → `provider = "root"`, `providerUserId` = Root user id. Already works. |
-| **Message formatting** | `formatDiscordMarketNotificationMessage` (escaped Markdown, chunked). Deal alerts use plain-text `formatDealAlertChunks`. | `formatMarketNotificationChunks` (Root Markdown, chunked under Root limits). |
-| **Message length budget** | `MESSAGE_MAX_LENGTH = 2000`. | Same constant, but Root's real per-message limit must be confirmed against the SDK. |
+- **No direct-message API.** The server SDK exposes no private/conversation
+  surface. There is no `directMessage`, `conversation`, or `userMessage`
+  primitive.
+- **Access-controlled channels.** `channels.create` accepts
+  `accessRuleCreates` (per-role/member `ChannelOverlayPermission` overlays) and
+  `useChannelGroupPermission: false`. `ChannelPermission.channelView` controls
+  visibility, and `WellKnownRootGuids.CommunityRoles.EveryoneRole` identifies
+  the base role to deny.
+- **Channel messages** can be created and deleted (`channelMessages.create` /
+  `channelMessages.delete`), so a rolling message can be replaced.
+- **In-app notifications** via `notifications.send`: title ≤ 50 chars,
+  description ≤ 150 chars, up to 1000 users per call, returns no message id
+  (so no edit/delete/rolling).
 
----
+## 2. The delivered design
 
-## 2. What is already in place (do not rebuild)
+Two kinds of channel, plus a notification:
 
-These are the seams and vocabulary introduced by #129/#135 that this work builds on:
+1. **Shared market channel** — unchanged. The Root bot polls
+   `market_notifications` and posts every store update
+   (`ROOT_BOT_MARKET_CHANNEL_ID`). Everyone sees the same stream.
+2. **Private per-user deal-alert channel** — new. One channel per opted-in
+   collector, created lazily under a dedicated bot-only channel section
+   (`ROOT_DEAL_ALERT_SECTION_ID`). Access rules deny `channelView` to the
+   base role and grant it to the recipient (plus create/history), so other
+   members cannot see it. The channel holds the **full rolling list** of that
+   collector's wantlist + deck shortages that are for sale; the message is
+   replaced only when the list changes.
+3. **In-app notification ping** — new. When the list changes, the Root bot also
+   sends a short notification. If there are hard shortages it names up to three
+   (`Cards: A, B and C for sale and more!`); otherwise it says new wantlist
+   cards are for sale. It deep-links to the channel when supported and names
+   the channel otherwise.
 
-- `src/lib/market-vocabulary.ts`
-  - `type Destination = "root" | "discord" | "discord-dm" | "root-dm"`
-  - `ROOT_DESTINATION`, `DISCORD_DESTINATION`, `DISCORD_DM_DESTINATION`, and the
-    reserved `ROOT_DM_DESTINATION`.
-- `src/services/market-notification-sink.ts`
-  - `ChannelDeliverySink` (= `MarketNotificationSink`) — `formatGroup` / `send` / `markDelivered`.
-  - `DirectMessageSink` + `DirectMessageRef` — `send(recipient, content) → { channelId, messageId }`, `delete(ref)`.
-  - `deliverMarketNotifications(sink, db)` — the broadcast delivery loop, destination-agnostic.
-- `src/db/repositories/notification-delivery-repository.ts`
-  - `getUndeliveredNotifications(destination)` / `markNotificationsDelivered(...)` — already destination-parameterized.
-- `src/db/repositories/assistant-repository.ts`
-  - `findIdentitiesWithNotificationsEnabled(provider)` — **already** takes `provider`; `matchDealAlerts` just hardcodes `"discord"` today.
-- `src/db/repositories/personal-wants-repository.ts`
-  - `setWantlistNotificationPreference(collectorId, provider, enabled)` / `getWantlistNotificationPreference(...)` — **already** provider-parameterized.
-- `src/services/discord-deal-notifier.ts`
-  - `dispatchDealAlerts(database, transport, now, options)` — **already** takes a `DirectMessageSink` transport, so a Root adapter can be swapped in without touching the matcher/formatter.
+Change-only semantics are shared with Discord: `hasListingChanges` compares the
+match keys, so an unchanged list produces neither a channel update nor a
+notification.
 
----
+## 3. Architecture: one matcher, two delivery processes
 
-## 3. Work breakdown
+Root delivery must run **inside the Root bot**, because `@rootsdk/server-bot`
+is only available there. Discord delivery continues to run in the market-sync
+daemon. Both use the same shared code:
 
-### A. Confirm Root SDK direct-message capability (blocker)
+- `matchDealAlerts(listings, database, provider)` resolves identities per
+  provider (`discord` / `root`).
+- `dispatchDealAlerts(database, transport, now, { destination })` owns
+  change-detection, rolling replacement, the state store, and the optional
+  notification ping.
+- `deal_alert_messages` is keyed by `(destination, recipient_id)`, so one table
+  serves `discord-dm` and `root-alert`. Legacy Discord rows are back-filled with
+  `destination = 'discord-dm'` on migration.
 
-The Root bot currently only touches `rootServer.community.channelMessages`
-(channel broadcast). Before building the adapter, confirm against
-`@rootsdk/server-bot`:
+The daemon dispatches `discord-dm`; the Root bot dispatches `root-alert` on its
+own timer (`startDealAlertNotifier`). They share the matcher and the state, so
+content never drifts.
 
-- Whether it exposes a direct/private message or conversation API
-  (e.g. `rootServer.directMessages` / `rootServer.conversations`).
-- The return shape (does it yield a `channelId` + `messageId` for later delete?).
-- Whether DMs support delete/edit (rolling replacement needs delete).
-- The actual per-message character limit (to size `MESSAGE_MAX_LENGTH` or add a Root-specific limit).
+## 4. Opt-in
 
-If the SDK has **no DM surface**, the deal-alert DM parity is blocked until the
-SDK exposes one — fall back to "Root deal alerts land in the community channel
-as a single tagged mention," which is a product decision, not a code seam change.
+`/notify on|off` in Root sets
+`collector_identities.wantlist_notifications_enabled` for the `root` identity
+via the existing preference setter. Enabling provisions the channel
+immediately; disabling deletes the channel and clears the stored state.
 
-### B. Root `DirectMessageSink` adapter (`root-dm`)
+## 5. Configuration
 
-Create `src/services/root-deal-notifier.ts` (mirrors
-`discord-deal-notifier.ts`'s transport section), implementing
-`DirectMessageSink`:
+| Variable | Purpose |
+|---|---|
+| `DEAL_ALERT_DM_DESTINATION` | Comma-separated destinations (`discord-dm,root-alert`). Defaults to both. |
+| `DISCORD_BOT_TOKEN` | Opens/reuses Discord DMs. |
+| `ROOT_DEAL_ALERT_SECTION_ID` | Bot-only channel section holding per-user channels. Unset ⇒ Root deal alerts disabled. |
+| `ROOT_DEAL_ALERT_INTERVAL_MS` | Root dispatch interval (default 300000). |
+| `ROOT_BOT_MARKET_CHANNEL_ID` | Shared broadcast channel (already existed). |
 
-```ts
-import { ROOT_DM_DESTINATION } from "../lib/market-vocabulary";
-import type { DirectMessageSink, DirectMessageRef } from "./market-notification-sink";
+## 6. Verification caveats
 
-export const rootDealAlertTransport: DirectMessageSink = {
-  send: async (rootUserId, content) => { /* rootServer.directMessages.create(...) */ },
-  delete: async (ref) => { /* rootServer.directMessages.delete(...) */ },
-};
-```
+These were flagged during design and should be confirmed in a real devhost:
 
-Requirements:
-- Resolve the Root user id → recipient handle the SDK expects.
-- Chunk content with `splitMessageContent(content, ROOT_MAX_LENGTH)` and return a
-  comma-joined message id (same convention as `sendDiscordDirectContent`).
-- Return `null` on any failure so the shared dispatch loop can roll back partial sends.
+- Whether `channelView: false` **hides** a channel from the member's channel list
+  or only blocks opening it. The wording implies hiding; verify.
+- The channel's **default permission** when `useChannelGroupPermission: false` —
+  the base-role `channelView: false` overlay is what makes it private.
+- Whether channel/group creation needs a **manifest permission** granted by the
+  community admin (notifications are documented as needing none).
+- Whether a notification's `relativeUrl` can target a Root channel. It is
+  documented as resolving against the app's own router, so the fallback is to
+  name the channel in the notification text.
 
-### C. Destination-scoped deal-alert message store
+## 7. Deferred: channel-broadcast unification
 
-`deal_alert_messages` is keyed by `discord_user_id` (single-column PK), which is
-Discord-specific. Two options:
+The shared broadcast still uses its original pull-based poller and its
+`sent_at` / `message_id` ledger, while Discord uses `notification_deliveries`
+through `ChannelDeliverySink`. We chose to leave it as-is: it works, and Root is
+pull-based by nature. A future change can introduce a
+`RootMarketNotificationSink` and move the poller onto
+`deliverMarketNotifications`, retiring `sent_at` / `message_id`.
 
-1. **Generalize** the table: add a `destination` column and make the PK
-   `(destination, recipient_id)` (rename `discord_user_id` → `recipient_id`).
-   Cleanest long-term; one store serves both providers.
-2. **Add** a parallel `root_deal_alert_messages` table and mirror the four
-   repository functions in `deal-alert-repository.ts`.
+## 8. Out of scope
 
-Recommendation: option 1 (generalize), with a migration that back-fills
-`destination = "discord-dm"` for existing rows. The `DirectMessageSink` already
-carries `channelId`/`messageId`, so the store only needs a stable
-`recipient_id` + `destination`.
-
-### D. Generalize deal-alert dispatch
-
-In `src/services/discord-deal-notifier.ts`:
-
-- `matchDealAlerts` hardcodes `findIdentitiesWithNotificationsEnabled("discord")`.
-  Add a `provider` parameter (default `"discord"`) and thread it through.
-- `dispatchDealAlerts` already accepts a `transport`; add a `destination`
-  parameter (default `DISCORD_DM_DESTINATION`) that selects:
-  - the identity provider (`"root"` vs `"discord"`),
-  - the message-store key (from step C),
-  - the transport (`rootDealAlertTransport` vs the Discord default).
-- Rename nothing user-facing; keep `dispatchDealAlerts` as the single entry point
-  called once per market-sync run (`market-sync-runner.ts`), dispatching to both
-  destinations back-to-back, or to whichever `DEAL_ALERT_DM_DESTINATION` names.
-
-### E. Root opt-in surface
-
-The DB setter already exists; expose it:
-
-- **In Root**: add a `/notify` (or `/wantlist notify`) command in
-  `command-handlers.ts` that calls
-  `setWantlistNotificationPreference(collectorId, "root", enabled)`, mirroring
-  the Discord `/wantlist notify` flow in
-  `src/services/discord-interactions/wantlist-commands.ts`.
-- **In the web app** (optional parity): surface the same toggle under
-  Settings > Linked Accounts for `provider = "root"`, if it exists for Discord.
-
-### F. Channel-broadcast parity (decision)
-
-Today Root uses a pull poller writing `sent_at`/`message_id` on the outbox row;
-Discord uses the `notification_deliveries` table via `deliverMarketNotifications`.
-These are two different delivery-tracking models for the same outbox.
-
-Decide one of:
-
-1. **Keep both** (lowest risk): Root stays pull-based; document that
-   `sent_at`/`message_id` are Root-owned and `notification_deliveries` is the
-   shared push-sink ledger. No code change.
-2. **Unify on the sink** (cleaner): implement `RootMarketNotificationSink`
-   (`destination = "root"`, `send` → `rootServer.community.channelMessages.create`),
-   have `startMarketNotifier` call `deliverMarketNotifications(sink)` on its
-   interval, and retire `getPendingNotifications`/`markNotificationsSent` from
-   the Root poller. This makes Root and Discord share one code path and one
-   delivery ledger.
-
-Recommendation: option 2, but it is a behavior change to Root's delivery
-tracking, so it should land as its own small PR after C/D.
-
-### G. Configuration / environment
-
-Add to `.env.example` (and the Root app's devhost config):
-
-- `ROOT_BOT_MARKET_CHANNEL_ID` (already used, undocumented).
-- `ROOT_BOT_POLL_INTERVAL_MS` (already used, undocumented).
-- A Root DM credential/token if the SDK requires one (analogous to `DISCORD_BOT_TOKEN`).
-- `DEAL_ALERT_DM_DESTINATION` — if generalized, allow `discord-dm`, `root-dm`,
-  or both (comma-separated), replacing the current single hardcoded value.
-
-### H. Tests + migration
-
-- Unit tests for `rootDealAlertTransport` using a mocked SDK (mirror
-  `src/services/__tests__/discord-deal-alerts.test.ts`'s fake transport).
-- Dispatch test: Root identity with `wantlist_notifications_enabled = true`
-  receives a rolling DM; unchanged list → no re-send; changed list → delete + send.
-- Migration test for the `deal_alert_messages` generalization (C).
-- If F-option-2 is chosen, add `RootMarketNotificationSink` delivery tests.
-
----
-
-## 4. Open questions
-
-1. Does `@rootsdk/server-bot` expose a DM/conversation API, and does it support
-   message **delete** for rolling replacement? *(blocker for B/D)*
-2. What is Root's real per-message character limit? (Currently assumed 2000.)
-3. Should Root deal alerts go to DMs, the community channel, or both?
-4. Do we keep Root's pull-based channel delivery, or migrate it onto the shared
-   `ChannelDeliverySink` ledger? (F)
-5. Is the opt-in toggle surfaced in the web app for Root, Root commands only, or both? (E)
-
-## 5. Suggested sequencing
-
-1. **A** — verify SDK DM capability (cheap, unblocks everything).
-2. **B + C + D** — Root deal-alert DM parity (the main deliverable).
-3. **E** — Root opt-in surface (needed before D is useful in production).
-4. **F** — channel-broadcast unification (optional cleanup, separate PR).
-5. **G + H** — config, tests, migrations ship alongside each step.
+- A full Root client app (UI, onboarding overhaul, deep-link router).
+- A Root DM API (does not exist).
+- Web-app Settings toggle for Root opt-in (the Root command is the surface).
+- Changes to the Discord deal-alert path.

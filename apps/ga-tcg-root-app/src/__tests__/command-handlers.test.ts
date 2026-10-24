@@ -1,5 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
-import { processRootCommand } from "../command-handlers";
+import {
+  processRootCommand,
+  type RootCommandDeps,
+} from "../command-handlers";
 import { AssistantClient, AssistantApiError } from "@ga/contracts";
 
 describe("Root Command Handlers (processRootCommand)", () => {
@@ -129,5 +132,80 @@ describe("Root Command Handlers (processRootCommand)", () => {
     const res = await processRootCommand(mockUserId, "/decks", mockClient);
     expect(res).toContain("Grand Archive Binder Account Not Linked");
     expect(res).toContain("/link <code>");
+  });
+
+  describe("/notify", () => {
+    function createDeps(collectorId: string | null = "collector-1"): RootCommandDeps {
+      return {
+        findCollectorId: vi.fn().mockResolvedValue(collectorId),
+        setNotificationPreference: vi.fn().mockResolvedValue(undefined),
+        provisionDealAlerts: vi.fn().mockResolvedValue(undefined),
+        removeDealAlertChannel: vi.fn().mockResolvedValue(undefined),
+      } as RootCommandDeps;
+    }
+
+    it("enables deal alerts and provisions the private channel", async () => {
+      const deps = createDeps();
+
+      const res = await processRootCommand(
+        mockUserId,
+        "/notify on",
+        {} as AssistantClient,
+        deps
+      );
+
+      expect(res).toContain("Deal alerts enabled");
+      expect(deps.setNotificationPreference).toHaveBeenCalledWith(
+        "collector-1",
+        true
+      );
+      expect(deps.provisionDealAlerts).toHaveBeenCalledTimes(1);
+    });
+
+    it("disables deal alerts and removes the private channel", async () => {
+      const deps = createDeps();
+
+      const res = await processRootCommand(
+        mockUserId,
+        "/notify off",
+        {} as AssistantClient,
+        deps
+      );
+
+      expect(res).toContain("Deal alerts disabled");
+      expect(deps.setNotificationPreference).toHaveBeenCalledWith(
+        "collector-1",
+        false
+      );
+      expect(deps.removeDealAlertChannel).toHaveBeenCalledWith(mockUserId);
+    });
+
+    it("returns usage when no action is given", async () => {
+      const deps = createDeps();
+
+      const res = await processRootCommand(
+        mockUserId,
+        "/notify",
+        {} as AssistantClient,
+        deps
+      );
+
+      expect(res).toContain("Usage:");
+      expect(deps.setNotificationPreference).not.toHaveBeenCalled();
+    });
+
+    it("prompts to link when the identity is not linked", async () => {
+      const deps = createDeps(null);
+
+      const res = await processRootCommand(
+        mockUserId,
+        "/notify on",
+        {} as AssistantClient,
+        deps
+      );
+
+      expect(res).toContain("Account Not Linked");
+      expect(deps.setNotificationPreference).not.toHaveBeenCalled();
+    });
   });
 });

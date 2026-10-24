@@ -4,6 +4,44 @@ import {
   MessageType,
   type ChannelMessageCreatedEvent,
 } from "@rootsdk/server-bot";
+import { findCollectorByIdentity } from "../../../src/db/repositories/assistant-repository";
+import { setWantlistNotificationPreference } from "../../../src/db/repositories/personal-wants-repository";
+import {
+  provisionRootDealAlerts,
+  removeRootDealAlertChannel,
+} from "./deal-alert-notifier";
+
+/**
+ * Injectable side effects for the Root commands. Defaults use the shared
+ * database; tests pass fakes so the command logic stays pure.
+ */
+export interface RootCommandDeps {
+  findCollectorId?: (userId: string) => Promise<string | null>;
+  setNotificationPreference?: (
+    collectorId: string,
+    enabled: boolean
+  ) => Promise<void>;
+  provisionDealAlerts?: () => Promise<void>;
+  removeDealAlertChannel?: (recipientId: string) => Promise<void>;
+}
+
+function defaultRootCommandDeps(): Required<RootCommandDeps> {
+  return {
+    async findCollectorId(userId) {
+      const resolved = await findCollectorByIdentity("root", userId);
+      return resolved?.identity.collectorId ?? null;
+    },
+    async setNotificationPreference(collectorId, enabled) {
+      await setWantlistNotificationPreference(collectorId, "root", enabled);
+    },
+    async provisionDealAlerts() {
+      await provisionRootDealAlerts();
+    },
+    async removeDealAlertChannel(recipientId) {
+      await removeRootDealAlertChannel(recipientId);
+    },
+  };
+}
 
 export function getAssistantClient(): AssistantClient {
   const baseUrl =
@@ -22,8 +60,10 @@ export function getAssistantClient(): AssistantClient {
 export async function processRootCommand(
   userId: string,
   messageContent: string,
-  client: AssistantClient = getAssistantClient()
+  client: AssistantClient = getAssistantClient(),
+  deps: RootCommandDeps = {}
 ): Promise<string | null> {
+  const resolvedDeps = { ...defaultRootCommandDeps(), ...deps };
   const trimmed = messageContent.trim();
   if (!trimmed.startsWith("/")) return null;
 
@@ -154,6 +194,31 @@ export async function processRootCommand(
       }
 
       return lines.join("\n");
+    }
+
+    // 6. /notify [on|off]
+    if (command === "notify") {
+      const action = argString.toLowerCase();
+
+      if (action !== "on" && action !== "off") {
+        return "⚠️ **Usage:** `/notify on|off`\nTurn private deal alerts on or off.";
+      }
+
+      const collectorId = await resolvedDeps.findCollectorId(userId);
+
+      if (!collectorId) {
+        return "⚠️ **Grand Archive Binder Account Not Linked**\nLink your account first:\n1. Open GA Binder > **Settings > Linked Accounts**\n2. Click **Generate Code**\n3. Run `/link <code>` here in Root.";
+      }
+
+      if (action === "on") {
+        await resolvedDeps.setNotificationPreference(collectorId, true);
+        await resolvedDeps.provisionDealAlerts();
+        return "🔔 **Deal alerts enabled!**\nI'll maintain a private channel with the cards from your wantlist and deck shortages that are for sale, and ping you when it changes.";
+      }
+
+      await resolvedDeps.setNotificationPreference(collectorId, false);
+      await resolvedDeps.removeDealAlertChannel(userId);
+      return "🔕 **Deal alerts disabled.**\nYour private deal-alert channel has been removed.";
     }
 
     return null;

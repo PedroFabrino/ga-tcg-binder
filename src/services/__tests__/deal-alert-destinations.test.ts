@@ -13,6 +13,7 @@ import {
 } from "../../db/schema";
 import { getDealAlertMessage } from "../../db/repositories/deal-alert-repository";
 import {
+  adaptDirectMessageSink,
   dispatchDealAlerts,
   matchDealAlerts,
   type DealAlertMatch,
@@ -173,9 +174,12 @@ describe("deal alert destinations", () => {
     const fake = createFakeRootTransport();
     const now = new Date("2026-10-24T12:00:00Z");
 
-    const result = await dispatchDealAlerts(db, fake.transport, now, {
-      destination: "root-alert",
-    });
+    const result = await dispatchDealAlerts(
+      db,
+      adaptDirectMessageSink(fake.transport),
+      now,
+      { destination: "root-alert" }
+    );
 
     expect(result.sent).toBe(1);
     expect(fake.sent).toHaveLength(1);
@@ -196,16 +200,22 @@ describe("deal alert destinations", () => {
 
   it("does not re-send or re-notify when the list is unchanged", async () => {
     const first = createFakeRootTransport();
-    await dispatchDealAlerts(db, first.transport, new Date(), {
-      destination: "root-alert",
-    });
+    await dispatchDealAlerts(
+      db,
+      adaptDirectMessageSink(first.transport),
+      new Date(),
+      { destination: "root-alert" }
+    );
     expect(first.sent).toHaveLength(1);
     expect(first.notified).toHaveLength(1);
 
     const second = createFakeRootTransport();
-    await dispatchDealAlerts(db, second.transport, new Date(), {
-      destination: "root-alert",
-    });
+    await dispatchDealAlerts(
+      db,
+      adaptDirectMessageSink(second.transport),
+      new Date(),
+      { destination: "root-alert" }
+    );
     expect(second.sent).toHaveLength(0);
     expect(second.notified).toHaveLength(0);
   });

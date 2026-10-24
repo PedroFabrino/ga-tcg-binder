@@ -14,6 +14,35 @@ export const DISCORD_DESTINATION: Destination = "discord";
 export const DISCORD_DM_DESTINATION: Destination = "discord-dm";
 export const ROOT_ALERT_DESTINATION: Destination = "root-alert";
 
+const KNOWN_DESTINATIONS: readonly Destination[] = [
+  ROOT_DESTINATION,
+  DISCORD_DESTINATION,
+  DISCORD_DM_DESTINATION,
+  ROOT_ALERT_DESTINATION,
+];
+
+/**
+ * Reads the comma-separated `DEAL_ALERT_DM_DESTINATION` setting (for example
+ * `discord-dm,root-alert`). Defaults to both destinations; each delivery
+ * process still requires its own credentials (Discord webhook/bot token for
+ * Discord, `ROOT_DEAL_ALERT_SECTION_ID` for Root) before it actually sends.
+ */
+export function readDealAlertDestinations(
+  env: Record<string, string | undefined> = process.env
+): Destination[] {
+  const raw =
+    env.DEAL_ALERT_DM_DESTINATION ??
+    `${DISCORD_DM_DESTINATION},${ROOT_ALERT_DESTINATION}`;
+  const parsed = raw
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value): value is Destination =>
+      (KNOWN_DESTINATIONS as readonly string[]).includes(value)
+    );
+
+  return parsed.length > 0 ? parsed : [DISCORD_DM_DESTINATION];
+}
+
 /** A marketplace platform crawled by Market Sync. */
 export type MarketplacePlatform = "myp" | "liga_store" | "lootcards";
 
