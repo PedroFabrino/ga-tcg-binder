@@ -32,12 +32,13 @@ Two kinds of channel, plus a notification:
    `market_notifications` and posts every store update
    (`ROOT_BOT_MARKET_CHANNEL_ID`). Everyone sees the same stream.
 2. **Private per-user deal-alert channel** — new. One channel per opted-in
-   collector, created lazily under a dedicated bot-only channel section
-   (`ROOT_DEAL_ALERT_SECTION_ID`). Access rules deny `channelView` to the
-   base role and grant it to the recipient (plus create/history), so other
-   members cannot see it. The channel holds the **full rolling list** of that
-   collector's wantlist + deck shortages that are for sale; the message is
-   replaced only when the list changes.
+   collector, created in the **parent group of the `/setup` channel** (so it
+   sits beside the market dump). Access rules deny `channelView` to the base
+   role and grant it to the recipient (plus create/history); the bot grants
+   itself access via its app id, so other members cannot see it. The channel
+   holds the **full rolling list** of that collector's wantlist + deck
+   shortages that are for sale; the message is replaced only when the list
+   changes.
 3. **In-app notification ping** — new. When the list changes, the Root bot also
    sends a short notification. If there are hard shortages it names up to three
    (`Cards: A, B and C for sale and more!`); otherwise it says new wantlist
@@ -71,8 +72,11 @@ content never drifts.
 
 `/notify on|off` in Root sets
 `collector_identities.wantlist_notifications_enabled` for the `root` identity
-via the existing preference setter. Enabling provisions the channel
-immediately; disabling deletes the channel and clears the stored state.
+via the existing preference setter. Enabling creates the collector's private
+channel immediately, posts a welcome message there, and replies with a link to
+it (so the user knows where alerts will arrive); disabling deletes the channel
+and clears the stored state. An opted-in collector with no current matches keeps
+their channel and welcome message until the first match arrives.
 
 ## 5. Configuration
 
@@ -85,9 +89,10 @@ immediately; disabling deletes the channel and clears the stored state.
 | `ROOT_DEAL_ALERT_INTERVAL_MS` | Root dispatch interval (default 300000). |
 
 Community-specific channel configuration is **not** in `.env`. It lives in the
-bot's per-community key-value store (`rootServer.dataStore.appData`): the
-broadcast channel is set by `/setup`, and the deal-alert section ("GA Alerts")
-is created automatically on first use.
+bot's per-community key-value store (`rootServer.dataStore.appData`): `/setup`
+records the broadcast channel and its parent group (used for per-user channels);
+if the group cannot be resolved, the bot falls back to creating a "GA Alerts"
+group.
 
 ## 6. Root setup checklist (portal + community)
 
@@ -104,10 +109,12 @@ is created automatically on first use.
 - Run `/setup` in the channel that should receive market updates (community
   admins with Manage Apps, or the owner). It warns that the channel becomes the
   market dump and requires `/setup confirm` to apply.
-- That's it: the bot creates its own "GA Alerts" channel group on first
-  dispatch and grants itself access to each per-user channel via its app id.
-- Notifications need no manifest permission; the app can send them once
-  installed.
+- Make sure the bot has `fullControl` on that channel's group, so it can create
+  per-user channels there. A role with `channelFullControl`, assigned to the bot
+  and added to the group, works.
+- That's it: per-user channels are created in the `/setup` channel's group on
+  `/notify on` (fallback: a bot-created "GA Alerts" group if the group cannot be
+  resolved). Notifications need no manifest permission.
 
 ## 7. Verification caveats
 

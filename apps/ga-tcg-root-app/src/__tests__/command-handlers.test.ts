@@ -141,7 +141,8 @@ describe("Root Command Handlers (processRootCommand)", () => {
         setNotificationPreference: vi.fn().mockResolvedValue(undefined),
         provisionDealAlerts: vi.fn().mockResolvedValue(undefined),
         removeDealAlertChannel: vi.fn().mockResolvedValue(undefined),
-        setBroadcastChannel: vi.fn().mockResolvedValue(undefined),
+        ensureRecipientChannel: vi.fn().mockResolvedValue("chan-private"),
+        configureFromChannel: vi.fn().mockResolvedValue(undefined),
         isCommunityAdmin: vi.fn().mockResolvedValue(true),
       } as RootCommandDeps;
     }
@@ -157,11 +158,29 @@ describe("Root Command Handlers (processRootCommand)", () => {
       );
 
       expect(res).toContain("Deal alerts enabled");
+      expect(res).toContain("root://channel/chan-private");
+      expect(deps.ensureRecipientChannel).toHaveBeenCalledWith(mockUserId);
       expect(deps.setNotificationPreference).toHaveBeenCalledWith(
         "collector-1",
         true
       );
       expect(deps.provisionDealAlerts).toHaveBeenCalledTimes(1);
+    });
+
+    it("falls back to a deferred-channel message when creation fails", async () => {
+      const deps = createDeps();
+      (deps.ensureRecipientChannel as ReturnType<typeof vi.fn>).mockResolvedValue(
+        null
+      );
+
+      const res = await processRootCommand(
+        mockUserId,
+        "/notify on",
+        {} as AssistantClient,
+        deps
+      );
+
+      expect(res).toContain("next marketplace sync");
     });
 
     it("disables deal alerts and removes the private channel", async () => {
@@ -214,7 +233,7 @@ describe("Root Command Handlers (processRootCommand)", () => {
   describe("/setup", () => {
     function createDeps(admin = true): RootCommandDeps {
       return {
-        setBroadcastChannel: vi.fn().mockResolvedValue(undefined),
+        configureFromChannel: vi.fn().mockResolvedValue(undefined),
         isCommunityAdmin: vi.fn().mockResolvedValue(admin),
       } as RootCommandDeps;
     }
@@ -232,7 +251,7 @@ describe("Root Command Handlers (processRootCommand)", () => {
 
       expect(res).toContain("become the market dump");
       expect(res).toContain("/setup confirm");
-      expect(deps.setBroadcastChannel).not.toHaveBeenCalled();
+      expect(deps.configureFromChannel).not.toHaveBeenCalled();
     });
 
     it("records the channel when an admin confirms", async () => {
@@ -247,7 +266,7 @@ describe("Root Command Handlers (processRootCommand)", () => {
       );
 
       expect(res).toContain("Setup complete");
-      expect(deps.setBroadcastChannel).toHaveBeenCalledWith("chan-market");
+      expect(deps.configureFromChannel).toHaveBeenCalledWith("chan-market");
     });
 
     it("refuses when the caller is not an admin", async () => {
@@ -262,7 +281,7 @@ describe("Root Command Handlers (processRootCommand)", () => {
       );
 
       expect(res).toContain("Only community admins");
-      expect(deps.setBroadcastChannel).not.toHaveBeenCalled();
+      expect(deps.configureFromChannel).not.toHaveBeenCalled();
     });
 
     it("asks to run it inside a channel", async () => {
@@ -276,7 +295,7 @@ describe("Root Command Handlers (processRootCommand)", () => {
       );
 
       expect(res).toContain("inside the channel");
-      expect(deps.setBroadcastChannel).not.toHaveBeenCalled();
+      expect(deps.configureFromChannel).not.toHaveBeenCalled();
     });
   });
 });

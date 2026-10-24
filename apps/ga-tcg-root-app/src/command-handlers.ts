@@ -3,12 +3,14 @@ import {
   rootServer,
   MessageType,
   WellKnownRootGuids,
+  type ChannelGuid,
   type ChannelMessageCreatedEvent,
   type UserGuid,
 } from "@rootsdk/server-bot";
 import { findCollectorByIdentity } from "../../../src/db/repositories/assistant-repository";
 import { setWantlistNotificationPreference } from "../../../src/db/repositories/personal-wants-repository";
 import {
+  ensureRootRecipientChannel,
   provisionRootDealAlerts,
   removeRootDealAlertChannel,
 } from "./deal-alert-notifier";
@@ -26,7 +28,8 @@ export interface RootCommandDeps {
   ) => Promise<void>;
   provisionDealAlerts?: () => Promise<void>;
   removeDealAlertChannel?: (recipientId: string) => Promise<void>;
-  setBroadcastChannel?: (channelId: string) => Promise<void>;
+  ensureRecipientChannel?: (recipientId: string) => Promise<string | null>;
+  configureFromChannel?: (channelId: string) => Promise<void>;
   isCommunityAdmin?: (userId: string) => Promise<boolean>;
 }
 
@@ -45,10 +48,24 @@ function defaultRootCommandDeps(): Required<RootCommandDeps> {
     async removeDealAlertChannel(recipientId) {
       await removeRootDealAlertChannel(recipientId);
     },
-    async setBroadcastChannel(channelId) {
-      await createCommunityConfig(
-        rootServer.dataStore.appData
-      ).setBroadcastChannelId(channelId);
+    async ensureRecipientChannel(recipientId) {
+      return ensureRootRecipientChannel(recipientId);
+    },
+    async configureFromChannel(channelId) {
+      const config = createCommunityConfig(rootServer.dataStore.appData);
+      await config.setBroadcastChannelId(channelId);
+
+      try {
+        const channel = await rootServer.community.channels.get({
+          id: channelId as unknown as ChannelGuid,
+        });
+        await config.setAlertSectionId(String(channel.channelGroupId));
+      } catch (err) {
+        console.warn(
+          "[setup] Could not resolve the channel's group; the bot will fall back to creating its own deal-alert section.",
+          err instanceof Error ? err.message : err
+        );
+      }
     },
     async isCommunityAdmin(userId) {
       const community = await rootServer.community.communities.get();
@@ -246,8 +263,22 @@ export async function processRootCommand(
 
       if (action === "on") {
         await resolvedDeps.setNotificationPreference(collectorId, true);
+
+        let alertsChannelId: string | null = null;
+        try {
+          alertsChannelId = await resolvedDeps.ensureRecipientChannel(userId);
+        } catch (err) {
+          console.warn(
+            "[notify] Could not create the private deal-alert channel yet:",
+            err instanceof Error ? err.message : err
+          );
+        }
+
         await resolvedDeps.provisionDealAlerts();
-        return "🔔 **Deal alerts enabled!**\nI'll maintain a private channel with the cards from your wantlist and deck shortages that are for sale, and ping you when it changes.";
+
+        return alertsChannelId
+          ? `🔔 **Deal alerts enabled.** Your alerts will arrive in [your private channel](root://channel/${alertsChannelId}).`
+          : "🔔 **Deal alerts enabled.** Your private channel will be created on the next marketplace sync.";
       }
 
       await resolvedDeps.setNotificationPreference(collectorId, false);
@@ -269,8 +300,8 @@ export async function processRootCommand(
         return "⚠️ **This channel will become the market dump.** Every store update will be posted here.\nRun `/setup confirm` in this channel to apply it.";
       }
 
-      await resolvedDeps.setBroadcastChannel(channelId);
-      return "✅ **Setup complete.** This channel is now the market dump — store updates will be posted here.";
+      await resolvedDeps.configureFromChannel(channelId);
+      return "✅ **Setup complete.** This channel is now the market dump — store updates will be posted here, and per-user alert channels will be created in this channel's group.";
     }
 
     return null;

@@ -176,6 +176,12 @@ export interface DispatchDealAlertsOptions {
   forceRefresh?: boolean;
   /** Which platform destination to dispatch to (default: Discord DMs). */
   destination?: Destination;
+  /**
+   * Recipients who are still opted in but may have no current matches. Their
+   * stored rolling message/state is kept rather than cleaned up, so a channel
+   * created at opt-in is not deleted before the first match arrives.
+   */
+  keepRecipients?: ReadonlySet<string>;
 }
 
 function providerForDestination(destination: Destination): "discord" | "root" {
@@ -214,7 +220,10 @@ export async function dispatchDealAlerts(
     (row) => row.destination === destination
   );
   for (const stored of storedMessages) {
-    if (!byRecipient.has(stored.recipientId)) {
+    if (
+      !byRecipient.has(stored.recipientId) &&
+      !options.keepRecipients?.has(stored.recipientId)
+    ) {
       for (const oldId of parseMessageIds(stored.messageId)) {
         await transport.delete({ channelId: stored.channelId, messageId: oldId });
       }

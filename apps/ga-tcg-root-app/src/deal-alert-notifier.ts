@@ -11,7 +11,9 @@ import {
 import {
   deleteDealAlertMessage,
   getDealAlertMessage,
+  upsertDealAlertMessage,
 } from "../../../src/db/repositories/deal-alert-repository";
+import { findIdentitiesWithNotificationsEnabled } from "../../../src/db/repositories/assistant-repository";
 import { parseMessageIds } from "../../../src/services/discord-dm-client";
 import {
   createCommunityConfig,
@@ -67,11 +69,12 @@ export function startDealAlertNotifier(
     try {
       const channelGroupId = await ensureAlertSection(api, config);
       const transport = createRootDealAlertTransport({ channelGroupId, api });
+      const keepRecipients = await optedInRecipients(database);
       const result = await dispatchDealAlerts(
         database,
         adaptDirectMessageSink(transport),
         new Date(),
-        { destination: ROOT_ALERT_DESTINATION }
+        { destination: ROOT_ALERT_DESTINATION, keepRecipients }
       );
       if (result.sent > 0) {
         console.log(
@@ -94,6 +97,64 @@ export function startDealAlertNotifier(
   void tick();
 }
 
+async function optedInRecipients(database: typeof db): Promise<Set<string>> {
+  const identities = await findIdentitiesWithNotificationsEnabled("root", database);
+  return new Set(identities.map((identity) => identity.providerUserId));
+}
+
+const WELCOME_MESSAGE =
+  "🔔 **Deal alerts are on.** I'll keep this channel updated with cards from your wantlist and deck shortages that are for sale.";
+
+/**
+ * Ensures the recipient has a private deal-alert channel and posts a welcome
+ * message in it, so `/notify on` can tell the user exactly where alerts will
+ * arrive. Reuses an existing channel when one is already tracked.
+ */
+export async function ensureRootRecipientChannel(
+  recipientId: string,
+  options: {
+    api?: RootDealAlertApi;
+    config?: RootCommunityConfig;
+    database?: typeof db;
+  } = {}
+): Promise<string> {
+  const api = options.api ?? createRootServerDealAlertApi();
+  const config =
+    options.config ?? createCommunityConfig(rootServer.dataStore.appData);
+  const database = options.database ?? db;
+
+  const existing = await getDealAlertMessage(
+    ROOT_ALERT_DESTINATION,
+    recipientId,
+    database
+  );
+  if (existing) {
+    return existing.channelId;
+  }
+
+  const channelGroupId = await ensureAlertSection(api, config);
+  const transport = createRootDealAlertTransport({ channelGroupId, api });
+  const ref = await transport.send(recipientId, WELCOME_MESSAGE);
+
+  if (!ref) {
+    throw new Error("Could not create the deal-alert channel.");
+  }
+
+  await upsertDealAlertMessage(
+    {
+      destination: ROOT_ALERT_DESTINATION,
+      recipientId,
+      channelId: ref.channelId,
+      messageId: ref.messageId,
+      lastListingKeys: "[]",
+      updatedAt: new Date(),
+    },
+    database
+  );
+
+  return ref.channelId;
+}
+
 /**
  * Runs one Root deal-alert dispatch immediately (used after opt-in so the
  * newly-enabled recipient gets their channel without waiting for the next
@@ -110,12 +171,13 @@ export async function provisionRootDealAlerts(
   const config = createCommunityConfig(rootServer.dataStore.appData);
   const channelGroupId = await ensureAlertSection(api, config);
   const transport = createRootDealAlertTransport({ channelGroupId, api });
+  const keepRecipients = await optedInRecipients(database);
 
   await dispatchDealAlerts(
     database,
     adaptDirectMessageSink(transport),
     new Date(),
-    { destination: ROOT_ALERT_DESTINATION }
+    { destination: ROOT_ALERT_DESTINATION, keepRecipients }
   );
 }
 
