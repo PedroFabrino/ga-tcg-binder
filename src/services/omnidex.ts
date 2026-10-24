@@ -53,6 +53,81 @@ export function serializeOmnidexText(deck: {
   return sections.join("\n").trim();
 }
 
+interface NextDataCard {
+  name?: unknown;
+  quantity?: unknown;
+}
+
+interface NextDataDeck {
+  name?: unknown;
+  cards?: {
+    material?: unknown;
+    main?: unknown;
+    sideboard?: unknown;
+    side?: unknown;
+  };
+}
+
+function extractNextDataDeck(html: string): {
+  name?: string;
+  decklist: string;
+} | null {
+  const nextDataMatch = html.match(
+    /<script id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i
+  );
+  if (!nextDataMatch) return null;
+
+  try {
+    const json = JSON.parse(nextDataMatch[1]);
+    const deck: NextDataDeck | undefined =
+      json.props?.pageProps?.serverSideDeckData ||
+      json.props?.pageProps?.deck ||
+      json.props?.pageProps?.deckData;
+
+    if (!deck || typeof deck !== "object") return null;
+
+    const cards = deck.cards;
+    if (!cards || typeof cards !== "object") return null;
+
+    const materialList = Array.isArray(cards.material) ? (cards.material as NextDataCard[]) : [];
+    const mainList = Array.isArray(cards.main) ? (cards.main as NextDataCard[]) : [];
+    const sideList = Array.isArray(cards.sideboard)
+      ? (cards.sideboard as NextDataCard[])
+      : Array.isArray(cards.side)
+      ? (cards.side as NextDataCard[])
+      : [];
+
+    if (materialList.length === 0 && mainList.length === 0 && sideList.length === 0) {
+      return null;
+    }
+
+    const mapCards = (list: NextDataCard[]) =>
+      list
+        .map((c) => ({
+          name: typeof c?.name === "string" ? decodeHtmlEntities(c.name.trim()) : "",
+          quantity: typeof c?.quantity === "number" && c.quantity > 0 ? c.quantity : 1,
+        }))
+        .filter((c) => Boolean(c.name));
+
+    const material = mapCards(materialList);
+    const main = mapCards(mainList);
+    const side = mapCards(sideList);
+
+    const decklist = serializeOmnidexText({ material, main, side });
+    const name =
+      typeof deck.name === "string" && deck.name.trim()
+        ? decodeHtmlEntities(deck.name.trim())
+        : undefined;
+
+    return {
+      name,
+      decklist,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchDeckFromUrl(url: string): Promise<{
   name: string;
   champion?: string;
@@ -72,26 +147,35 @@ export async function fetchDeckFromUrl(url: string): Promise<{
 
   const html = await res.text();
 
-  // Try extracting from <textarea id="omnidex-src" ...> or class="omnidex-src" (grandarchivestats.com)
-  const textareaMatch =
-    html.match(/<textarea[^>]*id=["']omnidex-src["'][^>]*>([\s\S]*?)<\/textarea>/i) ||
-    html.match(/<textarea[^>]*class=["'][^"']*omnidex-src[^"']*["'][^>]*>([\s\S]*?)<\/textarea>/i);
+  // 1. Try Next.js embedded data (e.g. Silvie.org / build-v2.silvie.org)
+  const nextDataDeck = extractNextDataDeck(html);
+  let rawDecklist = nextDataDeck?.decklist ?? "";
+  let extractedName = nextDataDeck?.name;
 
-  let rawDecklist = "";
-  if (textareaMatch) {
-    rawDecklist = decodeHtmlEntities(textareaMatch[1].trim());
-  } else {
-    // Try pre / code block
-    const preMatch = html.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
-    if (preMatch && (preMatch[1].includes("# Main") || preMatch[1].includes("# Material"))) {
-      rawDecklist = decodeHtmlEntities(preMatch[1].trim());
+  if (!rawDecklist) {
+    // 2. Try extracting from <textarea id="omnidex-src" ...> or class="omnidex-src" (grandarchivestats.com)
+    const textareaMatch =
+      html.match(/<textarea[^>]*id=["']omnidex-src["'][^>]*>([\s\S]*?)<\/textarea>/i) ||
+      html.match(/<textarea[^>]*class=["'][^"']*omnidex-src[^"']*["'][^>]*>([\s\S]*?)<\/textarea>/i);
+
+    if (textareaMatch) {
+      rawDecklist = decodeHtmlEntities(textareaMatch[1].trim());
     } else {
-      // General heading match
-      const headingMatch = html.match(
-        /(?:#|\/\/)?\s*Material(?:\s+Deck)?[\s\S]*?(?:#|\/\/)?\s*Main(?:\s+Deck)?[\s\S]*/i
-      );
-      if (headingMatch) {
-        rawDecklist = decodeHtmlEntities(headingMatch[0].replace(/<[^>]+>/g, "\n").trim());
+      // 3. Try pre / code block
+      const preMatch = html.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
+      if (preMatch && (preMatch[1].includes("# Main") || preMatch[1].includes("# Material"))) {
+        rawDecklist = decodeHtmlEntities(preMatch[1].trim());
+      } else {
+        // 4. General heading match (strip script and style tags first to avoid false matches in JSON)
+        const strippedHtml = html
+          .replace(/<script[\s\S]*?<\/script>/gi, "")
+          .replace(/<style[\s\S]*?<\/style>/gi, "");
+        const headingMatch = strippedHtml.match(
+          /(?:#|\/\/)?\s*Material(?:\s+Deck)?[\s\S]*?(?:#|\/\/)?\s*Main(?:\s+Deck)?[\s\S]*/i
+        );
+        if (headingMatch) {
+          rawDecklist = decodeHtmlEntities(headingMatch[0].replace(/<[^>]+>/g, "\n").trim());
+        }
       }
     }
   }
@@ -101,13 +185,15 @@ export async function fetchDeckFromUrl(url: string): Promise<{
   }
 
   // Extract deck title
-  let name = "Imported Meta Deck";
-  const ogTitle = html.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["']/i);
-  const title = html.match(/<title>([^<]+)<\/title>/i);
-  if (ogTitle) {
-    name = decodeHtmlEntities(ogTitle[1].replace(/\s*-\s*Grand Archive.*$/i, "").trim());
-  } else if (title) {
-    name = decodeHtmlEntities(title[1].replace(/\s*-\s*Grand Archive.*$/i, "").trim());
+  let name = extractedName || "Imported Meta Deck";
+  if (!extractedName) {
+    const ogTitle = html.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["']/i);
+    const title = html.match(/<title>([^<]+)<\/title>/i);
+    if (ogTitle) {
+      name = decodeHtmlEntities(ogTitle[1].replace(/\s*-\s*Grand Archive.*$/i, "").trim());
+    } else if (title) {
+      name = decodeHtmlEntities(title[1].replace(/\s*-\s*Grand Archive.*$/i, "").trim());
+    }
   }
 
   const parsed = parseOmnidexText(rawDecklist);

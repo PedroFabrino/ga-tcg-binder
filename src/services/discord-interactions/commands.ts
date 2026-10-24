@@ -1,6 +1,7 @@
 import {
   linkIdentityWithToken,
   resolveCollectorByPlatform,
+  registerCollectorFromPlatform,
   getCollectorDecks,
   getDeckShortages,
   searchCollectorCollection,
@@ -13,6 +14,12 @@ import {
   buildDecksSelectMenu,
   buildDeckShortagesEmbed,
 } from "./components";
+import {
+  buildUnlinkedAccountEmbed,
+  buildUnlinkedAccountActionRow,
+  buildAccountCreatedEmbed,
+  buildAccountAlreadyLinkedEmbed,
+} from "./onboarding";
 import { buildDecksAddModal } from "./modals";
 import {
   handleWantlistCommand,
@@ -101,15 +108,31 @@ export async function handleDiscordApplicationCommand(
     });
   }
 
-  // 2. Resolve collector identity
+  // 2. /register (Direct Discord registration)
+  if (commandName === "register") {
+    const { collector, created } = await registerCollectorFromPlatform(
+      {
+        provider: "discord",
+        providerUserId: discordUser.id,
+        providerUsername: discordUser.username,
+      },
+      database
+    );
+
+    const embed = created
+      ? buildAccountCreatedEmbed(collector)
+      : buildAccountAlreadyLinkedEmbed(collector);
+
+    return createEphemeralEmbedResponse(embed);
+  }
+
+  // 3. Resolve collector identity
   const resolved = await resolveCollectorByPlatform("discord", discordUser.id, database);
   if (!resolved) {
-    return createEphemeralEmbedResponse({
-      title: "Grand Archive Binder Account Not Linked",
-      description:
-        "You haven't linked your Grand Archive Binder account yet.\n\n1. Visit the GA Binder web app and go to **Settings > Linked Accounts**.\n2. Click **Generate Code** to get a 6-character code.\n3. Run `/link <code>` here in Discord.",
-      color: DISCORD_COLORS.GOLD,
-    });
+    return createEphemeralEmbedResponse(
+      buildUnlinkedAccountEmbed(),
+      [buildUnlinkedAccountActionRow()]
+    );
   }
 
   const { collector } = resolved;

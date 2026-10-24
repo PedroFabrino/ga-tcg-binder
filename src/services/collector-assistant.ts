@@ -6,6 +6,7 @@ import {
   findIdentitiesByCollectorId,
   unlinkCollectorIdentity,
   findCollectorByIdentity,
+  createCollectorWithIdentity,
   loadAssistantCollectorDecksData,
   type CollectorIdentity,
   type CollectorProfile,
@@ -122,6 +123,38 @@ export async function resolveCollectorByPlatform(
   database?: unknown
 ): Promise<{ identity: CollectorIdentity; collector: CollectorProfile } | null> {
   return findCollectorByIdentity(provider, providerUserId, database as any);
+}
+
+/**
+ * Registers a new Collector from their chat platform identity (e.g. Discord),
+ * or returns their existing profile if already registered.
+ */
+export async function registerCollectorFromPlatform(
+  params: {
+    provider: "discord" | "root";
+    providerUserId: string;
+    providerUsername?: string | null;
+  },
+  database?: unknown
+): Promise<{ collector: CollectorProfile; created: boolean }> {
+  const existing = await findCollectorByIdentity(params.provider, params.providerUserId, database as any);
+  if (existing) {
+    return { collector: existing.collector, created: false };
+  }
+
+  const friendCode = `GA-${generateRandomCode()}`;
+  const collector = await createCollectorWithIdentity(
+    {
+      name: params.providerUsername || "Collector",
+      friendCode,
+      provider: params.provider,
+      providerUserId: params.providerUserId,
+      providerUsername: params.providerUsername,
+    },
+    database as any
+  );
+
+  return { collector, created: true };
 }
 
 /**

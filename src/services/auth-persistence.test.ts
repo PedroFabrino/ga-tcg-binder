@@ -3,6 +3,14 @@ import { createTestDb } from "../db/test-utils";
 import { users, decks, collectionItems, cards, cardEditions } from "../db/schema";
 import { DEFAULT_USER_ID, migrateDefaultUserDataToUser } from "./seed";
 import { eq } from "drizzle-orm";
+import {
+  createCollectorWithIdentity,
+  findCollectorByIdentity,
+} from "../db/repositories/assistant-repository";
+import {
+  updateUserProfile,
+  findUserByEmail,
+} from "../db/repositories/auth-repository";
 
 describe("User Account Resolution & Cross-Device Persistence", () => {
   it("resolves canonical user ID by email to prevent duplicate IDs on multiple devices", async () => {
@@ -132,5 +140,56 @@ describe("User Account Resolution & Cross-Device Persistence", () => {
       .from(collectionItems)
       .where(eq(collectionItems.userId, DEFAULT_USER_ID));
     expect(defaultItems.length).toBe(0);
+  });
+
+  it("reconciles Discord bot-created user during web signIn via platform identity", async () => {
+    const { db } = await createTestDb();
+
+    // 1. User created their account on Discord bot (no email set initially)
+    const discordSnowflake = "99887766554433";
+    const discordCreatedUser = await createCollectorWithIdentity(
+      {
+        name: "DiscordCollector",
+        friendCode: "GA-DISC01",
+        provider: "discord",
+        providerUserId: discordSnowflake,
+        providerUsername: "DiscordCollector#0001",
+      },
+      db
+    );
+
+    expect(discordCreatedUser.email).toBeNull();
+
+    // 2. Later, user signs in on the web using "Sign in with Discord"
+    const oauthEmail = "collector@example.com";
+    const oauthName = "Discord Collector Web";
+
+    // Simulating NextAuth signIn identity reconciliation:
+    const linkedIdentity = await findCollectorByIdentity(
+      "discord",
+      discordSnowflake,
+      db
+    );
+
+    expect(linkedIdentity).not.toBeNull();
+    const canonicalCollectorId = linkedIdentity!.collector.id;
+    expect(canonicalCollectorId).toBe(discordCreatedUser.id);
+
+    // Backfill email and profile on the existing account
+    await updateUserProfile(
+      canonicalCollectorId,
+      {
+        name: oauthName,
+        email: oauthEmail,
+      },
+      db
+    );
+
+    // Verify user can now also be resolved by email without duplicate account creation
+    const resolvedByEmail = await findUserByEmail(oauthEmail, db);
+    expect(resolvedByEmail).toBeDefined();
+    expect(resolvedByEmail?.id).toBe(discordCreatedUser.id);
+    expect(resolvedByEmail?.friendCode).toBe("GA-DISC01");
+    expect(resolvedByEmail?.name).toBe(oauthName);
   });
 });

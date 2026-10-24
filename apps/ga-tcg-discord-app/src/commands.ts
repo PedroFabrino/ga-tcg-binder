@@ -19,6 +19,10 @@ export interface DiscordCommandDefinition {
 
 export const ASSISTANT_COMMANDS: DiscordCommandDefinition[] = [
   {
+    name: "register",
+    description: "Create a Grand Archive Binder account directly using your Discord profile",
+  },
+  {
     name: "link",
     description: "Link your Grand Archive Binder account using a 6-character code",
     options: [

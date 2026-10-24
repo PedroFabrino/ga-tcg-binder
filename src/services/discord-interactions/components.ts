@@ -3,6 +3,11 @@ import {
   getCollectorDecks,
   getDeckShortages,
 } from "../collector-assistant";
+import {
+  buildUnlinkedAccountEmbed,
+  buildUnlinkedAccountActionRow,
+  handleOnboardingComponent,
+} from "./onboarding";
 import type {
   AssistantDeckSummary,
   AssistantDeckShortagesResponse,
@@ -164,6 +169,8 @@ export function buildDeckShortagesEmbed(
   };
 }
 
+export { buildUnlinkedAccountEmbed, buildUnlinkedAccountActionRow };
+
 /**
  * Handles Discord Message Component interactions (type: 3), updating messages in-place (type: 7).
  */
@@ -188,25 +195,25 @@ export async function handleDiscordMessageComponent(
     };
   }
 
+  const customId = payload.data?.custom_id;
+  if (customId) {
+    const onboardingRes = await handleOnboardingComponent(customId, discordUser, database);
+    if (onboardingRes) return onboardingRes;
+  }
+
   const resolved = await resolveCollectorByPlatform("discord", discordUser.id, database);
   if (!resolved) {
     return {
       type: 7,
       data: {
         flags: 64,
-        embeds: [
-          {
-            title: "Grand Archive Binder Account Not Linked",
-            description: "Please link your account with `/link <code>` first.",
-            color: DISCORD_COLORS.GOLD,
-          },
-        ],
+        embeds: [buildUnlinkedAccountEmbed()],
+        components: [buildUnlinkedAccountActionRow()],
       },
     };
   }
 
   const { collector } = resolved;
-  const customId = payload.data?.custom_id;
   const selectedValue = payload.data?.values?.[0];
 
   // 1. Handling deck browsing selection in /decks

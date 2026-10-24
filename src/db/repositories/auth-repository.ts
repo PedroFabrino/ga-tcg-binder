@@ -44,7 +44,7 @@ export async function createUser(
 
 export async function updateUserProfile(
   id: string,
-  updates: Partial<Pick<UserInsert, "name" | "image">>,
+  updates: Partial<Pick<UserInsert, "name" | "image" | "email">>,
   database = db
 ): Promise<void> {
   await database

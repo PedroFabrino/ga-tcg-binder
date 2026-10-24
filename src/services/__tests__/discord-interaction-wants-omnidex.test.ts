@@ -341,6 +341,68 @@ describe("Discord Interactive Selection, Wants & Omnidex Integration", () => {
       expect(res.data?.embeds?.[0].description).toContain("**4** total copies");
       expect(res.data?.embeds?.[0].description).toContain("**1** copies were already owned in your Binder and skipped");
     });
+
+    it("imports wantlist gap directly from Silvie.org deck URL via /wantlist add-omnidex", async () => {
+      const mockSilvieHtml = `
+<!DOCTYPE html>
+<html>
+<head><title>Silvie Deck</title></head>
+<body>
+  <script id="__NEXT_DATA__" type="application/json">
+  {
+    "props": {
+      "pageProps": {
+        "serverSideDeckData": {
+          "name": "Beliel Wantlist Deck",
+          "cards": {
+            "material": [],
+            "main": [
+              { "name": "Creative Shock", "quantity": 2 },
+              { "name": "Fracture Storm", "quantity": 1 }
+            ],
+            "sideboard": []
+          }
+        }
+      }
+    }
+  }
+  </script>
+</body>
+</html>`;
+
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        new Response(mockSilvieHtml, { status: 200, statusText: "OK" })
+      );
+
+      const payload: DiscordInteractionPayload = {
+        type: 2,
+        id: "int_want_add_omnidex_url",
+        token: "tok",
+        data: {
+          name: "wantlist",
+          options: [
+            {
+              name: "add-omnidex",
+              type: 1,
+              options: [
+                {
+                  name: "url",
+                  type: 3,
+                  value: "https://build-v2.silvie.org/@BelielD/r2N3u5iSugptasGr0cjh",
+                },
+              ],
+            },
+          ],
+        },
+        user: { id: discordUserId, username: "Lancelot" },
+      };
+
+      const res = await handleDiscordInteraction(payload, db);
+      expect(res.type).toBe(4);
+      expect(res.data?.embeds?.[0].title).toContain("Omnidex Wantlist Gap Imported!");
+      expect(res.data?.embeds?.[0].description).toContain("**2** missing cards");
+      expect(res.data?.embeds?.[0].description).toContain("**3** total copies");
+    });
   });
 
   describe("Deal Alert Preferences (/wantlist notify)", () => {

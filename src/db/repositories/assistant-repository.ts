@@ -227,6 +227,52 @@ export async function unlinkCollectorIdentity(
 }
 
 /**
+ * Provisions a new Collector user record and binds their external chat platform identity.
+ */
+export async function createCollectorWithIdentity(
+  data: {
+    id?: string;
+    name: string;
+    friendCode: string;
+    provider: string;
+    providerUserId: string;
+    providerUsername?: string | null;
+    locale?: string;
+  },
+  database = db
+): Promise<CollectorProfile> {
+  const userId = data.id || `user_${data.provider}_${data.providerUserId}`;
+  const now = new Date();
+
+  await database.insert(users).values({
+    id: userId,
+    name: data.name,
+    email: null,
+    friendCode: data.friendCode,
+    locale: data.locale || "en",
+    lowPopThreshold: 1000,
+  });
+
+  const identityId = randomUUID();
+  await database.insert(collectorIdentities).values({
+    id: identityId,
+    collectorId: userId,
+    provider: data.provider,
+    providerUserId: data.providerUserId,
+    providerUsername: data.providerUsername ?? null,
+    linkedAt: now,
+  });
+
+  return {
+    id: userId,
+    name: data.name,
+    email: null,
+    friendCode: data.friendCode,
+    locale: data.locale || "en",
+  };
+}
+
+/**
  * Loads all data needed for assistant deck shortage calculations in two fast batch queries.
  */
 export async function loadAssistantCollectorDecksData(

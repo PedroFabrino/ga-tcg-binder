@@ -9,6 +9,7 @@ import {
   findCollectorByIdentity,
   findIdentitiesByCollectorId,
   unlinkCollectorIdentity,
+  createCollectorWithIdentity,
 } from "../assistant-repository";
 
 describe("assistant-repository", () => {
@@ -112,6 +113,31 @@ describe("assistant-repository", () => {
       const remaining = await findIdentitiesByCollectorId(testCollectorId, db);
       expect(remaining).toHaveLength(1);
       expect(remaining[0].provider).toBe("root");
+    });
+
+    it("provisions a new collector and binds platform identity", async () => {
+      const created = await createCollectorWithIdentity(
+        {
+          name: "Lancelot",
+          friendCode: "GA-LANCE1",
+          provider: "discord",
+          providerUserId: "discord_lance_77",
+          providerUsername: "Lancelot#1234",
+        },
+        db
+      );
+
+      expect(created.name).toBe("Lancelot");
+      expect(created.friendCode).toBe("GA-LANCE1");
+      expect(created.email).toBeNull();
+
+      // Find by identity
+      const found = await findCollectorByIdentity("discord", "discord_lance_77", db);
+      expect(found).not.toBeNull();
+      expect(found?.collector.id).toBe(created.id);
+      expect(found?.collector.name).toBe("Lancelot");
+      expect(found?.collector.friendCode).toBe("GA-LANCE1");
+      expect(found?.identity.providerUsername).toBe("Lancelot#1234");
     });
   });
 });

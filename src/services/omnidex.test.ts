@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { parseOmnidexText, serializeOmnidexText, decodeHtmlEntities } from "./omnidex";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { parseOmnidexText, serializeOmnidexText, decodeHtmlEntities, fetchDeckFromUrl } from "./omnidex";
 
 describe("Omnidex Decklist Parser & Serializer", () => {
   it("decodes HTML entities properly in deck names", () => {
@@ -78,5 +78,133 @@ describe("Omnidex Decklist Parser & Serializer", () => {
     expect(parsed.main[1].name).toBe("Season's End");
     expect(parsed.main[2].name).toBe("Bloom: Winter's Chill");
     expect(parsed.main[3].name).toBe("Assassin's Ripper");
+  });
+
+  describe("fetchDeckFromUrl", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("extracts deck structure from Silvie.org / Next.js __NEXT_DATA__ format", async () => {
+      const mockNextDataHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Want V2 by BelielD | Silvie.org</title>
+</head>
+<body>
+  <div id="__next"></div>
+  <script id="__NEXT_DATA__" type="application/json">
+  {
+    "props": {
+      "pageProps": {
+        "serverSideDeckData": {
+          "name": "Want V2",
+          "description": "Wantlist",
+          "cards": {
+            "material": [
+              { "name": "Backup Charger", "quantity": 1 },
+              { "name": "Quickstep Treads", "quantity": 1 }
+            ],
+            "main": [
+              { "name": "Focusing Round", "quantity": 4 },
+              { "name": "Liminal Guide", "quantity": 3 }
+            ],
+            "sideboard": []
+          }
+        }
+      }
+    }
+  }
+  </script>
+</body>
+</html>`;
+
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        new Response(mockNextDataHtml, { status: 200, statusText: "OK" })
+      );
+
+      const result = await fetchDeckFromUrl("https://build-v2.silvie.org/@BelielD/r2N3u5iSugptasGr0cjh");
+
+      expect(result.name).toBe("Want V2");
+      expect(result.champion).toBe("Backup Charger");
+      expect(result.decklist).toContain("# Material Deck\n1 Backup Charger\n1 Quickstep Treads");
+      expect(result.decklist).toContain("# Main Deck\n4 Focusing Round\n3 Liminal Guide");
+
+      const reparsed = parseOmnidexText(result.decklist);
+      expect(reparsed.material).toHaveLength(2);
+      expect(reparsed.main).toHaveLength(2);
+      expect(reparsed.side).toHaveLength(0);
+    });
+
+    it("extracts deck from grandarchivestats textarea format", async () => {
+      const mockGasHtml = `
+<html>
+<head><title>Arthur Water Aggro - Grand Archive</title></head>
+<body>
+  <textarea id="omnidex-src">
+# Material Deck
+1 Starter Water
+
+# Main Deck
+4 Fracturize
+  </textarea>
+</body>
+</html>`;
+
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        new Response(mockGasHtml, { status: 200, statusText: "OK" })
+      );
+
+      const result = await fetchDeckFromUrl("https://grandarchivestats.com/decks/123");
+      expect(result.name).toBe("Arthur Water Aggro");
+      expect(result.decklist).toContain("1 Starter Water");
+      expect(result.decklist).toContain("4 Fracturize");
+    });
+
+    it("extracts deck from pre block format", async () => {
+      const mockPreHtml = `
+<html>
+<head><meta property="og:title" content="Rai Lightning Control" /></head>
+<body>
+  <pre>
+# Material Deck
+1 Rai, Mana Weaver
+
+# Main Deck
+4 Spark
+  </pre>
+</body>
+</html>`;
+
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        new Response(mockPreHtml, { status: 200, statusText: "OK" })
+      );
+
+      const result = await fetchDeckFromUrl("https://example.com/deck/rai");
+      expect(result.name).toBe("Rai Lightning Control");
+      expect(result.champion).toBe("Rai, Mana Weaver");
+      expect(result.decklist).toContain("1 Rai, Mana Weaver");
+    });
+
+    it("throws an error when HTTP response fails", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        new Response("Not Found", { status: 404, statusText: "Not Found" })
+      );
+
+      await expect(
+        fetchDeckFromUrl("https://silvie.org/@user/unknown")
+      ).rejects.toThrow("Failed to fetch deck from URL (404 Not Found)");
+    });
+
+    it("throws an error when no valid deck structure is found", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        new Response("<html><body>No deck here</body></html>", { status: 200, statusText: "OK" })
+      );
+
+      await expect(
+        fetchDeckFromUrl("https://example.com/not-a-deck")
+      ).rejects.toThrow("Could not extract a valid decklist from this URL");
+    });
   });
 });

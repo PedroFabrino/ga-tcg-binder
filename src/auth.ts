@@ -9,7 +9,10 @@ import {
   updateUserProfile,
   migrateDefaultUserDataToUser,
 } from "./db/repositories/auth-repository";
-import { upsertCollectorIdentity } from "./db/repositories/assistant-repository";
+import {
+  upsertCollectorIdentity,
+  findCollectorByIdentity,
+} from "./db/repositories/assistant-repository";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
@@ -73,7 +76,30 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       try {
         const normalizedEmail = user.email.toLowerCase().trim();
 
-        // 1. Look up existing user by email to ensure multi-device and re-login consistency
+        // 1. Look up existing identity by platform provider (e.g. account created via Discord bot)
+        if (account?.provider && account?.providerAccountId) {
+          try {
+            const linkedIdentity = await findCollectorByIdentity(
+              account.provider,
+              String(account.providerAccountId)
+            );
+            if (linkedIdentity) {
+              const collectorId = linkedIdentity.collector.id;
+              user.id = collectorId;
+              await updateUserProfile(collectorId, {
+                name: user.name || linkedIdentity.collector.name || "Collector",
+                image: user.image || undefined,
+                email: normalizedEmail,
+              });
+              await migrateDefaultUserDataToUser(collectorId);
+              return true;
+            }
+          } catch (identityErr) {
+            console.error("Error looking up collector by identity in signIn:", identityErr);
+          }
+        }
+
+        // 2. Look up existing user by email to ensure multi-device and re-login consistency
         const existingByEmail = await findUserByEmail(normalizedEmail);
 
         if (existingByEmail) {

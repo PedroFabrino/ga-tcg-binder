@@ -42,9 +42,23 @@ export interface DiscordTextInputComponent {
   value?: string;
 }
 
+export interface DiscordButtonComponent {
+  type: 2; // Button
+  custom_id?: string;
+  style: 1 | 2 | 3 | 4 | 5; // 1 = Primary, 2 = Secondary, 3 = Success, 4 = Danger, 5 = Link
+  label: string;
+  emoji?: { name: string; id?: string };
+  disabled?: boolean;
+  url?: string;
+}
+
 export interface DiscordActionRowComponent {
   type: 1; // ActionRow
-  components: (DiscordSelectMenuComponent | DiscordTextInputComponent)[];
+  components: (
+    | DiscordSelectMenuComponent
+    | DiscordTextInputComponent
+    | DiscordButtonComponent
+  )[];
 }
 
 export interface DiscordInteractionDataOption {

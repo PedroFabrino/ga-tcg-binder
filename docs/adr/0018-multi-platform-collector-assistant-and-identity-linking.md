@@ -53,6 +53,7 @@ Ephemeral 6-digit alphanumeric pairing codes:
 #### Unification Flow
 1. **Automatic Discord Linking**: If a user authenticates via Discord OAuth in `src/auth.ts`, the `signIn` callback records their Discord identity into `collector_identities`.
 2. **Cross-Provider Pairing**: A user authenticated via Google (or Discord with a different email) visits `/settings -> Linked Accounts`, generates a 6-digit code, and executes `/link <code>` in Discord or Root.
+3. **Discord-Native Self-Registration**: An unlinked Discord user can execute `/register` or click **Create Account with Discord** directly on any unlinked command prompt to provision a canonical `users` record and linked `collector_identities`. When they later sign in with Discord OAuth on the web, `src/auth.ts` reconciles by `providerAccountId`, preserving their identity and backfilling their OAuth email and avatar.
 
 ### 3. Discord Architecture: Serverless HTTP Interactions on Vercel
 
