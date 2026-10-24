@@ -15,7 +15,8 @@ export type DealAlertSource =
 
 export interface DealAlertMatch {
   collectorId: string;
-  discordUserId: string;
+  /** The platform user id to deliver to (Discord snowflake or Root user id). */
+  recipientId: string;
   listing: MarketCard;
   source: DealAlertSource;
 }
@@ -168,3 +169,64 @@ export function hasListingChanges(
 }
 
 export const hasNewListings = hasListingChanges;
+
+export interface DealAlertNotificationSummary {
+  title: string;
+  description: string;
+}
+
+const NOTIFICATION_TITLE_MAX = 50;
+const NOTIFICATION_DESCRIPTION_MAX = 150;
+
+function truncateSummary(value: string, max: number): string {
+  if (value.length <= max) {
+    return value;
+  }
+  return `${value.slice(0, Math.max(0, max - 1)).trimEnd()}…`;
+}
+
+/**
+ * Builds the short summary used for a Root in-app notification (title ≤ 50,
+ * description ≤ 150). Names up to three hard-shortage cards when a few are
+ * available; otherwise falls back to a generic "new cards from your wantlist"
+ * message.
+ */
+export function formatDealAlertNotificationSummary(
+  matches: DealAlertMatch[]
+): DealAlertNotificationSummary {
+  const uniqueCards = [
+    ...new Set(matches.map((match) => match.listing.cardName).filter(Boolean)),
+  ];
+  const hardCards = [
+    ...new Set(
+      matches
+        .filter((match) => match.source.kind === "hard")
+        .map((match) => match.listing.cardName)
+        .filter(Boolean)
+    ),
+  ];
+
+  const title = truncateSummary(
+    `🔔 ${uniqueCards.length} new card${uniqueCards.length === 1 ? "" : "s"} for your wantlist`,
+    NOTIFICATION_TITLE_MAX
+  );
+
+  let description: string;
+  if (hardCards.length > 0) {
+    const shown = hardCards.slice(0, 3);
+    const list =
+      shown.length === 1
+        ? shown[0]
+        : `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]}`;
+    const suffix = hardCards.length > shown.length ? " and more" : "";
+    const noun = shown.length === 1 ? "Card" : "Cards";
+    description = `${noun}: ${list}${suffix} for sale!`;
+  } else {
+    description = "New cards from your wantlist are for sale.";
+  }
+
+  return {
+    title,
+    description: truncateSummary(description, NOTIFICATION_DESCRIPTION_MAX),
+  };
+}

@@ -18,6 +18,7 @@ import { getDeckPartitionedWantlist } from "./collector-assistant";
 import {
   formatDealAlertChunks,
   formatDealAlertMessage,
+  formatDealAlertNotificationSummary,
   hasListingChanges,
   hasNewListings,
   listingKey,
@@ -25,7 +26,12 @@ import {
   type DealAlertMatch,
   type DealAlertSource,
 } from "./deal-alert-format";
-import { DISCORD_DM_DESTINATION, MESSAGE_MAX_LENGTH } from "../lib/market-vocabulary";
+import {
+  DISCORD_DM_DESTINATION,
+  MESSAGE_MAX_LENGTH,
+  ROOT_ALERT_DESTINATION,
+  type Destination,
+} from "../lib/market-vocabulary";
 import { splitMessageContent } from "./market-notification-message";
 import type { DirectMessageSink, DirectMessageRef } from "./market-notification-sink";
 import type { AssistantWantlistResponse } from "@ga/contracts";
@@ -92,14 +98,18 @@ function resolveDealAlertSource(
 
 /**
  * Matches market listings against every enabled collector's wantlists and deck
- * shortages. Returns all current matches; deduplication and message lifecycle
- * are handled by `dispatchDealAlerts`.
+ * shortages for one provider. Returns all current matches; deduplication and
+ * message lifecycle are handled by `dispatchDealAlerts`.
  */
 export async function matchDealAlerts(
   listings: MarketCard[],
-  database?: unknown
+  database?: unknown,
+  provider: "discord" | "root" = "discord"
 ): Promise<DealAlertMatch[]> {
-  const identities = await findIdentitiesWithNotificationsEnabled("discord", database as any);
+  const identities = await findIdentitiesWithNotificationsEnabled(
+    provider,
+    database as any
+  );
 
   const matches: DealAlertMatch[] = [];
 
@@ -115,7 +125,7 @@ export async function matchDealAlerts(
       if (source) {
         matches.push({
           collectorId,
-          discordUserId: identity.providerUserId,
+          recipientId: identity.providerUserId,
           listing,
           source,
         });
@@ -146,13 +156,23 @@ const defaultDealAlertTransport: DealAlertTransport = {
 
 export interface DispatchDealAlertsOptions {
   forceRefresh?: boolean;
+  /** Which platform destination to dispatch to (default: Discord DMs). */
+  destination?: Destination;
+  /** Identity provider to match against; derived from `destination` by default. */
+  provider?: "discord" | "root";
+}
+
+function providerForDestination(destination: Destination): "discord" | "root" {
+  return destination === ROOT_ALERT_DESTINATION ? "root" : "discord";
 }
 
 /**
  * Fetches every in-stock marketplace listing, matches them against enabled
- * collectors' wantlists and deck shortages, and maintains a single rolling DM
- * per collector. Stale snapshots are deleted and updated snapshots sent
- * whenever listing matches change or forceRefresh is requested.
+ * collectors' wantlists and deck shortages, and maintains a single rolling
+ * message per recipient on the chosen destination. Stale snapshots are deleted
+ * and updated snapshots sent whenever listing matches change (or forceRefresh is
+ * requested); a destination that supports it also receives one notification
+ * ping per changed recipient.
  */
 export async function dispatchDealAlerts(
   database?: MarketplaceDatabase,
@@ -160,31 +180,36 @@ export async function dispatchDealAlerts(
   now: Date = new Date(),
   options: DispatchDealAlertsOptions = {}
 ): Promise<DealAlertDispatchResult> {
-  const listings = await getMarketCards({ inStockOnly: true }, database);
-  const matches = await matchDealAlerts(listings, database);
+  const destination = options.destination ?? DISCORD_DM_DESTINATION;
+  const provider = options.provider ?? providerForDestination(destination);
 
-  const byUser = new Map<string, DealAlertMatch[]>();
+  const listings = await getMarketCards({ inStockOnly: true }, database);
+  const matches = await matchDealAlerts(listings, database, provider);
+
+  const byRecipient = new Map<string, DealAlertMatch[]>();
   for (const match of matches) {
-    const list = byUser.get(match.discordUserId);
+    const list = byRecipient.get(match.recipientId);
     if (list) list.push(match);
-    else byUser.set(match.discordUserId, [match]);
+    else byRecipient.set(match.recipientId, [match]);
   }
 
-  // Clean up stale alerts for users who no longer have any active shortages/matches
-  const storedMessages = await listAllDealAlertMessages(database);
+  // Clean up stale alerts for recipients with no current matches on this destination.
+  const storedMessages = (await listAllDealAlertMessages(database)).filter(
+    (row) => row.destination === destination
+  );
   for (const stored of storedMessages) {
-    if (!byUser.has(stored.discordUserId)) {
+    if (!byRecipient.has(stored.recipientId)) {
       for (const oldId of parseMessageIds(stored.messageId)) {
         await transport.delete({ channelId: stored.channelId, messageId: oldId });
       }
-      await deleteDealAlertMessage(stored.discordUserId, database);
+      await deleteDealAlertMessage(destination, stored.recipientId, database);
     }
   }
 
   let sent = 0;
-  for (const [discordUserId, userMatches] of byUser) {
+  for (const [recipientId, userMatches] of byRecipient) {
     const currentKeys = userMatches.map(matchKey);
-    const stored = await getDealAlertMessage(discordUserId, database);
+    const stored = await getDealAlertMessage(destination, recipientId, database);
 
     if (!hasListingChanges(currentKeys, stored?.lastListingKeys, options.forceRefresh)) {
       continue;
@@ -192,15 +217,20 @@ export async function dispatchDealAlerts(
 
     const chunks = formatDealAlertChunks(userMatches, now);
     const sentRefs: DealAlertMessageRef[] = [];
+    let channelId = stored?.channelId;
     for (const chunk of chunks) {
-      const ref = await transport.send(discordUserId, chunk);
-      if (ref) sentRefs.push(ref);
-      else break;
+      const ref = await transport.send(recipientId, chunk, channelId);
+      if (ref) {
+        sentRefs.push(ref);
+        channelId = ref.channelId;
+      } else {
+        break;
+      }
     }
 
     if (sentRefs.length !== chunks.length) {
       console.warn(
-        `[discord-dm] Failed to send all deal alert chunks to ${discordUserId} (${sentRefs.length}/${chunks.length} sent)`
+        `[deal-alert] Failed to send all chunks to ${destination}:${recipientId} (${sentRefs.length}/${chunks.length} sent)`
       );
       for (const partial of sentRefs) await transport.delete(partial);
       continue;
@@ -214,7 +244,8 @@ export async function dispatchDealAlerts(
 
     await upsertDealAlertMessage(
       {
-        discordUserId,
+        destination,
+        recipientId,
         channelId: sentRefs[0].channelId,
         messageId: sentRefs.map((r) => r.messageId).join(","),
         lastListingKeys: JSON.stringify(currentKeys),
@@ -222,6 +253,21 @@ export async function dispatchDealAlerts(
       },
       database
     );
+
+    if (transport.notify) {
+      try {
+        await transport.notify(
+          recipientId,
+          formatDealAlertNotificationSummary(userMatches)
+        );
+      } catch (err) {
+        console.warn(
+          `[deal-alert] Failed to notify ${destination}:${recipientId}`,
+          err
+        );
+      }
+    }
+
     sent++;
   }
 

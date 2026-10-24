@@ -378,11 +378,13 @@ CREATE TABLE IF NOT EXISTS \`notification_deliveries\` (
 );
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS \`deal_alert_messages\` (
-	\`discord_user_id\` text PRIMARY KEY NOT NULL,
+	\`destination\` text NOT NULL,
+	\`recipient_id\` text NOT NULL,
 	\`channel_id\` text NOT NULL,
 	\`message_id\` text NOT NULL,
 	\`last_listing_keys\` text DEFAULT '[]' NOT NULL,
-	\`updated_at\` integer DEFAULT (strftime('%s', 'now')) NOT NULL
+	\`updated_at\` integer DEFAULT (strftime('%s', 'now')) NOT NULL,
+	PRIMARY KEY (\`destination\`, \`recipient_id\`)
 );
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS \`collector_identities\` (
@@ -617,5 +619,54 @@ async function doRunMigrations(customClient: typeof client) {
       }
     }
   }
+
+  await migrateDealAlertMessagesShape(customClient);
+}
+
+/**
+ * Rebuilds the legacy `discord_user_id`-keyed deal-alert table into the
+ * destination-keyed shape `(destination, recipient_id)`. Idempotent: it does
+ * nothing once the new shape is present, and back-fills existing Discord rows
+ * with `destination = 'discord-dm'`.
+ */
+async function migrateDealAlertMessagesShape(customClient: typeof client) {
+  let columns: string[] = [];
+  try {
+    const info = await customClient.execute(
+      "PRAGMA table_info(`deal_alert_messages`);"
+    );
+    columns = info.rows.map((row: any) => String(row.name));
+  } catch {
+    return;
+  }
+
+  if (columns.length === 0 || columns.includes("destination")) {
+    return;
+  }
+
+  await customClient.execute(
+    "ALTER TABLE `deal_alert_messages` RENAME TO `deal_alert_messages_legacy`;"
+  );
+  await customClient.execute(
+    [
+      "CREATE TABLE `deal_alert_messages` (",
+      "\t`destination` text NOT NULL,",
+      "\t`recipient_id` text NOT NULL,",
+      "\t`channel_id` text NOT NULL,",
+      "\t`message_id` text NOT NULL,",
+      "\t`last_listing_keys` text DEFAULT '[]' NOT NULL,",
+      "\t`updated_at` integer DEFAULT (strftime('%s', 'now')) NOT NULL,",
+      "\tPRIMARY KEY (`destination`, `recipient_id`)",
+      ");",
+    ].join("\n")
+  );
+  await customClient.execute(
+    [
+      "INSERT INTO `deal_alert_messages` (`destination`, `recipient_id`, `channel_id`, `message_id`, `last_listing_keys`, `updated_at`)",
+      "SELECT 'discord-dm', `discord_user_id`, `channel_id`, `message_id`, `last_listing_keys`, `updated_at`",
+      "FROM `deal_alert_messages_legacy`;",
+    ].join("\n")
+  );
+  await customClient.execute("DROP TABLE `deal_alert_messages_legacy`;");
 }
 
