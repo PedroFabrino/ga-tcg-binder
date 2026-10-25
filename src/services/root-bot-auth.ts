@@ -7,18 +7,26 @@ import {
 } from "../db/repositories/root-bot-install-repository";
 
 /**
- * The one app id allowed to install. It is public (it is the bot's manifest
- * id), not a secret; it is the only trust anchor Root exposes today because
- * outbound requests are not signed.
+ * The manifest id and the internal app GUID both identify the same Root app.
+ * Root's cloud may report either at runtime, so the allowlist accepts both.
+ * They are public identifiers, not secrets.
  */
 export const DEFAULT_ROOT_BOT_APP_ID = "ADH-6fbvigmppj1_qgZSmw";
+export const DEFAULT_ROOT_BOT_APP_GUID =
+  "0031fee9-f6ef-8a09-a9a6-3d7faa06529b";
 
 export function hashRootBotToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
-function allowedAppId(): string {
-  return process.env.ROOT_BOT_APP_ID || DEFAULT_ROOT_BOT_APP_ID;
+function allowedAppIds(): Set<string> {
+  return new Set(
+    [
+      process.env.ROOT_BOT_APP_ID,
+      DEFAULT_ROOT_BOT_APP_ID,
+      DEFAULT_ROOT_BOT_APP_GUID,
+    ].filter((id): id is string => typeof id === "string" && id.length > 0)
+  );
 }
 
 export interface IssuedRootBotToken {
@@ -37,7 +45,7 @@ export async function issueRootBotToken(
   communityId: string,
   database?: RootBotInstallDatabase
 ): Promise<IssuedRootBotToken | null> {
-  if (appId !== allowedAppId()) {
+  if (!allowedAppIds().has(appId)) {
     return null;
   }
 

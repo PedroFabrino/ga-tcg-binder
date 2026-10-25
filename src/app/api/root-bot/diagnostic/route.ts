@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { DEFAULT_ROOT_BOT_APP_ID } from "@/services/root-bot-auth";
 import { recordRootBotDiagnostic } from "@/db/repositories/root-bot-diagnostic-repository";
 
 /**
- * Unauthenticated-but-app-id-allowlisted startup/poll diagnostic sink. The bot
- * calls this before it has an install token, so Root's broken pod log shipper
- * is not the only way to see what happened.
+ * Startup/poll diagnostic sink. It deliberately accepts any app id (and records
+ * it) because the cloud bot calls it before it has credentials and we need the
+ * real reported id when the allowlist is wrong. It only ever inserts an
+ * append-only diagnostic row.
  */
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as {
@@ -15,20 +15,24 @@ export async function POST(request: Request) {
     message?: unknown;
   };
 
-  const allowedAppId = process.env.ROOT_BOT_APP_ID || DEFAULT_ROOT_BOT_APP_ID;
   if (
-    body.appId !== allowedAppId ||
     typeof body.communityId !== "string" ||
     typeof body.stage !== "string"
   ) {
-    return NextResponse.json({ error: "REJECTED" }, { status: 403 });
+    return NextResponse.json({ error: "MISSING_FIELDS" }, { status: 400 });
   }
+
+  const appId =
+    typeof body.appId === "string" && body.appId.length > 0
+      ? body.appId
+      : "(missing)";
+  const detail =
+    typeof body.message === "string" ? body.message.slice(0, 2000) : "";
 
   await recordRootBotDiagnostic({
     communityId: body.communityId,
     stage: body.stage.slice(0, 120),
-    message:
-      typeof body.message === "string" ? body.message.slice(0, 2000) : null,
+    message: `${detail} [appId=${appId}]`,
   });
 
   return NextResponse.json({ ok: true });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createTestDb } from "../../db/test-utils";
 import {
+  DEFAULT_ROOT_BOT_APP_GUID,
   DEFAULT_ROOT_BOT_APP_ID,
   authenticateRootBot,
   issueRootBotToken,
@@ -45,6 +46,14 @@ describe("root bot per-install auth", () => {
     await expect(
       authenticateRootBot(request(issued!.token, "comm-2"), db)
     ).resolves.toBeNull();
+  });
+
+  it("accepts the internal app GUID", async () => {
+    const { db } = await createTestDb();
+
+    await expect(
+      issueRootBotToken(DEFAULT_ROOT_BOT_APP_GUID, "comm-1", db)
+    ).resolves.not.toBeNull();
   });
 
   it("rejects unknown app ids", async () => {

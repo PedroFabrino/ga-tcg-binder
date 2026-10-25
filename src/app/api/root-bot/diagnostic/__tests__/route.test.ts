@@ -19,7 +19,7 @@ function request(body: unknown): Request {
 describe("POST /api/root-bot/diagnostic", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("records a diagnostic for the allowlisted app", async () => {
+  it("records a diagnostic with the reported app id", async () => {
     const response = await POST(
       request({
         appId: APP_ID,
@@ -33,11 +33,11 @@ describe("POST /api/root-bot/diagnostic", () => {
     expect(repoMocks.recordRootBotDiagnostic).toHaveBeenCalledWith({
       communityId: "comm-1",
       stage: "boot",
-      message: "process started",
+      message: `process started [appId=${APP_ID}]`,
     });
   });
 
-  it("rejects unknown app ids", async () => {
+  it("records an unknown app id so it can be diagnosed", async () => {
     const response = await POST(
       request({
         appId: "other",
@@ -46,14 +46,18 @@ describe("POST /api/root-bot/diagnostic", () => {
       })
     );
 
-    expect(response.status).toBe(403);
-    expect(repoMocks.recordRootBotDiagnostic).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(repoMocks.recordRootBotDiagnostic).toHaveBeenCalledWith({
+      communityId: "comm-1",
+      stage: "boot",
+      message: " [appId=other]",
+    });
   });
 
   it("rejects missing fields", async () => {
     const response = await POST(request({ appId: APP_ID }));
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(400);
     expect(repoMocks.recordRootBotDiagnostic).not.toHaveBeenCalled();
   });
 });
