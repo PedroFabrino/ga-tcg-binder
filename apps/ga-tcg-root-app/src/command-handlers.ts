@@ -99,6 +99,15 @@ function defaultRootCommandDeps(
     async configureFromChannel(_channelId) {
       const config = createCommunityConfig(rootServer.dataStore.appData);
 
+      // Idempotent: reuse the existing group/channel if `/setup` already ran.
+      const [sectionId, broadcastId] = await Promise.all([
+        config.getAlertSectionId(),
+        config.getBroadcastChannelId(),
+      ]);
+      if (sectionId && broadcastId) {
+        return MARKET_CHANNEL_NAME;
+      }
+
       // Create a dedicated bot-owned group for the dump + per-user channels,
       // granting the bot full control over it so it can create channels inside.
       const group = await rootServer.community.channelGroups.create({
