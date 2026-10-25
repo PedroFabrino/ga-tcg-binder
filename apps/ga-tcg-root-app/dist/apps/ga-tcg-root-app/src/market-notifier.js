@@ -43,11 +43,16 @@ async function startMarketNotifier(options = {}) {
     const config = options.config ?? (0, community_config_1.createCommunityConfig)(server_bot_1.rootServer.dataStore.appData);
     const postMessage = options.postMessage ??
         (async (channelId, content) => {
-            const message = await server_bot_1.rootServer.community.channelMessages.create({
-                channelId: channelId,
-                content,
-            });
-            return message?.id ? String(message.id) : null;
+            try {
+                const message = await server_bot_1.rootServer.community.channelMessages.create({
+                    channelId: channelId,
+                    content,
+                });
+                return message?.id ? String(message.id) : null;
+            }
+            catch (err) {
+                throw new Error(`Message create failed (channel=${channelId}, contentLen=${content.length}, head=${content.slice(0, 40)}): ${err instanceof Error ? err.message : String(err)}`);
+            }
         });
     const intervalMs = options.intervalMs ??
         Number.parseInt(process.env.ROOT_BOT_POLL_INTERVAL_MS ?? "30000", 10);
