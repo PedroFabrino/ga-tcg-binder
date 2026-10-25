@@ -73,14 +73,8 @@ describe("Root deal-alert transport", () => {
     const channel = fake.channels[0];
     expect(channel.channelGroupId).toBe("section_1");
     expect(channel.name).toBe("Alice Wantlist");
-    expect(channel.useChannelGroupPermission).toBe(false);
-    expect(channel.accessRuleCreates).toEqual([
-      {
-        roleOrMemberId: "root_user_1",
-        overlay: { channelView: true, channelCreateMessage: true },
-      },
-      { roleOrMemberId: "app_bot", overlay: { channelFullControl: true } },
-    ]);
+    expect(channel.useChannelGroupPermission).toBe(true);
+    expect(channel.accessRuleCreates).toEqual([]);
 
     expect(fake.messages).toEqual([
       { channelId: "chan-1", content: "the list", id: "msg-1" },
@@ -88,7 +82,7 @@ describe("Root deal-alert transport", () => {
     expect(ref).toEqual({ channelId: "chan-1", messageId: "msg-1" });
   });
 
-  it("always grants the bot's own app id full control", async () => {
+  it("creates the per-user channel without explicit access rules", async () => {
     const fake = createFakeApi();
     const transport = createRootDealAlertTransport({
       channelGroupId: "section_1",
@@ -97,10 +91,7 @@ describe("Root deal-alert transport", () => {
 
     await transport.send("root_user_1", "the list");
 
-    expect(fake.channels[0].accessRuleCreates).toContainEqual({
-      roleOrMemberId: "app_bot",
-      overlay: { channelFullControl: true },
-    });
+    expect(fake.channels[0].accessRuleCreates).toEqual([]);
   });
 
   it("reuses an existing channel instead of creating a new one", async () => {

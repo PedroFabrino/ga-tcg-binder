@@ -16,10 +16,14 @@ function createRootServerDealAlertApi(root = server_bot_1.rootServer) {
                 name: request.name,
                 channelType: request.channelType,
                 useChannelGroupPermission: request.useChannelGroupPermission,
-                accessRuleCreates: request.accessRuleCreates.map((rule) => ({
-                    roleOrMemberId: rule.roleOrMemberId,
-                    overlay: rule.overlay,
-                })),
+                ...(request.accessRuleCreates.length > 0
+                    ? {
+                        accessRuleCreates: request.accessRuleCreates.map((rule) => ({
+                            roleOrMemberId: rule.roleOrMemberId,
+                            overlay: rule.overlay,
+                        })),
+                    }
+                    : {}),
             });
             return { id: String(channel.id) };
         },
@@ -87,18 +91,6 @@ function fallbackChannelName(recipient) {
 function createRootDealAlertTransport({ channelGroupId, api, channelType = server_bot_1.ChannelType.Text, }) {
     return {
         async send(recipient, content, previousChannelId) {
-            const accessRuleCreates = [
-                {
-                    // `useChannelGroupPermission: false` means unlisted members have no
-                    // access by default, so we only grant the recipient and the bot.
-                    roleOrMemberId: recipient,
-                    overlay: { channelView: true, channelCreateMessage: true },
-                },
-                {
-                    roleOrMemberId: api.botId,
-                    overlay: { channelFullControl: true },
-                },
-            ];
             let channelName = fallbackChannelName(recipient);
             try {
                 const displayName = await api.getMemberName(recipient);
@@ -114,8 +106,8 @@ function createRootDealAlertTransport({ channelGroupId, api, channelType = serve
                     channelGroupId,
                     name: channelName,
                     channelType,
-                    useChannelGroupPermission: false,
-                    accessRuleCreates,
+                    useChannelGroupPermission: true,
+                    accessRuleCreates: [],
                 })).id;
             const message = await api.createMessage({ channelId, content });
             return { channelId, messageId: message.id };
