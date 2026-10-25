@@ -9,9 +9,9 @@ export interface RootBotPollingOptions {
     onError?: (err: unknown) => void;
 }
 /**
- * Polls on Root's job scheduler (primary) with a local watchdog as a safety
- * net. Root's scheduler has no sub-daily interval, so we keep one pending
- * one-time job per tag and reschedule it after each run. If the job table or
- * event delivery is unavailable, the watchdog still polls every interval.
+ * Polls exclusively on Root's job scheduler. Root's scheduler has no sub-daily
+ * interval, so we keep one pending one-time job per tag and reschedule it after
+ * each run. This keeps every poll inside the SDK's event loop (important for
+ * the gRPC clients) and survives restarts via the persisted job.
  */
 export declare function scheduleRootBotPolling(options: RootBotPollingOptions): Promise<void>;
