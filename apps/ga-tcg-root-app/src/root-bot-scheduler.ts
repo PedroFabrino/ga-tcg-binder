@@ -3,6 +3,7 @@ import {
   type JobData,
   type JobScheduler,
 } from "@rootsdk/server-bot";
+import { describeError } from "./describe-error";
 
 export interface RootBotPollingOptions {
   scheduler: JobScheduler;
@@ -11,25 +12,48 @@ export interface RootBotPollingOptions {
   intervalMs: number;
   run: () => Promise<void>;
   now?: () => Date;
+  onError?: (err: unknown) => void;
 }
 
 /**
- * Polls on Root's job scheduler. Root's scheduler has no sub-daily interval, so
- * we keep exactly one pending one-time job per tag and reschedule it after each
- * run. This survives restarts (the pending job is persisted), unlike a local
- * `setInterval` in an event-driven cloud instance.
+ * Polls on Root's job scheduler (primary) with a local watchdog as a safety
+ * net. Root's scheduler has no sub-daily interval, so we keep one pending
+ * one-time job per tag and reschedule it after each run. If the job table or
+ * event delivery is unavailable, the watchdog still polls every interval.
  */
 export async function scheduleRootBotPolling(
   options: RootBotPollingOptions
 ): Promise<void> {
   const now = options.now ?? (() => new Date());
+  const intervalMs =
+    Number.isFinite(options.intervalMs) && options.intervalMs > 0
+      ? options.intervalMs
+      : 30_000;
+
+  let inFlight = false;
+  let lastStartedAt = Date.now();
+
+  const execute = async (): Promise<void> => {
+    if (inFlight) return;
+    inFlight = true;
+    lastStartedAt = Date.now();
+    try {
+      await options.run();
+    } catch (err) {
+      console.error(
+        `[root-bot-scheduler] Poll failed for ${options.tag}: ${describeError(err)}`
+      );
+    } finally {
+      inFlight = false;
+    }
+  };
 
   const scheduleNext = async (): Promise<void> => {
     await options.scheduler.deleteByTag(options.tag);
     await options.scheduler.create({
       resourceId: options.resourceId,
       tag: options.tag,
-      start: new Date(now().getTime() + options.intervalMs),
+      start: new Date(now().getTime() + intervalMs),
       jobInterval: JobInterval.OneTime,
     });
   };
@@ -39,30 +63,36 @@ export async function scheduleRootBotPolling(
       return;
     }
     void (async () => {
+      await execute();
       try {
-        await options.run();
+        await scheduleNext();
       } catch (err) {
-        console.error(
-          `[root-bot-scheduler] Poll failed for ${options.tag}:`,
-          err instanceof Error ? err.message : err
-        );
-      } finally {
-        try {
-          await scheduleNext();
-        } catch (err) {
-          console.error(
-            `[root-bot-scheduler] Could not reschedule ${options.tag}:`,
-            err instanceof Error ? err.message : err
-          );
-        }
+        options.onError?.(err);
       }
     })();
   };
 
-  // `job.missed` fires when a one-time job elapsed while the bot was down, so
-  // handle it the same way; otherwise polling would stop permanently.
   options.scheduler.on("job", handle);
   options.scheduler.on("job.missed", handle);
 
-  await scheduleNext();
+  // Safety net: runs only when the scheduler has been idle for a full interval,
+  // so it never duplicates a scheduler-driven poll.
+  const watchdog = setInterval(
+    () => {
+      if (inFlight) return;
+      if (Date.now() - lastStartedAt < intervalMs) return;
+      void execute();
+    },
+    Math.max(5_000, Math.floor(intervalMs / 2))
+  );
+  if (typeof watchdog.unref === "function") {
+    watchdog.unref();
+  }
+
+  try {
+    await scheduleNext();
+  } catch (err) {
+    // The watchdog keeps the bot polling even when the scheduler is unusable.
+    options.onError?.(err);
+  }
 }

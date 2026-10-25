@@ -1,4 +1,8 @@
-import { rootServer, type JobScheduler } from "@rootsdk/server-bot";
+import {
+  rootServer,
+  CommunityAppLogType,
+  type JobScheduler,
+} from "@rootsdk/server-bot";
 import type { DirectMessageRef, DirectMessageSink } from "./deal-alert-sink";
 import {
   createCommunityConfig,
@@ -12,7 +16,7 @@ import {
   createRootServerDealAlertApi,
   type RootDealAlertApi,
 } from "./root-deal-alert-transport";
-import { describeError } from "./describe-error";
+import { reportDiagnostic } from "./diagnostics";
 
 const WELCOME_MESSAGE =
   "🔔 **Deal alerts are on.** I'll keep this channel updated with cards from your wantlist and deck shortages that are for sale.";
@@ -109,21 +113,40 @@ export async function startDealAlertNotifier(
     ((sectionId) =>
       createRootDealAlertTransport({ channelGroupId: sectionId, api: rootApi }));
 
+  const intervalMs =
+    options.intervalMs ??
+    Number.parseInt(process.env.ROOT_DEAL_ALERT_INTERVAL_MS ?? "300000", 10);
+
+  const run = async (): Promise<void> => {
+    try {
+      await runDealAlertPoll({ api, ensureSection, createTransport });
+    } catch (err) {
+      await reportDiagnostic({
+        stage: "deal-alert-poll-failed",
+        communityId,
+        message: err,
+        level: CommunityAppLogType.Error,
+      });
+    }
+  };
+
+  // Run once immediately; authenticate and deliver without waiting for the
+  // first scheduled job.
+  await run();
+
   await scheduleRootBotPolling({
     scheduler: options.scheduler ?? rootServer.jobScheduler,
     resourceId: "ga-deal-alerts",
     tag: "deal-alerts",
-    intervalMs:
-      options.intervalMs ??
-      Number.parseInt(process.env.ROOT_DEAL_ALERT_INTERVAL_MS ?? "300000", 10),
-    run: async () => {
-      try {
-        await runDealAlertPoll({ api, ensureSection, createTransport });
-      } catch (err) {
-        console.error(
-          `[deal-alert-notifier] Poll error: ${describeError(err)}`
-        );
-      }
+    intervalMs,
+    run,
+    onError: (err) => {
+      void reportDiagnostic({
+        stage: "deal-alert-scheduler-failed",
+        communityId,
+        message: err,
+        level: CommunityAppLogType.Error,
+      });
     },
   });
 }

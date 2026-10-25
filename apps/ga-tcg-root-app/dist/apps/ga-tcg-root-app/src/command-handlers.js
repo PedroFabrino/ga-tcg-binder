@@ -3,11 +3,19 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getRootBotApi = getRootBotApi;
 exports.processRootCommand = processRootCommand;
 exports.registerRootCommandHandlers = registerRootCommandHandlers;
-const contracts_1 = require("@ga/contracts");
 const server_bot_1 = require("@rootsdk/server-bot");
 const deal_alert_notifier_1 = require("./deal-alert-notifier");
 const community_config_1 = require("./community-config");
 const root_bot_api_1 = require("./root-bot-api");
+function isAssistantApiError(err) {
+    if (typeof err !== "object" || err === null) {
+        return false;
+    }
+    const record = err;
+    return (typeof record.code === "string" &&
+        (typeof record.status === "number" ||
+            typeof record.statusCode === "number"));
+}
 function defaultRootCommandDeps(communityId, client) {
     const api = client ?? getRootBotApi(communityId);
     const recipientOptions = { communityId, api };
@@ -238,7 +246,7 @@ async function processRootCommand(userId, messageContent, client = getRootBotApi
         return null;
     }
     catch (err) {
-        if (err instanceof contracts_1.AssistantApiError) {
+        if (isAssistantApiError(err)) {
             if (err.code === "IDENTITY_NOT_LINKED") {
                 return "⚠️ **Grand Archive Binder Account Not Linked**\nLink your account first:\n1. Open GA Binder > **Settings > Linked Accounts**\n2. Click **Generate Code**\n3. Run `/link <code>` here in Root.";
             }

@@ -6,11 +6,12 @@ export interface RootBotPollingOptions {
     intervalMs: number;
     run: () => Promise<void>;
     now?: () => Date;
+    onError?: (err: unknown) => void;
 }
 /**
- * Polls on Root's job scheduler. Root's scheduler has no sub-daily interval, so
- * we keep exactly one pending one-time job per tag and reschedule it after each
- * run. This survives restarts (the pending job is persisted), unlike a local
- * `setInterval` in an event-driven cloud instance.
+ * Polls on Root's job scheduler (primary) with a local watchdog as a safety
+ * net. Root's scheduler has no sub-daily interval, so we keep one pending
+ * one-time job per tag and reschedule it after each run. If the job table or
+ * event delivery is unavailable, the watchdog still polls every interval.
  */
 export declare function scheduleRootBotPolling(options: RootBotPollingOptions): Promise<void>;

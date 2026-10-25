@@ -27,5 +27,10 @@
     "src/**/*.ts",
     "../../packages/contracts/src/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "src/**/*.test.ts",
+    "src/__tests__/**",
+    "../../packages/contracts/src/**/*.test.ts"
+  ]
 }

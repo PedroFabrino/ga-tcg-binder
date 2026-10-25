@@ -526,6 +526,14 @@ CREATE TABLE IF NOT EXISTS \`root_community_identities\` (
   \`created_at\` integer DEFAULT (strftime('%s', 'now')) NOT NULL,
   PRIMARY KEY (\`community_id\`, \`provider_user_id\`)
 );
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS \`root_bot_diagnostics\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`community_id\` text NOT NULL,
+  \`stage\` text NOT NULL,
+  \`message\` text,
+  \`created_at\` integer DEFAULT (strftime('%s', 'now')) NOT NULL
+);
 `;
 
 let defaultClientMigrationsPromise: Promise<void> | null = null;

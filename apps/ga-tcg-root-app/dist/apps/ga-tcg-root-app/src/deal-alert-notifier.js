@@ -11,7 +11,7 @@ const root_bot_api_1 = require("./root-bot-api");
 const root_bot_scheduler_1 = require("./root-bot-scheduler");
 const root_deal_alert_section_1 = require("./root-deal-alert-section");
 const root_deal_alert_transport_1 = require("./root-deal-alert-transport");
-const describe_error_1 = require("./describe-error");
+const diagnostics_1 = require("./diagnostics");
 const WELCOME_MESSAGE = "🔔 **Deal alerts are on.** I'll keep this channel updated with cards from your wantlist and deck shortages that are for sale.";
 /**
  * One deal-alert poll: ask the API for changed lists + cleanup, deliver to Root
@@ -70,19 +70,37 @@ async function startDealAlertNotifier(options = {}) {
     const ensureSection = () => (0, root_deal_alert_section_1.ensureAlertSection)(rootApi, config);
     const createTransport = options.createTransport ??
         ((sectionId) => (0, root_deal_alert_transport_1.createRootDealAlertTransport)({ channelGroupId: sectionId, api: rootApi }));
+    const intervalMs = options.intervalMs ??
+        Number.parseInt(process.env.ROOT_DEAL_ALERT_INTERVAL_MS ?? "300000", 10);
+    const run = async () => {
+        try {
+            await runDealAlertPoll({ api, ensureSection, createTransport });
+        }
+        catch (err) {
+            await (0, diagnostics_1.reportDiagnostic)({
+                stage: "deal-alert-poll-failed",
+                communityId,
+                message: err,
+                level: server_bot_1.CommunityAppLogType.Error,
+            });
+        }
+    };
+    // Run once immediately; authenticate and deliver without waiting for the
+    // first scheduled job.
+    await run();
     await (0, root_bot_scheduler_1.scheduleRootBotPolling)({
         scheduler: options.scheduler ?? server_bot_1.rootServer.jobScheduler,
         resourceId: "ga-deal-alerts",
         tag: "deal-alerts",
-        intervalMs: options.intervalMs ??
-            Number.parseInt(process.env.ROOT_DEAL_ALERT_INTERVAL_MS ?? "300000", 10),
-        run: async () => {
-            try {
-                await runDealAlertPoll({ api, ensureSection, createTransport });
-            }
-            catch (err) {
-                console.error(`[deal-alert-notifier] Poll error: ${(0, describe_error_1.describeError)(err)}`);
-            }
+        intervalMs,
+        run,
+        onError: (err) => {
+            void (0, diagnostics_1.reportDiagnostic)({
+                stage: "deal-alert-scheduler-failed",
+                communityId,
+                message: err,
+                level: server_bot_1.CommunityAppLogType.Error,
+            });
         },
     });
 }

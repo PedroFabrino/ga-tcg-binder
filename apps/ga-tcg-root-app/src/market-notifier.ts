@@ -1,5 +1,6 @@
 import {
   rootServer,
+  CommunityAppLogType,
   type ChannelGuid,
   type JobScheduler,
 } from "@rootsdk/server-bot";
@@ -9,7 +10,7 @@ import {
 } from "./community-config";
 import { RootBotApi } from "./root-bot-api";
 import { scheduleRootBotPolling } from "./root-bot-scheduler";
-import { describeError } from "./describe-error";
+import { reportDiagnostic } from "./diagnostics";
 
 export interface MarketNotificationPollDeps {
   api: Pick<
@@ -23,8 +24,9 @@ export interface MarketNotificationPollDeps {
 
 /**
  * One market-notification poll: pull pending chunks from the API, post them to
- * the `/setup` channel, and report each delivered chunk. Stops on the first
- * failed post so the remainder is retried on the next poll.
+ * the `/setup` channel, and report each delivered chunk. A thrown post leaves
+ * the remainder for the next poll; a successful post without a message id is
+ * still recorded so it is not re-sent.
  */
 export async function runMarketNotificationPoll(
   deps: MarketNotificationPollDeps
@@ -42,8 +44,6 @@ export async function runMarketNotificationPoll(
   for (const chunk of chunks) {
     const messageId = await deps.postMessage(broadcastChannelId, chunk.content);
 
-    // A thrown post leaves the chunk unrecorded, so the next poll retries it.
-    // A successful post with no id is recorded anyway to avoid duplicates.
     if (!messageId) {
       deps.warn?.(
         "Posted a market chunk but received no message id; recording delivery to avoid duplicates."
@@ -67,9 +67,10 @@ export interface MarketNotifierOptions {
 }
 
 /**
- * Starts the market-notification poller on Root's job scheduler. The broadcast
- * channel comes from per-community config (`/setup`); all data comes from the
- * API, so the bot holds no database or Discord secrets.
+ * Starts the market-notification poller. It runs one poll immediately, then
+ * schedules subsequent polls on Root's job scheduler (with a local watchdog).
+ * The broadcast channel comes from per-community config (`/setup`); all data
+ * comes from the API, so the bot holds no database or Discord secrets.
  */
 export async function startMarketNotifier(
   options: MarketNotifierOptions = {}
@@ -88,21 +89,38 @@ export async function startMarketNotifier(
       return message?.id ? String(message.id) : null;
     });
 
+  const intervalMs =
+    options.intervalMs ??
+    Number.parseInt(process.env.ROOT_BOT_POLL_INTERVAL_MS ?? "30000", 10);
+
+  const run = async (): Promise<void> => {
+    try {
+      await runMarketNotificationPoll({ api, config, postMessage });
+    } catch (err) {
+      await reportDiagnostic({
+        stage: "market-poll-failed",
+        communityId,
+        message: err,
+        level: CommunityAppLogType.Error,
+      });
+    }
+  };
+
+  await run();
+
   await scheduleRootBotPolling({
     scheduler: options.scheduler ?? rootServer.jobScheduler,
     resourceId: "ga-market-notifications",
     tag: "market-notifications",
-    intervalMs:
-      options.intervalMs ??
-      Number.parseInt(process.env.ROOT_BOT_POLL_INTERVAL_MS ?? "30000", 10),
-    run: async () => {
-      try {
-        await runMarketNotificationPoll({ api, config, postMessage });
-      } catch (err) {
-        console.error(
-          `[market-notifier] Poll error: ${describeError(err)}`
-        );
-      }
+    intervalMs,
+    run,
+    onError: (err) => {
+      void reportDiagnostic({
+        stage: "market-scheduler-failed",
+        communityId,
+        message: err,
+        level: CommunityAppLogType.Error,
+      });
     },
   });
 }

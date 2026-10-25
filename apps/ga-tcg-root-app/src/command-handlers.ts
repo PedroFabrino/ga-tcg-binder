@@ -1,4 +1,3 @@
-import { AssistantApiError } from "@ga/contracts";
 import {
   rootServer,
   MessageType,
@@ -14,6 +13,30 @@ import {
 } from "./deal-alert-notifier";
 import { createCommunityConfig } from "./community-config";
 import { RootBotApi, RootBotApiError } from "./root-bot-api";
+
+/**
+ * Structural stand-in for the web app's `AssistantApiError` so the bot does not
+ * need a runtime `@ga/contracts` dependency (the package ships only the Root
+ * SDK).
+ */
+interface AssistantApiErrorShape {
+  status?: number;
+  statusCode?: number;
+  code: string;
+  message: string;
+}
+
+function isAssistantApiError(err: unknown): err is AssistantApiErrorShape {
+  if (typeof err !== "object" || err === null) {
+    return false;
+  }
+  const record = err as Record<string, unknown>;
+  return (
+    typeof record.code === "string" &&
+    (typeof record.status === "number" ||
+      typeof record.statusCode === "number")
+  );
+}
 
 /**
  * Injectable side effects for the Root commands. Defaults use the shared
@@ -318,7 +341,7 @@ export async function processRootCommand(
 
     return null;
   } catch (err: any) {
-    if (err instanceof AssistantApiError) {
+    if (isAssistantApiError(err)) {
       if (err.code === "IDENTITY_NOT_LINKED") {
         return "⚠️ **Grand Archive Binder Account Not Linked**\nLink your account first:\n1. Open GA Binder > **Settings > Linked Accounts**\n2. Click **Generate Code**\n3. Run `/link <code>` here in Root.";
       }
