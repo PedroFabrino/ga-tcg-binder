@@ -82,19 +82,26 @@ export async function startMarketNotifier(
   const postMessage =
     options.postMessage ??
     (async (channelId, content) => {
-      try {
-        const message = await rootServer.community.channelMessages.create({
-          channelId: channelId as unknown as ChannelGuid,
-          content,
-        });
-        return message?.id ? String(message.id) : null;
-      } catch (err) {
-        throw new Error(
-          `Message create failed (channel=${channelId}, contentLen=${content.length}, head=${content.slice(0, 40)}): ${
-            err instanceof Error ? err.message : String(err)
-          }`
-        );
+      let lastError: unknown;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const message = await rootServer.community.channelMessages.create({
+            channelId: channelId as unknown as ChannelGuid,
+            content,
+          });
+          return message?.id ? String(message.id) : null;
+        } catch (err) {
+          lastError = err;
+          if (attempt < 2) {
+            await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
+          }
+        }
       }
+      throw new Error(
+        `Message create failed (channel=${channelId}, contentLen=${content.length}, head=${content.slice(0, 40)}): ${
+          lastError instanceof Error ? lastError.message : String(lastError)
+        }`
+      );
     });
 
   const intervalMs =
