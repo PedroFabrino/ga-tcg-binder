@@ -4,6 +4,7 @@ exports.createRootServerDealAlertApi = createRootServerDealAlertApi;
 exports.createRootDealAlertTransport = createRootDealAlertTransport;
 const server_bot_1 = require("@rootsdk/server-bot");
 const deal_alert_sink_1 = require("./deal-alert-sink");
+const describe_error_1 = require("./describe-error");
 /** Default adapter over `rootServer.community`. */
 function createRootServerDealAlertApi(root = server_bot_1.rootServer) {
     const botId = String(root.appId);
@@ -101,14 +102,21 @@ function createRootDealAlertTransport({ channelGroupId, api, channelType = serve
             catch {
                 // Keep the id-based fallback when the member can't be resolved.
             }
-            const channelId = previousChannelId ??
-                (await api.createChannel({
-                    channelGroupId,
-                    name: channelName,
-                    channelType,
-                    useChannelGroupPermission: true,
-                    accessRuleCreates: [],
-                })).id;
+            let channelId;
+            try {
+                channelId =
+                    previousChannelId ??
+                        (await api.createChannel({
+                            channelGroupId,
+                            name: channelName,
+                            channelType,
+                            useChannelGroupPermission: true,
+                            accessRuleCreates: [],
+                        })).id;
+            }
+            catch (err) {
+                throw new Error(`Channel create failed (name="${channelName}", group="${channelGroupId}"): ${(0, describe_error_1.describeError)(err)}`);
+            }
             const message = await api.createMessage({ channelId, content });
             return { channelId, messageId: message.id };
         },

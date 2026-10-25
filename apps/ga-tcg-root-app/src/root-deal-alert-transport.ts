@@ -15,6 +15,7 @@ import {
   type DirectMessageRef,
   type DirectMessageSink,
 } from "./deal-alert-sink";
+import { describeError } from "./describe-error";
 
 /**
  * The narrow slice of the Root server SDK the deal-alert transport needs.
@@ -173,17 +174,24 @@ export function createRootDealAlertTransport({
         // Keep the id-based fallback when the member can't be resolved.
       }
 
-      const channelId =
-        previousChannelId ??
-        (
-          await api.createChannel({
-            channelGroupId,
-            name: channelName,
-            channelType,
-            useChannelGroupPermission: true,
-            accessRuleCreates: [],
-          })
-        ).id;
+      let channelId: string;
+      try {
+        channelId =
+          previousChannelId ??
+          (
+            await api.createChannel({
+              channelGroupId,
+              name: channelName,
+              channelType,
+              useChannelGroupPermission: true,
+              accessRuleCreates: [],
+            })
+          ).id;
+      } catch (err) {
+        throw new Error(
+          `Channel create failed (name="${channelName}", group="${channelGroupId}"): ${describeError(err)}`
+        );
+      }
 
       const message = await api.createMessage({ channelId, content });
       return { channelId, messageId: message.id };
