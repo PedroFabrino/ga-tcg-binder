@@ -62,6 +62,12 @@ function createRootServerDealAlertApi(root = server_bot_1.rootServer) {
             });
             return { id: String(message.id) };
         },
+        async getChannel(id) {
+            const channel = await root.community.channels.get({
+                id: id,
+            });
+            return { id: String(channel.id) };
+        },
         async deleteMessage(request) {
             await root.community.channelMessages.delete({
                 channelId: request.channelId,
@@ -103,17 +109,28 @@ function createRootDealAlertTransport({ channelGroupId, api, channelType = serve
             catch {
                 // Keep the id-based fallback when the member can't be resolved.
             }
+            const createChannel = () => api.createChannel({
+                channelGroupId,
+                name: channelName,
+                channelType,
+                useChannelGroupPermission: true,
+                accessRuleCreates: [],
+            });
             let channelId;
             try {
-                channelId =
-                    previousChannelId ??
-                        (await api.createChannel({
-                            channelGroupId,
-                            name: channelName,
-                            channelType,
-                            useChannelGroupPermission: true,
-                            accessRuleCreates: [],
-                        })).id;
+                if (previousChannelId) {
+                    try {
+                        await api.getChannel(previousChannelId);
+                        channelId = previousChannelId;
+                    }
+                    catch {
+                        // Stale channel (deleted on reinstall) — create a fresh one.
+                        channelId = (await createChannel()).id;
+                    }
+                }
+                else {
+                    channelId = (await createChannel()).id;
+                }
             }
             catch (err) {
                 throw new Error(`Channel create failed (name="${channelName}", group="${channelGroupId}"): ${(0, describe_error_1.describeError)(err)}`);

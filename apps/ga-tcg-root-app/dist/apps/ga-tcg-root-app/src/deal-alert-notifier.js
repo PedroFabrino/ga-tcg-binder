@@ -129,11 +129,20 @@ async function provisionRootDealAlerts(options = {}) {
 async function ensureRootRecipientChannel(recipientId, options = {}) {
     const communityId = options.communityId ?? process.env.COMMUNITY_ID ?? "";
     const api = options.api ?? new root_bot_api_1.RootBotApi({ communityId });
+    const rootApi = options.rootApi ?? (0, root_deal_alert_transport_1.createRootServerDealAlertApi)();
     const existing = await api.getDealAlertChannel(recipientId);
     if (existing) {
-        return existing.channelId;
+        try {
+            // Reuse only if the channel still exists; reinstalls delete the channel
+            // but leave the API-side state behind, which would otherwise point at a
+            // dead channel and make the opt-in look successful without a channel.
+            await rootApi.getChannel(existing.channelId);
+            return existing.channelId;
+        }
+        catch {
+            // Channel gone — fall through and create a fresh one.
+        }
     }
-    const rootApi = options.rootApi ?? (0, root_deal_alert_transport_1.createRootServerDealAlertApi)();
     const config = options.config ?? (0, community_config_1.createCommunityConfig)(server_bot_1.rootServer.dataStore.appData);
     const sectionId = await (0, root_deal_alert_section_1.ensureAlertSection)(config);
     if (!sectionId) {

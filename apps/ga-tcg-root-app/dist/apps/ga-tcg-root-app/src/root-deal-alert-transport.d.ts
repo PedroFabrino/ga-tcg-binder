@@ -39,6 +39,10 @@ export interface RootDealAlertApi {
     }): Promise<{
         id: string;
     }>;
+    /** Resolves the channel if it still exists, or throws when it does not. */
+    getChannel(id: string): Promise<{
+        id: string;
+    }>;
     deleteMessage(request: {
         channelId: string;
         id: string;
