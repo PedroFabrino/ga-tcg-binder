@@ -9,27 +9,15 @@ const SECTION_NAME = "GA Alerts";
  * config, so the section is created once and reused across runs.
  */
 export async function ensureAlertSection(
-  api: Pick<RootDealAlertApi, "createChannelGroup" | "grantBotFullControl">,
+  api: Pick<RootDealAlertApi, "createChannelGroup">,
   config: Pick<RootCommunityConfig, "getAlertSectionId" | "setAlertSectionId">
 ): Promise<string> {
-  let sectionId = await config.getAlertSectionId();
-
-  if (!sectionId) {
-    const created = await api.createChannelGroup(SECTION_NAME);
-    await config.setAlertSectionId(created.id);
-    sectionId = created.id;
+  const existing = await config.getAlertSectionId();
+  if (existing) {
+    return existing;
   }
 
-  // Ensure the bot can create per-user channels in this section, whether it is
-  // the `/setup` channel's group or the auto-created fallback group.
-  try {
-    await api.grantBotFullControl(sectionId);
-  } catch (err) {
-    console.warn(
-      "[deal-alert] Could not self-grant full control on the alert section:",
-      err instanceof Error ? err.message : err
-    );
-  }
-
-  return sectionId;
+  const created = await api.createChannelGroup(SECTION_NAME);
+  await config.setAlertSectionId(created.id);
+  return created.id;
 }

@@ -7,6 +7,7 @@ import {
   type ChannelGroupGuid,
   type ChannelGuid,
   type ChannelMessageCreatedEvent,
+  type RoleOrMemberGuid,
   type UserGuid,
 } from "@rootsdk/server-bot";
 import {
@@ -20,6 +21,8 @@ import { reportDiagnostic } from "./diagnostics";
 
 /** Name of the market-dump channel the bot creates inside the `/setup` group. */
 const MARKET_CHANNEL_NAME = "market";
+/** Name of the dedicated bot-owned group that holds the dump + per-user channels. */
+const GROUP_NAME = "GA Market";
 
 /**
  * Structural stand-in for the web app's `AssistantApiError` so the bot does not
@@ -93,15 +96,21 @@ function defaultRootCommandDeps(
     async ensureRecipientChannel(recipientId) {
       return ensureRootRecipientChannel(recipientId, recipientOptions);
     },
-    async configureFromChannel(channelId) {
+    async configureFromChannel(_channelId) {
       const config = createCommunityConfig(rootServer.dataStore.appData);
 
-      // The bot creates its own dump channel in the same group, so it does not
-      // depend on the user's channel and can grant itself access.
-      const source = await rootServer.community.channels.get({
-        id: channelId as unknown as ChannelGuid,
+      // Create a dedicated bot-owned group for the dump + per-user channels,
+      // granting the bot full control over it so it can create channels inside.
+      const group = await rootServer.community.channelGroups.create({
+        name: GROUP_NAME,
+        accessRuleCreates: [
+          {
+            roleOrMemberId: String(rootServer.appId) as RoleOrMemberGuid,
+            overlay: { channelFullControl: true },
+          },
+        ],
       });
-      const groupId = String(source.channelGroupId);
+      const groupId = String(group.id);
 
       const created = await rootServer.community.channels.create({
         channelGroupId: groupId as unknown as ChannelGroupGuid,
@@ -345,11 +354,11 @@ export async function processRootCommand(
       }
 
       if (argString.toLowerCase() !== "confirm") {
-        return "⚠️ **Market setup.** I'll create a **#market** channel in this channel's group to receive store updates, and your per-user alert channels will be created there too.\nRun `/setup confirm` in this channel to apply it.";
+        return "⚠️ **Market setup.** I'll create a dedicated **GA Market** group with a **#market** channel for store updates, and per-user alert channels will live there too.\nRun `/setup confirm` to apply it.";
       }
 
       const marketChannelName = await resolvedDeps.configureFromChannel(channelId);
-      return `✅ **Setup complete.** I created **#${marketChannelName}** for market updates, and per-user alert channels will be created in this channel's group.`;
+      return `✅ **Setup complete.** I created the **GA Market** group with a **#${marketChannelName}** channel for market updates, and per-user alert channels will be created there.`;
     }
 
     return null;

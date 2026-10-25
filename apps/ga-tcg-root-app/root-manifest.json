@@ -1,6 +1,6 @@
 {
   "id": "ADH-6fbvigmppj1_qgZSmw",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "package": {
     "server": {
       "launch": "dist/main.js",
@@ -14,8 +14,7 @@
   },
   "permissions": {
     "community": {
-      "createChannelGroup": true,
-      "fullControl": true
+      "createChannelGroup": true
     },
     "channel": {
       "fullControl": true
