@@ -1,6 +1,6 @@
 {
   "id": "ADH-6fbvigmppj1_qgZSmw",
-  "version": "1.0.17",
+  "version": "1.0.18",
   "package": {
     "server": {
       "launch": "dist/main.js",
