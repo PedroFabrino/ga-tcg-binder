@@ -13,7 +13,7 @@ import {
   type RootDealAlertApi,
 } from "../root-deal-alert-transport";
 
-function createFakeApi() {
+function createFakeApi(preExisting: string[] = []) {
   const channels: Array<Record<string, unknown> & { id: string }> = [];
   const messages: Array<Record<string, unknown> & { id: string }> = [];
   const deleted: Array<{ channelId: string; id: string }> = [];
@@ -43,6 +43,12 @@ function createFakeApi() {
       nextMessage += 1;
       const id = `msg-${nextMessage}`;
       messages.push({ ...request, id });
+      return { id };
+    },
+    async getChannel(id) {
+      if (!channels.some((c) => c.id === id) && !preExisting.includes(id)) {
+        throw new Error(`channel not found: ${id}`);
+      }
       return { id };
     },
     async deleteMessage(request) {
@@ -95,7 +101,7 @@ describe("Root deal-alert transport", () => {
   });
 
   it("reuses an existing channel instead of creating a new one", async () => {
-    const fake = createFakeApi();
+    const fake = createFakeApi(["chan-existing"]);
     const transport = createRootDealAlertTransport({
       channelGroupId: "section_1",
       api: fake.api,
@@ -106,6 +112,21 @@ describe("Root deal-alert transport", () => {
     expect(fake.channels).toHaveLength(0);
     expect(fake.messages[0].channelId).toBe("chan-existing");
     expect(ref?.channelId).toBe("chan-existing");
+  });
+
+  it("creates a new channel when the previous channel is gone", async () => {
+    const fake = createFakeApi();
+    const transport = createRootDealAlertTransport({
+      channelGroupId: "section_1",
+      api: fake.api,
+    });
+
+    const ref = await transport.send("root_user_1", "the list", "chan-dead");
+
+    expect(fake.channels).toHaveLength(1);
+    expect(fake.channels[0].name).toBe("Alice-Wantlist");
+    expect(fake.messages[0].channelId).toBe("chan-1");
+    expect(ref?.channelId).toBe("chan-1");
   });
 
   it("deletes every message id in a comma-separated reference", async () => {

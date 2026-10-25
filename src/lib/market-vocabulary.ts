@@ -66,6 +66,13 @@ export const MARKETPLACE_PLATFORMS: readonly MarketplacePlatform[] = [
 export const MESSAGE_MAX_LENGTH = 2000;
 
 /**
+ * Root's message service rejects oversized posts with a gRPC UNAVAILABLE
+ * (empty response) rather than a validation error. Keep Root messages well
+ * under the Discord budget so scheduled/provision posts don't trip it.
+ */
+export const ROOT_MESSAGE_MAX_LENGTH = 1000;
+
+/**
  * Canonical external Listing identity. Parsers may keep their legacy field
  * names during the expand phase; new callers should read these.
  */

@@ -14,7 +14,11 @@ import {
   type DealAlertMatch,
   type DealAlertNotificationSummary,
 } from "./deal-alert-format";
-import { DISCORD_DM_DESTINATION } from "../lib/market-vocabulary";
+import {
+  DISCORD_DM_DESTINATION,
+  MESSAGE_MAX_LENGTH,
+  ROOT_MESSAGE_MAX_LENGTH,
+} from "../lib/market-vocabulary";
 import { parseMessageIds } from "./discord-dm-client";
 import { matchDealAlerts } from "./discord-deal-notifier";
 
@@ -61,6 +65,9 @@ export async function planDealAlerts(
     : "discord";
   const now = options.now ?? new Date();
 
+  const messageMaxLength =
+    provider === "root" ? ROOT_MESSAGE_MAX_LENGTH : MESSAGE_MAX_LENGTH;
+
   const listings = await getMarketCards({ inStockOnly: true }, database);
   const matches = await matchDealAlerts(
     listings,
@@ -106,7 +113,7 @@ export async function planDealAlerts(
       recipientId,
       channelId: stored?.channelId ?? null,
       previousMessageIds: stored ? parseMessageIds(stored.messageId) : [],
-      chunks: formatDealAlertChunks(userMatches, now),
+      chunks: formatDealAlertChunks(userMatches, now, messageMaxLength),
       summary: formatDealAlertNotificationSummary(userMatches),
       lastListingKeys: currentKeys,
     });

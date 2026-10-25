@@ -4,7 +4,7 @@ import type { RootCommunityConfig } from "../community-config";
 import type { RootDealAlertApi } from "../root-deal-alert-transport";
 import type { RootBotApi } from "../root-bot-api";
 
-function createRootApi() {
+function createRootApi(preExisting: string[] = []) {
   const channels: string[] = [];
   const messages: string[] = [];
   let nextChannel = 0;
@@ -28,6 +28,12 @@ function createRootApi() {
     async createMessage(request) {
       messages.push(request.content);
       return { id: `msg-${messages.length}` };
+    },
+    async getChannel(id) {
+      if (!channels.includes(id) && !preExisting.includes(id)) {
+        throw new Error(`channel not found: ${id}`);
+      }
+      return { id };
     },
     async deleteMessage() {},
     async deleteChannel() {},
@@ -91,7 +97,7 @@ describe("ensureRootRecipientChannel", () => {
   });
 
   it("reuses an existing channel without creating another", async () => {
-    const root = createRootApi();
+    const root = createRootApi(["chan-existing"]);
     const bot = createBotApi({
       channelId: "chan-existing",
       messageIds: ["msg-old"],
@@ -106,5 +112,30 @@ describe("ensureRootRecipientChannel", () => {
 
     expect(channelId).toBe("chan-existing");
     expect(root.channels).toHaveLength(0);
+  });
+
+  it("recreates the channel when the stored channel was deleted", async () => {
+    const root = createRootApi();
+    const bot = createBotApi({
+      channelId: "chan-existing",
+      messageIds: ["msg-old"],
+    });
+
+    const channelId = await ensureRootRecipientChannel("root_user_1", {
+      communityId: "comm-1",
+      api: bot.api,
+      config: createConfig(),
+      rootApi: root.api,
+    });
+
+    expect(channelId).toBe("chan-1");
+    expect(root.channels).toEqual(["chan-1"]);
+    expect(root.messages[0]).toContain("Deal alerts are on");
+    expect(bot.api.recordDealAlertDelivery).toHaveBeenCalledWith({
+      recipientId: "root_user_1",
+      channelId: "chan-1",
+      messageIds: ["msg-1"],
+      lastListingKeys: [],
+    });
   });
 });
