@@ -72,18 +72,14 @@ describe("Root deal-alert transport", () => {
     expect(fake.channels).toHaveLength(1);
     const channel = fake.channels[0];
     expect(channel.channelGroupId).toBe("section_1");
-    expect(channel.name).toBe("Alice's Wantlist");
+    expect(channel.name).toBe("Alice Wantlist");
     expect(channel.useChannelGroupPermission).toBe(false);
     expect(channel.accessRuleCreates).toEqual([
       {
         roleOrMemberId: "root_user_1",
-        overlay: {
-          channelView: true,
-          channelCreateMessage: true,
-          channelViewMessageHistory: true,
-        },
+        overlay: { channelView: true, channelCreateMessage: true },
       },
-      { roleOrMemberId: "app_bot", overlay: { channelView: true, channelFullControl: true } },
+      { roleOrMemberId: "app_bot", overlay: { channelFullControl: true } },
     ]);
 
     expect(fake.messages).toEqual([
@@ -103,7 +99,7 @@ describe("Root deal-alert transport", () => {
 
     expect(fake.channels[0].accessRuleCreates).toContainEqual({
       roleOrMemberId: "app_bot",
-      overlay: { channelView: true, channelFullControl: true },
+      overlay: { channelFullControl: true },
     });
   });
 

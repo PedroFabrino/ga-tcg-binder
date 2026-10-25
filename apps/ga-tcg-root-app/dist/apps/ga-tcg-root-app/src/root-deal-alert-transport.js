@@ -92,22 +92,18 @@ function createRootDealAlertTransport({ channelGroupId, api, channelType = serve
                     // `useChannelGroupPermission: false` means unlisted members have no
                     // access by default, so we only grant the recipient and the bot.
                     roleOrMemberId: recipient,
-                    overlay: {
-                        channelView: true,
-                        channelCreateMessage: true,
-                        channelViewMessageHistory: true,
-                    },
+                    overlay: { channelView: true, channelCreateMessage: true },
                 },
                 {
                     roleOrMemberId: api.botId,
-                    overlay: { channelView: true, channelFullControl: true },
+                    overlay: { channelFullControl: true },
                 },
             ];
             let channelName = fallbackChannelName(recipient);
             try {
                 const displayName = await api.getMemberName(recipient);
                 if (displayName && displayName.trim()) {
-                    channelName = `${displayName.trim()}'s Wantlist`.slice(0, 100);
+                    channelName = `${displayName.trim()} Wantlist`.slice(0, 100);
                 }
             }
             catch {
