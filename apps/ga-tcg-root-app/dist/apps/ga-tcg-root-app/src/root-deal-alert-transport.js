@@ -96,7 +96,8 @@ function createRootDealAlertTransport({ channelGroupId, api, channelType = serve
             try {
                 const displayName = await api.getMemberName(recipient);
                 if (displayName && displayName.trim()) {
-                    channelName = `${displayName.trim()} Wantlist`.slice(0, 100);
+                    // Root channel names reject spaces, so use a dash separator.
+                    channelName = `${displayName.trim()}-Wantlist`.slice(0, 100);
                 }
             }
             catch {

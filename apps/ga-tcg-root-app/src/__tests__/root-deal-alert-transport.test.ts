@@ -72,7 +72,7 @@ describe("Root deal-alert transport", () => {
     expect(fake.channels).toHaveLength(1);
     const channel = fake.channels[0];
     expect(channel.channelGroupId).toBe("section_1");
-    expect(channel.name).toBe("Alice Wantlist");
+    expect(channel.name).toBe("Alice-Wantlist");
     expect(channel.useChannelGroupPermission).toBe(true);
     expect(channel.accessRuleCreates).toEqual([]);
 
