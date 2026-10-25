@@ -5,7 +5,7 @@ import { RootBotApi } from "./root-bot-api";
 import { type RootDealAlertApi } from "./root-deal-alert-transport";
 export interface DealAlertPollDeps {
     api: Pick<RootBotApi, "getDealAlerts" | "recordDealAlertDelivery" | "recordDealAlertCleanup">;
-    ensureSection: () => Promise<string>;
+    ensureSection: () => Promise<string | undefined>;
     createTransport: (sectionId: string) => DirectMessageSink;
 }
 /**

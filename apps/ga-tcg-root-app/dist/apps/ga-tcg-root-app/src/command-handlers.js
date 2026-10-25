@@ -234,9 +234,22 @@ async function processRootCommand(userId, messageContent, client = getRootBotApi
                     alertsChannelId = await resolvedDeps.ensureRecipientChannel(userId);
                 }
                 catch (err) {
-                    console.warn("[notify] Could not create the private deal-alert channel yet:", err instanceof Error ? err.message : err);
+                    await (0, diagnostics_1.reportDiagnostic)({
+                        stage: "notify-create-channel-failed",
+                        message: err,
+                        level: server_bot_1.CommunityAppLogType.Error,
+                    });
                 }
-                await resolvedDeps.provisionDealAlerts();
+                try {
+                    await resolvedDeps.provisionDealAlerts();
+                }
+                catch (err) {
+                    await (0, diagnostics_1.reportDiagnostic)({
+                        stage: "notify-provision-failed",
+                        message: err,
+                        level: server_bot_1.CommunityAppLogType.Error,
+                    });
+                }
                 return alertsChannelId
                     ? `🔔 **Deal alerts enabled.** Your alerts will arrive in [your private channel](root://channel/${alertsChannelId}).`
                     : "🔔 **Deal alerts enabled.** Your private channel will be created on the next marketplace sync.";

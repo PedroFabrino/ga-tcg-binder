@@ -21,6 +21,9 @@ const WELCOME_MESSAGE = "🔔 **Deal alerts are on.** I'll keep this channel upd
 async function runDealAlertPoll(deps) {
     const { plans, cleanup } = await deps.api.getDealAlerts();
     const sectionId = await deps.ensureSection();
+    if (!sectionId) {
+        return;
+    }
     const transport = deps.createTransport(sectionId);
     for (const item of cleanup) {
         for (const id of item.messageIds) {
@@ -67,7 +70,7 @@ async function startDealAlertNotifier(options = {}) {
     const api = options.api ?? new root_bot_api_1.RootBotApi({ communityId });
     const config = options.config ?? (0, community_config_1.createCommunityConfig)(server_bot_1.rootServer.dataStore.appData);
     const rootApi = options.rootApi ?? (0, root_deal_alert_transport_1.createRootServerDealAlertApi)();
-    const ensureSection = () => (0, root_deal_alert_section_1.ensureAlertSection)(rootApi, config);
+    const ensureSection = () => (0, root_deal_alert_section_1.ensureAlertSection)(config);
     const createTransport = options.createTransport ??
         ((sectionId) => (0, root_deal_alert_transport_1.createRootDealAlertTransport)({ channelGroupId: sectionId, api: rootApi }));
     const intervalMs = options.intervalMs ??
@@ -115,7 +118,7 @@ async function provisionRootDealAlerts(options = {}) {
     const rootApi = options.rootApi ?? (0, root_deal_alert_transport_1.createRootServerDealAlertApi)();
     await runDealAlertPoll({
         api,
-        ensureSection: () => (0, root_deal_alert_section_1.ensureAlertSection)(rootApi, config),
+        ensureSection: () => (0, root_deal_alert_section_1.ensureAlertSection)(config),
         createTransport: (sectionId) => (0, root_deal_alert_transport_1.createRootDealAlertTransport)({ channelGroupId: sectionId, api: rootApi }),
     });
 }
@@ -132,7 +135,10 @@ async function ensureRootRecipientChannel(recipientId, options = {}) {
     }
     const rootApi = options.rootApi ?? (0, root_deal_alert_transport_1.createRootServerDealAlertApi)();
     const config = options.config ?? (0, community_config_1.createCommunityConfig)(server_bot_1.rootServer.dataStore.appData);
-    const sectionId = await (0, root_deal_alert_section_1.ensureAlertSection)(rootApi, config);
+    const sectionId = await (0, root_deal_alert_section_1.ensureAlertSection)(config);
+    if (!sectionId) {
+        throw new Error("No market group configured — run /setup first to create it.");
+    }
     const transport = (0, root_deal_alert_transport_1.createRootDealAlertTransport)({
         channelGroupId: sectionId,
         api: rootApi,

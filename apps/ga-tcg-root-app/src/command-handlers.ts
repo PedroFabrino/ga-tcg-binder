@@ -325,13 +325,22 @@ export async function processRootCommand(
         try {
           alertsChannelId = await resolvedDeps.ensureRecipientChannel(userId);
         } catch (err) {
-          console.warn(
-            "[notify] Could not create the private deal-alert channel yet:",
-            err instanceof Error ? err.message : err
-          );
+          await reportDiagnostic({
+            stage: "notify-create-channel-failed",
+            message: err,
+            level: CommunityAppLogType.Error,
+          });
         }
 
-        await resolvedDeps.provisionDealAlerts();
+        try {
+          await resolvedDeps.provisionDealAlerts();
+        } catch (err) {
+          await reportDiagnostic({
+            stage: "notify-provision-failed",
+            message: err,
+            level: CommunityAppLogType.Error,
+          });
+        }
 
         return alertsChannelId
           ? `🔔 **Deal alerts enabled.** Your alerts will arrive in [your private channel](root://channel/${alertsChannelId}).`

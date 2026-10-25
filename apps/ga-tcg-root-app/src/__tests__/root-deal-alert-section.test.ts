@@ -1,38 +1,19 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { ensureAlertSection } from "../root-deal-alert-section";
 
-function fakeApi() {
-  return {
-    createChannelGroup: vi.fn().mockResolvedValue({ id: "grp-new" }),
-    grantBotFullControl: vi.fn().mockResolvedValue(undefined),
-  };
-}
-
 function fakeConfig(existing?: string) {
-  let value = existing;
   return {
-    getAlertSectionId: vi.fn(async () => value),
-    setAlertSectionId: vi.fn(async (id: string) => {
-      value = id;
-    }),
+    getAlertSectionId: async () => existing,
+    setAlertSectionId: async () => {},
   };
 }
 
 describe("ensureAlertSection", () => {
-  it("creates and stores the section when missing", async () => {
-    const api = fakeApi();
-    const config = fakeConfig();
-
-    await expect(ensureAlertSection(api, config)).resolves.toBe("grp-new");
-    expect(api.createChannelGroup).toHaveBeenCalledWith("GA Alerts");
-    expect(config.setAlertSectionId).toHaveBeenCalledWith("grp-new");
+  it("returns the configured section", async () => {
+    await expect(ensureAlertSection(fakeConfig("grp-1"))).resolves.toBe("grp-1");
   });
 
-  it("reuses the stored section without creating a duplicate", async () => {
-    const api = fakeApi();
-    const config = fakeConfig("grp-existing");
-
-    await expect(ensureAlertSection(api, config)).resolves.toBe("grp-existing");
-    expect(api.createChannelGroup).not.toHaveBeenCalled();
+  it("returns undefined when no section is configured", async () => {
+    await expect(ensureAlertSection(fakeConfig())).resolves.toBeUndefined();
   });
 });

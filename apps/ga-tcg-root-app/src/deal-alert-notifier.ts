@@ -26,7 +26,7 @@ export interface DealAlertPollDeps {
     RootBotApi,
     "getDealAlerts" | "recordDealAlertDelivery" | "recordDealAlertCleanup"
   >;
-  ensureSection: () => Promise<string>;
+  ensureSection: () => Promise<string | undefined>;
   createTransport: (sectionId: string) => DirectMessageSink;
 }
 
@@ -40,6 +40,9 @@ export async function runDealAlertPoll(
 ): Promise<void> {
   const { plans, cleanup } = await deps.api.getDealAlerts();
   const sectionId = await deps.ensureSection();
+  if (!sectionId) {
+    return;
+  }
   const transport = deps.createTransport(sectionId);
 
   for (const item of cleanup) {
@@ -107,7 +110,7 @@ export async function startDealAlertNotifier(
   const config =
     options.config ?? createCommunityConfig(rootServer.dataStore.appData);
   const rootApi = options.rootApi ?? createRootServerDealAlertApi();
-  const ensureSection = () => ensureAlertSection(rootApi, config);
+  const ensureSection = () => ensureAlertSection(config);
   const createTransport =
     options.createTransport ??
     ((sectionId) =>
@@ -173,7 +176,7 @@ export async function provisionRootDealAlerts(
 
   await runDealAlertPoll({
     api,
-    ensureSection: () => ensureAlertSection(rootApi, config),
+    ensureSection: () => ensureAlertSection(config),
     createTransport: (sectionId) =>
       createRootDealAlertTransport({ channelGroupId: sectionId, api: rootApi }),
   });
@@ -198,7 +201,12 @@ export async function ensureRootRecipientChannel(
   const rootApi = options.rootApi ?? createRootServerDealAlertApi();
   const config =
     options.config ?? createCommunityConfig(rootServer.dataStore.appData);
-  const sectionId = await ensureAlertSection(rootApi, config);
+  const sectionId = await ensureAlertSection(config);
+  if (!sectionId) {
+    throw new Error(
+      "No market group configured — run /setup first to create it."
+    );
+  }
   const transport = createRootDealAlertTransport({
     channelGroupId: sectionId,
     api: rootApi,

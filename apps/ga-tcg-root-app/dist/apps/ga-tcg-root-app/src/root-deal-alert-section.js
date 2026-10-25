@@ -1,18 +1,12 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ensureAlertSection = ensureAlertSection;
-const SECTION_NAME = "GA Alerts";
 /**
- * Returns the channel group (section) that holds per-user deal-alert channels,
- * creating and persisting it on first use. The id lives in the per-community
- * config, so the section is created once and reused across runs.
+ * Returns the configured channel group (section) that holds per-user deal-alert
+ * channels, or `undefined` if `/setup` has not configured one yet. The bot no
+ * longer auto-creates a fallback group — that produced a duplicate group next
+ * to the one `/setup` creates.
  */
-async function ensureAlertSection(api, config) {
-    const existing = await config.getAlertSectionId();
-    if (existing) {
-        return existing;
-    }
-    const created = await api.createChannelGroup(SECTION_NAME);
-    await config.setAlertSectionId(created.id);
-    return created.id;
+async function ensureAlertSection(config) {
+    return config.getAlertSectionId();
 }
