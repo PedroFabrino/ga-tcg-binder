@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import { ensureAlertSection } from "../root-deal-alert-section";
 
 function fakeApi() {
-  return { createChannelGroup: vi.fn().mockResolvedValue({ id: "grp-new" }) };
+  return {
+    createChannelGroup: vi.fn().mockResolvedValue({ id: "grp-new" }),
+    grantBotFullControl: vi.fn().mockResolvedValue(undefined),
+  };
 }
 
 function fakeConfig(existing?: string) {

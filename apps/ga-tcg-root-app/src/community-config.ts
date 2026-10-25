@@ -14,7 +14,7 @@ export interface CommunityConfigStore {
 }
 
 const BROADCAST_CHANNEL_KEY = "market.broadcastChannelId";
-const ALERT_SECTION_KEY = "dealAlert.sectionId";
+const ALERT_SECTION_KEY = "dealAlert.sectionId.v2";
 
 export interface RootCommunityConfig {
   getBroadcastChannelId(): Promise<string | undefined>;

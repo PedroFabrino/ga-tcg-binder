@@ -33,6 +33,12 @@ function createFakeApi() {
     async createChannelGroup() {
       return { id: "grp-created" };
     },
+    async grantBotFullControl() {
+      // no-op for the transport suite
+    },
+    async getMemberName() {
+      return "Alice";
+    },
     async createMessage(request) {
       nextMessage += 1;
       const id = `msg-${nextMessage}`;
@@ -66,7 +72,7 @@ describe("Root deal-alert transport", () => {
     expect(fake.channels).toHaveLength(1);
     const channel = fake.channels[0];
     expect(channel.channelGroupId).toBe("section_1");
-    expect(channel.name).toBe("ga-alerts-root_user_1");
+    expect(channel.name).toBe("Alice's Wantlist");
     expect(channel.useChannelGroupPermission).toBe(false);
     expect(channel.accessRuleCreates).toEqual([
       { roleOrMemberId: "role_everyone", overlay: { channelView: false } },

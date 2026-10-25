@@ -6,9 +6,10 @@ const server_bot_1 = require("@rootsdk/server-bot");
 const deal_alert_sink_1 = require("./deal-alert-sink");
 /** Default adapter over `rootServer.community`. */
 function createRootServerDealAlertApi(root = server_bot_1.rootServer) {
+    const botId = String(root.appId);
     return {
         everyoneRoleId: String(server_bot_1.WellKnownRootGuids.CommunityRoles.EveryoneRole),
-        botId: String(root.appId),
+        botId,
         async createChannel(request) {
             const channel = await root.community.channels.create({
                 channelGroupId: request.channelGroupId,
@@ -23,8 +24,31 @@ function createRootServerDealAlertApi(root = server_bot_1.rootServer) {
             return { id: String(channel.id) };
         },
         async createChannelGroup(name) {
-            const group = await root.community.channelGroups.create({ name });
+            // Grant the bot full control over the group it creates, otherwise it
+            // cannot create the per-user channels inside it (NoPermissionToCreate).
+            const group = await root.community.channelGroups.create({
+                name,
+                accessRuleCreates: [
+                    {
+                        roleOrMemberId: botId,
+                        overlay: { channelFullControl: true },
+                    },
+                ],
+            });
             return { id: String(group.id) };
+        },
+        async grantBotFullControl(channelGroupId) {
+            await root.community.accessRules.create({
+                channelOrChannelGroupId: channelGroupId,
+                roleOrMemberId: botId,
+                overlay: { channelFullControl: true },
+            });
+        },
+        async getMemberName(userId) {
+            const member = await root.community.communityMembers.get({
+                userId: userId,
+            });
+            return member.nickname;
         },
         async createMessage(request) {
             const message = await root.community.channelMessages.create({
@@ -51,7 +75,7 @@ function createRootServerDealAlertApi(root = server_bot_1.rootServer) {
         },
     };
 }
-function channelNameForRecipient(recipient) {
+function fallbackChannelName(recipient) {
     return `ga-alerts-${recipient}`.slice(0, 100);
 }
 /**
@@ -84,10 +108,20 @@ function createRootDealAlertTransport({ channelGroupId, api, channelType = serve
                     overlay: { channelFullControl: true },
                 },
             ];
+            let channelName = fallbackChannelName(recipient);
+            try {
+                const displayName = await api.getMemberName(recipient);
+                if (displayName && displayName.trim()) {
+                    channelName = `${displayName.trim()}'s Wantlist`.slice(0, 100);
+                }
+            }
+            catch {
+                // Keep the id-based fallback when the member can't be resolved.
+            }
             const channelId = previousChannelId ??
                 (await api.createChannel({
                     channelGroupId,
-                    name: channelNameForRecipient(recipient),
+                    name: channelName,
                     channelType,
                     useChannelGroupPermission: false,
                     accessRuleCreates,

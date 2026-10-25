@@ -14,7 +14,8 @@
   },
   "permissions": {
     "community": {
-      "createChannelGroup": true
+      "createChannelGroup": true,
+      "fullControl": true
     },
     "channel": {
       "fullControl": true

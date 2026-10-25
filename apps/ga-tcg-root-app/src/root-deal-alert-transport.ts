@@ -4,6 +4,7 @@ import {
   WellKnownRootGuids,
   type ChannelGuid,
   type ChannelGroupGuid,
+  type ChannelOrChannelGroupGuid,
   type MessageGuid,
   type RoleOrMemberGuid,
   type UserGuid,
@@ -41,6 +42,10 @@ export interface RootDealAlertApi {
     accessRuleCreates: RootDealAlertAccessRule[];
   }): Promise<{ id: string }>;
   createChannelGroup(name: string): Promise<{ id: string }>;
+  /** Best-effort grant of `channelFullControl` to the bot on a channel group. */
+  grantBotFullControl(channelGroupId: string): Promise<void>;
+  /** Resolves a member's display name, or throws if the member is unknown. */
+  getMemberName(userId: string): Promise<string>;
   createMessage(request: {
     channelId: string;
     content: string;
@@ -58,9 +63,11 @@ export interface RootDealAlertApi {
 export function createRootServerDealAlertApi(
   root: typeof rootServer = rootServer
 ): RootDealAlertApi {
+  const botId = String(root.appId);
+
   return {
     everyoneRoleId: String(WellKnownRootGuids.CommunityRoles.EveryoneRole),
-    botId: String(root.appId),
+    botId,
     async createChannel(request) {
       const channel = await root.community.channels.create({
         channelGroupId: request.channelGroupId as ChannelGroupGuid,
@@ -75,8 +82,31 @@ export function createRootServerDealAlertApi(
       return { id: String(channel.id) };
     },
     async createChannelGroup(name) {
-      const group = await root.community.channelGroups.create({ name });
+      // Grant the bot full control over the group it creates, otherwise it
+      // cannot create the per-user channels inside it (NoPermissionToCreate).
+      const group = await root.community.channelGroups.create({
+        name,
+        accessRuleCreates: [
+          {
+            roleOrMemberId: botId as RoleOrMemberGuid,
+            overlay: { channelFullControl: true },
+          },
+        ],
+      });
       return { id: String(group.id) };
+    },
+    async grantBotFullControl(channelGroupId) {
+      await root.community.accessRules.create({
+        channelOrChannelGroupId: channelGroupId as ChannelOrChannelGroupGuid,
+        roleOrMemberId: botId as RoleOrMemberGuid,
+        overlay: { channelFullControl: true },
+      });
+    },
+    async getMemberName(userId) {
+      const member = await root.community.communityMembers.get({
+        userId: userId as UserGuid,
+      });
+      return member.nickname;
     },
     async createMessage(request) {
       const message = await root.community.channelMessages.create({
@@ -112,7 +142,7 @@ export interface RootDealAlertTransportOptions {
   channelType?: number;
 }
 
-function channelNameForRecipient(recipient: string): string {
+function fallbackChannelName(recipient: string): string {
   return `ga-alerts-${recipient}`.slice(0, 100);
 }
 
@@ -151,12 +181,22 @@ export function createRootDealAlertTransport({
         },
       ];
 
+      let channelName = fallbackChannelName(recipient);
+      try {
+        const displayName = await api.getMemberName(recipient);
+        if (displayName && displayName.trim()) {
+          channelName = `${displayName.trim()}'s Wantlist`.slice(0, 100);
+        }
+      } catch {
+        // Keep the id-based fallback when the member can't be resolved.
+      }
+
       const channelId =
         previousChannelId ??
         (
           await api.createChannel({
             channelGroupId,
-            name: channelNameForRecipient(recipient),
+            name: channelName,
             channelType,
             useChannelGroupPermission: false,
             accessRuleCreates,

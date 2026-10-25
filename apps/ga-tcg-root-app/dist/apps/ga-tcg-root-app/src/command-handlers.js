@@ -7,6 +7,9 @@ const server_bot_1 = require("@rootsdk/server-bot");
 const deal_alert_notifier_1 = require("./deal-alert-notifier");
 const community_config_1 = require("./community-config");
 const root_bot_api_1 = require("./root-bot-api");
+const diagnostics_1 = require("./diagnostics");
+/** Name of the market-dump channel the bot creates inside the `/setup` group. */
+const MARKET_CHANNEL_NAME = "market";
 function isAssistantApiError(err) {
     if (typeof err !== "object" || err === null) {
         return false;
@@ -46,16 +49,21 @@ function defaultRootCommandDeps(communityId, client) {
         },
         async configureFromChannel(channelId) {
             const config = (0, community_config_1.createCommunityConfig)(server_bot_1.rootServer.dataStore.appData);
-            await config.setBroadcastChannelId(channelId);
-            try {
-                const channel = await server_bot_1.rootServer.community.channels.get({
-                    id: channelId,
-                });
-                await config.setAlertSectionId(String(channel.channelGroupId));
-            }
-            catch (err) {
-                console.warn("[setup] Could not resolve the channel's group; the bot will fall back to creating its own deal-alert section.", err instanceof Error ? err.message : err);
-            }
+            // The bot creates its own dump channel in the same group, so it does not
+            // depend on the user's channel and can grant itself access.
+            const source = await server_bot_1.rootServer.community.channels.get({
+                id: channelId,
+            });
+            const groupId = String(source.channelGroupId);
+            const created = await server_bot_1.rootServer.community.channels.create({
+                channelGroupId: groupId,
+                name: MARKET_CHANNEL_NAME,
+                channelType: server_bot_1.ChannelType.Text,
+                useChannelGroupPermission: true,
+            });
+            await config.setBroadcastChannelId(String(created.id));
+            await config.setAlertSectionId(groupId);
+            return MARKET_CHANNEL_NAME;
         },
         async isCommunityAdmin(userId) {
             const community = await server_bot_1.rootServer.community.communities.get();
@@ -238,14 +246,19 @@ async function processRootCommand(userId, messageContent, client = getRootBotApi
                 return "⚠️ Run `/setup` inside the channel you want market updates posted to.";
             }
             if (argString.toLowerCase() !== "confirm") {
-                return "⚠️ **This channel will become the market dump.** Every store update will be posted here.\nRun `/setup confirm` in this channel to apply it.";
+                return "⚠️ **Market setup.** I'll create a **#market** channel in this channel's group to receive store updates, and your per-user alert channels will be created there too.\nRun `/setup confirm` in this channel to apply it.";
             }
-            await resolvedDeps.configureFromChannel(channelId);
-            return "✅ **Setup complete.** This channel is now the market dump — store updates will be posted here, and per-user alert channels will be created in this channel's group.";
+            const marketChannelName = await resolvedDeps.configureFromChannel(channelId);
+            return `✅ **Setup complete.** I created **#${marketChannelName}** for market updates, and per-user alert channels will be created in this channel's group.`;
         }
         return null;
     }
     catch (err) {
+        await (0, diagnostics_1.reportDiagnostic)({
+            stage: "command-error",
+            message: err,
+            level: server_bot_1.CommunityAppLogType.Error,
+        });
         if (isAssistantApiError(err)) {
             if (err.code === "IDENTITY_NOT_LINKED") {
                 return "⚠️ **Grand Archive Binder Account Not Linked**\nLink your account first:\n1. Open GA Binder > **Settings > Linked Accounts**\n2. Click **Generate Code**\n3. Run `/link <code>` here in Root.";

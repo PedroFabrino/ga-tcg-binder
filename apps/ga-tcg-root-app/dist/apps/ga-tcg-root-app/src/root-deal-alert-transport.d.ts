@@ -29,6 +29,10 @@ export interface RootDealAlertApi {
     createChannelGroup(name: string): Promise<{
         id: string;
     }>;
+    /** Best-effort grant of `channelFullControl` to the bot on a channel group. */
+    grantBotFullControl(channelGroupId: string): Promise<void>;
+    /** Resolves a member's display name, or throws if the member is unknown. */
+    getMemberName(userId: string): Promise<string>;
     createMessage(request: {
         channelId: string;
         content: string;

@@ -9,7 +9,7 @@ export interface RootCommandDeps {
     provisionDealAlerts?: () => Promise<void>;
     removeDealAlertChannel?: (recipientId: string) => Promise<void>;
     ensureRecipientChannel?: (recipientId: string) => Promise<string | null>;
-    configureFromChannel?: (channelId: string) => Promise<void>;
+    configureFromChannel?: (channelId: string) => Promise<string | undefined>;
     isCommunityAdmin?: (userId: string) => Promise<boolean>;
 }
 export declare function getRootBotApi(communityId?: string): RootBotApi;

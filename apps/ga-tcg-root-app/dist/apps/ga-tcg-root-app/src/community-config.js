@@ -10,7 +10,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createCommunityConfig = createCommunityConfig;
 const BROADCAST_CHANNEL_KEY = "market.broadcastChannelId";
-const ALERT_SECTION_KEY = "dealAlert.sectionId";
+const ALERT_SECTION_KEY = "dealAlert.sectionId.v2";
 function createCommunityConfig(store) {
     return {
         async getBroadcastChannelId() {

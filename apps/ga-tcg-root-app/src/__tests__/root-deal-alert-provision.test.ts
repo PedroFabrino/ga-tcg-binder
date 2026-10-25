@@ -21,6 +21,10 @@ function createRootApi() {
     async createChannelGroup() {
       return { id: "grp-1" };
     },
+    async grantBotFullControl() {},
+    async getMemberName() {
+      return "Alice";
+    },
     async createMessage(request) {
       messages.push(request.content);
       return { id: `msg-${messages.length}` };

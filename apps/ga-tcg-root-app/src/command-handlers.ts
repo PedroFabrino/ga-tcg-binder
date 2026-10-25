@@ -1,7 +1,10 @@
 import {
   rootServer,
+  ChannelType,
+  CommunityAppLogType,
   MessageType,
   WellKnownRootGuids,
+  type ChannelGroupGuid,
   type ChannelGuid,
   type ChannelMessageCreatedEvent,
   type UserGuid,
@@ -13,6 +16,10 @@ import {
 } from "./deal-alert-notifier";
 import { createCommunityConfig } from "./community-config";
 import { RootBotApi, RootBotApiError } from "./root-bot-api";
+import { reportDiagnostic } from "./diagnostics";
+
+/** Name of the market-dump channel the bot creates inside the `/setup` group. */
+const MARKET_CHANNEL_NAME = "market";
 
 /**
  * Structural stand-in for the web app's `AssistantApiError` so the bot does not
@@ -51,7 +58,7 @@ export interface RootCommandDeps {
   provisionDealAlerts?: () => Promise<void>;
   removeDealAlertChannel?: (recipientId: string) => Promise<void>;
   ensureRecipientChannel?: (recipientId: string) => Promise<string | null>;
-  configureFromChannel?: (channelId: string) => Promise<void>;
+  configureFromChannel?: (channelId: string) => Promise<string | undefined>;
   isCommunityAdmin?: (userId: string) => Promise<boolean>;
 }
 
@@ -88,19 +95,25 @@ function defaultRootCommandDeps(
     },
     async configureFromChannel(channelId) {
       const config = createCommunityConfig(rootServer.dataStore.appData);
-      await config.setBroadcastChannelId(channelId);
 
-      try {
-        const channel = await rootServer.community.channels.get({
-          id: channelId as unknown as ChannelGuid,
-        });
-        await config.setAlertSectionId(String(channel.channelGroupId));
-      } catch (err) {
-        console.warn(
-          "[setup] Could not resolve the channel's group; the bot will fall back to creating its own deal-alert section.",
-          err instanceof Error ? err.message : err
-        );
-      }
+      // The bot creates its own dump channel in the same group, so it does not
+      // depend on the user's channel and can grant itself access.
+      const source = await rootServer.community.channels.get({
+        id: channelId as unknown as ChannelGuid,
+      });
+      const groupId = String(source.channelGroupId);
+
+      const created = await rootServer.community.channels.create({
+        channelGroupId: groupId as unknown as ChannelGroupGuid,
+        name: MARKET_CHANNEL_NAME,
+        channelType: ChannelType.Text,
+        useChannelGroupPermission: true,
+      });
+
+      await config.setBroadcastChannelId(String(created.id));
+      await config.setAlertSectionId(groupId);
+
+      return MARKET_CHANNEL_NAME;
     },
     async isCommunityAdmin(userId) {
       const community = await rootServer.community.communities.get();
@@ -332,15 +345,21 @@ export async function processRootCommand(
       }
 
       if (argString.toLowerCase() !== "confirm") {
-        return "⚠️ **This channel will become the market dump.** Every store update will be posted here.\nRun `/setup confirm` in this channel to apply it.";
+        return "⚠️ **Market setup.** I'll create a **#market** channel in this channel's group to receive store updates, and your per-user alert channels will be created there too.\nRun `/setup confirm` in this channel to apply it.";
       }
 
-      await resolvedDeps.configureFromChannel(channelId);
-      return "✅ **Setup complete.** This channel is now the market dump — store updates will be posted here, and per-user alert channels will be created in this channel's group.";
+      const marketChannelName = await resolvedDeps.configureFromChannel(channelId);
+      return `✅ **Setup complete.** I created **#${marketChannelName}** for market updates, and per-user alert channels will be created in this channel's group.`;
     }
 
     return null;
   } catch (err: any) {
+    await reportDiagnostic({
+      stage: "command-error",
+      message: err,
+      level: CommunityAppLogType.Error,
+    });
+
     if (isAssistantApiError(err)) {
       if (err.code === "IDENTITY_NOT_LINKED") {
         return "⚠️ **Grand Archive Binder Account Not Linked**\nLink your account first:\n1. Open GA Binder > **Settings > Linked Accounts**\n2. Click **Generate Code**\n3. Run `/link <code>` here in Root.";

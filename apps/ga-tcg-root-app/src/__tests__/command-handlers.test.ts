@@ -143,7 +143,7 @@ describe("Root Command Handlers (processRootCommand)", () => {
         provisionDealAlerts: vi.fn().mockResolvedValue(undefined),
         removeDealAlertChannel: vi.fn().mockResolvedValue(undefined),
         ensureRecipientChannel: vi.fn().mockResolvedValue("chan-private"),
-        configureFromChannel: vi.fn().mockResolvedValue(undefined),
+        configureFromChannel: vi.fn().mockResolvedValue("market"),
         isCommunityAdmin: vi.fn().mockResolvedValue(true),
       } as RootCommandDeps;
     }
@@ -261,7 +261,7 @@ describe("Root Command Handlers (processRootCommand)", () => {
   describe("/setup", () => {
     function createDeps(admin = true): RootCommandDeps {
       return {
-        configureFromChannel: vi.fn().mockResolvedValue(undefined),
+        configureFromChannel: vi.fn().mockResolvedValue("market"),
         isCommunityAdmin: vi.fn().mockResolvedValue(admin),
       } as RootCommandDeps;
     }
@@ -277,7 +277,7 @@ describe("Root Command Handlers (processRootCommand)", () => {
         "chan-market"
       );
 
-      expect(res).toContain("become the market dump");
+      expect(res).toContain("Market setup");
       expect(res).toContain("/setup confirm");
       expect(deps.configureFromChannel).not.toHaveBeenCalled();
     });
