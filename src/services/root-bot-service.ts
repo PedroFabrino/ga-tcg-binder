@@ -19,7 +19,7 @@ import {
 } from "../db/repositories/root-community-identity-repository";
 import { revokeRootBotInstall } from "../db/repositories/root-bot-install-repository";
 import { parseMessageIds } from "./discord-dm-client";
-import { ROOT_MESSAGE_MAX_LENGTH } from "../lib/market-vocabulary";
+import { ROOT_MESSAGE_MAX_BYTES } from "../lib/market-vocabulary";
 import {
   planDealAlerts,
   type DealAlertPlanResult,
@@ -71,8 +71,9 @@ export async function listPendingMarketChunks(
       notifications,
       storeName,
       store?.lastFullScanAt ?? null,
-      ROOT_MESSAGE_MAX_LENGTH,
-      store?.baseUrl ?? null
+      ROOT_MESSAGE_MAX_BYTES,
+      store?.baseUrl ?? null,
+      true
     )) {
       chunks.push({
         storeId,

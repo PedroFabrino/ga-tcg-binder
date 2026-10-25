@@ -66,11 +66,13 @@ export const MARKETPLACE_PLATFORMS: readonly MarketplacePlatform[] = [
 export const MESSAGE_MAX_LENGTH = 2000;
 
 /**
- * Root's message service rejects oversized posts with a gRPC UNAVAILABLE
- * (empty response) rather than a validation error. Keep Root messages well
- * under the Discord budget so scheduled/provision posts don't trip it.
+ * Root's MessageGrpcService/Create rejects messages larger than ~1 KB with a
+ * gRPC UNAVAILABLE (empty response) rather than a validation error. The limit
+ * is measured in UTF-8 bytes, so keep Root messages under this byte budget.
+ * (A 994-char deal-alert chunk at 1014 bytes posts fine; market chunks at
+ * 1028–1048 bytes fail.)
  */
-export const ROOT_MESSAGE_MAX_LENGTH = 1000;
+export const ROOT_MESSAGE_MAX_BYTES = 900;
 
 /**
  * Canonical external Listing identity. Parsers may keep their legacy field

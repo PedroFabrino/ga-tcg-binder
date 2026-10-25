@@ -114,13 +114,20 @@ export function escapeLinkUrl(value: string): string {
 /**
  * Renders one card bullet line for chat platforms (Root, Discord).
  * The card name is hyperlinked if `imageUrl` is a valid https product URL.
+ * With `plainLinks`, the URL is emitted as plain text instead of a Markdown
+ * link so Root shows the raw link rather than an embed.
  */
 export function formatMarketNotificationCardLine(
- notification: MarketNotification
+ notification: MarketNotification,
+ plainLinks = false
 ): string {
  const cardDetails = formatMarketNotificationCardDetails(notification);
- const cardName = isHttpsUrl(notification.imageUrl)
-  ? `[${notification.cardName}](<${escapeLinkUrl(notification.imageUrl)}>)`
+ const url = notification.imageUrl;
+ if (plainLinks && isHttpsUrl(url)) {
+  return `• ${notification.cardName} — ${cardDetails} — ${url}`;
+ }
+ const cardName = isHttpsUrl(url)
+  ? `[${notification.cardName}](<${escapeLinkUrl(url)}>)`
   : notification.cardName;
 
  return `• ${cardName} — ${cardDetails}`;
@@ -180,16 +187,82 @@ export function splitMessageContent(
 }
 
 /**
- * Splits a batch of notifications into chunks of at most `maxLength` characters.
- * Each chunk tracks the notification IDs included within it so delivery can be
- * marked incrementally per sent message, preventing duplicate re-sends on partial failures.
+ * UTF-8 byte length of a string. Root's message service enforces a byte budget,
+ * not a character budget.
+ */
+export function byteLength(value: string): number {
+ return new TextEncoder().encode(value).length;
+}
+
+/**
+ * Byte-aware variant of `splitMessageContent` for Root: breaks on line
+ * boundaries, hard-splitting any single line that exceeds the byte budget.
+ */
+export function splitMessageContentByBytes(
+ message: string,
+ maxBytes: number
+): string[] {
+ if (byteLength(message) <= maxBytes) {
+  return [message];
+ }
+
+ const lines = message.split("\n");
+ const chunks: string[] = [];
+ let current = "";
+
+ const pushCurrent = () => {
+  if (current) {
+   chunks.push(current);
+   current = "";
+  }
+ };
+
+ for (const line of lines) {
+  // A single over-long line must be hard-split so it never exceeds the budget.
+  if (byteLength(line) > maxBytes) {
+   pushCurrent();
+   let remaining = line;
+   while (byteLength(remaining) > maxBytes) {
+    let cut = remaining.length;
+    while (cut > 0 && byteLength(remaining.slice(0, cut)) > maxBytes) {
+     cut -= 1;
+    }
+    chunks.push(remaining.slice(0, cut));
+    remaining = remaining.slice(cut);
+   }
+   if (remaining) {
+    current = remaining;
+   }
+   continue;
+  }
+
+  const candidate = current ? `${current}\n${line}` : line;
+  if (byteLength(candidate) > maxBytes) {
+   pushCurrent();
+   current = line;
+  } else {
+   current = candidate;
+  }
+ }
+
+ pushCurrent();
+
+ return chunks;
+}
+
+/**
+ * Splits a batch of notifications into chunks of at most `maxBytes` UTF-8
+ * bytes. Each chunk tracks the notification IDs included within it so delivery
+ * can be marked incrementally per sent message, preventing duplicate re-sends
+ * on partial failures.
  */
 export function formatMarketNotificationChunks(
  notifications: MarketNotification[],
  storeName: string,
  lastSyncDate?: Date | string | null,
- maxLength: number = MESSAGE_MAX_LENGTH,
- storeUrl?: string | null
+ maxBytes: number = MESSAGE_MAX_LENGTH,
+ storeUrl?: string | null,
+ plainLinks = false
 ): MarketNotificationChunk[] {
  if (notifications.length === 0) {
   return [];
@@ -197,9 +270,12 @@ export function formatMarketNotificationChunks(
 
  const sorted = sortMarketNotificationsByDetectedAt(notifications);
  const dateStr = formatMarketNotificationDate(lastSyncDate);
- const storeTitle = isHttpsUrl(storeUrl)
-  ? `**[${storeName}](<${escapeLinkUrl(storeUrl)}>)**`
-  : `**${storeName}**`;
+ const storeTitle =
+  plainLinks && isHttpsUrl(storeUrl)
+   ? `**${storeName}**`
+   : isHttpsUrl(storeUrl)
+     ? `**[${storeName}](<${escapeLinkUrl(storeUrl)}>)**`
+     : `**${storeName}**`;
 
  const header = `${storeTitle} updated their stock!\nNew cards since ${dateStr}:`;
 
@@ -208,10 +284,10 @@ export function formatMarketNotificationChunks(
  let currentIds: string[] = [];
 
  for (const n of sorted) {
-  const cardLine = formatMarketNotificationCardLine(n);
+  const cardLine = formatMarketNotificationCardLine(n, plainLinks);
   const candidate = currentContent ? `${currentContent}\n${cardLine}` : cardLine;
 
-  if (candidate.length > maxLength && currentIds.length > 0) {
+  if (byteLength(candidate) > maxBytes && currentIds.length > 0) {
    chunks.push({
     content: currentContent,
     notificationIds: currentIds,
