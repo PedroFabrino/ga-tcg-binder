@@ -75,7 +75,6 @@ describe("Root deal-alert transport", () => {
     expect(channel.name).toBe("Alice's Wantlist");
     expect(channel.useChannelGroupPermission).toBe(false);
     expect(channel.accessRuleCreates).toEqual([
-      { roleOrMemberId: "role_everyone", overlay: { channelView: false } },
       {
         roleOrMemberId: "root_user_1",
         overlay: {
@@ -84,7 +83,7 @@ describe("Root deal-alert transport", () => {
           channelViewMessageHistory: true,
         },
       },
-      { roleOrMemberId: "app_bot", overlay: { channelFullControl: true } },
+      { roleOrMemberId: "app_bot", overlay: { channelView: true, channelFullControl: true } },
     ]);
 
     expect(fake.messages).toEqual([
@@ -104,7 +103,7 @@ describe("Root deal-alert transport", () => {
 
     expect(fake.channels[0].accessRuleCreates).toContainEqual({
       roleOrMemberId: "app_bot",
-      overlay: { channelFullControl: true },
+      overlay: { channelView: true, channelFullControl: true },
     });
   });
 

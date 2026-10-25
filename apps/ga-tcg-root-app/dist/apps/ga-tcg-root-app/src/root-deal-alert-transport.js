@@ -89,10 +89,8 @@ function createRootDealAlertTransport({ channelGroupId, api, channelType = serve
         async send(recipient, content, previousChannelId) {
             const accessRuleCreates = [
                 {
-                    roleOrMemberId: api.everyoneRoleId,
-                    overlay: { channelView: false },
-                },
-                {
+                    // `useChannelGroupPermission: false` means unlisted members have no
+                    // access by default, so we only grant the recipient and the bot.
                     roleOrMemberId: recipient,
                     overlay: {
                         channelView: true,
@@ -101,11 +99,8 @@ function createRootDealAlertTransport({ channelGroupId, api, channelType = serve
                     },
                 },
                 {
-                    // Each channel denies the Everyone role view, so the bot must grant
-                    // itself access explicitly (as a member: an App is a valid
-                    // RoleOrMemberGuid).
                     roleOrMemberId: api.botId,
-                    overlay: { channelFullControl: true },
+                    overlay: { channelView: true, channelFullControl: true },
                 },
             ];
             let channelName = fallbackChannelName(recipient);
