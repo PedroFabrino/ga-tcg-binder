@@ -65,4 +65,30 @@ describe("DecksDashboardCard", () => {
     expect(html).toContain("Silvie Control");
     expect(html).toContain("100% Complete");
   });
+
+  it("renders edit deck action when onUpdateDeck is provided", () => {
+    const completeDeck = [
+      {
+        id: "deck-2",
+        name: "Silvie Control",
+        champion: "Silvie",
+        format: "Standard",
+        totalCards: 60,
+        hardShortagesCount: 0,
+        sharedShortagesCount: 0,
+        hardShortages: [],
+        sharedShortages: [],
+      },
+    ];
+
+    const html = renderToStaticMarkup(
+      <DecksDashboardCard
+        isLinked={true}
+        decks={completeDeck}
+        onUpdateDeck={async () => ({ success: true })}
+      />
+    );
+
+    expect(html).toContain('aria-label="Edit Silvie Control"');
+  });
 });

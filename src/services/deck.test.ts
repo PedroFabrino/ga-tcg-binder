@@ -76,6 +76,30 @@ describe("deck service", () => {
     });
 
     await updateDeckService("deck-to-update", { name: "Updated", format: "casual" }, db);
+    const [updatedDeck] = await db.select().from(decks).where(eq(decks.id, "deck-to-update"));
+    expect(updatedDeck?.name).toBe("Updated");
+    expect(updatedDeck?.format).toBe("casual");
+
+    // In-place replacement with omnidexText
+    await updateDeckService(
+      "deck-to-update",
+      {
+        name: "New Deck Name",
+        champion: "Lorraine",
+        omnidexText: "# Material Deck\n1 Lorraine\n# Main Deck\n2 Fireball",
+      },
+      db
+    );
+
+    const [reloadedDeck] = await db.select().from(decks).where(eq(decks.id, "deck-to-update"));
+    expect(reloadedDeck?.name).toBe("New Deck Name");
+    expect(reloadedDeck?.champion).toBe("Lorraine");
+
+    const newCards = await db.select().from(deckCards).where(eq(deckCards.deckId, "deck-to-update"));
+    expect(newCards).toHaveLength(2);
+    expect(newCards.find((c) => c.zone === "material")?.cardSlug).toBe("lorraine");
+    expect(newCards.find((c) => c.zone === "main")?.quantity).toBe(2);
+
     await deleteDeckService("deck-to-update", db);
 
     const [deletedDeck] = await db.select().from(decks).where(eq(decks.id, "deck-to-update"));

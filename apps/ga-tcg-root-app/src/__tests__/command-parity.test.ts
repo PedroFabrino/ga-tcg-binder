@@ -51,6 +51,29 @@ describe("Root Command Handlers - Discord Parity Features", () => {
     expect(res).toContain('Deck "Rai Aggro" Imported Successfully!');
   });
 
+  it("handles /decks update <deck> <url>", async () => {
+    const mockClient = {
+      getDecks: vi.fn().mockResolvedValue({
+        decks: [{ id: "d-1", name: "Rai Aggro" }],
+      }),
+      updateDeck: vi.fn().mockResolvedValue({
+        success: true,
+        deck: { id: "d-1", name: "Rai Aggro" },
+      }),
+    } as unknown as RootBotApi;
+
+    const res = await processRootCommand(
+      mockUserId,
+      "/decks update Rai Aggro https://omnidex.gg/deck/456",
+      mockClient
+    );
+    expect(mockClient.updateDeck).toHaveBeenCalledWith(mockUserId, {
+      deckId: "d-1",
+      url: "https://omnidex.gg/deck/456",
+    });
+    expect(res).toContain('Deck "Rai Aggro" Updated Successfully!');
+  });
+
   it("handles /shortages with no arguments to list user decks", async () => {
     const mockClient = {
       getDecks: vi.fn().mockResolvedValue({

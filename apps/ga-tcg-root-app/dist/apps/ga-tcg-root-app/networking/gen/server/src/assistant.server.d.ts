@@ -1,4 +1,4 @@
-import { AddWantRpcRequest, AddWantRpcResponse, AutocompleteRpcRequest, AutocompleteRpcResponse, DecksResponse, ImportDeckRpcRequest, ImportDeckRpcResponse, LinkRequest, LinkResponse, PersonalWantsRpcResponse, PreferencesRequest, PreferencesResponse, RegisterResponse, RemoveWantRpcRequest, RemoveWantRpcResponse, StatusResponse } from "@ga/gen-shared";
+import { AddWantRpcRequest, AddWantRpcResponse, AutocompleteRpcRequest, AutocompleteRpcResponse, DecksResponse, ImportDeckRpcRequest, ImportDeckRpcResponse, LinkRequest, LinkResponse, PersonalWantsRpcResponse, PreferencesRequest, PreferencesResponse, RegisterResponse, RemoveWantRpcRequest, RemoveWantRpcResponse, StatusResponse, UpdateDeckRpcRequest, UpdateDeckRpcResponse } from "@ga/gen-shared";
 import { Client, RootServerService } from "@rootsdk/server-app";
 export declare abstract class AssistantServiceBase implements RootServerService {
     abstract getStatus(client: Client): Promise<StatusResponse>;
@@ -11,6 +11,7 @@ export declare abstract class AssistantServiceBase implements RootServerService 
     abstract addWant(request: AddWantRpcRequest, client: Client): Promise<AddWantRpcResponse>;
     abstract removeWant(request: RemoveWantRpcRequest, client: Client): Promise<RemoveWantRpcResponse>;
     abstract importDeck(request: ImportDeckRpcRequest, client: Client): Promise<ImportDeckRpcResponse>;
+    abstract updateDeck(request: UpdateDeckRpcRequest, client: Client): Promise<UpdateDeckRpcResponse>;
     private __register;
     get ServerServiceName(): string;
 }

@@ -1,6 +1,6 @@
 import { AssistantServiceBase } from "@ga/gen-server";
 import { type Client } from "@rootsdk/server-app";
-import { type AddWantRpcRequest, type AddWantRpcResponse, type AutocompleteRpcRequest, type AutocompleteRpcResponse, type DecksResponse, type ImportDeckRpcRequest, type ImportDeckRpcResponse, type LinkRequest, type LinkResponse, type PersonalWantsRpcResponse, type PreferencesRequest, type PreferencesResponse, type RegisterResponse, type RemoveWantRpcRequest, type RemoveWantRpcResponse, type StatusResponse } from "@ga/gen-shared";
+import { type AddWantRpcRequest, type AddWantRpcResponse, type AutocompleteRpcRequest, type AutocompleteRpcResponse, type DecksResponse, type ImportDeckRpcRequest, type ImportDeckRpcResponse, type LinkRequest, type LinkResponse, type PersonalWantsRpcResponse, type PreferencesRequest, type PreferencesResponse, type RegisterResponse, type RemoveWantRpcRequest, type RemoveWantRpcResponse, type StatusResponse, type UpdateDeckRpcRequest, type UpdateDeckRpcResponse } from "@ga/gen-shared";
 import { RootBotApi } from "./root-bot-api";
 export interface AssistantRpcServiceDeps {
     api?: RootBotApi;
@@ -24,4 +24,5 @@ export declare class AssistantRpcService extends AssistantServiceBase {
     addWant(request: AddWantRpcRequest, client: Client): Promise<AddWantRpcResponse>;
     removeWant(request: RemoveWantRpcRequest, client: Client): Promise<RemoveWantRpcResponse>;
     importDeck(request: ImportDeckRpcRequest, client: Client): Promise<ImportDeckRpcResponse>;
+    updateDeck(request: UpdateDeckRpcRequest, client: Client): Promise<UpdateDeckRpcResponse>;
 }

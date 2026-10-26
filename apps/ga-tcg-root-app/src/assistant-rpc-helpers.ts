@@ -1,4 +1,8 @@
-import type { DeckSummary } from "@ga/gen-shared";
+import type {
+  DeckSummary,
+  AutocompleteChoiceItem,
+  PersonalWantRpcItem,
+} from "@ga/gen-shared";
 import type { RootBotApi } from "./root-bot-api";
 import {
   ensureRootRecipientChannel,
@@ -109,4 +113,40 @@ export async function updateDealAlertPreferencesHelper(
   }
 
   return { alertChannelId };
+}
+
+export function mapAutocompleteChoice(r: {
+  name: string;
+  value: string;
+  element?: string | null;
+  type?: string | null;
+  quantity?: number;
+  foil?: boolean | number | null;
+}): AutocompleteChoiceItem {
+  return {
+    name: r.name,
+    value: r.value,
+    element: r.element || "",
+    type: r.type || "",
+    quantity: r.quantity || 0,
+    foil: Boolean(r.foil),
+  };
+}
+
+export function mapPersonalWant(w: {
+  cardSlug: string;
+  cardName: string;
+  element?: string | null;
+  type?: string | null;
+  desiredQuantity: number;
+  foil?: boolean | number | null;
+}): PersonalWantRpcItem {
+  return {
+    cardSlug: w.cardSlug,
+    cardName: w.cardName,
+    element: w.element || "",
+    type: w.type || "",
+    desiredQuantity: w.desiredQuantity,
+    foil: Boolean(w.foil),
+  };
 }

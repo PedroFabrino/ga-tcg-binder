@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { GET as getDecks } from "../decks/route";
+import { GET as getDecks, PUT as putDecks } from "../decks/route";
 import { GET as getShortages } from "../shortages/route";
 import { GET as getCollection } from "../collection/route";
 import { GET as getWantlist } from "../wantlist/route";
 import * as assistantAuth from "@/services/assistant-auth";
 import * as collectorAssistant from "@/services/collector-assistant";
+import * as assistantWants from "@/services/assistant-wants-service";
 
 describe("Assistant API Routes (/api/assistant/*)", () => {
   const origEnv = process.env;
@@ -169,5 +170,47 @@ describe("Assistant API Routes (/api/assistant/*)", () => {
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.collectorName).toBe("Arthur");
+  });
+
+  it("PUT /api/assistant/decks validates deckId and updates deck in place", async () => {
+    vi.spyOn(assistantAuth, "resolveAssistantCaller").mockResolvedValue({
+      context: {
+        collectorId: "user-1",
+        collectorName: "Arthur",
+        provider: "root",
+        providerUserId: "root-user-1",
+      },
+    });
+
+    vi.spyOn(assistantWants, "updateAssistantDeckFromSource").mockResolvedValue({
+      id: "deck-1",
+      name: "Updated Arthur Fire",
+    });
+
+    // Missing deckId
+    const reqMissing = new Request("http://localhost:3000/api/assistant/decks", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: "root", providerUserId: "root-user-1" }),
+    });
+    const resMissing = await putDecks(reqMissing);
+    expect(resMissing.status).toBe(400);
+
+    // Valid update
+    const reqValid = new Request("http://localhost:3000/api/assistant/decks", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        provider: "root",
+        providerUserId: "root-user-1",
+        deckId: "deck-1",
+        url: "https://omnidex.gg/deck/123",
+      }),
+    });
+    const resValid = await putDecks(reqValid);
+    expect(resValid.status).toBe(200);
+    const data = await resValid.json();
+    expect(data.success).toBe(true);
+    expect(data.deck.name).toBe("Updated Arthur Fire");
   });
 });

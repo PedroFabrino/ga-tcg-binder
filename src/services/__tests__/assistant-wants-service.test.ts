@@ -4,18 +4,21 @@ import {
   removeWantFromAssistant,
   getAutocompleteChoices,
   importAssistantDeckFromSource,
+  updateAssistantDeckFromSource,
 } from "../assistant-wants-service";
 import * as personalWantsRepo from "../../db/repositories/personal-wants-repository";
 import * as catalogRepo from "../../db/repositories/catalog-repository";
 import * as omnidexWants from "../omnidex-wants";
 import * as omnidex from "../omnidex";
 import * as collectorAssistant from "../collector-assistant";
+import * as deckService from "../deck";
 
 vi.mock("../../db/repositories/personal-wants-repository");
 vi.mock("../../db/repositories/catalog-repository");
 vi.mock("../omnidex-wants");
 vi.mock("../omnidex");
 vi.mock("../collector-assistant");
+vi.mock("../deck");
 
 describe("assistant-wants-service", () => {
   beforeEach(() => {
@@ -203,6 +206,35 @@ describe("assistant-wants-service", () => {
 
       expect(res.id).toBe("deck-123");
       expect(res.name).toBe("My Rai Deck");
+    });
+  });
+
+  describe("updateAssistantDeckFromSource", () => {
+    it("fetches URL and updates the deck in place", async () => {
+      vi.mocked(omnidex.fetchDeckFromUrl).mockResolvedValue({
+        name: "Updated Rai Deck",
+        decklist: "1 Rai\n4 Lightning Bolt",
+      } as any);
+
+      vi.mocked(deckService.updateDeckService).mockResolvedValue(undefined as any);
+
+      const res = await updateAssistantDeckFromSource("col-1", {
+        deckId: "deck-123",
+        url: "https://silvie.gg/deck/abc",
+      });
+
+      expect(res.id).toBe("deck-123");
+      expect(res.name).toBe("Updated Rai Deck");
+      expect(deckService.updateDeckService).toHaveBeenCalledWith(
+        "deck-123",
+        {
+          name: "Updated Rai Deck",
+          champion: undefined,
+          format: undefined,
+          omnidexText: "1 Rai\n4 Lightning Bolt",
+        },
+        undefined
+      );
     });
   });
 });

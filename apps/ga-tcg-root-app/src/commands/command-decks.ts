@@ -27,6 +27,44 @@ export async function handleDecksCommand(
     );
   }
 
+  // /decks update <deck> <url>
+  if (subCommand === "update") {
+    const remaining = parts.slice(1).join(" ").trim();
+    const lastSpace = remaining.lastIndexOf(" ");
+    let targetQuery = "";
+    let url = "";
+
+    if (lastSpace !== -1) {
+      targetQuery = remaining.slice(0, lastSpace).trim();
+      url = remaining.slice(lastSpace + 1).trim();
+    }
+
+    if (!targetQuery || !url || (!url.startsWith("http://") && !url.startsWith("https://"))) {
+      return (
+        "⚠️ **Usage:** `/decks update <deck_name> <url>`\n" +
+        "Provide your deck name and the updated Omnidex.gg or Silvie.gg deck URL."
+      );
+    }
+
+    const decksList = await client.getDecks(userId);
+    const cleanTarget = targetQuery.toLowerCase();
+    const match =
+      decksList.decks.find((d) => d.id === targetQuery) ||
+      decksList.decks.find((d) => d.name.toLowerCase() === cleanTarget) ||
+      decksList.decks.find((d) => d.name.toLowerCase().includes(cleanTarget));
+
+    if (!match) {
+      return `❌ **Deck "${targetQuery}" not found.** Use \`/decks\` to see all your active decks.`;
+    }
+
+    const res = await client.updateDeck(userId, { deckId: match.id, url });
+    return (
+      `🎉 **Deck "${res.deck.name}" Updated Successfully!**\n` +
+      `The updated decklist has replaced the existing cards.\n` +
+      `• Use \`/shortages ${res.deck.name}\` to inspect updated shortages.`
+    );
+  }
+
   // /decks or /decks overview
   const res = await client.getDecks(userId);
   if (res.decks.length === 0) {

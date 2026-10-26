@@ -45,6 +45,14 @@ export declare class RootBotApi {
         champion?: string;
         format?: string;
     }): Promise<AssistantImportDeckResponse>;
+    updateDeck(providerUserId: string, req: {
+        deckId: string;
+        url?: string;
+        text?: string;
+        name?: string;
+        champion?: string;
+        format?: string;
+    }): Promise<AssistantImportDeckResponse>;
     getShortages(providerUserId: string, deck: string): Promise<AssistantDeckShortagesResponse>;
     searchCollection(providerUserId: string, query: string): Promise<AssistantCollectionResponse>;
     getPortfolio(providerUserId: string): Promise<AssistantPortfolioResponse>;

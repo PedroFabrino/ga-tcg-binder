@@ -19,6 +19,8 @@ import {
 	RemoveWantRpcRequest,
 	RemoveWantRpcResponse,
 	StatusResponse,
+	UpdateDeckRpcRequest,
+	UpdateDeckRpcResponse,
 	Void
 } from "@ga/gen-shared"
 import {
@@ -65,6 +67,9 @@ export class AssistantServiceClient  {
 	}
 	importDeck(request: ImportDeckRpcRequest):Promise<ImportDeckRpcResponse> {
 		return (<any>rootClient).sendWithResponse('/.AssistantService/ImportDeck',request, this.importDeck);
+	}
+	updateDeck(request: UpdateDeckRpcRequest):Promise<UpdateDeckRpcResponse> {
+		return (<any>rootClient).sendWithResponse('/.AssistantService/UpdateDeck',request, this.updateDeck);
 	}private __register(): UntypedClientMethodDefinition[] {
 		return [	{
       serviceName: 'AssistantServiceClient',
@@ -135,6 +140,13 @@ export class AssistantServiceClient  {
 			path: '/.AssistantService/ImportDeck',
 			requestSerialize: value => ImportDeckRpcRequest.toBinary(value),
 			responseDeserialize: bytes => ImportDeckRpcResponse.fromBinary(bytes)
+    },
+		{
+      serviceName: 'AssistantServiceClient',
+			methodName: 'UpdateDeck',
+			path: '/.AssistantService/UpdateDeck',
+			requestSerialize: value => UpdateDeckRpcRequest.toBinary(value),
+			responseDeserialize: bytes => UpdateDeckRpcResponse.fromBinary(bytes)
     },
 	]}
 }

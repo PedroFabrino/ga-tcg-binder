@@ -135,6 +135,16 @@ class RootBotApi {
             }),
         });
     }
+    async updateDeck(providerUserId, req) {
+        return this.request("/api/assistant/decks", {
+            method: "PUT",
+            body: JSON.stringify({
+                provider: "root",
+                providerUserId,
+                ...req,
+            }),
+        });
+    }
     async getShortages(providerUserId, deck) {
         const params = new URLSearchParams({ provider: "root", providerUserId, deck });
         return this.request(`/api/assistant/shortages?${params.toString()}`);

@@ -107,6 +107,23 @@ export const App: React.FC<AppProps> = ({ client }) => {
     return { success: res.success, error: res.error };
   };
 
+  const handleUpdateDeck = async (
+    deckId: string,
+    data: { name?: string; url?: string; text?: string }
+  ) => {
+    const res = await client.updateDeck({
+      deckId,
+      url: data.url || "",
+      text: data.text || "",
+      name: data.name || "",
+      champion: "",
+    });
+    if (res.success) {
+      await fetchStatusAndDecks();
+    }
+    return { success: res.success, error: res.error };
+  };
+
   const handleUpdatePreferences = async (enabled: boolean, mode: "all" | "hard") => {
     const res = await client.setPreferences({
       notificationsEnabled: enabled,
@@ -192,6 +209,7 @@ export const App: React.FC<AppProps> = ({ client }) => {
               decks={decks}
               loading={refreshing}
               onImportDeck={handleImportDeck}
+              onUpdateDeck={handleUpdateDeck}
             />
 
             <WantlistCard

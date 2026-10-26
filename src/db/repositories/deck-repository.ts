@@ -97,6 +97,23 @@ export async function insertDeckCards(
   await database.insert(deckCards).values(cardsToInsert);
 }
 
+export async function replaceDeckCards(
+  deckId: string,
+  cardsToInsert: DeckCardInsert[],
+  database: DeckDatabase = db
+): Promise<void> {
+  const statements: [
+    Parameters<DeckDatabase["batch"]>[0][number],
+    ...Array<Parameters<DeckDatabase["batch"]>[0][number]>,
+  ] = [database.delete(deckCards).where(eq(deckCards.deckId, deckId))];
+
+  if (cardsToInsert.length > 0) {
+    statements.push(database.insert(deckCards).values(cardsToInsert));
+  }
+
+  await database.batch(statements);
+}
+
 export async function deleteDeckCard(
   deckCardId: string,
   database = db

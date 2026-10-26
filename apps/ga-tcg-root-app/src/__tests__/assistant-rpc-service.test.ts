@@ -354,4 +354,30 @@ describe("AssistantRpcService", () => {
       expect(res.deckName).toBe("Imported");
     });
   });
+
+  describe("updateDeck", () => {
+    it("updates a deck via the api", async () => {
+      const mockApi = {
+        updateDeck: vi.fn().mockResolvedValue({
+          success: true,
+          deck: { id: "d-1", name: "Updated" },
+        }),
+      } as unknown as RootBotApi;
+
+      const service = new AssistantRpcService("comm-123", { api: mockApi });
+      const res = await service.updateDeck(
+        { deckId: "d-1", url: "https://omnidex.gg/deck/456", text: "", name: "Updated", champion: "" },
+        createMockClient("user-123")
+      );
+      expect(res.success).toBe(true);
+      expect(res.deckName).toBe("Updated");
+      expect(mockApi.updateDeck).toHaveBeenCalledWith("user-123", {
+        deckId: "d-1",
+        url: "https://omnidex.gg/deck/456",
+        text: undefined,
+        name: "Updated",
+        champion: undefined,
+      });
+    });
+  });
 });

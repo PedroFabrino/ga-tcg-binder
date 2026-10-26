@@ -179,16 +179,7 @@ class AssistantRpcService extends gen_server_1.AssistantServiceBase {
         try {
             const type = request.type === "wants" || request.type === "deck" ? request.type : "card";
             const res = await api.autocomplete(userId, type, request.query || "");
-            return {
-                results: (res.results || []).map((r) => ({
-                    name: r.name,
-                    value: r.value,
-                    element: r.element || "",
-                    type: r.type || "",
-                    quantity: r.quantity || 0,
-                    foil: Boolean(r.foil),
-                })),
-            };
+            return { results: (res.results || []).map(assistant_rpc_helpers_1.mapAutocompleteChoice) };
         }
         catch {
             return { results: [] };
@@ -199,16 +190,7 @@ class AssistantRpcService extends gen_server_1.AssistantServiceBase {
         const api = this.getApi(client);
         try {
             const res = await api.getPersonalWants(userId);
-            return {
-                wants: (res.personalWants || []).map((w) => ({
-                    cardSlug: w.cardSlug,
-                    cardName: w.cardName,
-                    element: w.element || "",
-                    type: w.type || "",
-                    desiredQuantity: w.desiredQuantity,
-                    foil: Boolean(w.foil),
-                })),
-            };
+            return { wants: (res.personalWants || []).map(assistant_rpc_helpers_1.mapPersonalWant) };
         }
         catch {
             return { wants: [] };
@@ -298,6 +280,31 @@ class AssistantRpcService extends gen_server_1.AssistantServiceBase {
                 success: false,
                 deckName: "",
                 error: err instanceof Error ? err.message : "IMPORT_DECK_FAILED",
+            };
+        }
+    }
+    async updateDeck(request, client) {
+        const userId = String(client.userId);
+        const api = this.getApi(client);
+        try {
+            const res = await api.updateDeck(userId, {
+                deckId: request.deckId,
+                url: request.url || undefined,
+                text: request.text || undefined,
+                name: request.name || undefined,
+                champion: request.champion || undefined,
+            });
+            return {
+                success: true,
+                deckName: res.deck.name,
+                error: "",
+            };
+        }
+        catch (err) {
+            return {
+                success: false,
+                deckName: "",
+                error: err instanceof Error ? err.message : "UPDATE_DECK_FAILED",
             };
         }
     }

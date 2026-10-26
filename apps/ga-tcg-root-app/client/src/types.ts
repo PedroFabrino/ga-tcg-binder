@@ -18,6 +18,8 @@ import type {
   RemoveWantRpcRequest,
   RemoveWantRpcResponse,
   StatusResponse,
+  UpdateDeckRpcRequest,
+  UpdateDeckRpcResponse,
 } from "@ga/gen-shared";
 
 export type {
@@ -40,6 +42,8 @@ export type {
   RemoveWantRpcRequest,
   RemoveWantRpcResponse,
   StatusResponse,
+  UpdateDeckRpcRequest,
+  UpdateDeckRpcResponse,
 };
 
 export interface IAssistantRpcClient {
@@ -53,4 +57,5 @@ export interface IAssistantRpcClient {
   addWant(request: AddWantRpcRequest): Promise<AddWantRpcResponse>;
   removeWant(request: RemoveWantRpcRequest): Promise<RemoveWantRpcResponse>;
   importDeck(request: ImportDeckRpcRequest): Promise<ImportDeckRpcResponse>;
+  updateDeck(request: UpdateDeckRpcRequest): Promise<UpdateDeckRpcResponse>;
 }

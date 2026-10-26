@@ -202,6 +202,20 @@ export class RootBotApi {
     });
   }
 
+  async updateDeck(
+    providerUserId: string,
+    req: { deckId: string; url?: string; text?: string; name?: string; champion?: string; format?: string }
+  ): Promise<AssistantImportDeckResponse> {
+    return this.request("/api/assistant/decks", {
+      method: "PUT",
+      body: JSON.stringify({
+        provider: "root",
+        providerUserId,
+        ...req,
+      }),
+    });
+  }
+
   async getShortages(
     providerUserId: string,
     deck: string

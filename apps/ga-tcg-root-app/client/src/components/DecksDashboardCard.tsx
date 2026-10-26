@@ -8,6 +8,8 @@ import {
   ShieldAlert,
   Plus,
   Loader2,
+  Pencil,
+  Save,
 } from "lucide-react";
 import type { DeckSummary } from "../types";
 
@@ -16,6 +18,10 @@ export interface DecksDashboardCardProps {
   decks: DeckSummary[];
   loading?: boolean;
   onImportDeck?: (url: string) => Promise<{ success: boolean; error?: string }>;
+  onUpdateDeck?: (
+    deckId: string,
+    data: { name?: string; url?: string; text?: string }
+  ) => Promise<{ success: boolean; error?: string }>;
 }
 
 export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
@@ -23,12 +29,19 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
   decks,
   loading = false,
   onImportDeck,
+  onUpdateDeck,
 }) => {
   const [expandedDeckIds, setExpandedDeckIds] = useState<Set<string>>(new Set());
   const [showImport, setShowImport] = useState(false);
   const [importUrl, setImportUrl] = useState("");
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+
+  const [editingDeckId, setEditingDeckId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editUrl, setEditUrl] = useState("");
+  const [editUpdating, setEditUpdating] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const toggleExpand = (id: string) => {
     setExpandedDeckIds((prev) => {
@@ -57,6 +70,31 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
       setImportError("Import failed");
     } finally {
       setImporting(false);
+    }
+  };
+
+  const handleUpdateSubmit = async (deckId: string, e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onUpdateDeck || !editName.trim()) return;
+
+    setEditUpdating(true);
+    setEditError(null);
+    try {
+      const res = await onUpdateDeck(deckId, {
+        name: editName.trim(),
+        url: editUrl.trim() || undefined,
+      });
+      if (res.success) {
+        setEditingDeckId(null);
+        setEditName("");
+        setEditUrl("");
+      } else {
+        setEditError(res.error || "Failed to update deck");
+      }
+    } catch {
+      setEditError("Update failed");
+    } finally {
+      setEditUpdating(false);
     }
   };
 
@@ -186,11 +224,88 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
                         </div>
                       )}
 
+                      {onUpdateDeck && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (editingDeckId === deck.id) {
+                              setEditingDeckId(null);
+                            } else {
+                              setEditingDeckId(deck.id);
+                              setEditName(deck.name);
+                              setEditUrl("");
+                              setEditError(null);
+                            }
+                          }}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-300 hover:bg-white/[0.06] transition cursor-pointer"
+                          aria-label={`Edit ${deck.name}`}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+
                       <div className="text-slate-500 p-1">
                         {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                       </div>
                     </div>
                   </div>
+
+                  {editingDeckId === deck.id && (
+                    <form
+                      onSubmit={(e) => handleUpdateSubmit(deck.id, e)}
+                      className="p-4 bg-black/40 border-t border-cyan-500/30 space-y-3"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-cyan-300">Edit Deck: {deck.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setEditingDeckId(null)}
+                          className="text-xs text-slate-500 hover:text-slate-300 cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[10px] uppercase font-semibold text-slate-400 block mb-1">
+                            Deck Name
+                          </label>
+                          <input
+                            type="text"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            placeholder="Deck name..."
+                            className="w-full px-3 py-1.5 rounded-lg bg-black/50 border border-white/[0.1] text-xs text-slate-200"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] uppercase font-semibold text-slate-400 block mb-1">
+                            Omnidex or Silvie URL (optional)
+                          </label>
+                          <input
+                            type="text"
+                            value={editUrl}
+                            onChange={(e) => setEditUrl(e.target.value)}
+                            placeholder="https://omnidex.gg/deck/..."
+                            className="w-full px-3 py-1.5 rounded-lg bg-black/50 border border-white/[0.1] text-xs text-slate-200"
+                          />
+                        </div>
+                      </div>
+                      {editError && <p className="text-xs text-rose-400">{editError}</p>}
+                      <div className="flex justify-end gap-2 pt-1">
+                        <button
+                          type="submit"
+                          disabled={editUpdating || !editName.trim()}
+                          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-medium text-xs cursor-pointer"
+                        >
+                          {editUpdating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                          Save Changes
+                        </button>
+                      </div>
+                    </form>
+                  )}
 
                   {isExpanded && (
                     <div className="px-4 pb-4 pt-2 border-t border-white/[0.04] bg-black/10 space-y-3">

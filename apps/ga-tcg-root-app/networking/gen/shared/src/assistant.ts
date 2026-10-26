@@ -394,6 +394,48 @@ export interface ImportDeckRpcResponse {
      */
     error: string;
 }
+/**
+ * @generated from protobuf message UpdateDeckRpcRequest
+ */
+export interface UpdateDeckRpcRequest {
+    /**
+     * @generated from protobuf field: string deck_id = 1
+     */
+    deckId: string;
+    /**
+     * @generated from protobuf field: string url = 2
+     */
+    url: string;
+    /**
+     * @generated from protobuf field: string text = 3
+     */
+    text: string;
+    /**
+     * @generated from protobuf field: string name = 4
+     */
+    name: string;
+    /**
+     * @generated from protobuf field: string champion = 5
+     */
+    champion: string;
+}
+/**
+ * @generated from protobuf message UpdateDeckRpcResponse
+ */
+export interface UpdateDeckRpcResponse {
+    /**
+     * @generated from protobuf field: bool success = 1
+     */
+    success: boolean;
+    /**
+     * @generated from protobuf field: string deck_name = 2
+     */
+    deckName: string;
+    /**
+     * @generated from protobuf field: string error = 3
+     */
+    error: string;
+}
 // @generated message type with reflection information, may provide speed optimized methods
 class StatusResponse$Type extends MessageType<StatusResponse> {
     constructor() {
@@ -1742,3 +1784,145 @@ class ImportDeckRpcResponse$Type extends MessageType<ImportDeckRpcResponse> {
  * @generated MessageType for protobuf message ImportDeckRpcResponse
  */
 export const ImportDeckRpcResponse = new ImportDeckRpcResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UpdateDeckRpcRequest$Type extends MessageType<UpdateDeckRpcRequest> {
+    constructor() {
+        super("UpdateDeckRpcRequest", [
+            { no: 1, name: "deck_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "text", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "champion", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<UpdateDeckRpcRequest>): UpdateDeckRpcRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.deckId = "";
+        message.url = "";
+        message.text = "";
+        message.name = "";
+        message.champion = "";
+        if (value !== undefined)
+            reflectionMergePartial<UpdateDeckRpcRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UpdateDeckRpcRequest): UpdateDeckRpcRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string deck_id */ 1:
+                    message.deckId = reader.string();
+                    break;
+                case /* string url */ 2:
+                    message.url = reader.string();
+                    break;
+                case /* string text */ 3:
+                    message.text = reader.string();
+                    break;
+                case /* string name */ 4:
+                    message.name = reader.string();
+                    break;
+                case /* string champion */ 5:
+                    message.champion = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UpdateDeckRpcRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string deck_id = 1; */
+        if (message.deckId !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.deckId);
+        /* string url = 2; */
+        if (message.url !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.url);
+        /* string text = 3; */
+        if (message.text !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.text);
+        /* string name = 4; */
+        if (message.name !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.name);
+        /* string champion = 5; */
+        if (message.champion !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.champion);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message UpdateDeckRpcRequest
+ */
+export const UpdateDeckRpcRequest = new UpdateDeckRpcRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UpdateDeckRpcResponse$Type extends MessageType<UpdateDeckRpcResponse> {
+    constructor() {
+        super("UpdateDeckRpcResponse", [
+            { no: 1, name: "success", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 2, name: "deck_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<UpdateDeckRpcResponse>): UpdateDeckRpcResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.success = false;
+        message.deckName = "";
+        message.error = "";
+        if (value !== undefined)
+            reflectionMergePartial<UpdateDeckRpcResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UpdateDeckRpcResponse): UpdateDeckRpcResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* bool success */ 1:
+                    message.success = reader.bool();
+                    break;
+                case /* string deck_name */ 2:
+                    message.deckName = reader.string();
+                    break;
+                case /* string error */ 3:
+                    message.error = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UpdateDeckRpcResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* bool success = 1; */
+        if (message.success !== false)
+            writer.tag(1, WireType.Varint).bool(message.success);
+        /* string deck_name = 2; */
+        if (message.deckName !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.deckName);
+        /* string error = 3; */
+        if (message.error !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.error);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message UpdateDeckRpcResponse
+ */
+export const UpdateDeckRpcResponse = new UpdateDeckRpcResponse$Type();

@@ -388,6 +388,48 @@ export interface ImportDeckRpcResponse {
      */
     error: string;
 }
+/**
+ * @generated from protobuf message UpdateDeckRpcRequest
+ */
+export interface UpdateDeckRpcRequest {
+    /**
+     * @generated from protobuf field: string deck_id = 1
+     */
+    deckId: string;
+    /**
+     * @generated from protobuf field: string url = 2
+     */
+    url: string;
+    /**
+     * @generated from protobuf field: string text = 3
+     */
+    text: string;
+    /**
+     * @generated from protobuf field: string name = 4
+     */
+    name: string;
+    /**
+     * @generated from protobuf field: string champion = 5
+     */
+    champion: string;
+}
+/**
+ * @generated from protobuf message UpdateDeckRpcResponse
+ */
+export interface UpdateDeckRpcResponse {
+    /**
+     * @generated from protobuf field: bool success = 1
+     */
+    success: boolean;
+    /**
+     * @generated from protobuf field: string deck_name = 2
+     */
+    deckName: string;
+    /**
+     * @generated from protobuf field: string error = 3
+     */
+    error: string;
+}
 declare class StatusResponse$Type extends MessageType<StatusResponse> {
     constructor();
     create(value?: PartialMessage<StatusResponse>): StatusResponse;
@@ -588,4 +630,24 @@ declare class ImportDeckRpcResponse$Type extends MessageType<ImportDeckRpcRespon
  * @generated MessageType for protobuf message ImportDeckRpcResponse
  */
 export declare const ImportDeckRpcResponse: ImportDeckRpcResponse$Type;
+declare class UpdateDeckRpcRequest$Type extends MessageType<UpdateDeckRpcRequest> {
+    constructor();
+    create(value?: PartialMessage<UpdateDeckRpcRequest>): UpdateDeckRpcRequest;
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UpdateDeckRpcRequest): UpdateDeckRpcRequest;
+    internalBinaryWrite(message: UpdateDeckRpcRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter;
+}
+/**
+ * @generated MessageType for protobuf message UpdateDeckRpcRequest
+ */
+export declare const UpdateDeckRpcRequest: UpdateDeckRpcRequest$Type;
+declare class UpdateDeckRpcResponse$Type extends MessageType<UpdateDeckRpcResponse> {
+    constructor();
+    create(value?: PartialMessage<UpdateDeckRpcResponse>): UpdateDeckRpcResponse;
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UpdateDeckRpcResponse): UpdateDeckRpcResponse;
+    internalBinaryWrite(message: UpdateDeckRpcResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter;
+}
+/**
+ * @generated MessageType for protobuf message UpdateDeckRpcResponse
+ */
+export declare const UpdateDeckRpcResponse: UpdateDeckRpcResponse$Type;
 export {};

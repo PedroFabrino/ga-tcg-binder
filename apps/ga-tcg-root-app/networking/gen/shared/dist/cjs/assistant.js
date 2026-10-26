@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ImportDeckRpcResponse = exports.ImportDeckRpcRequest = exports.RemoveWantRpcResponse = exports.RemoveWantRpcRequest = exports.AddWantRpcResponse = exports.AddWantRpcRequest = exports.PersonalWantsRpcResponse = exports.PersonalWantRpcItem = exports.AutocompleteRpcResponse = exports.AutocompleteRpcRequest = exports.AutocompleteChoiceItem = exports.DecksResponse = exports.DeckSummary = exports.DeckShortageCard = exports.PreferencesResponse = exports.PreferencesRequest = exports.RegisterResponse = exports.LinkResponse = exports.LinkRequest = exports.StatusResponse = void 0;
+exports.UpdateDeckRpcResponse = exports.UpdateDeckRpcRequest = exports.ImportDeckRpcResponse = exports.ImportDeckRpcRequest = exports.RemoveWantRpcResponse = exports.RemoveWantRpcRequest = exports.AddWantRpcResponse = exports.AddWantRpcRequest = exports.PersonalWantsRpcResponse = exports.PersonalWantRpcItem = exports.AutocompleteRpcResponse = exports.AutocompleteRpcRequest = exports.AutocompleteChoiceItem = exports.DecksResponse = exports.DeckSummary = exports.DeckShortageCard = exports.PreferencesResponse = exports.PreferencesRequest = exports.RegisterResponse = exports.LinkResponse = exports.LinkRequest = exports.StatusResponse = void 0;
 const runtime_1 = require("@protobuf-ts/runtime");
 const runtime_2 = require("@protobuf-ts/runtime");
 const runtime_3 = require("@protobuf-ts/runtime");
@@ -1353,4 +1353,146 @@ class ImportDeckRpcResponse$Type extends runtime_4.MessageType {
  * @generated MessageType for protobuf message ImportDeckRpcResponse
  */
 exports.ImportDeckRpcResponse = new ImportDeckRpcResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UpdateDeckRpcRequest$Type extends runtime_4.MessageType {
+    constructor() {
+        super("UpdateDeckRpcRequest", [
+            { no: 1, name: "deck_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "text", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "champion", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value) {
+        const message = globalThis.Object.create((this.messagePrototype));
+        message.deckId = "";
+        message.url = "";
+        message.text = "";
+        message.name = "";
+        message.champion = "";
+        if (value !== undefined)
+            (0, runtime_3.reflectionMergePartial)(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader, length, options, target) {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string deck_id */ 1:
+                    message.deckId = reader.string();
+                    break;
+                case /* string url */ 2:
+                    message.url = reader.string();
+                    break;
+                case /* string text */ 3:
+                    message.text = reader.string();
+                    break;
+                case /* string name */ 4:
+                    message.name = reader.string();
+                    break;
+                case /* string champion */ 5:
+                    message.champion = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? runtime_2.UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message, writer, options) {
+        /* string deck_id = 1; */
+        if (message.deckId !== "")
+            writer.tag(1, runtime_1.WireType.LengthDelimited).string(message.deckId);
+        /* string url = 2; */
+        if (message.url !== "")
+            writer.tag(2, runtime_1.WireType.LengthDelimited).string(message.url);
+        /* string text = 3; */
+        if (message.text !== "")
+            writer.tag(3, runtime_1.WireType.LengthDelimited).string(message.text);
+        /* string name = 4; */
+        if (message.name !== "")
+            writer.tag(4, runtime_1.WireType.LengthDelimited).string(message.name);
+        /* string champion = 5; */
+        if (message.champion !== "")
+            writer.tag(5, runtime_1.WireType.LengthDelimited).string(message.champion);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? runtime_2.UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message UpdateDeckRpcRequest
+ */
+exports.UpdateDeckRpcRequest = new UpdateDeckRpcRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UpdateDeckRpcResponse$Type extends runtime_4.MessageType {
+    constructor() {
+        super("UpdateDeckRpcResponse", [
+            { no: 1, name: "success", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 2, name: "deck_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value) {
+        const message = globalThis.Object.create((this.messagePrototype));
+        message.success = false;
+        message.deckName = "";
+        message.error = "";
+        if (value !== undefined)
+            (0, runtime_3.reflectionMergePartial)(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader, length, options, target) {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* bool success */ 1:
+                    message.success = reader.bool();
+                    break;
+                case /* string deck_name */ 2:
+                    message.deckName = reader.string();
+                    break;
+                case /* string error */ 3:
+                    message.error = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? runtime_2.UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message, writer, options) {
+        /* bool success = 1; */
+        if (message.success !== false)
+            writer.tag(1, runtime_1.WireType.Varint).bool(message.success);
+        /* string deck_name = 2; */
+        if (message.deckName !== "")
+            writer.tag(2, runtime_1.WireType.LengthDelimited).string(message.deckName);
+        /* string error = 3; */
+        if (message.error !== "")
+            writer.tag(3, runtime_1.WireType.LengthDelimited).string(message.error);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? runtime_2.UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message UpdateDeckRpcResponse
+ */
+exports.UpdateDeckRpcResponse = new UpdateDeckRpcResponse$Type();
 //# sourceMappingURL=assistant.js.map

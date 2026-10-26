@@ -1,4 +1,4 @@
-import { AddWantRpcRequest, AddWantRpcResponse, AutocompleteRpcRequest, AutocompleteRpcResponse, DecksResponse, ImportDeckRpcRequest, ImportDeckRpcResponse, LinkRequest, LinkResponse, PersonalWantsRpcResponse, PreferencesRequest, PreferencesResponse, RegisterResponse, RemoveWantRpcRequest, RemoveWantRpcResponse, StatusResponse } from "@ga/gen-shared";
+import { AddWantRpcRequest, AddWantRpcResponse, AutocompleteRpcRequest, AutocompleteRpcResponse, DecksResponse, ImportDeckRpcRequest, ImportDeckRpcResponse, LinkRequest, LinkResponse, PersonalWantsRpcResponse, PreferencesRequest, PreferencesResponse, RegisterResponse, RemoveWantRpcRequest, RemoveWantRpcResponse, StatusResponse, UpdateDeckRpcRequest, UpdateDeckRpcResponse } from "@ga/gen-shared";
 export declare class AssistantServiceClient {
     get ClientServiceName(): string;
     getStatus(): Promise<StatusResponse>;
@@ -11,6 +11,7 @@ export declare class AssistantServiceClient {
     addWant(request: AddWantRpcRequest): Promise<AddWantRpcResponse>;
     removeWant(request: RemoveWantRpcRequest): Promise<RemoveWantRpcResponse>;
     importDeck(request: ImportDeckRpcRequest): Promise<ImportDeckRpcResponse>;
+    updateDeck(request: UpdateDeckRpcRequest): Promise<UpdateDeckRpcResponse>;
     private __register;
 }
 export declare const assistantServiceClient: AssistantServiceClient;

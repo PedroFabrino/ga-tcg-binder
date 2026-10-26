@@ -19,6 +19,8 @@ import {
 	RemoveWantRpcRequest,
 	RemoveWantRpcResponse,
 	StatusResponse,
+	UpdateDeckRpcRequest,
+	UpdateDeckRpcResponse,
 	Void
 } from "@ga/gen-shared"
 import {
@@ -42,6 +44,7 @@ export abstract class AssistantServiceBase implements RootServerService {
 	abstract addWant(request: AddWantRpcRequest, client: Client): Promise<AddWantRpcResponse>;
 	abstract removeWant(request: RemoveWantRpcRequest, client: Client): Promise<RemoveWantRpcResponse>;
 	abstract importDeck(request: ImportDeckRpcRequest, client: Client): Promise<ImportDeckRpcResponse>;
+	abstract updateDeck(request: UpdateDeckRpcRequest, client: Client): Promise<UpdateDeckRpcResponse>;
 
 	private __register(): UntypedServerMethodDefinition[] {
 		return [	{
@@ -123,6 +126,14 @@ export abstract class AssistantServiceBase implements RootServerService {
 			path: '/.AssistantService/ImportDeck',
 			requestDeserialize: bytes => ImportDeckRpcRequest.fromBinary(bytes),
 			responseSerialize: value => ImportDeckRpcResponse.toBinary(value)
+		},
+		{
+			serviceName: 'AssistantService',
+			methodName: 'UpdateDeck',
+			funct: (e: UpdateDeckRpcRequest, c: Client) => { return this.updateDeck(e, c) },
+			path: '/.AssistantService/UpdateDeck',
+			requestDeserialize: bytes => UpdateDeckRpcRequest.fromBinary(bytes),
+			responseSerialize: value => UpdateDeckRpcResponse.toBinary(value)
 		},
 	]}
 

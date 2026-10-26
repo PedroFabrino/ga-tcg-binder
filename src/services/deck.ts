@@ -8,6 +8,7 @@ import {
   insertDeckCards,
   deleteDeckCard,
   updateDeckCard,
+  replaceDeckCards,
   getDeckCardsWithDetails,
   getEditionsForCardSlugs,
   type DeckDatabase,
@@ -65,6 +66,51 @@ export async function getUserDecksSummary(
   return result;
 }
 
+export async function buildDeckCardsFromOmnidex(
+  deckId: string,
+  omnidexText: string,
+  database?: DeckDatabase
+): Promise<DeckCardInsert[]> {
+  const decoded = decodeHtmlEntities(omnidexText);
+  const parsed = parseOmnidexText(decoded);
+  const zones: ("material" | "main" | "side")[] = ["material", "main", "side"];
+  const cardsToInsert: DeckCardInsert[] = [];
+  let idx = 1;
+
+  for (const zone of zones) {
+    for (const item of parsed[zone]) {
+      let slug = item.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+      const matchCard = await findCardByNameCaseInsensitive(item.name, database);
+
+      if (matchCard) {
+        slug = matchCard.slug;
+      } else {
+        await upsertCatalogCard(
+          {
+            slug,
+            name: item.name,
+            element: "NORM",
+            class: "ALL",
+            type: "UNKNOWN",
+            subtypes: "[]",
+          },
+          database
+        );
+      }
+
+      cardsToInsert.push({
+        id: `dc-${deckId}-${idx++}`,
+        deckId,
+        cardSlug: slug,
+        zone,
+        quantity: item.quantity,
+      });
+    }
+  }
+
+  return cardsToInsert;
+}
+
 export async function createDeckService(
   userId: string,
   data: {
@@ -85,44 +131,9 @@ export async function createDeckService(
   }
 
   const deckId = `deck-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-  const cardsToInsert: DeckCardInsert[] = [];
-
-  if (omnidexText && typeof omnidexText === "string") {
-    const parsed = parseOmnidexText(omnidexText);
-    const zones: ("material" | "main" | "side")[] = ["material", "main", "side"];
-    let idx = 1;
-
-    for (const zone of zones) {
-      for (const item of parsed[zone]) {
-        let slug = item.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-        const matchCard = await findCardByNameCaseInsensitive(item.name, database);
-
-        if (matchCard) {
-          slug = matchCard.slug;
-        } else {
-          await upsertCatalogCard(
-            {
-              slug,
-              name: item.name,
-              element: "NORM",
-              class: "ALL",
-              type: "UNKNOWN",
-              subtypes: "[]",
-            },
-            database
-          );
-        }
-
-        cardsToInsert.push({
-          id: `dc-${deckId}-${idx++}`,
-          deckId,
-          cardSlug: slug,
-          zone,
-          quantity: item.quantity,
-        });
-      }
-    }
-  }
+  const cardsToInsert: DeckCardInsert[] = omnidexText
+    ? await buildDeckCardsFromOmnidex(deckId, omnidexText, database)
+    : [];
 
   await createDeckWithCards(
     {
@@ -191,6 +202,7 @@ export async function updateDeckService(
     name?: string;
     champion?: string;
     format?: string;
+    omnidexText?: string;
     cardUpdates?: Array<{
       action: "add" | "delete" | "update";
       deckCardId?: string;
@@ -206,17 +218,20 @@ export async function updateDeckService(
     throw new DeckNotFoundError("Deck not found");
   }
 
-  const { name, champion, format, cardUpdates } = body;
+  const { name, champion, format, omnidexText, cardUpdates } = body;
   const updateData: Partial<DeckInsert> = {};
-  if (name) updateData.name = name;
-  if (champion !== undefined) updateData.champion = champion;
+  if (name) updateData.name = decodeHtmlEntities(name.trim());
+  if (champion !== undefined) updateData.champion = decodeHtmlEntities(champion.trim());
   if (format) updateData.format = format;
 
   if (Object.keys(updateData).length > 0) {
     await updateDeck(deckId, updateData, database);
   }
 
-  if (cardUpdates && Array.isArray(cardUpdates)) {
+  if (typeof omnidexText === "string") {
+    const cardsToInsert = await buildDeckCardsFromOmnidex(deckId, omnidexText, database);
+    await replaceDeckCards(deckId, cardsToInsert, database);
+  } else if (cardUpdates && Array.isArray(cardUpdates)) {
     for (const cu of cardUpdates) {
       if (cu.action === "add" && cu.cardSlug) {
         const id = `dc-${deckId}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;

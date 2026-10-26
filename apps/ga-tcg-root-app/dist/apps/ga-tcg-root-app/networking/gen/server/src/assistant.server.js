@@ -87,6 +87,14 @@ class AssistantServiceBase {
                 requestDeserialize: bytes => gen_shared_1.ImportDeckRpcRequest.fromBinary(bytes),
                 responseSerialize: value => gen_shared_1.ImportDeckRpcResponse.toBinary(value)
             },
+            {
+                serviceName: 'AssistantService',
+                methodName: 'UpdateDeck',
+                funct: (e, c) => { return this.updateDeck(e, c); },
+                path: '/.AssistantService/UpdateDeck',
+                requestDeserialize: bytes => gen_shared_1.UpdateDeckRpcRequest.fromBinary(bytes),
+                responseSerialize: value => gen_shared_1.UpdateDeckRpcResponse.toBinary(value)
+            },
         ];
     }
     get ServerServiceName() {

@@ -2,6 +2,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.buildDeckSummariesWithShortages = buildDeckSummariesWithShortages;
 exports.updateDealAlertPreferencesHelper = updateDealAlertPreferencesHelper;
+exports.mapAutocompleteChoice = mapAutocompleteChoice;
+exports.mapPersonalWant = mapPersonalWant;
 const deal_alert_notifier_1 = require("./deal-alert-notifier");
 async function buildDeckSummariesWithShortages(api, userId, rawDecks) {
     return Promise.all(rawDecks.map(async (deck) => {
@@ -63,4 +65,24 @@ async function updateDealAlertPreferencesHelper(api, userId, communityId, notifi
         }
     }
     return { alertChannelId };
+}
+function mapAutocompleteChoice(r) {
+    return {
+        name: r.name,
+        value: r.value,
+        element: r.element || "",
+        type: r.type || "",
+        quantity: r.quantity || 0,
+        foil: Boolean(r.foil),
+    };
+}
+function mapPersonalWant(w) {
+    return {
+        cardSlug: w.cardSlug,
+        cardName: w.cardName,
+        element: w.element || "",
+        type: w.type || "",
+        desiredQuantity: w.desiredQuantity,
+        foil: Boolean(w.foil),
+    };
 }

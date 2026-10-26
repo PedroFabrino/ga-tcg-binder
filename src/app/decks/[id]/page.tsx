@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { ArrowLeft, Copy, Trash2, Crown, BookOpen, Check, LayoutGrid, List } from "lucide-react";
+import { ArrowLeft, Copy, Trash2, Crown, BookOpen, Check, LayoutGrid, List, Pencil } from "lucide-react";
 import { ConfirmModal } from "@/components/common";
 import { SkeletonRow, EmptyState } from "@/components/Skeletons";
 import { useToast } from "@/components/ToastProvider";
+import DeckFormModal from "@/components/decks/DeckFormModal";
 import ShortageTable, { FeasibilityBanner, type ShortageReport, type ShortageItem } from "@/components/decks/ShortageTable";
 import DeckList, { type DeckCard } from "@/components/decks/DeckList";
 import DeckCardGrid from "@/components/decks/DeckCardGrid";
@@ -44,6 +45,7 @@ export default function DeckDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const [onlyMissing, setOnlyMissing] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [editing, setEditing] = useState(false);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -201,6 +203,14 @@ export default function DeckDetailPage() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button
+            onClick={() => setEditing(true)}
+            disabled={!deck}
+            variant="outline"
+            className="hover:border-cyan-400/30 hover:bg-cyan-500/10 hover:text-cyan-300"
+          >
+            <Pencil className="h-4 w-4" /> {t("decks.editDeck")}
+          </Button>
           <Button onClick={copyOmnidex} disabled={!omnidexText} variant="outline">
             {copied ? <Check className="h-4 w-4 text-emerald-300" /> : <Copy className="h-4 w-4" />}{" "}
             {t("decks.exportOmnidex")}
@@ -320,6 +330,24 @@ export default function DeckDetailPage() {
           busy={deleting}
           onConfirm={doDelete}
           onClose={() => setConfirmDelete(false)}
+        />
+      )}
+
+      {editing && deck && (
+        <DeckFormModal
+          mode="edit"
+          initialDeck={{
+            id: deck.id,
+            name: deck.name,
+            champion: deck.champion,
+            omnidexText,
+          }}
+          onClose={() => setEditing(false)}
+          onSaved={() => {
+            setEditing(false);
+            showToast(t("decks.deckUpdated"), "success");
+            load(true);
+          }}
         />
       )}
     </div>

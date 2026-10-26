@@ -15,6 +15,7 @@ import {
   type OmnidexWantsImportResult,
 } from "./omnidex-wants";
 import { fetchDeckFromUrl } from "./omnidex";
+import { updateDeckService } from "./deck";
 import {
   registerCollectorFromPlatform,
   getCollectorDecks,
@@ -337,4 +338,41 @@ export async function importAssistantDeckFromSource(
     input.format || "standard",
     database
   );
+}
+
+export async function updateAssistantDeckFromSource(
+  collectorId: string,
+  input: {
+    deckId: string;
+    url?: string;
+    text?: string;
+    name?: string;
+    champion?: string;
+    format?: string;
+  },
+  database?: unknown
+): Promise<{ id: string; name: string }> {
+  let deckText = input.text || "";
+  let deckName = input.name;
+
+  if (input.url) {
+    const fetched = await fetchDeckFromUrl(input.url);
+    deckText = fetched.decklist;
+    if (!deckName) {
+      deckName = fetched.name || undefined;
+    }
+  }
+
+  await updateDeckService(
+    input.deckId,
+    {
+      name: deckName,
+      champion: input.champion,
+      format: input.format,
+      ...(deckText ? { omnidexText: deckText } : {}),
+    },
+    database as any
+  );
+
+  return { id: input.deckId, name: deckName || "Updated Deck" };
 }
