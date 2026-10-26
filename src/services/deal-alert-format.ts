@@ -32,14 +32,13 @@ function formatListingCollection(listing: MarketCard): string {
 function formatDealAlertCardLine(
   listing: MarketCard,
   ball: string,
-  plainLinks = false
+  rootLinks = false
 ): string {
   const url = listing.productUrl || listing.vendorUrl;
-  if (plainLinks && isHttpsUrl(url)) {
-    return `${ball} ${listing.cardName} - ${formatListingCollection(listing)} - ${listing.price} - ${url}`;
-  }
   const cardName = isHttpsUrl(url)
-    ? `[${listing.cardName}](<${escapeLinkUrl(url)}>)`
+    ? rootLinks
+      ? `[${listing.cardName}](${escapeLinkUrl(url)})`
+      : `[${listing.cardName}](<${escapeLinkUrl(url)}>)`
     : listing.cardName;
 
   return `${ball} ${cardName} - ${formatListingCollection(listing)} - ${listing.price}`;
@@ -81,7 +80,7 @@ export function matchKey(match: DealAlertMatch): string {
 export function formatDealAlertMessage(
   matches: DealAlertMatch[],
   now: Date = new Date(),
-  plainLinks = false
+  rootLinks = false
 ): string {
   const groups = new Map<
     string,
@@ -104,7 +103,7 @@ export function formatDealAlertMessage(
     }
     groups
       .get(groupKey)!
-      .lines.push(formatDealAlertCardLine(listing, severityBall(source), plainLinks));
+      .lines.push(formatDealAlertCardLine(listing, severityBall(source), rootLinks));
   }
 
   const sections = [...groups.values()]
@@ -121,16 +120,16 @@ export function formatDealAlertMessage(
  * Splits the rolling deal-alert message into chunks no longer than `maxLength`
  * characters (defaulting to Discord's safe 2000-character boundary), breaking
  * only on line boundaries. When `options.maxBytes` is set (Root), chunks are
- * instead capped by UTF-8 byte length; `options.plainLinks` emits raw URLs
- * rather than Markdown links.
+ * instead capped by UTF-8 byte length; `options.rootLinks` switches to Root's
+ * `[name](url)` link syntax (no angle brackets).
  */
 export function formatDealAlertChunks(
   matches: DealAlertMatch[],
   now: Date = new Date(),
   maxLength: number = MESSAGE_MAX_LENGTH,
-  options: { plainLinks?: boolean; maxBytes?: number } = {}
+  options: { rootLinks?: boolean; maxBytes?: number } = {}
 ): string[] {
-  const full = formatDealAlertMessage(matches, now, options.plainLinks);
+  const full = formatDealAlertMessage(matches, now, options.rootLinks);
   if (!full) {
     return [];
   }
