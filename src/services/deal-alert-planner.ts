@@ -113,7 +113,7 @@ export async function planDealAlerts(
       channelId: stored?.channelId ?? null,
       previousMessageIds: stored ? parseMessageIds(stored.messageId) : [],
       chunks: formatDealAlertChunks(userMatches, now, MESSAGE_MAX_LENGTH, {
-        rootLinks: isRoot,
+        rootMode: isRoot,
         maxBytes: isRoot ? ROOT_MESSAGE_MAX_BYTES : undefined,
       }),
       summary: formatDealAlertNotificationSummary(userMatches),

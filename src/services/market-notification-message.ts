@@ -113,21 +113,20 @@ export function escapeLinkUrl(value: string): string {
 
 /**
  * Renders one card bullet line for chat platforms (Root, Discord).
- * The card name is hyperlinked if `imageUrl` is a valid https product URL.
- * Root uses the standard Markdown link syntax `[name](url)` (no angle brackets,
- * which are a Discord-ism for suppressing embeds); Discord keeps the `<…>`.
+ * Root messages are plain text (no URL) because Root auto-unfurls any URL
+ * into a preview block; Discord keeps a Markdown link on the card name.
  */
 export function formatMarketNotificationCardLine(
  notification: MarketNotification,
- rootLinks = false
+ rootMode = false
 ): string {
  const cardDetails = formatMarketNotificationCardDetails(notification);
  const url = notification.imageUrl;
- const cardName = isHttpsUrl(url)
-  ? rootLinks
-   ? `[${notification.cardName}](${escapeLinkUrl(url)})`
-   : `[${notification.cardName}](<${escapeLinkUrl(url)}>)`
-  : notification.cardName;
+ const cardName = rootMode
+  ? notification.cardName
+  : isHttpsUrl(url)
+   ? `[${notification.cardName}](<${escapeLinkUrl(url)}>)`
+   : notification.cardName;
 
  return `• ${cardName} — ${cardDetails}`;
 }
@@ -261,7 +260,7 @@ export function formatMarketNotificationChunks(
  lastSyncDate?: Date | string | null,
  maxBytes: number = MESSAGE_MAX_LENGTH,
  storeUrl?: string | null,
- rootLinks = false
+ rootMode = false
 ): MarketNotificationChunk[] {
  if (notifications.length === 0) {
   return [];
@@ -269,11 +268,10 @@ export function formatMarketNotificationChunks(
 
  const sorted = sortMarketNotificationsByDetectedAt(notifications);
  const dateStr = formatMarketNotificationDate(lastSyncDate);
- const storeTitle = isHttpsUrl(storeUrl)
-  ? rootLinks
-   ? `**[${storeName}](${escapeLinkUrl(storeUrl)})**`
-   : `**[${storeName}](<${escapeLinkUrl(storeUrl)}>)**`
-  : `**${storeName}**`;
+ const storeTitle =
+  rootMode || !isHttpsUrl(storeUrl)
+   ? `**${storeName}**`
+   : `**[${storeName}](<${escapeLinkUrl(storeUrl)}>)**`;
 
  const header = `${storeTitle} updated their stock!\nNew cards since ${dateStr}:`;
 
@@ -282,7 +280,7 @@ export function formatMarketNotificationChunks(
  let currentIds: string[] = [];
 
  for (const n of sorted) {
-  const cardLine = formatMarketNotificationCardLine(n, rootLinks);
+  const cardLine = formatMarketNotificationCardLine(n, rootMode);
   const candidate = currentContent ? `${currentContent}\n${cardLine}` : cardLine;
 
   if (byteLength(candidate) > maxBytes && currentIds.length > 0) {
