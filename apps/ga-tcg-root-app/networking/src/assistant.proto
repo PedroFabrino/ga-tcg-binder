@@ -22,6 +22,13 @@ message LinkResponse {
   string error = 3;
 }
 
+message RegisterResponse {
+  bool success = 1;
+  string collector_name = 2;
+  string friend_code = 3;
+  string error = 4;
+}
+
 message PreferencesRequest {
   bool notifications_enabled = 1;
   string deal_alert_mode = 2;
@@ -57,9 +64,84 @@ message DecksResponse {
   repeated DeckSummary decks = 1;
 }
 
+message AutocompleteChoiceItem {
+  string name = 1;
+  string value = 2;
+  string element = 3;
+  string type = 4;
+  int32 quantity = 5;
+  bool foil = 6;
+}
+
+message AutocompleteRpcRequest {
+  string type = 1;
+  string query = 2;
+}
+
+message AutocompleteRpcResponse {
+  repeated AutocompleteChoiceItem results = 1;
+}
+
+message PersonalWantRpcItem {
+  string card_slug = 1;
+  string card_name = 2;
+  string element = 3;
+  string type = 4;
+  int32 desired_quantity = 5;
+  bool foil = 6;
+}
+
+message PersonalWantsRpcResponse {
+  repeated PersonalWantRpcItem wants = 1;
+}
+
+message AddWantRpcRequest {
+  string card = 1;
+  int32 quantity = 2;
+  bool foil = 3;
+  string omnidex_url = 4;
+}
+
+message AddWantRpcResponse {
+  bool success = 1;
+  string message = 2;
+  string error = 3;
+  repeated AutocompleteChoiceItem suggestions = 4;
+}
+
+message RemoveWantRpcRequest {
+  string card = 1;
+  int32 quantity = 2;
+}
+
+message RemoveWantRpcResponse {
+  bool success = 1;
+  bool removed = 2;
+  int32 remaining_quantity = 3;
+  string card_name = 4;
+  string error = 5;
+  repeated AutocompleteChoiceItem suggestions = 6;
+}
+
+message ImportDeckRpcRequest {
+  string url = 1;
+}
+
+message ImportDeckRpcResponse {
+  bool success = 1;
+  string deck_name = 2;
+  string error = 3;
+}
+
 service AssistantService {
   rpc GetStatus(rootsdk.Void) returns (StatusResponse);
   rpc LinkAccount(LinkRequest) returns (LinkResponse);
+  rpc RegisterAccount(rootsdk.Void) returns (RegisterResponse);
   rpc SetPreferences(PreferencesRequest) returns (PreferencesResponse);
   rpc GetDecks(rootsdk.Void) returns (DecksResponse);
+  rpc Autocomplete(AutocompleteRpcRequest) returns (AutocompleteRpcResponse);
+  rpc GetPersonalWants(rootsdk.Void) returns (PersonalWantsRpcResponse);
+  rpc AddWant(AddWantRpcRequest) returns (AddWantRpcResponse);
+  rpc RemoveWant(RemoveWantRpcRequest) returns (RemoveWantRpcResponse);
+  rpc ImportDeck(ImportDeckRpcRequest) returns (ImportDeckRpcResponse);
 }

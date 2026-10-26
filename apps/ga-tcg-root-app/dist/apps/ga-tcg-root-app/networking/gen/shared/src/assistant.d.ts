@@ -64,6 +64,27 @@ export interface LinkResponse {
     error: string;
 }
 /**
+ * @generated from protobuf message RegisterResponse
+ */
+export interface RegisterResponse {
+    /**
+     * @generated from protobuf field: bool success = 1
+     */
+    success: boolean;
+    /**
+     * @generated from protobuf field: string collector_name = 2
+     */
+    collectorName: string;
+    /**
+     * @generated from protobuf field: string friend_code = 3
+     */
+    friendCode: string;
+    /**
+     * @generated from protobuf field: string error = 4
+     */
+    error: string;
+}
+/**
  * @generated from protobuf message PreferencesRequest
  */
 export interface PreferencesRequest {
@@ -168,6 +189,205 @@ export interface DecksResponse {
      */
     decks: DeckSummary[];
 }
+/**
+ * @generated from protobuf message AutocompleteChoiceItem
+ */
+export interface AutocompleteChoiceItem {
+    /**
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+    /**
+     * @generated from protobuf field: string value = 2
+     */
+    value: string;
+    /**
+     * @generated from protobuf field: string element = 3
+     */
+    element: string;
+    /**
+     * @generated from protobuf field: string type = 4
+     */
+    type: string;
+    /**
+     * @generated from protobuf field: int32 quantity = 5
+     */
+    quantity: number;
+    /**
+     * @generated from protobuf field: bool foil = 6
+     */
+    foil: boolean;
+}
+/**
+ * @generated from protobuf message AutocompleteRpcRequest
+ */
+export interface AutocompleteRpcRequest {
+    /**
+     * @generated from protobuf field: string type = 1
+     */
+    type: string;
+    /**
+     * @generated from protobuf field: string query = 2
+     */
+    query: string;
+}
+/**
+ * @generated from protobuf message AutocompleteRpcResponse
+ */
+export interface AutocompleteRpcResponse {
+    /**
+     * @generated from protobuf field: repeated AutocompleteChoiceItem results = 1
+     */
+    results: AutocompleteChoiceItem[];
+}
+/**
+ * @generated from protobuf message PersonalWantRpcItem
+ */
+export interface PersonalWantRpcItem {
+    /**
+     * @generated from protobuf field: string card_slug = 1
+     */
+    cardSlug: string;
+    /**
+     * @generated from protobuf field: string card_name = 2
+     */
+    cardName: string;
+    /**
+     * @generated from protobuf field: string element = 3
+     */
+    element: string;
+    /**
+     * @generated from protobuf field: string type = 4
+     */
+    type: string;
+    /**
+     * @generated from protobuf field: int32 desired_quantity = 5
+     */
+    desiredQuantity: number;
+    /**
+     * @generated from protobuf field: bool foil = 6
+     */
+    foil: boolean;
+}
+/**
+ * @generated from protobuf message PersonalWantsRpcResponse
+ */
+export interface PersonalWantsRpcResponse {
+    /**
+     * @generated from protobuf field: repeated PersonalWantRpcItem wants = 1
+     */
+    wants: PersonalWantRpcItem[];
+}
+/**
+ * @generated from protobuf message AddWantRpcRequest
+ */
+export interface AddWantRpcRequest {
+    /**
+     * @generated from protobuf field: string card = 1
+     */
+    card: string;
+    /**
+     * @generated from protobuf field: int32 quantity = 2
+     */
+    quantity: number;
+    /**
+     * @generated from protobuf field: bool foil = 3
+     */
+    foil: boolean;
+    /**
+     * @generated from protobuf field: string omnidex_url = 4
+     */
+    omnidexUrl: string;
+}
+/**
+ * @generated from protobuf message AddWantRpcResponse
+ */
+export interface AddWantRpcResponse {
+    /**
+     * @generated from protobuf field: bool success = 1
+     */
+    success: boolean;
+    /**
+     * @generated from protobuf field: string message = 2
+     */
+    message: string;
+    /**
+     * @generated from protobuf field: string error = 3
+     */
+    error: string;
+    /**
+     * @generated from protobuf field: repeated AutocompleteChoiceItem suggestions = 4
+     */
+    suggestions: AutocompleteChoiceItem[];
+}
+/**
+ * @generated from protobuf message RemoveWantRpcRequest
+ */
+export interface RemoveWantRpcRequest {
+    /**
+     * @generated from protobuf field: string card = 1
+     */
+    card: string;
+    /**
+     * @generated from protobuf field: int32 quantity = 2
+     */
+    quantity: number;
+}
+/**
+ * @generated from protobuf message RemoveWantRpcResponse
+ */
+export interface RemoveWantRpcResponse {
+    /**
+     * @generated from protobuf field: bool success = 1
+     */
+    success: boolean;
+    /**
+     * @generated from protobuf field: bool removed = 2
+     */
+    removed: boolean;
+    /**
+     * @generated from protobuf field: int32 remaining_quantity = 3
+     */
+    remainingQuantity: number;
+    /**
+     * @generated from protobuf field: string card_name = 4
+     */
+    cardName: string;
+    /**
+     * @generated from protobuf field: string error = 5
+     */
+    error: string;
+    /**
+     * @generated from protobuf field: repeated AutocompleteChoiceItem suggestions = 6
+     */
+    suggestions: AutocompleteChoiceItem[];
+}
+/**
+ * @generated from protobuf message ImportDeckRpcRequest
+ */
+export interface ImportDeckRpcRequest {
+    /**
+     * @generated from protobuf field: string url = 1
+     */
+    url: string;
+}
+/**
+ * @generated from protobuf message ImportDeckRpcResponse
+ */
+export interface ImportDeckRpcResponse {
+    /**
+     * @generated from protobuf field: bool success = 1
+     */
+    success: boolean;
+    /**
+     * @generated from protobuf field: string deck_name = 2
+     */
+    deckName: string;
+    /**
+     * @generated from protobuf field: string error = 3
+     */
+    error: string;
+}
 declare class StatusResponse$Type extends MessageType<StatusResponse> {
     constructor();
     create(value?: PartialMessage<StatusResponse>): StatusResponse;
@@ -198,6 +418,16 @@ declare class LinkResponse$Type extends MessageType<LinkResponse> {
  * @generated MessageType for protobuf message LinkResponse
  */
 export declare const LinkResponse: LinkResponse$Type;
+declare class RegisterResponse$Type extends MessageType<RegisterResponse> {
+    constructor();
+    create(value?: PartialMessage<RegisterResponse>): RegisterResponse;
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RegisterResponse): RegisterResponse;
+    internalBinaryWrite(message: RegisterResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter;
+}
+/**
+ * @generated MessageType for protobuf message RegisterResponse
+ */
+export declare const RegisterResponse: RegisterResponse$Type;
 declare class PreferencesRequest$Type extends MessageType<PreferencesRequest> {
     constructor();
     create(value?: PartialMessage<PreferencesRequest>): PreferencesRequest;
@@ -248,4 +478,114 @@ declare class DecksResponse$Type extends MessageType<DecksResponse> {
  * @generated MessageType for protobuf message DecksResponse
  */
 export declare const DecksResponse: DecksResponse$Type;
+declare class AutocompleteChoiceItem$Type extends MessageType<AutocompleteChoiceItem> {
+    constructor();
+    create(value?: PartialMessage<AutocompleteChoiceItem>): AutocompleteChoiceItem;
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AutocompleteChoiceItem): AutocompleteChoiceItem;
+    internalBinaryWrite(message: AutocompleteChoiceItem, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter;
+}
+/**
+ * @generated MessageType for protobuf message AutocompleteChoiceItem
+ */
+export declare const AutocompleteChoiceItem: AutocompleteChoiceItem$Type;
+declare class AutocompleteRpcRequest$Type extends MessageType<AutocompleteRpcRequest> {
+    constructor();
+    create(value?: PartialMessage<AutocompleteRpcRequest>): AutocompleteRpcRequest;
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AutocompleteRpcRequest): AutocompleteRpcRequest;
+    internalBinaryWrite(message: AutocompleteRpcRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter;
+}
+/**
+ * @generated MessageType for protobuf message AutocompleteRpcRequest
+ */
+export declare const AutocompleteRpcRequest: AutocompleteRpcRequest$Type;
+declare class AutocompleteRpcResponse$Type extends MessageType<AutocompleteRpcResponse> {
+    constructor();
+    create(value?: PartialMessage<AutocompleteRpcResponse>): AutocompleteRpcResponse;
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AutocompleteRpcResponse): AutocompleteRpcResponse;
+    internalBinaryWrite(message: AutocompleteRpcResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter;
+}
+/**
+ * @generated MessageType for protobuf message AutocompleteRpcResponse
+ */
+export declare const AutocompleteRpcResponse: AutocompleteRpcResponse$Type;
+declare class PersonalWantRpcItem$Type extends MessageType<PersonalWantRpcItem> {
+    constructor();
+    create(value?: PartialMessage<PersonalWantRpcItem>): PersonalWantRpcItem;
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: PersonalWantRpcItem): PersonalWantRpcItem;
+    internalBinaryWrite(message: PersonalWantRpcItem, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter;
+}
+/**
+ * @generated MessageType for protobuf message PersonalWantRpcItem
+ */
+export declare const PersonalWantRpcItem: PersonalWantRpcItem$Type;
+declare class PersonalWantsRpcResponse$Type extends MessageType<PersonalWantsRpcResponse> {
+    constructor();
+    create(value?: PartialMessage<PersonalWantsRpcResponse>): PersonalWantsRpcResponse;
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: PersonalWantsRpcResponse): PersonalWantsRpcResponse;
+    internalBinaryWrite(message: PersonalWantsRpcResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter;
+}
+/**
+ * @generated MessageType for protobuf message PersonalWantsRpcResponse
+ */
+export declare const PersonalWantsRpcResponse: PersonalWantsRpcResponse$Type;
+declare class AddWantRpcRequest$Type extends MessageType<AddWantRpcRequest> {
+    constructor();
+    create(value?: PartialMessage<AddWantRpcRequest>): AddWantRpcRequest;
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AddWantRpcRequest): AddWantRpcRequest;
+    internalBinaryWrite(message: AddWantRpcRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter;
+}
+/**
+ * @generated MessageType for protobuf message AddWantRpcRequest
+ */
+export declare const AddWantRpcRequest: AddWantRpcRequest$Type;
+declare class AddWantRpcResponse$Type extends MessageType<AddWantRpcResponse> {
+    constructor();
+    create(value?: PartialMessage<AddWantRpcResponse>): AddWantRpcResponse;
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AddWantRpcResponse): AddWantRpcResponse;
+    internalBinaryWrite(message: AddWantRpcResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter;
+}
+/**
+ * @generated MessageType for protobuf message AddWantRpcResponse
+ */
+export declare const AddWantRpcResponse: AddWantRpcResponse$Type;
+declare class RemoveWantRpcRequest$Type extends MessageType<RemoveWantRpcRequest> {
+    constructor();
+    create(value?: PartialMessage<RemoveWantRpcRequest>): RemoveWantRpcRequest;
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RemoveWantRpcRequest): RemoveWantRpcRequest;
+    internalBinaryWrite(message: RemoveWantRpcRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter;
+}
+/**
+ * @generated MessageType for protobuf message RemoveWantRpcRequest
+ */
+export declare const RemoveWantRpcRequest: RemoveWantRpcRequest$Type;
+declare class RemoveWantRpcResponse$Type extends MessageType<RemoveWantRpcResponse> {
+    constructor();
+    create(value?: PartialMessage<RemoveWantRpcResponse>): RemoveWantRpcResponse;
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RemoveWantRpcResponse): RemoveWantRpcResponse;
+    internalBinaryWrite(message: RemoveWantRpcResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter;
+}
+/**
+ * @generated MessageType for protobuf message RemoveWantRpcResponse
+ */
+export declare const RemoveWantRpcResponse: RemoveWantRpcResponse$Type;
+declare class ImportDeckRpcRequest$Type extends MessageType<ImportDeckRpcRequest> {
+    constructor();
+    create(value?: PartialMessage<ImportDeckRpcRequest>): ImportDeckRpcRequest;
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ImportDeckRpcRequest): ImportDeckRpcRequest;
+    internalBinaryWrite(message: ImportDeckRpcRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter;
+}
+/**
+ * @generated MessageType for protobuf message ImportDeckRpcRequest
+ */
+export declare const ImportDeckRpcRequest: ImportDeckRpcRequest$Type;
+declare class ImportDeckRpcResponse$Type extends MessageType<ImportDeckRpcResponse> {
+    constructor();
+    create(value?: PartialMessage<ImportDeckRpcResponse>): ImportDeckRpcResponse;
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ImportDeckRpcResponse): ImportDeckRpcResponse;
+    internalBinaryWrite(message: ImportDeckRpcResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter;
+}
+/**
+ * @generated MessageType for protobuf message ImportDeckRpcResponse
+ */
+export declare const ImportDeckRpcResponse: ImportDeckRpcResponse$Type;
 export {};

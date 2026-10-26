@@ -1,9 +1,16 @@
 import {
+  type AssistantAddWantResponse,
+  type AssistantAutocompleteResponse,
   type AssistantCollectionResponse,
   type AssistantDeckShortagesResponse,
   type AssistantDecksResponse,
+  type AssistantImportDeckResponse,
   type AssistantLinkRequest,
   type AssistantLinkResponse,
+  type AssistantPersonalWantItem,
+  type AssistantPortfolioResponse,
+  type AssistantRegisterResponse,
+  type AssistantRemoveWantResponse,
   type AssistantWantlistResponse,
   type RootBotCollectorResponse,
   type RootBotDealAlertDeliveredRequest,
@@ -155,6 +162,20 @@ export class RootBotApi {
     });
   }
 
+  async register(
+    providerUserId: string,
+    providerUsername?: string
+  ): Promise<AssistantRegisterResponse> {
+    return this.request("/api/assistant/register", {
+      method: "POST",
+      body: JSON.stringify({
+        provider: "root",
+        providerUserId,
+        providerUsername,
+      }),
+    });
+  }
+
   async link(request: AssistantLinkRequest): Promise<AssistantLinkResponse> {
     return this.request("/api/assistant/link", {
       method: "POST",
@@ -165,6 +186,20 @@ export class RootBotApi {
   async getDecks(providerUserId: string): Promise<AssistantDecksResponse> {
     const params = new URLSearchParams({ provider: "root", providerUserId });
     return this.request(`/api/assistant/decks?${params.toString()}`);
+  }
+
+  async importDeck(
+    providerUserId: string,
+    req: { url?: string; text?: string; name?: string; champion?: string; format?: string }
+  ): Promise<AssistantImportDeckResponse> {
+    return this.request("/api/assistant/decks", {
+      method: "POST",
+      body: JSON.stringify({
+        provider: "root",
+        providerUserId,
+        ...req,
+      }),
+    });
   }
 
   async getShortages(
@@ -183,6 +218,11 @@ export class RootBotApi {
     return this.request(`/api/assistant/collection?${params.toString()}`);
   }
 
+  async getPortfolio(providerUserId: string): Promise<AssistantPortfolioResponse> {
+    const params = new URLSearchParams({ provider: "root", providerUserId });
+    return this.request(`/api/assistant/collection?${params.toString()}`);
+  }
+
   async getWantlist(
     providerUserId: string,
     deck?: string
@@ -192,5 +232,58 @@ export class RootBotApi {
       params.set("deck", deck);
     }
     return this.request(`/api/assistant/wantlist?${params.toString()}`);
+  }
+
+  async getPersonalWants(
+    providerUserId: string
+  ): Promise<{ personalWants: AssistantPersonalWantItem[] }> {
+    const params = new URLSearchParams({
+      provider: "root",
+      providerUserId,
+      personalOnly: "true",
+    });
+    return this.request(`/api/assistant/wantlist?${params.toString()}`);
+  }
+
+  async addWant(
+    providerUserId: string,
+    req: { card?: string; quantity?: number; foil?: boolean; omnidexUrl?: string; omnidexText?: string }
+  ): Promise<AssistantAddWantResponse> {
+    return this.request("/api/assistant/wantlist", {
+      method: "POST",
+      body: JSON.stringify({
+        provider: "root",
+        providerUserId,
+        ...req,
+      }),
+    });
+  }
+
+  async removeWant(
+    providerUserId: string,
+    req: { card: string; quantity?: number }
+  ): Promise<AssistantRemoveWantResponse> {
+    return this.request("/api/assistant/wantlist", {
+      method: "DELETE",
+      body: JSON.stringify({
+        provider: "root",
+        providerUserId,
+        ...req,
+      }),
+    });
+  }
+
+  async autocomplete(
+    providerUserId: string,
+    type: "card" | "wants" | "deck",
+    query: string
+  ): Promise<AssistantAutocompleteResponse> {
+    const params = new URLSearchParams({
+      provider: "root",
+      providerUserId,
+      type,
+      query,
+    });
+    return this.request(`/api/assistant/autocomplete?${params.toString()}`);
   }
 }

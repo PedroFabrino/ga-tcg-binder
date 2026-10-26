@@ -1,6 +1,6 @@
 {
   "name": "@ga/gen-client",
-  "version": "1.0.1792993388977",
+  "version": "1.0.1793021663786",
 	"dependencies": {
 		"@ga/gen-shared": "file:../shared"
 	},

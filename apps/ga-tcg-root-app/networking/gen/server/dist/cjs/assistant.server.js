@@ -25,6 +25,14 @@ class AssistantServiceBase {
             },
             {
                 serviceName: 'AssistantService',
+                methodName: 'RegisterAccount',
+                funct: (e, c) => { return this.registerAccount(c); },
+                path: '/.AssistantService/RegisterAccount',
+                requestDeserialize: bytes => gen_shared_1.Void.fromBinary(bytes),
+                responseSerialize: value => gen_shared_1.RegisterResponse.toBinary(value)
+            },
+            {
+                serviceName: 'AssistantService',
                 methodName: 'SetPreferences',
                 funct: (e, c) => { return this.setPreferences(e, c); },
                 path: '/.AssistantService/SetPreferences',
@@ -38,6 +46,46 @@ class AssistantServiceBase {
                 path: '/.AssistantService/GetDecks',
                 requestDeserialize: bytes => gen_shared_1.Void.fromBinary(bytes),
                 responseSerialize: value => gen_shared_1.DecksResponse.toBinary(value)
+            },
+            {
+                serviceName: 'AssistantService',
+                methodName: 'Autocomplete',
+                funct: (e, c) => { return this.autocomplete(e, c); },
+                path: '/.AssistantService/Autocomplete',
+                requestDeserialize: bytes => gen_shared_1.AutocompleteRpcRequest.fromBinary(bytes),
+                responseSerialize: value => gen_shared_1.AutocompleteRpcResponse.toBinary(value)
+            },
+            {
+                serviceName: 'AssistantService',
+                methodName: 'GetPersonalWants',
+                funct: (e, c) => { return this.getPersonalWants(c); },
+                path: '/.AssistantService/GetPersonalWants',
+                requestDeserialize: bytes => gen_shared_1.Void.fromBinary(bytes),
+                responseSerialize: value => gen_shared_1.PersonalWantsRpcResponse.toBinary(value)
+            },
+            {
+                serviceName: 'AssistantService',
+                methodName: 'AddWant',
+                funct: (e, c) => { return this.addWant(e, c); },
+                path: '/.AssistantService/AddWant',
+                requestDeserialize: bytes => gen_shared_1.AddWantRpcRequest.fromBinary(bytes),
+                responseSerialize: value => gen_shared_1.AddWantRpcResponse.toBinary(value)
+            },
+            {
+                serviceName: 'AssistantService',
+                methodName: 'RemoveWant',
+                funct: (e, c) => { return this.removeWant(e, c); },
+                path: '/.AssistantService/RemoveWant',
+                requestDeserialize: bytes => gen_shared_1.RemoveWantRpcRequest.fromBinary(bytes),
+                responseSerialize: value => gen_shared_1.RemoveWantRpcResponse.toBinary(value)
+            },
+            {
+                serviceName: 'AssistantService',
+                methodName: 'ImportDeck',
+                funct: (e, c) => { return this.importDeck(e, c); },
+                path: '/.AssistantService/ImportDeck',
+                requestDeserialize: bytes => gen_shared_1.ImportDeckRpcRequest.fromBinary(bytes),
+                responseSerialize: value => gen_shared_1.ImportDeckRpcResponse.toBinary(value)
             },
         ];
     }

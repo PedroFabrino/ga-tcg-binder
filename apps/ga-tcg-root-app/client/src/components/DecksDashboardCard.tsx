@@ -1,19 +1,34 @@
 import React, { useState } from "react";
-import { Layers, ChevronDown, ChevronUp, AlertCircle, CheckCircle2, ShieldAlert } from "lucide-react";
+import {
+  Layers,
+  ChevronDown,
+  ChevronUp,
+  AlertCircle,
+  CheckCircle2,
+  ShieldAlert,
+  Plus,
+  Loader2,
+} from "lucide-react";
 import type { DeckSummary } from "../types";
 
 export interface DecksDashboardCardProps {
   isLinked: boolean;
   decks: DeckSummary[];
   loading?: boolean;
+  onImportDeck?: (url: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
   isLinked,
   decks,
   loading = false,
+  onImportDeck,
 }) => {
   const [expandedDeckIds, setExpandedDeckIds] = useState<Set<string>>(new Set());
+  const [showImport, setShowImport] = useState(false);
+  const [importUrl, setImportUrl] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const toggleExpand = (id: string) => {
     setExpandedDeckIds((prev) => {
@@ -24,8 +39,33 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
     });
   };
 
+  const handleImportSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onImportDeck || !importUrl.trim()) return;
+
+    setImporting(true);
+    setImportError(null);
+    try {
+      const res = await onImportDeck(importUrl.trim());
+      if (res.success) {
+        setImportUrl("");
+        setShowImport(false);
+      } else {
+        setImportError(res.error || "Failed to import deck");
+      }
+    } catch {
+      setImportError("Import failed");
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
-    <div className={`rounded-xl border border-white/[0.08] bg-white/[0.02] p-6 backdrop-blur-sm shadow-xl transition-all ${!isLinked ? "opacity-60" : ""}`}>
+    <div
+      className={`rounded-xl border border-white/[0.08] bg-white/[0.02] p-6 backdrop-blur-sm shadow-xl transition-all ${
+        !isLinked ? "opacity-60" : ""
+      }`}
+    >
       <div className="flex items-center justify-between pb-4 border-b border-white/[0.08]">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
@@ -40,11 +80,46 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
         </div>
 
         {isLinked && (
-          <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-white/[0.04] text-slate-300 border border-white/[0.08]">
-            {decks.length} {decks.length === 1 ? "Deck" : "Decks"}
-          </span>
+          <div className="flex items-center gap-2">
+            {onImportDeck && (
+              <button
+                type="button"
+                onClick={() => setShowImport(!showImport)}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/30 text-indigo-300 text-xs font-medium cursor-pointer transition"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Import Deck
+              </button>
+            )}
+            <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-white/[0.04] text-slate-300 border border-white/[0.08]">
+              {decks.length} {decks.length === 1 ? "Deck" : "Decks"}
+            </span>
+          </div>
         )}
       </div>
+
+      {showImport && isLinked && (
+        <form onSubmit={handleImportSubmit} className="mt-4 p-3.5 rounded-lg bg-black/30 border border-indigo-500/20 space-y-2">
+          <p className="text-xs text-slate-300">Enter an Omnidex.gg or Silvie.gg deck URL:</p>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={importUrl}
+              onChange={(e) => setImportUrl(e.target.value)}
+              placeholder="https://omnidex.gg/deck/..."
+              className="flex-1 px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.1] text-xs text-slate-200"
+            />
+            <button
+              type="submit"
+              disabled={importing || !importUrl.trim()}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium text-xs cursor-pointer"
+            >
+              {importing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Import"}
+            </button>
+          </div>
+          {importError && <p className="text-xs text-rose-400">{importError}</p>}
+        </form>
+      )}
 
       <div className="pt-4">
         {!isLinked ? (
@@ -63,67 +138,62 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
           <div className="space-y-3">
             {decks.map((deck) => {
               const isExpanded = expandedDeckIds.has(deck.id);
-              const isComplete = deck.hardShortagesCount === 0 && deck.sharedShortagesCount === 0;
+              const totalShortages = deck.hardShortagesCount + deck.sharedShortagesCount;
+              const isComplete = totalShortages === 0;
 
               return (
                 <div
                   key={deck.id}
-                  className="rounded-lg border border-white/[0.06] bg-black/20 hover:border-white/[0.12] transition overflow-hidden"
+                  className="rounded-lg border border-white/[0.04] bg-black/20 overflow-hidden transition-colors hover:border-white/[0.08]"
                 >
-                  <button
-                    type="button"
+                  <div
                     onClick={() => toggleExpand(deck.id)}
-                    className="w-full text-left p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer"
+                    className="p-4 flex items-center justify-between cursor-pointer select-none"
                   >
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-slate-100 text-sm">{deck.name}</span>
-                        {deck.champion && (
-                          <span className="text-xs px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
-                            {deck.champion}
-                          </span>
-                        )}
-                        <span className="text-xs px-2 py-0.5 rounded bg-white/[0.04] text-slate-400 border border-white/[0.08]">
+                        <span className="font-semibold text-slate-200">{deck.name}</span>
+                        <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-white/[0.04] text-slate-400">
                           {deck.format}
                         </span>
                       </div>
                       <p className="text-xs text-slate-400">
-                        Total Cards: <span className="text-slate-300">{deck.totalCards}</span>
+                        Champion: <strong className="text-slate-300">{deck.champion || "None"}</strong> • Total:{" "}
+                        {deck.totalCards} cards
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                       {isComplete ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                           <CheckCircle2 className="w-3.5 h-3.5" />
                           100% Complete
                         </span>
                       ) : (
-                        <>
+                        <div className="flex items-center gap-2 text-xs">
                           {deck.hardShortagesCount > 0 && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                              <ShieldAlert className="w-3.5 h-3.5" />
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 font-medium">
+                              <AlertCircle className="w-3 h-3" />
                               {deck.hardShortagesCount} Hard
                             </span>
                           )}
                           {deck.sharedShortagesCount > 0 && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                              <AlertCircle className="w-3.5 h-3.5" />
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">
+                              <ShieldAlert className="w-3 h-3" />
                               {deck.sharedShortagesCount} Shared
                             </span>
                           )}
-                        </>
+                        </div>
                       )}
 
-                      <div className="text-slate-400 p-1">
+                      <div className="text-slate-500 p-1">
                         {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                       </div>
                     </div>
-                  </button>
+                  </div>
 
-                  {/* Expanded shortages breakdown */}
                   {isExpanded && (
-                    <div className="px-4 pb-4 pt-2 border-t border-white/[0.04] bg-black/40 space-y-3">
+                    <div className="px-4 pb-4 pt-2 border-t border-white/[0.04] bg-black/10 space-y-3">
                       {deck.hardShortages && deck.hardShortages.length > 0 && (
                         <div>
                           <p className="text-xs font-semibold text-rose-400 uppercase tracking-wider mb-1.5">
@@ -131,7 +201,10 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
                           </p>
                           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-slate-300">
                             {deck.hardShortages.map((item, idx) => (
-                              <li key={idx} className="flex items-center justify-between bg-white/[0.02] px-2.5 py-1 rounded border border-white/[0.04]">
+                              <li
+                                key={idx}
+                                className="flex items-center justify-between bg-white/[0.02] px-2.5 py-1 rounded border border-white/[0.04]"
+                              >
                                 <span>{item.cardName}</span>
                                 <span className="font-mono text-rose-400 font-semibold">x{item.quantity}</span>
                               </li>
@@ -147,7 +220,10 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
                           </p>
                           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-slate-300">
                             {deck.sharedShortages.map((item, idx) => (
-                              <li key={idx} className="flex items-center justify-between bg-white/[0.02] px-2.5 py-1 rounded border border-white/[0.04]">
+                              <li
+                                key={idx}
+                                className="flex items-center justify-between bg-white/[0.02] px-2.5 py-1 rounded border border-white/[0.04]"
+                              >
                                 <span>{item.cardName}</span>
                                 <span className="font-mono text-amber-400 font-semibold">x{item.quantity}</span>
                               </li>

@@ -3,11 +3,21 @@
 // tslint: disable
 
 import {
-  DecksResponse,
+  AddWantRpcRequest,
+	AddWantRpcResponse,
+	AutocompleteRpcRequest,
+	AutocompleteRpcResponse,
+	DecksResponse,
+	ImportDeckRpcRequest,
+	ImportDeckRpcResponse,
 	LinkRequest,
 	LinkResponse,
+	PersonalWantsRpcResponse,
 	PreferencesRequest,
 	PreferencesResponse,
+	RegisterResponse,
+	RemoveWantRpcRequest,
+	RemoveWantRpcResponse,
 	StatusResponse,
 	Void
 } from "@ga/gen-shared"
@@ -24,8 +34,14 @@ import {
 export abstract class AssistantServiceBase implements RootServerService {
 	abstract getStatus(client: Client): Promise<StatusResponse>;
 	abstract linkAccount(request: LinkRequest, client: Client): Promise<LinkResponse>;
+	abstract registerAccount(client: Client): Promise<RegisterResponse>;
 	abstract setPreferences(request: PreferencesRequest, client: Client): Promise<PreferencesResponse>;
 	abstract getDecks(client: Client): Promise<DecksResponse>;
+	abstract autocomplete(request: AutocompleteRpcRequest, client: Client): Promise<AutocompleteRpcResponse>;
+	abstract getPersonalWants(client: Client): Promise<PersonalWantsRpcResponse>;
+	abstract addWant(request: AddWantRpcRequest, client: Client): Promise<AddWantRpcResponse>;
+	abstract removeWant(request: RemoveWantRpcRequest, client: Client): Promise<RemoveWantRpcResponse>;
+	abstract importDeck(request: ImportDeckRpcRequest, client: Client): Promise<ImportDeckRpcResponse>;
 
 	private __register(): UntypedServerMethodDefinition[] {
 		return [	{
@@ -46,6 +62,14 @@ export abstract class AssistantServiceBase implements RootServerService {
 		},
 		{
 			serviceName: 'AssistantService',
+			methodName: 'RegisterAccount',
+			funct: (e: Void, c: Client) => { return this.registerAccount(c) },
+			path: '/.AssistantService/RegisterAccount',
+			requestDeserialize: bytes => Void.fromBinary(bytes),
+			responseSerialize: value => RegisterResponse.toBinary(value)
+		},
+		{
+			serviceName: 'AssistantService',
 			methodName: 'SetPreferences',
 			funct: (e: PreferencesRequest, c: Client) => { return this.setPreferences(e, c) },
 			path: '/.AssistantService/SetPreferences',
@@ -59,6 +83,46 @@ export abstract class AssistantServiceBase implements RootServerService {
 			path: '/.AssistantService/GetDecks',
 			requestDeserialize: bytes => Void.fromBinary(bytes),
 			responseSerialize: value => DecksResponse.toBinary(value)
+		},
+		{
+			serviceName: 'AssistantService',
+			methodName: 'Autocomplete',
+			funct: (e: AutocompleteRpcRequest, c: Client) => { return this.autocomplete(e, c) },
+			path: '/.AssistantService/Autocomplete',
+			requestDeserialize: bytes => AutocompleteRpcRequest.fromBinary(bytes),
+			responseSerialize: value => AutocompleteRpcResponse.toBinary(value)
+		},
+		{
+			serviceName: 'AssistantService',
+			methodName: 'GetPersonalWants',
+			funct: (e: Void, c: Client) => { return this.getPersonalWants(c) },
+			path: '/.AssistantService/GetPersonalWants',
+			requestDeserialize: bytes => Void.fromBinary(bytes),
+			responseSerialize: value => PersonalWantsRpcResponse.toBinary(value)
+		},
+		{
+			serviceName: 'AssistantService',
+			methodName: 'AddWant',
+			funct: (e: AddWantRpcRequest, c: Client) => { return this.addWant(e, c) },
+			path: '/.AssistantService/AddWant',
+			requestDeserialize: bytes => AddWantRpcRequest.fromBinary(bytes),
+			responseSerialize: value => AddWantRpcResponse.toBinary(value)
+		},
+		{
+			serviceName: 'AssistantService',
+			methodName: 'RemoveWant',
+			funct: (e: RemoveWantRpcRequest, c: Client) => { return this.removeWant(e, c) },
+			path: '/.AssistantService/RemoveWant',
+			requestDeserialize: bytes => RemoveWantRpcRequest.fromBinary(bytes),
+			responseSerialize: value => RemoveWantRpcResponse.toBinary(value)
+		},
+		{
+			serviceName: 'AssistantService',
+			methodName: 'ImportDeck',
+			funct: (e: ImportDeckRpcRequest, c: Client) => { return this.importDeck(e, c) },
+			path: '/.AssistantService/ImportDeck',
+			requestDeserialize: bytes => ImportDeckRpcRequest.fromBinary(bytes),
+			responseSerialize: value => ImportDeckRpcResponse.toBinary(value)
 		},
 	]}
 

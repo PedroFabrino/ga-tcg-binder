@@ -1,11 +1,12 @@
 import React, { useState } from "react";
-import { Link2, ShieldCheck, ExternalLink, Loader2, AlertCircle } from "lucide-react";
+import { Link2, ShieldCheck, ExternalLink, Loader2, AlertCircle, UserPlus } from "lucide-react";
 
 export interface AccountLinkCardProps {
   isLinked: boolean;
   collectorName: string;
   friendCode: string;
   onLink: (code: string) => Promise<{ success: boolean; error?: string }>;
+  onRegister?: () => Promise<{ success: boolean; error?: string }>;
   portalUrl?: string;
 }
 
@@ -14,10 +15,12 @@ export const AccountLinkCard: React.FC<AccountLinkCardProps> = ({
   collectorName,
   friendCode,
   onLink,
+  onRegister,
   portalUrl = "https://ga-tcg-binder.vercel.app/settings/linked-accounts",
 }) => {
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
+  const [registering, setRegistering] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -49,6 +52,22 @@ export const AccountLinkCard: React.FC<AccountLinkCardProps> = ({
     }
   };
 
+  const handleRegisterClick = async () => {
+    if (!onRegister) return;
+    setRegistering(true);
+    setError(null);
+    try {
+      const res = await onRegister();
+      if (!res.success) {
+        setError(res.error || "Failed to create account. Please try again.");
+      }
+    } catch {
+      setError("Failed to register. Please retry.");
+    } finally {
+      setRegistering(false);
+    }
+  };
+
   return (
     <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-6 backdrop-blur-sm shadow-xl transition-all">
       <div className="flex items-center justify-between pb-4 border-b border-white/[0.08]">
@@ -63,7 +82,7 @@ export const AccountLinkCard: React.FC<AccountLinkCardProps> = ({
             <p className="text-xs text-slate-400">
               {isLinked
                 ? "Synchronized with Grand Archive Binder"
-                : "Pair your Root account to enable deck tracking and deal alerts"}
+                : "Pair your existing account or register a new one directly with your Root profile"}
             </p>
           </div>
         </div>
@@ -98,39 +117,57 @@ export const AccountLinkCard: React.FC<AccountLinkCardProps> = ({
             )}
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <p className="text-sm text-slate-300 leading-relaxed">
-              Open GA Binder in your browser, visit <strong>Settings &gt; Linked Accounts</strong>, and generate a 6-character pairing code.
-            </p>
-
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-              <input
-                type="text"
-                value={code}
-                maxLength={6}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                placeholder="6-DIGIT CODE"
-                disabled={loading}
-                className="w-full sm:w-48 px-3.5 py-2.5 rounded-lg bg-black/40 border border-white/[0.12] text-slate-100 text-center font-mono text-base tracking-widest placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 uppercase disabled:opacity-50"
-              />
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 p-4 rounded-lg bg-indigo-500/5 border border-indigo-500/20">
+              <div className="space-y-1">
+                <h3 className="text-sm font-medium text-indigo-300">New to GA Binder?</h3>
+                <p className="text-xs text-slate-400">Create an account instantly using your Root profile without leaving the app.</p>
+              </div>
               <button
-                type="submit"
-                disabled={loading || code.trim().length === 0}
-                className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:hover:bg-indigo-600 text-white font-medium text-sm transition shadow-lg shadow-indigo-600/20 cursor-pointer"
+                type="button"
+                onClick={handleRegisterClick}
+                disabled={registering || loading}
+                className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium text-xs transition shadow-lg shadow-emerald-600/20 cursor-pointer shrink-0"
               >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
-                Link Account
+                {registering ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserPlus className="w-3.5 h-3.5" />}
+                Register with Root
               </button>
-              <a
-                href={portalUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white font-medium text-sm transition"
-              >
-                Get Code
-                <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
-              </a>
             </div>
+
+            <form onSubmit={handleSubmit} className="space-y-3 pt-2">
+              <p className="text-xs text-slate-400">
+                Already have an account? Visit <strong>Settings &gt; Linked Accounts</strong> on GA Binder to generate a 6-character code.
+              </p>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <input
+                  type="text"
+                  value={code}
+                  maxLength={6}
+                  onChange={(e) => setCode(e.target.value.toUpperCase())}
+                  placeholder="6-DIGIT CODE"
+                  disabled={loading || registering}
+                  className="w-full sm:w-48 px-3.5 py-2 rounded-lg bg-black/40 border border-white/[0.12] text-slate-100 text-center font-mono text-sm tracking-widest placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 uppercase disabled:opacity-50"
+                />
+                <button
+                  type="submit"
+                  disabled={loading || code.trim().length === 0 || registering}
+                  className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium text-xs transition cursor-pointer"
+                >
+                  {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
+                  Link Account
+                </button>
+                <a
+                  href={portalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white font-medium text-xs transition"
+                >
+                  Get Code
+                  <ExternalLink className="w-3 h-3 text-slate-400" />
+                </a>
+              </div>
+            </form>
 
             {error && (
               <div className="flex items-center gap-2 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs">
@@ -138,7 +175,7 @@ export const AccountLinkCard: React.FC<AccountLinkCardProps> = ({
                 <span>{error}</span>
               </div>
             )}
-          </form>
+          </div>
         )}
       </div>
     </div>

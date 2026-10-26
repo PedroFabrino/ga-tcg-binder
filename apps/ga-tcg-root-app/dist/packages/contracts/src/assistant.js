@@ -5,9 +5,7 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AssistantClient = exports.AssistantApiError = void 0;
-// ---------------------------------------------------------------------------
-// Typed Assistant Client
-// ---------------------------------------------------------------------------
+// 
 class AssistantApiError extends Error {
     statusCode;
     code;

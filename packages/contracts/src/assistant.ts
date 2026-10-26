@@ -5,9 +5,7 @@
 
 export type AssistantProvider = "discord" | "root";
 
-// ---------------------------------------------------------------------------
-// Identity & Pairing Contracts
-// ---------------------------------------------------------------------------
+// 
 
 export interface AssistantLinkRequest {
   token: string;
@@ -23,9 +21,7 @@ export interface AssistantLinkResponse {
   message: string;
 }
 
-// ---------------------------------------------------------------------------
-// Deck Summary Contracts
-// ---------------------------------------------------------------------------
+// 
 
 export interface AssistantDeckSummary {
   id: string;
@@ -46,9 +42,7 @@ export interface AssistantDecksResponse {
   decks: AssistantDeckSummary[];
 }
 
-// ---------------------------------------------------------------------------
-// Shortage Item Contracts
-// ---------------------------------------------------------------------------
+// 
 
 export interface AssistantShortageItem {
   cardSlug: string;
@@ -77,9 +71,7 @@ export interface AssistantDeckShortagesResponse {
   webUrl?: string;
 }
 
-// ---------------------------------------------------------------------------
-// Collection Search Contracts
-// ---------------------------------------------------------------------------
+// 
 
 export interface AssistantCollectionPrinting {
   editionId: string;
@@ -114,9 +106,7 @@ export interface AssistantCollectionResponse {
   cards: AssistantCollectionCard[];
 }
 
-// ---------------------------------------------------------------------------
-// Collection Portfolio Summary Contracts
-// ---------------------------------------------------------------------------
+// 
 
 export interface AssistantPortfolioElementCount {
   element: string;
@@ -142,9 +132,7 @@ export interface AssistantPortfolioResponse {
   portfolio: AssistantPortfolioSummary;
 }
 
-// ---------------------------------------------------------------------------
-// Personal Wants Contracts
-// ---------------------------------------------------------------------------
+// 
 
 export interface AssistantPersonalWantItem {
   id: string;
@@ -177,9 +165,7 @@ export interface AssistantAggregateWantlistResponse {
   grandTotalPersonal: number;
 }
 
-// ---------------------------------------------------------------------------
-// Deck-Partitioned Wantlist Contracts
-// ---------------------------------------------------------------------------
+// 
 
 export interface AssistantDeckWantlistGroup {
   deckId: string;
@@ -194,14 +180,104 @@ export interface AssistantWantlistResponse {
   collectorId: string;
   collectorName?: string | null;
   decks: AssistantDeckWantlistGroup[];
+  personalWants?: AssistantPersonalWantItem[];
   totalDecks: number;
   grandTotalHard: number;
   grandTotalShared: number;
 }
 
-// ---------------------------------------------------------------------------
-// Typed Assistant Client
-// ---------------------------------------------------------------------------
+// 
+
+export interface AssistantRegisterRequest {
+  provider: AssistantProvider;
+  providerUserId: string;
+  providerUsername?: string | null;
+}
+
+export interface AssistantRegisterResponse {
+  success: boolean;
+  collector: {
+    id: string;
+    name: string | null;
+    friendCode: string;
+  };
+  created: boolean;
+}
+
+export interface AssistantAutocompleteChoice {
+  name: string;
+  value: string;
+  element?: string;
+  type?: string;
+  quantity?: number;
+  foil?: boolean | null;
+}
+
+export interface AssistantAutocompleteResponse {
+  results: AssistantAutocompleteChoice[];
+}
+
+export interface AssistantAddWantRequest {
+  provider: AssistantProvider;
+  providerUserId: string;
+  card?: string;
+  quantity?: number;
+  foil?: boolean | null;
+  omnidexUrl?: string;
+  omnidexText?: string;
+}
+
+export interface AssistantAddWantResponse {
+  success: boolean;
+  importedOmnidex?: boolean;
+  omnidexStats?: {
+    addedCardsCount: number;
+    addedCopiesCount: number;
+    skippedCopiesCount: number;
+  };
+  card?: {
+    slug: string;
+    name: string;
+  };
+  desiredQuantity?: number;
+  foil?: boolean | null;
+  suggestions?: Array<{ name: string; slug: string }>;
+}
+
+export interface AssistantRemoveWantRequest {
+  provider: AssistantProvider;
+  providerUserId: string;
+  card: string;
+  quantity?: number;
+}
+
+export interface AssistantRemoveWantResponse {
+  success: boolean;
+  removed: boolean;
+  remainingQuantity: number;
+  cardName: string;
+  suggestions?: Array<{ name: string; slug: string; quantity: number }>;
+}
+
+export interface AssistantImportDeckRequest {
+  provider: AssistantProvider;
+  providerUserId: string;
+  url?: string;
+  text?: string;
+  name?: string;
+  champion?: string;
+  format?: string;
+}
+
+export interface AssistantImportDeckResponse {
+  success: boolean;
+  deck: {
+    id: string;
+    name: string;
+  };
+}
+
+// 
 
 export class AssistantApiError extends Error {
   constructor(

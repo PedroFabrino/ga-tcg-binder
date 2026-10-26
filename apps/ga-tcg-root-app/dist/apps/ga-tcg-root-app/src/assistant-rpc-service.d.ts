@@ -1,6 +1,6 @@
 import { AssistantServiceBase } from "@ga/gen-server";
 import { type Client } from "@rootsdk/server-app";
-import { type DecksResponse, type LinkRequest, type LinkResponse, type PreferencesRequest, type PreferencesResponse, type StatusResponse } from "@ga/gen-shared";
+import { type AddWantRpcRequest, type AddWantRpcResponse, type AutocompleteRpcRequest, type AutocompleteRpcResponse, type DecksResponse, type ImportDeckRpcRequest, type ImportDeckRpcResponse, type LinkRequest, type LinkResponse, type PersonalWantsRpcResponse, type PreferencesRequest, type PreferencesResponse, type RegisterResponse, type RemoveWantRpcRequest, type RemoveWantRpcResponse, type StatusResponse } from "@ga/gen-shared";
 import { RootBotApi } from "./root-bot-api";
 export interface AssistantRpcServiceDeps {
     api?: RootBotApi;
@@ -16,6 +16,12 @@ export declare class AssistantRpcService extends AssistantServiceBase {
     private getApi;
     getStatus(client: Client): Promise<StatusResponse>;
     linkAccount(request: LinkRequest, client: Client): Promise<LinkResponse>;
+    registerAccount(client: Client): Promise<RegisterResponse>;
     setPreferences(request: PreferencesRequest, client: Client): Promise<PreferencesResponse>;
     getDecks(client: Client): Promise<DecksResponse>;
+    autocomplete(request: AutocompleteRpcRequest, client: Client): Promise<AutocompleteRpcResponse>;
+    getPersonalWants(client: Client): Promise<PersonalWantsRpcResponse>;
+    addWant(request: AddWantRpcRequest, client: Client): Promise<AddWantRpcResponse>;
+    removeWant(request: RemoveWantRpcRequest, client: Client): Promise<RemoveWantRpcResponse>;
+    importDeck(request: ImportDeckRpcRequest, client: Client): Promise<ImportDeckRpcResponse>;
 }

@@ -105,6 +105,16 @@ class RootBotApi {
             body: JSON.stringify(request),
         });
     }
+    async register(providerUserId, providerUsername) {
+        return this.request("/api/assistant/register", {
+            method: "POST",
+            body: JSON.stringify({
+                provider: "root",
+                providerUserId,
+                providerUsername,
+            }),
+        });
+    }
     async link(request) {
         return this.request("/api/assistant/link", {
             method: "POST",
@@ -115,6 +125,16 @@ class RootBotApi {
         const params = new URLSearchParams({ provider: "root", providerUserId });
         return this.request(`/api/assistant/decks?${params.toString()}`);
     }
+    async importDeck(providerUserId, req) {
+        return this.request("/api/assistant/decks", {
+            method: "POST",
+            body: JSON.stringify({
+                provider: "root",
+                providerUserId,
+                ...req,
+            }),
+        });
+    }
     async getShortages(providerUserId, deck) {
         const params = new URLSearchParams({ provider: "root", providerUserId, deck });
         return this.request(`/api/assistant/shortages?${params.toString()}`);
@@ -123,12 +143,53 @@ class RootBotApi {
         const params = new URLSearchParams({ provider: "root", providerUserId, query });
         return this.request(`/api/assistant/collection?${params.toString()}`);
     }
+    async getPortfolio(providerUserId) {
+        const params = new URLSearchParams({ provider: "root", providerUserId });
+        return this.request(`/api/assistant/collection?${params.toString()}`);
+    }
     async getWantlist(providerUserId, deck) {
         const params = new URLSearchParams({ provider: "root", providerUserId });
         if (deck) {
             params.set("deck", deck);
         }
         return this.request(`/api/assistant/wantlist?${params.toString()}`);
+    }
+    async getPersonalWants(providerUserId) {
+        const params = new URLSearchParams({
+            provider: "root",
+            providerUserId,
+            personalOnly: "true",
+        });
+        return this.request(`/api/assistant/wantlist?${params.toString()}`);
+    }
+    async addWant(providerUserId, req) {
+        return this.request("/api/assistant/wantlist", {
+            method: "POST",
+            body: JSON.stringify({
+                provider: "root",
+                providerUserId,
+                ...req,
+            }),
+        });
+    }
+    async removeWant(providerUserId, req) {
+        return this.request("/api/assistant/wantlist", {
+            method: "DELETE",
+            body: JSON.stringify({
+                provider: "root",
+                providerUserId,
+                ...req,
+            }),
+        });
+    }
+    async autocomplete(providerUserId, type, query) {
+        const params = new URLSearchParams({
+            provider: "root",
+            providerUserId,
+            type,
+            query,
+        });
+        return this.request(`/api/assistant/autocomplete?${params.toString()}`);
     }
 }
 exports.RootBotApi = RootBotApi;

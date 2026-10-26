@@ -9,18 +9,19 @@ const community_config_1 = require("./community-config");
 const setup_provisioning_1 = require("./setup-provisioning");
 const root_bot_api_1 = require("./root-bot-api");
 const diagnostics_1 = require("./diagnostics");
-/** Name of the market-dump channel the bot creates inside the `/setup` group. */
-const MARKET_CHANNEL_NAME = "market";
-/** Name of the dedicated bot-owned group that holds the dump + per-user channels. */
-const GROUP_NAME = "GA Market";
+const command_auth_1 = require("./commands/command-auth");
+const command_decks_1 = require("./commands/command-decks");
+const command_shortages_1 = require("./commands/command-shortages");
+const command_collection_1 = require("./commands/command-collection");
+const command_wantlist_1 = require("./commands/command-wantlist");
+const command_notify_1 = require("./commands/command-notify");
+const command_help_1 = require("./commands/command-help");
 function isAssistantApiError(err) {
-    if (typeof err !== "object" || err === null) {
+    if (typeof err !== "object" || err === null)
         return false;
-    }
     const record = err;
     return (typeof record.code === "string" &&
-        (typeof record.status === "number" ||
-            typeof record.statusCode === "number"));
+        (typeof record.status === "number" || typeof record.statusCode === "number"));
 }
 function defaultRootCommandDeps(communityId, client) {
     const api = client ?? getRootBotApi(communityId);
@@ -83,10 +84,6 @@ function getRootBotApi(communityId) {
         communityId: communityId ?? process.env.COMMUNITY_ID ?? "",
     });
 }
-/**
- * Parses and executes a Root slash command from incoming channel messages.
- * Returns the markdown reply string, or null if message is not a recognized command.
- */
 async function processRootCommand(userId, messageContent, client = getRootBotApi(), deps = {}, channelId, communityId) {
     const resolvedDeps = {
         ...defaultRootCommandDeps(communityId, client),
@@ -97,187 +94,26 @@ async function processRootCommand(userId, messageContent, client = getRootBotApi
         return null;
     const [command, ...args] = trimmed.slice(1).split(/\s+/);
     const argString = args.join(" ").trim();
+    const cmd = command.toLowerCase();
     try {
-        // 1. /link <code>
-        if (command === "link") {
-            if (!argString) {
-                return "⚠️ **Usage:** `/link <code>`\nProvide the 6-character pairing code from **Settings > Linked Accounts** in GA Binder.";
-            }
-            const res = await client.link({
-                token: argString.toUpperCase(),
-                provider: "root",
-                providerUserId: userId,
-            });
-            return `✅ **Account Linked Successfully!**\nYour Root account is now paired to **${res.collectorName || "Collector"}**.\n\nYou can now use \`/decks\`, \`/shortages\`, \`/collection\`, and \`/wantlist\`!`;
-        }
-        // 2. /decks
-        if (command === "decks") {
-            const res = await client.getDecks(userId);
-            if (res.decks.length === 0) {
-                return `🗃️ **${res.collectorName || "Collector"}'s Decks**\nYou don't have any saved decks yet. Create one in the GA Binder web app!`;
-            }
-            const lines = [`### 🗃️ **${res.collectorName || "Collector"}'s Decks (${res.decks.length})**`];
-            for (const deck of res.decks) {
-                const icon = deck.completionPercentage === 100 ? "✅" : "⚠️";
-                lines.push(`- **${deck.name}** (${deck.format})`);
-                lines.push(`  - Champion: **${deck.champion || "None"}** | Cards: ${deck.totalCards} (${deck.uniqueCards} unique)`);
-                lines.push(`  - Completion: **${deck.completionPercentage}%** ${icon}`);
-                if (deck.hardShortageCount > 0) {
-                    lines.push(`  - 🔴 Hard Shortages: **${deck.hardShortageCount}**`);
-                }
-                if (deck.sharedShortageCount > 0) {
-                    lines.push(`  - 🟡 Shared Shortages: **${deck.sharedShortageCount}**`);
-                }
-            }
-            lines.push("\n*Use `/shortages <deck>` to see itemized shortages.*");
-            return lines.join("\n");
-        }
-        // 3. /shortages <deck>
-        if (command === "shortages") {
-            if (!argString) {
-                return "⚠️ **Usage:** `/shortages <deck_name>`\nPlease specify which deck to check.";
-            }
-            const shortages = await client.getShortages(userId, argString);
-            const isComplete = shortages.hardShortages.length === 0 && shortages.sharedShortages.length === 0;
-            if (isComplete) {
-                return `🎉 **${shortages.deckName} — 100% Complete!**\nAll required cards are owned with zero shortages. Ready to sleeve!`;
-            }
-            const lines = [
-                `### 📊 **Shortages for ${shortages.deckName}** (${shortages.completionPercentage}%)`,
-                `Format: **${shortages.format}** | Total Shortages: **${shortages.totalHardShortages + shortages.totalSharedShortages}**\n`,
-            ];
-            if (shortages.hardShortages.length > 0) {
-                lines.push(`**🔴 Hard Shortages (Compra Necessária — ${shortages.totalHardShortages}):**`);
-                for (const h of shortages.hardShortages) {
-                    lines.push(`- **${h.cardName}** x${h.missingQuantity} missing (needs ${h.requiredQuantity})`);
-                }
-                lines.push("");
-            }
-            if (shortages.sharedShortages.length > 0) {
-                lines.push(`**🟡 Shared Shortages (Revezamento entre Decks — ${shortages.totalSharedShortages}):**`);
-                for (const s of shortages.sharedShortages) {
-                    const contending = s.competingDecks.length > 0 ? ` *(used in ${s.competingDecks.join(", ")})*` : "";
-                    lines.push(`- **${s.cardName}** x${s.sharedQuantity} shared${contending}`);
-                }
-            }
-            return lines.join("\n");
-        }
-        // 4. /collection <query>
-        if (command === "collection") {
-            if (!argString) {
-                return "⚠️ **Usage:** `/collection <card_name>`\nPlease specify a card name to search.";
-            }
-            const res = await client.searchCollection(userId, argString);
-            if (res.cards.length === 0) {
-                return `🔍 **Collection Search: "${argString}"**\nNo matching cards found in your personal Binder.`;
-            }
-            const lines = [`### 🔍 **Collection Search: "${argString}"** (${res.cards.length} match${res.cards.length > 1 ? "es" : ""})`];
-            for (const card of res.cards.slice(0, 5)) {
-                lines.push(`- **${card.cardName}** (${card.element} ${card.type}) — Total: **${card.totalOwned}**`);
-                lines.push(`  - Dedicated: ${card.dedicatedTotal} | Idle: ${card.idleTotal}`);
-                for (const p of card.printings) {
-                    lines.push(`  - • ${p.setPrefix}-${p.collectorNumber} ${p.foil ? "★ Foil" : "Normal"} x${p.quantity} (${p.isDedicated ? "Dedicated" : "Idle"})`);
-                }
-            }
-            return lines.join("\n");
-        }
-        // 5. /wantlist [deck]
-        if (command === "wantlist") {
-            const wantlist = await client.getWantlist(userId, argString || undefined);
-            if (wantlist.decks.length === 0) {
-                return "📋 **Wantlist**\nZero shortages detected across your active decks! Your collection fully covers them.";
-            }
-            const lines = [
-                `### 📋 **Wantlist (${wantlist.totalDecks} Deck${wantlist.totalDecks > 1 ? "s" : ""})**`,
-                `Grand Total: **${wantlist.grandTotalHard}** Hard (🔴) | **${wantlist.grandTotalShared}** Shared (🟡)\n`,
-            ];
-            for (const group of wantlist.decks) {
-                lines.push(`**${group.deckName}** (${group.totalShortages} shortages):`);
-                for (const h of group.hardShortages) {
-                    lines.push(`- 🔴 **${h.cardName}** x${h.missingQuantity}`);
-                }
-                for (const s of group.sharedShortages) {
-                    lines.push(`- 🟡 **${s.cardName}** x${s.sharedQuantity}`);
-                }
-                lines.push("");
-            }
-            return lines.join("\n");
-        }
-        // 6. /notify [on [all|hard] | all | hard | off]
-        if (command === "notify") {
-            const parts = argString.toLowerCase().split(/\s+/).filter(Boolean);
-            let action = parts[0];
-            let modeArg = parts[1];
-            // Support /notify all and /notify hard directly
-            if (action === "all" || action === "hard") {
-                modeArg = action;
-                action = "on";
-            }
-            if (action !== "on" && action !== "off") {
-                return "⚠️ **Usage:** `/notify on [all|hard]`, `/notify all|hard`, or `/notify off`\n• `/notify on all`: Alert on all shortages (hard + shared) and general wantlist\n• `/notify on hard`: Alert only on hard shortages and general wantlist\n• `/notify off`: Turn off private deal alerts";
-            }
-            let mode;
-            if (action === "on") {
-                if (modeArg === "hard")
-                    mode = "hard";
-                else if (modeArg === "all")
-                    mode = "all";
-                else if (modeArg === undefined)
-                    mode = undefined;
-                else {
-                    return "⚠️ **Usage:** `/notify on [all|hard]`\nUnknown mode. Use `all` (everything) or `hard` (hard shortages + wantlist).";
-                }
-            }
-            const collectorId = await resolvedDeps.findCollectorId(userId);
-            if (!collectorId) {
-                return "⚠️ **Grand Archive Binder Account Not Linked**\nLink your account first:\n1. Open GA Binder > **Settings > Linked Accounts**\n2. Click **Generate Code**\n3. Run `/link <code>` here in Root.";
-            }
-            if (action === "on") {
-                await resolvedDeps.setNotificationPreference(userId, true, ...(mode !== undefined ? [mode] : []));
-                let alertsChannelId = null;
-                try {
-                    alertsChannelId = await resolvedDeps.ensureRecipientChannel(userId);
-                }
-                catch (err) {
-                    await (0, diagnostics_1.reportDiagnostic)({
-                        stage: "notify-create-channel-failed",
-                        message: err,
-                        level: server_app_1.CommunityAppLogType.Error,
-                    });
-                }
-                try {
-                    await resolvedDeps.provisionDealAlerts();
-                }
-                catch (err) {
-                    await (0, diagnostics_1.reportDiagnostic)({
-                        stage: "notify-provision-failed",
-                        message: err,
-                        level: server_app_1.CommunityAppLogType.Error,
-                    });
-                }
-                const scope = mode === "hard" ? " (hard shortages + wantlist)" : "";
-                return alertsChannelId
-                    ? `🔔 **Deal alerts enabled${scope}.** Your alerts will arrive in [your private channel](root://channel/${alertsChannelId}).`
-                    : `🔔 **Deal alerts enabled${scope}.** Your private channel will be created on the next marketplace sync.`;
-            }
-            await resolvedDeps.setNotificationPreference(userId, false);
-            await resolvedDeps.removeDealAlertChannel(userId);
-            return "🔕 **Deal alerts disabled.**\nYour private deal-alert channel has been removed.";
-        }
-        // 7. /setup
-        if (command === "setup") {
-            if (!(await resolvedDeps.isCommunityAdmin(userId))) {
-                return "⚠️ Only community admins (Manage Apps) or the owner can run `/setup`.";
-            }
-            if (!channelId) {
-                return "⚠️ Run `/setup` inside the channel you want market updates posted to.";
-            }
-            if (argString.toLowerCase() !== "confirm") {
-                return "⚠️ **Market setup.** I'll create a dedicated **GA Market** group with a **#market** channel for store updates, and per-user alert channels will live there too.\nRun `/setup confirm` to apply it.";
-            }
-            const marketChannelName = await resolvedDeps.configureFromChannel(channelId);
-            return `✅ **Setup complete.** I created the **GA Market** group with a **#${marketChannelName}** channel for market updates, and per-user alert channels will be created there.`;
-        }
+        if (cmd === "help")
+            return (0, command_help_1.handleHelpCommand)();
+        if (cmd === "link")
+            return await (0, command_auth_1.handleLinkCommand)(argString, userId, client);
+        if (cmd === "register")
+            return await (0, command_auth_1.handleRegisterCommand)(userId, client);
+        if (cmd === "decks")
+            return await (0, command_decks_1.handleDecksCommand)(argString, userId, client);
+        if (cmd === "shortages")
+            return await (0, command_shortages_1.handleShortagesCommand)(argString, userId, client);
+        if (cmd === "collection")
+            return await (0, command_collection_1.handleCollectionCommand)(argString, userId, client);
+        if (cmd === "wantlist")
+            return await (0, command_wantlist_1.handleWantlistCommand)(argString, userId, client);
+        if (cmd === "notify")
+            return await (0, command_notify_1.handleNotifyCommand)(argString, userId, resolvedDeps);
+        if (cmd === "setup")
+            return await (0, command_notify_1.handleSetupCommand)(argString, userId, channelId, resolvedDeps);
         return null;
     }
     catch (err) {
@@ -288,19 +124,20 @@ async function processRootCommand(userId, messageContent, client = getRootBotApi
         });
         if (isAssistantApiError(err)) {
             if (err.code === "IDENTITY_NOT_LINKED") {
-                return "⚠️ **Grand Archive Binder Account Not Linked**\nLink your account first:\n1. Open GA Binder > **Settings > Linked Accounts**\n2. Click **Generate Code**\n3. Run `/link <code>` here in Root.";
+                return ("⚠️ **Grand Archive Binder Account Not Linked**\n" +
+                    "Get started in seconds:\n" +
+                    "• Run `/register` to create a new binder account instantly\n" +
+                    "• Or run `/link <code>` using a pairing code from GA Binder web app.");
             }
             if (err.code === "DECK_NOT_FOUND") {
                 return `⚠️ **Deck Not Found**\nCould not find a deck matching "${argString}". Run \`/decks\` to see all your active decks.`;
             }
             return `⚠️ **Assistant Error:** ${err.message}`;
         }
-        return `⚠️ **Error executing command:** ${err?.message || "Unknown error"}`;
+        const message = err instanceof Error ? err.message : "Unknown error";
+        return `⚠️ **Error executing command:** ${message}`;
     }
 }
-/**
- * Subscribes to Root channel messages and executes assistant commands.
- */
 function registerRootCommandHandlers(communityId) {
     server_app_1.rootServer.community.channelMessages.on("channelMessage.created", async (evt) => {
         if (evt.messageType === server_app_1.MessageType.System)

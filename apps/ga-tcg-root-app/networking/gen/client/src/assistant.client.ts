@@ -3,11 +3,21 @@
 // tslint: disable
 
 import {
-  DecksResponse,
+  AddWantRpcRequest,
+	AddWantRpcResponse,
+	AutocompleteRpcRequest,
+	AutocompleteRpcResponse,
+	DecksResponse,
+	ImportDeckRpcRequest,
+	ImportDeckRpcResponse,
 	LinkRequest,
 	LinkResponse,
+	PersonalWantsRpcResponse,
 	PreferencesRequest,
 	PreferencesResponse,
+	RegisterResponse,
+	RemoveWantRpcRequest,
+	RemoveWantRpcResponse,
 	StatusResponse,
 	Void
 } from "@ga/gen-shared"
@@ -32,11 +42,29 @@ export class AssistantServiceClient  {
 	linkAccount(request: LinkRequest):Promise<LinkResponse> {
 		return (<any>rootClient).sendWithResponse('/.AssistantService/LinkAccount',request, this.linkAccount);
 	}
+	registerAccount():Promise<RegisterResponse> {
+		return (<any>rootClient).sendWithResponse('/.AssistantService/RegisterAccount',{}, this.registerAccount);
+	}
 	setPreferences(request: PreferencesRequest):Promise<PreferencesResponse> {
 		return (<any>rootClient).sendWithResponse('/.AssistantService/SetPreferences',request, this.setPreferences);
 	}
 	getDecks():Promise<DecksResponse> {
 		return (<any>rootClient).sendWithResponse('/.AssistantService/GetDecks',{}, this.getDecks);
+	}
+	autocomplete(request: AutocompleteRpcRequest):Promise<AutocompleteRpcResponse> {
+		return (<any>rootClient).sendWithResponse('/.AssistantService/Autocomplete',request, this.autocomplete);
+	}
+	getPersonalWants():Promise<PersonalWantsRpcResponse> {
+		return (<any>rootClient).sendWithResponse('/.AssistantService/GetPersonalWants',{}, this.getPersonalWants);
+	}
+	addWant(request: AddWantRpcRequest):Promise<AddWantRpcResponse> {
+		return (<any>rootClient).sendWithResponse('/.AssistantService/AddWant',request, this.addWant);
+	}
+	removeWant(request: RemoveWantRpcRequest):Promise<RemoveWantRpcResponse> {
+		return (<any>rootClient).sendWithResponse('/.AssistantService/RemoveWant',request, this.removeWant);
+	}
+	importDeck(request: ImportDeckRpcRequest):Promise<ImportDeckRpcResponse> {
+		return (<any>rootClient).sendWithResponse('/.AssistantService/ImportDeck',request, this.importDeck);
 	}private __register(): UntypedClientMethodDefinition[] {
 		return [	{
       serviceName: 'AssistantServiceClient',
@@ -54,6 +82,13 @@ export class AssistantServiceClient  {
     },
 		{
       serviceName: 'AssistantServiceClient',
+			methodName: 'RegisterAccount',
+			path: '/.AssistantService/RegisterAccount',
+			requestSerialize: () => Void.toBinary({}),
+			responseDeserialize: bytes => RegisterResponse.fromBinary(bytes)
+    },
+		{
+      serviceName: 'AssistantServiceClient',
 			methodName: 'SetPreferences',
 			path: '/.AssistantService/SetPreferences',
 			requestSerialize: value => PreferencesRequest.toBinary(value),
@@ -65,6 +100,41 @@ export class AssistantServiceClient  {
 			path: '/.AssistantService/GetDecks',
 			requestSerialize: () => Void.toBinary({}),
 			responseDeserialize: bytes => DecksResponse.fromBinary(bytes)
+    },
+		{
+      serviceName: 'AssistantServiceClient',
+			methodName: 'Autocomplete',
+			path: '/.AssistantService/Autocomplete',
+			requestSerialize: value => AutocompleteRpcRequest.toBinary(value),
+			responseDeserialize: bytes => AutocompleteRpcResponse.fromBinary(bytes)
+    },
+		{
+      serviceName: 'AssistantServiceClient',
+			methodName: 'GetPersonalWants',
+			path: '/.AssistantService/GetPersonalWants',
+			requestSerialize: () => Void.toBinary({}),
+			responseDeserialize: bytes => PersonalWantsRpcResponse.fromBinary(bytes)
+    },
+		{
+      serviceName: 'AssistantServiceClient',
+			methodName: 'AddWant',
+			path: '/.AssistantService/AddWant',
+			requestSerialize: value => AddWantRpcRequest.toBinary(value),
+			responseDeserialize: bytes => AddWantRpcResponse.fromBinary(bytes)
+    },
+		{
+      serviceName: 'AssistantServiceClient',
+			methodName: 'RemoveWant',
+			path: '/.AssistantService/RemoveWant',
+			requestSerialize: value => RemoveWantRpcRequest.toBinary(value),
+			responseDeserialize: bytes => RemoveWantRpcResponse.fromBinary(bytes)
+    },
+		{
+      serviceName: 'AssistantServiceClient',
+			methodName: 'ImportDeck',
+			path: '/.AssistantService/ImportDeck',
+			requestSerialize: value => ImportDeckRpcRequest.toBinary(value),
+			responseDeserialize: bytes => ImportDeckRpcResponse.fromBinary(bytes)
     },
 	]}
 }

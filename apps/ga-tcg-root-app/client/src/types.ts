@@ -1,26 +1,56 @@
 import type {
+  AddWantRpcRequest,
+  AddWantRpcResponse,
+  AutocompleteChoiceItem,
+  AutocompleteRpcRequest,
+  AutocompleteRpcResponse,
   DeckSummary,
   DecksResponse,
+  ImportDeckRpcRequest,
+  ImportDeckRpcResponse,
   LinkRequest,
   LinkResponse,
+  PersonalWantRpcItem,
+  PersonalWantsRpcResponse,
   PreferencesRequest,
   PreferencesResponse,
+  RegisterResponse,
+  RemoveWantRpcRequest,
+  RemoveWantRpcResponse,
   StatusResponse,
 } from "@ga/gen-shared";
 
 export type {
+  AddWantRpcRequest,
+  AddWantRpcResponse,
+  AutocompleteChoiceItem,
+  AutocompleteRpcRequest,
+  AutocompleteRpcResponse,
   DeckSummary,
   DecksResponse,
+  ImportDeckRpcRequest,
+  ImportDeckRpcResponse,
   LinkRequest,
   LinkResponse,
+  PersonalWantRpcItem,
+  PersonalWantsRpcResponse,
   PreferencesRequest,
   PreferencesResponse,
+  RegisterResponse,
+  RemoveWantRpcRequest,
+  RemoveWantRpcResponse,
   StatusResponse,
 };
 
 export interface IAssistantRpcClient {
   getStatus(): Promise<StatusResponse>;
   linkAccount(request: LinkRequest): Promise<LinkResponse>;
+  registerAccount(): Promise<RegisterResponse>;
   setPreferences(request: PreferencesRequest): Promise<PreferencesResponse>;
   getDecks(): Promise<DecksResponse>;
+  autocomplete(request: AutocompleteRpcRequest): Promise<AutocompleteRpcResponse>;
+  getPersonalWants(): Promise<PersonalWantsRpcResponse>;
+  addWant(request: AddWantRpcRequest): Promise<AddWantRpcResponse>;
+  removeWant(request: RemoveWantRpcRequest): Promise<RemoveWantRpcResponse>;
+  importDeck(request: ImportDeckRpcRequest): Promise<ImportDeckRpcResponse>;
 }

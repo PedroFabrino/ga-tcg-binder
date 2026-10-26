@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AssistantRpcService = void 0;
 const gen_server_1 = require("@ga/gen-server");
 const root_bot_api_1 = require("./root-bot-api");
-const deal_alert_notifier_1 = require("./deal-alert-notifier");
+const assistant_rpc_helpers_1 = require("./assistant-rpc-helpers");
 class AssistantRpcService extends gen_server_1.AssistantServiceBase {
     communityId;
     deps;
@@ -113,6 +113,27 @@ class AssistantRpcService extends gen_server_1.AssistantServiceBase {
             };
         }
     }
+    async registerAccount(client) {
+        const userId = String(client.userId);
+        const api = this.getApi(client);
+        try {
+            const res = await api.register(userId);
+            return {
+                success: true,
+                collectorName: res.collector.name ?? "",
+                friendCode: res.collector.friendCode ?? "",
+                error: "",
+            };
+        }
+        catch (err) {
+            return {
+                success: false,
+                collectorName: "",
+                friendCode: "",
+                error: err instanceof Error ? err.message : "REGISTER_FAILED",
+            };
+        }
+    }
     async setPreferences(request, client) {
         const userId = String(client.userId);
         const communityId = client.communityId
@@ -121,39 +142,7 @@ class AssistantRpcService extends gen_server_1.AssistantServiceBase {
         const api = this.getApi(client);
         const mode = request.dealAlertMode === "hard" ? "hard" : "all";
         try {
-            if (this.deps.setNotificationPreference) {
-                await this.deps.setNotificationPreference(userId, request.notificationsEnabled, mode);
-            }
-            else {
-                await api.setNotifyPreference({
-                    providerUserId: userId,
-                    enabled: request.notificationsEnabled,
-                    mode,
-                });
-            }
-            let alertChannelId = "";
-            if (request.notificationsEnabled) {
-                const channelUrl = this.deps.ensureRecipientChannel
-                    ? await this.deps.ensureRecipientChannel(userId, communityId)
-                    : await (0, deal_alert_notifier_1.ensureRootRecipientChannel)(userId, {
-                        communityId,
-                        api,
-                    });
-                alertChannelId = channelUrl
-                    ? channelUrl.replace(/^root:\/\/channel\//, "")
-                    : "";
-            }
-            else {
-                if (this.deps.removeDealAlertChannel) {
-                    await this.deps.removeDealAlertChannel(userId, communityId);
-                }
-                else {
-                    await (0, deal_alert_notifier_1.removeRootDealAlertChannel)(userId, {
-                        communityId,
-                        api,
-                    });
-                }
-            }
+            const { alertChannelId } = await (0, assistant_rpc_helpers_1.updateDealAlertPreferencesHelper)(api, userId, communityId, request.notificationsEnabled, mode, this.deps);
             return {
                 success: true,
                 notificationsEnabled: request.notificationsEnabled,
@@ -177,41 +166,139 @@ class AssistantRpcService extends gen_server_1.AssistantServiceBase {
         const api = this.getApi(client);
         try {
             const res = await api.getDecks(userId);
-            const decks = await Promise.all((res.decks || []).map(async (deck) => {
-                let hardShortages = [];
-                let sharedShortages = [];
-                try {
-                    const shortages = await api.getShortages(userId, deck.id);
-                    hardShortages = (shortages.hardShortages || []).map((h) => ({
-                        cardSlug: h.cardSlug || "",
-                        cardName: h.cardName,
-                        quantity: h.missingQuantity,
-                    }));
-                    sharedShortages = (shortages.sharedShortages || []).map((s) => ({
-                        cardSlug: s.cardSlug || "",
-                        cardName: s.cardName,
-                        quantity: s.sharedQuantity,
-                    }));
-                }
-                catch {
-                    // Shortages breakdown degrades gracefully
-                }
-                return {
-                    id: deck.id,
-                    name: deck.name,
-                    champion: deck.champion || "",
-                    format: deck.format,
-                    totalCards: deck.totalCards,
-                    hardShortagesCount: deck.hardShortageCount,
-                    sharedShortagesCount: deck.sharedShortageCount,
-                    hardShortages,
-                    sharedShortages,
-                };
-            }));
+            const decks = await (0, assistant_rpc_helpers_1.buildDeckSummariesWithShortages)(api, userId, res.decks || []);
             return { decks };
         }
         catch {
             return { decks: [] };
+        }
+    }
+    async autocomplete(request, client) {
+        const userId = String(client.userId);
+        const api = this.getApi(client);
+        try {
+            const type = request.type === "wants" || request.type === "deck" ? request.type : "card";
+            const res = await api.autocomplete(userId, type, request.query || "");
+            return {
+                results: (res.results || []).map((r) => ({
+                    name: r.name,
+                    value: r.value,
+                    element: r.element || "",
+                    type: r.type || "",
+                    quantity: r.quantity || 0,
+                    foil: Boolean(r.foil),
+                })),
+            };
+        }
+        catch {
+            return { results: [] };
+        }
+    }
+    async getPersonalWants(client) {
+        const userId = String(client.userId);
+        const api = this.getApi(client);
+        try {
+            const res = await api.getPersonalWants(userId);
+            return {
+                wants: (res.personalWants || []).map((w) => ({
+                    cardSlug: w.cardSlug,
+                    cardName: w.cardName,
+                    element: w.element || "",
+                    type: w.type || "",
+                    desiredQuantity: w.desiredQuantity,
+                    foil: Boolean(w.foil),
+                })),
+            };
+        }
+        catch {
+            return { wants: [] };
+        }
+    }
+    async addWant(request, client) {
+        const userId = String(client.userId);
+        const api = this.getApi(client);
+        try {
+            const res = await api.addWant(userId, {
+                card: request.card,
+                quantity: request.quantity,
+                foil: request.foil,
+                omnidexUrl: request.omnidexUrl,
+            });
+            return {
+                success: true,
+                message: res.card ? `Added ${res.card.name}` : "Imported Omnidex shortages",
+                error: "",
+                suggestions: (res.suggestions || []).map((s) => ({
+                    name: s.name,
+                    value: s.slug,
+                    element: "",
+                    type: "",
+                    quantity: 0,
+                    foil: false,
+                })),
+            };
+        }
+        catch (err) {
+            return {
+                success: false,
+                message: "",
+                error: err instanceof Error ? err.message : "ADD_WANT_FAILED",
+                suggestions: [],
+            };
+        }
+    }
+    async removeWant(request, client) {
+        const userId = String(client.userId);
+        const api = this.getApi(client);
+        try {
+            const res = await api.removeWant(userId, {
+                card: request.card,
+                quantity: request.quantity,
+            });
+            return {
+                success: res.success,
+                removed: res.removed,
+                remainingQuantity: res.remainingQuantity,
+                cardName: res.cardName,
+                error: "",
+                suggestions: (res.suggestions || []).map((s) => ({
+                    name: s.name,
+                    value: s.slug,
+                    element: "",
+                    type: "",
+                    quantity: s.quantity,
+                    foil: false,
+                })),
+            };
+        }
+        catch (err) {
+            return {
+                success: false,
+                removed: false,
+                remainingQuantity: 0,
+                cardName: request.card,
+                error: err instanceof Error ? err.message : "REMOVE_WANT_FAILED",
+                suggestions: [],
+            };
+        }
+    }
+    async importDeck(request, client) {
+        const userId = String(client.userId);
+        const api = this.getApi(client);
+        try {
+            const res = await api.importDeck(userId, { url: request.url });
+            return {
+                success: true,
+                deckName: res.deck.name,
+                error: "",
+            };
+        }
+        catch (err) {
+            return {
+                success: false,
+                deckName: "",
+                error: err instanceof Error ? err.message : "IMPORT_DECK_FAILED",
+            };
         }
     }
 }

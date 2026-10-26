@@ -3,6 +3,7 @@ import { Sparkles, RefreshCw, AlertCircle } from "lucide-react";
 import { AccountLinkCard } from "./components/AccountLinkCard";
 import { DealAlertCard } from "./components/DealAlertCard";
 import { DecksDashboardCard } from "./components/DecksDashboardCard";
+import { WantlistCard } from "./components/WantlistCard";
 import type { IAssistantRpcClient, StatusResponse, DeckSummary } from "./types";
 
 export interface AppProps {
@@ -90,6 +91,22 @@ export const App: React.FC<AppProps> = ({ client }) => {
     return { success: res.success, error: res.error };
   };
 
+  const handleRegister = async () => {
+    const res = await client.registerAccount();
+    if (res.success) {
+      await fetchStatusAndDecks();
+    }
+    return { success: res.success, error: res.error };
+  };
+
+  const handleImportDeck = async (url: string) => {
+    const res = await client.importDeck({ url });
+    if (res.success) {
+      await fetchStatusAndDecks();
+    }
+    return { success: res.success, error: res.error };
+  };
+
   const handleUpdatePreferences = async (enabled: boolean, mode: "all" | "hard") => {
     const res = await client.setPreferences({
       notificationsEnabled: enabled,
@@ -159,6 +176,7 @@ export const App: React.FC<AppProps> = ({ client }) => {
               collectorName={status?.collectorName ?? ""}
               friendCode={status?.friendCode ?? ""}
               onLink={handleLink}
+              onRegister={handleRegister}
             />
 
             <DealAlertCard
@@ -173,6 +191,12 @@ export const App: React.FC<AppProps> = ({ client }) => {
               isLinked={status?.isLinked ?? false}
               decks={decks}
               loading={refreshing}
+              onImportDeck={handleImportDeck}
+            />
+
+            <WantlistCard
+              isLinked={status?.isLinked ?? false}
+              client={client}
             />
           </main>
         )}

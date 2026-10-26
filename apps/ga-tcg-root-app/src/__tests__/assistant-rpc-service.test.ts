@@ -252,4 +252,106 @@ describe("AssistantRpcService", () => {
       expect(response.decks).toEqual([]);
     });
   });
+
+  describe("registerAccount", () => {
+    it("registers user and returns collector info", async () => {
+      const mockApi = {
+        register: vi.fn().mockResolvedValue({
+          collector: { name: "Bob", friendCode: "GA-BOB" },
+          created: true,
+        }),
+      } as unknown as RootBotApi;
+
+      const service = new AssistantRpcService("comm-456", { api: mockApi });
+      const res = await service.registerAccount(createMockClient("user-123"));
+      expect(res.success).toBe(true);
+      expect(res.collectorName).toBe("Bob");
+      expect(res.friendCode).toBe("GA-BOB");
+    });
+  });
+
+  describe("autocomplete", () => {
+    it("returns autocomplete results", async () => {
+      const mockApi = {
+        autocomplete: vi.fn().mockResolvedValue({
+          results: [{ name: "Fireball", value: "fireball", element: "FIRE" }],
+        }),
+      } as unknown as RootBotApi;
+
+      const service = new AssistantRpcService("comm-456", { api: mockApi });
+      const res = await service.autocomplete(
+        { type: "card", query: "fire" },
+        createMockClient("user-123")
+      );
+      expect(res.results).toHaveLength(1);
+      expect(res.results[0].name).toBe("Fireball");
+    });
+  });
+
+  describe("personal wants: add, remove, get", () => {
+    it("gets personal wants", async () => {
+      const mockApi = {
+        getPersonalWants: vi.fn().mockResolvedValue({
+          personalWants: [{ cardSlug: "fireball", cardName: "Fireball", desiredQuantity: 2 }],
+        }),
+      } as unknown as RootBotApi;
+
+      const service = new AssistantRpcService("comm-456", { api: mockApi });
+      const res = await service.getPersonalWants(createMockClient("user-123"));
+      expect(res.wants).toHaveLength(1);
+      expect(res.wants[0].desiredQuantity).toBe(2);
+    });
+
+    it("adds want", async () => {
+      const mockApi = {
+        addWant: vi.fn().mockResolvedValue({
+          card: { name: "Fireball" },
+        }),
+      } as unknown as RootBotApi;
+
+      const service = new AssistantRpcService("comm-456", { api: mockApi });
+      const res = await service.addWant(
+        { card: "Fireball", quantity: 2, foil: false, omnidexUrl: "" },
+        createMockClient("user-123")
+      );
+      expect(res.success).toBe(true);
+    });
+
+    it("removes want", async () => {
+      const mockApi = {
+        removeWant: vi.fn().mockResolvedValue({
+          success: true,
+          removed: true,
+          remainingQuantity: 0,
+          cardName: "Fireball",
+        }),
+      } as unknown as RootBotApi;
+
+      const service = new AssistantRpcService("comm-456", { api: mockApi });
+      const res = await service.removeWant(
+        { card: "Fireball", quantity: 1 },
+        createMockClient("user-123")
+      );
+      expect(res.success).toBe(true);
+      expect(res.removed).toBe(true);
+    });
+  });
+
+  describe("importDeck", () => {
+    it("imports deck from url", async () => {
+      const mockApi = {
+        importDeck: vi.fn().mockResolvedValue({
+          deck: { id: "d-1", name: "Imported" },
+        }),
+      } as unknown as RootBotApi;
+
+      const service = new AssistantRpcService("comm-456", { api: mockApi });
+      const res = await service.importDeck(
+        { url: "https://omnidex.gg/deck/123" },
+        createMockClient("user-123")
+      );
+      expect(res.success).toBe(true);
+      expect(res.deckName).toBe("Imported");
+    });
+  });
 });
