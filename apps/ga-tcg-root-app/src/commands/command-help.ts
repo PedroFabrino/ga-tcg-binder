@@ -6,7 +6,7 @@ export function handleHelpCommand(): string {
     `• \`/link <code>\` — Link an existing account using the 6-character code from Settings\n\n` +
     `**Decks & Constructed Shortages:**\n` +
     `• \`/decks\` — List your active decks and completion percentages\n` +
-    `• \`/decks add <url>\` — Import an Omnidex.gg / Silvie.gg deck directly\n` +
+    `• \`/decks add <url | text>\` — Import an Omnidex.gg / Silvie.gg deck directly (URL or raw text)\n` +
     `• \`/shortages [deck]\` — View itemized Hard (🔴) and Shared (🟡) card shortages\n\n` +
     `**Portfolio & Collection:**\n` +
     `• \`/collection\` — View your Binder portfolio dashboard (cards, foils, elements)\n` +
@@ -15,7 +15,7 @@ export function handleHelpCommand(): string {
     `• \`/wantlist\` — View aggregate wantlist of deck shortages & personal wants\n` +
     `• \`/wantlist add <card> [qty] [foil]\` — Add card to personal wishlist (with autocomplete suggestions)\n` +
     `• \`/wantlist remove <card> [qty]\` — Remove or decrement card from personal wishlist\n` +
-    `• \`/wantlist add-omnidex <url>\` — Import missing deck shortage gap into wishlist\n` +
+    `• \`/wantlist add-omnidex <url | text>\` — Import missing deck shortage gap into wishlist (URL or raw text)\n` +
     `• \`/notify on [all|hard]\` — Enable private deal alert notifications\n` +
     `• \`/notify off\` — Disable deal alert notifications`
   );

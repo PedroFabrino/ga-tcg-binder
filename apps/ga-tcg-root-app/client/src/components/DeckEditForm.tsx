@@ -38,13 +38,17 @@ export const DeckEditForm: React.FC<DeckEditFormProps> = ({
     e.preventDefault();
     if (!name.trim()) return;
 
+    const activeValue = (mode === "text" ? text : url).trim();
+    const isUrl =
+      activeValue.startsWith("http://") || activeValue.startsWith("https://");
+
     setUpdating(true);
     setError(null);
     try {
       const res = await onSave(deck.id, {
         name: name.trim(),
-        text: mode === "text" ? text.trim() || undefined : undefined,
-        url: mode === "url" ? url.trim() || undefined : undefined,
+        text: !isUrl && activeValue ? activeValue : undefined,
+        url: isUrl ? activeValue : undefined,
       });
       if (!res.success) {
         setError(res.error || "Failed to update deck");

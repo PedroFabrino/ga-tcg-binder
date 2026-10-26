@@ -279,7 +279,8 @@ export class AssistantRpcService extends AssistantServiceBase {
         card: request.card,
         quantity: request.quantity,
         foil: request.foil,
-        omnidexUrl: request.omnidexUrl,
+        omnidexUrl: request.omnidexUrl || undefined,
+        omnidexText: request.omnidexText || undefined,
       });
       return {
         success: true,

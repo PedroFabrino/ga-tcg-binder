@@ -302,6 +302,10 @@ export interface AddWantRpcRequest {
      * @generated from protobuf field: string omnidex_url = 4
      */
     omnidexUrl: string;
+    /**
+     * @generated from protobuf field: string omnidex_text = 5
+     */
+    omnidexText: string;
 }
 /**
  * @generated from protobuf message AddWantRpcResponse

@@ -974,7 +974,8 @@ class AddWantRpcRequest$Type extends runtime_4.MessageType {
             { no: 1, name: "card", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "quantity", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
             { no: 3, name: "foil", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 4, name: "omnidex_url", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 4, name: "omnidex_url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "omnidex_text", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value) {
@@ -983,6 +984,7 @@ class AddWantRpcRequest$Type extends runtime_4.MessageType {
         message.quantity = 0;
         message.foil = false;
         message.omnidexUrl = "";
+        message.omnidexText = "";
         if (value !== undefined)
             (0, runtime_3.reflectionMergePartial)(this, message, value);
         return message;
@@ -1003,6 +1005,9 @@ class AddWantRpcRequest$Type extends runtime_4.MessageType {
                     break;
                 case /* string omnidex_url */ 4:
                     message.omnidexUrl = reader.string();
+                    break;
+                case /* string omnidex_text */ 5:
+                    message.omnidexText = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1028,6 +1033,9 @@ class AddWantRpcRequest$Type extends runtime_4.MessageType {
         /* string omnidex_url = 4; */
         if (message.omnidexUrl !== "")
             writer.tag(4, runtime_1.WireType.LengthDelimited).string(message.omnidexUrl);
+        /* string omnidex_text = 5; */
+        if (message.omnidexText !== "")
+            writer.tag(5, runtime_1.WireType.LengthDelimited).string(message.omnidexText);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? runtime_2.UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

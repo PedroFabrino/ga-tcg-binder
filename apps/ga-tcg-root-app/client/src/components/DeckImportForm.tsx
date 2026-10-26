@@ -31,16 +31,18 @@ export const DeckImportForm: React.FC<DeckImportFormProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (mode === "url" && !url.trim()) return;
-    if (mode === "text" && !text.trim()) return;
+    const activeValue = (mode === "url" ? url : text).trim();
+    if (!activeValue) return;
+
+    const isUrl =
+      activeValue.startsWith("http://") || activeValue.startsWith("https://");
 
     setImporting(true);
     setError(null);
     try {
-      const res = await onImport({
-        url: mode === "url" ? url.trim() : undefined,
-        text: mode === "text" ? text.trim() : undefined,
-      });
+      const res = await onImport(
+        isUrl ? { url: activeValue } : { text: activeValue }
+      );
       if (res.success) {
         setUrl("");
         setText("");
@@ -57,8 +59,7 @@ export const DeckImportForm: React.FC<DeckImportFormProps> = ({
 
   const isImportDisabled =
     importing ||
-    (mode === "url" && !url.trim()) ||
-    (mode === "text" && !text.trim());
+    (mode === "url" ? !url.trim() : !text.trim());
 
   return (
     <form

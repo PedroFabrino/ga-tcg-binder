@@ -101,6 +101,7 @@ message AddWantRpcRequest {
   int32 quantity = 2;
   bool foil = 3;
   string omnidex_url = 4;
+  string omnidex_text = 5;
 }
 
 message AddWantRpcResponse {

@@ -22,7 +22,7 @@ import {
 import {
   upsertCatalogCard,
 } from "@/db/repositories/catalog-repository";
-import { parseOmnidexText, serializeOmnidexText, decodeHtmlEntities } from "@/services/omnidex";
+import { parseOmnidexText, serializeOmnidexText, decodeHtmlEntities, fetchDeckFromUrl } from "@/services/omnidex";
 
 export class DeckValidationError extends Error {}
 export class DeckNotFoundError extends Error {}
@@ -71,7 +71,12 @@ export async function buildDeckCardsFromOmnidex(
   omnidexText: string,
   database?: DeckDatabase
 ): Promise<DeckCardInsert[]> {
-  const decoded = decodeHtmlEntities(omnidexText);
+  let rawText = omnidexText.trim();
+  if (rawText.startsWith("http://") || rawText.startsWith("https://")) {
+    const fetched = await fetchDeckFromUrl(rawText);
+    rawText = fetched.decklist;
+  }
+  const decoded = decodeHtmlEntities(rawText);
   const parsed = parseOmnidexText(decoded);
   const zones: ("material" | "main" | "side")[] = ["material", "main", "side"];
   const cardsToInsert: DeckCardInsert[] = [];
@@ -121,10 +126,21 @@ export async function createDeckService(
   },
   database?: DeckDatabase
 ): Promise<{ id: string }> {
-  const name = decodeHtmlEntities(data.name?.trim() || "");
-  const champion = decodeHtmlEntities(data.champion?.trim() || "");
+  let name = decodeHtmlEntities(data.name?.trim() || "");
+  let champion = decodeHtmlEntities(data.champion?.trim() || "");
   const format = data.format || "standard";
-  const omnidexText = data.omnidexText ? decodeHtmlEntities(data.omnidexText) : undefined;
+  let omnidexText = data.omnidexText ? decodeHtmlEntities(data.omnidexText.trim()) : undefined;
+
+  if (omnidexText && (omnidexText.startsWith("http://") || omnidexText.startsWith("https://"))) {
+    const fetched = await fetchDeckFromUrl(omnidexText);
+    omnidexText = fetched.decklist;
+    if (!name || name === "Imported Deck") {
+      name = fetched.name || name || "Imported Deck";
+    }
+    if (!champion && fetched.champion) {
+      champion = fetched.champion;
+    }
+  }
 
   if (!name) {
     throw new DeckValidationError("Deck name is required");

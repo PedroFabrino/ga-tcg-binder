@@ -87,6 +87,21 @@ export async function registerAssistantUser(
   );
 }
 
+function resolveDeckSource(url?: string, text?: string): { url?: string; text?: string } {
+  let deckText = text?.trim();
+  let deckUrl = url?.trim();
+
+  if (deckUrl && !deckUrl.startsWith("http://") && !deckUrl.startsWith("https://")) {
+    deckText = deckUrl;
+    deckUrl = undefined;
+  } else if (deckText && (deckText.startsWith("http://") || deckText.startsWith("https://")) && !deckUrl) {
+    deckUrl = deckText;
+    deckText = undefined;
+  }
+
+  return { url: deckUrl, text: deckText };
+}
+
 export async function addWantToAssistant(
   collectorId: string,
   input: AddPersonalWantInput,
@@ -94,9 +109,10 @@ export async function addWantToAssistant(
 ): Promise<AddPersonalWantResult> {
   // Handle Omnidex import (gap shortage)
   if (input.omnidexUrl || input.omnidexText) {
-    let rawText = input.omnidexText || "";
-    if (input.omnidexUrl) {
-      const fetched = await fetchDeckFromUrl(input.omnidexUrl);
+    const src = resolveDeckSource(input.omnidexUrl, input.omnidexText);
+    let rawText = src.text || "";
+    if (src.url) {
+      const fetched = await fetchDeckFromUrl(src.url);
       rawText = fetched.decklist;
     }
 
@@ -315,11 +331,12 @@ export async function importAssistantDeckFromSource(
   },
   database?: unknown
 ): Promise<{ id: string; name: string }> {
-  let deckText = input.text || "";
+  const src = resolveDeckSource(input.url, input.text);
+  let deckText = src.text || "";
   let deckName = input.name;
 
-  if (input.url) {
-    const fetched = await fetchDeckFromUrl(input.url);
+  if (src.url) {
+    const fetched = await fetchDeckFromUrl(src.url);
     deckText = fetched.decklist;
     if (!deckName) {
       deckName = fetched.name || "Imported Deck";
@@ -352,11 +369,12 @@ export async function updateAssistantDeckFromSource(
   },
   database?: unknown
 ): Promise<{ id: string; name: string }> {
-  let deckText = input.text || "";
+  const src = resolveDeckSource(input.url, input.text);
+  let deckText = src.text || "";
   let deckName = input.name;
 
-  if (input.url) {
-    const fetched = await fetchDeckFromUrl(input.url);
+  if (src.url) {
+    const fetched = await fetchDeckFromUrl(src.url);
     deckText = fetched.decklist;
     if (!deckName) {
       deckName = fetched.name || undefined;

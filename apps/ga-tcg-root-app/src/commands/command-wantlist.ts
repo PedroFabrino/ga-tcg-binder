@@ -42,17 +42,18 @@ export async function handleWantlistCommand(
   const parts = argString.split(/\s+/).filter(Boolean);
   const subCommand = parts[0]?.toLowerCase();
 
-  // 1. /wantlist add-omnidex <url>
+  // 1. /wantlist add-omnidex <url | text>
   if (subCommand === "add-omnidex") {
-    const url = parts.slice(1).join(" ").trim();
-    if (!url) {
+    const rawInput = argString.slice(argString.indexOf("add-omnidex") + 11).trim();
+    if (!rawInput) {
       return (
-        "⚠️ **Usage:** `/wantlist add-omnidex <url>`\n" +
-        "Provide an Omnidex.gg or Silvie.gg URL to import only missing card shortage gaps into your wishlist."
+        "⚠️ **Usage:** `/wantlist add-omnidex <url | text>`\n" +
+        "Provide an Omnidex.gg or Silvie.gg URL, or paste raw decklist text to import only missing card shortage gaps into your wishlist."
       );
     }
 
-    const res = await client.addWant(userId, { omnidexUrl: url });
+    const isUrl = rawInput.startsWith("http://") || rawInput.startsWith("https://");
+    const res = await client.addWant(userId, isUrl ? { omnidexUrl: rawInput } : { omnidexText: rawInput });
     const stats = res.omnidexStats;
     if (!stats) {
       return "⚠️ No cards were added from the provided Omnidex deck.";

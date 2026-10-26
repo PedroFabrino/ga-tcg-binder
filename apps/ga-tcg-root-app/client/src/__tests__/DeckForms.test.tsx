@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { DeckEditForm } from "../components/DeckEditForm";
 import { DeckImportForm } from "../components/DeckImportForm";
+import { WantlistOmnidexGapForm } from "../components/WantlistOmnidexGapForm";
 
 describe("DeckEditForm", () => {
   const sampleDeck = {
@@ -49,5 +50,21 @@ describe("DeckImportForm", () => {
     expect(html).toContain("Paste Decklist Text");
     expect(html).toContain("Omnidex.gg or Silvie.gg Deck URL");
     expect(html).toContain("Import");
+  });
+});
+
+describe("WantlistOmnidexGapForm", () => {
+  it("renders with Deck URL and Paste Decklist Text options", () => {
+    const html = renderToStaticMarkup(
+      <WantlistOmnidexGapForm
+        loading={false}
+        onImportGap={async () => {}}
+      />
+    );
+
+    expect(html).toContain("Import Omnidex Shortage Gap");
+    expect(html).toContain("Deck URL");
+    expect(html).toContain("Paste Decklist Text");
+    expect(html).toContain("Import Gap");
   });
 });

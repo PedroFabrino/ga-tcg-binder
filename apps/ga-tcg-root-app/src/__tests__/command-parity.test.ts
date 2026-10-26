@@ -253,4 +253,29 @@ describe("Root Command Handlers - Discord Parity Features", () => {
     expect(res).toContain("Omnidex Shortages Imported to Personal Wants!");
     expect(res).toContain("Added **3** unique cards (**6** total copies missing)");
   });
+
+  it("handles /wantlist add-omnidex with raw decklist text", async () => {
+    const mockClient = {
+      addWant: vi.fn().mockResolvedValue({
+        importedOmnidex: true,
+        omnidexStats: {
+          addedCardsCount: 2,
+          addedCopiesCount: 4,
+          skippedCopiesCount: 5,
+        },
+      }),
+    } as unknown as RootBotApi;
+
+    const rawDeckText = "Material Deck\n1 Spirit of Fire\n\nMain Deck\n4 Fireball";
+    const res = await processRootCommand(
+      mockUserId,
+      `/wantlist add-omnidex ${rawDeckText}`,
+      mockClient
+    );
+    expect(mockClient.addWant).toHaveBeenCalledWith(mockUserId, {
+      omnidexText: rawDeckText,
+    });
+    expect(res).toContain("Omnidex Shortages Imported to Personal Wants!");
+    expect(res).toContain("Added **2** unique cards (**4** total copies missing)");
+  });
 });

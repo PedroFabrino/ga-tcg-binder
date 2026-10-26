@@ -16,6 +16,7 @@ import type {
   PersonalWantRpcItem,
   AutocompleteChoiceItem,
 } from "../types";
+import { WantlistOmnidexGapForm } from "./WantlistOmnidexGapForm";
 
 export interface WantlistCardProps {
   isLinked: boolean;
@@ -31,7 +32,6 @@ export const WantlistCard: React.FC<WantlistCardProps> = ({ isLinked, client }) 
   const [quantity, setQuantity] = useState(1);
   const [foil, setFoil] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const [omnidexUrl, setOmnidexUrl] = useState("");
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -134,10 +134,7 @@ export const WantlistCard: React.FC<WantlistCardProps> = ({ isLinked, client }) 
     }
   };
 
-  const handleImportOmnidex = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!omnidexUrl.trim()) return;
-
+  const handleImportGap = async (data: { url?: string; text?: string }) => {
     setActionLoading(true);
     setFeedback(null);
     try {
@@ -145,12 +142,12 @@ export const WantlistCard: React.FC<WantlistCardProps> = ({ isLinked, client }) 
         card: "",
         quantity: 0,
         foil: false,
-        omnidexUrl: omnidexUrl.trim(),
+        omnidexUrl: data.url || "",
+        omnidexText: data.text || "",
       });
 
       if (res.success) {
         setFeedback({ type: "success", text: "Imported shortage gap from Omnidex into wishlist!" });
-        setOmnidexUrl("");
         await fetchWants();
       } else {
         setFeedback({ type: "error", text: res.error || "Failed to import Omnidex deck" });
@@ -283,31 +280,10 @@ export const WantlistCard: React.FC<WantlistCardProps> = ({ isLinked, client }) 
       </div>
 
       {/* Import Omnidex Gap */}
-      <form onSubmit={handleImportOmnidex} className="p-4 rounded-lg bg-black/20 border border-white/[0.04] space-y-2">
-        <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-          <Upload className="w-3.5 h-3.5 text-indigo-400" />
-          Import Omnidex Shortage Gap
-        </h3>
-        <p className="text-[11px] text-slate-400">
-          Paste an Omnidex deck URL. Only cards you do not currently own in your binder will be added to your wishlist.
-        </p>
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={omnidexUrl}
-            onChange={(e) => setOmnidexUrl(e.target.value)}
-            placeholder="https://omnidex.gg/deck/..."
-            className="flex-1 px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.1] text-xs text-slate-200 placeholder:text-slate-600"
-          />
-          <button
-            type="submit"
-            disabled={actionLoading || !omnidexUrl.trim()}
-            className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium text-xs transition cursor-pointer"
-          >
-            Import Gap
-          </button>
-        </div>
-      </form>
+      <WantlistOmnidexGapForm
+        loading={actionLoading}
+        onImportGap={handleImportGap}
+      />
 
       {/* Wishlist Items List */}
       <div className="space-y-2">

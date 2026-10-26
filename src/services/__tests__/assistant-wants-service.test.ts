@@ -207,6 +207,51 @@ describe("assistant-wants-service", () => {
       expect(res.id).toBe("deck-123");
       expect(res.name).toBe("My Rai Deck");
     });
+
+    it("imports deck from raw text directly", async () => {
+      vi.mocked(omnidexWants.importOmnidexDeckToCollection).mockResolvedValue({
+        id: "deck-456",
+        name: "Custom Rai",
+      });
+
+      const res = await importAssistantDeckFromSource("col-1", {
+        name: "Custom Rai",
+        text: "Material Deck\n1 Spirit of Fire\n\nMain Deck\n4 Fireball",
+      });
+
+      expect(res.id).toBe("deck-456");
+      expect(res.name).toBe("Custom Rai");
+      expect(omnidexWants.importOmnidexDeckToCollection).toHaveBeenCalledWith(
+        "col-1",
+        "Custom Rai",
+        "Material Deck\n1 Spirit of Fire\n\nMain Deck\n4 Fireball",
+        undefined,
+        "standard",
+        undefined
+      );
+    });
+
+    it("auto-detects raw text passed into url parameter", async () => {
+      vi.mocked(omnidexWants.importOmnidexDeckToCollection).mockResolvedValue({
+        id: "deck-789",
+        name: "Imported Deck",
+      });
+
+      const res = await importAssistantDeckFromSource("col-1", {
+        url: "Material Deck\n1 Spirit of Fire\n\nMain Deck\n4 Fireball",
+      });
+
+      expect(res.id).toBe("deck-789");
+      expect(omnidex.fetchDeckFromUrl).not.toHaveBeenCalled();
+      expect(omnidexWants.importOmnidexDeckToCollection).toHaveBeenCalledWith(
+        "col-1",
+        "Imported Deck",
+        "Material Deck\n1 Spirit of Fire\n\nMain Deck\n4 Fireball",
+        undefined,
+        "standard",
+        undefined
+      );
+    });
   });
 
   describe("updateAssistantDeckFromSource", () => {
@@ -232,6 +277,29 @@ describe("assistant-wants-service", () => {
           champion: undefined,
           format: undefined,
           omnidexText: "1 Rai\n4 Lightning Bolt",
+        },
+        undefined
+      );
+    });
+
+    it("updates deck from raw text directly", async () => {
+      vi.mocked(deckService.updateDeckService).mockResolvedValue(undefined as any);
+
+      const res = await updateAssistantDeckFromSource("col-1", {
+        deckId: "deck-123",
+        name: "New Name",
+        text: "Material Deck\n1 Spirit of Fire\n\nMain Deck\n4 Fireball",
+      });
+
+      expect(res.id).toBe("deck-123");
+      expect(res.name).toBe("New Name");
+      expect(deckService.updateDeckService).toHaveBeenCalledWith(
+        "deck-123",
+        {
+          name: "New Name",
+          champion: undefined,
+          format: undefined,
+          omnidexText: "Material Deck\n1 Spirit of Fire\n\nMain Deck\n4 Fireball",
         },
         undefined
       );
