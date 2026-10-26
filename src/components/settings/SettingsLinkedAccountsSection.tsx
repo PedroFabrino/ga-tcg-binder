@@ -13,7 +13,11 @@ interface LinkedIdentity {
   linkedAt: string;
 }
 
-export function SettingsLinkedAccountsSection() {
+export interface SettingsLinkedAccountsSectionProps {
+  hideHeader?: boolean;
+}
+
+export function SettingsLinkedAccountsSection({ hideHeader = false }: SettingsLinkedAccountsSectionProps = {}) {
   const { t } = useTranslation();
   const [identities, setIdentities] = useState<LinkedIdentity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,15 +105,19 @@ export function SettingsLinkedAccountsSection() {
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <Link2 className="w-5 h-5 text-indigo-400" />
-          <h3 className="text-sm font-semibold text-slate-200">
-            {t("settings.linkedAccountsTitle")}
-          </h3>
-        </div>
-        <p className="text-xs text-slate-400 leading-relaxed">
-          {t("settings.linkedAccountsDesc")}
-        </p>
+        {!hideHeader && (
+          <>
+            <div className="flex items-center gap-2">
+              <Link2 className="w-5 h-5 text-indigo-400" />
+              <h3 className="text-sm font-semibold text-slate-200">
+                {t("settings.linkedAccountsTitle")}
+              </h3>
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              {t("settings.linkedAccountsDesc")}
+            </p>
+          </>
+        )}
 
         {/* Existing connected platforms */}
         <div className="space-y-2 pt-2">
