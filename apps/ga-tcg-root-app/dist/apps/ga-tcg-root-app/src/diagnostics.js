@@ -4,7 +4,7 @@ exports.reportDiagnostic = reportDiagnostic;
 const server_app_1 = require("@rootsdk/server-app");
 const describe_error_1 = require("./describe-error");
 const root_bot_config_1 = require("./root-bot-config");
-const DEFAULT_APP_ID = "ADH-6fbvigmppj1_qgZSmw";
+const DEFAULT_APP_ID = "ADH8HL2viwm_XPEqJ9om9w";
 /**
  * Records a startup/poll event in three places, best-effort: stdout, Root's
  * community log, and the web app's `root_bot_diagnostics` table. Root's pod log

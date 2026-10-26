@@ -2,7 +2,7 @@ import { CommunityAppLogType, rootServer } from "@rootsdk/server-app";
 import { describeError } from "./describe-error";
 import { ROOT_BOT_API_BASE_URL } from "./root-bot-config";
 
-const DEFAULT_APP_ID = "ADH-6fbvigmppj1_qgZSmw";
+const DEFAULT_APP_ID = "ADH8HL2viwm_XPEqJ9om9w";
 
 export interface DiagnosticEvent {
   stage: string;

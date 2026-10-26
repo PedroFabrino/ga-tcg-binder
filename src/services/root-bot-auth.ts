@@ -11,9 +11,9 @@ import {
  * Root's cloud may report either at runtime, so the allowlist accepts both.
  * They are public identifiers, not secrets.
  */
-export const DEFAULT_ROOT_BOT_APP_ID = "ADH-6fbvigmppj1_qgZSmw";
+export const DEFAULT_ROOT_BOT_APP_ID = "ADH8HL2viwm_XPEqJ9om9w";
 export const DEFAULT_ROOT_BOT_APP_GUID =
-  "0031fee9-f6ef-8a09-a9a6-3d7faa06529b";
+  "0031fc1c-bdaf-8b09-bf5c-f12a27da26f7";
 
 export function hashRootBotToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
