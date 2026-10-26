@@ -113,8 +113,8 @@ export function escapeLinkUrl(value: string): string {
 
 /**
  * Renders one card bullet line for chat platforms (Root, Discord).
- * Root messages are plain text (no URL) because Root auto-unfurls any URL
- * into a preview block; Discord keeps a Markdown link on the card name.
+ * Root uses a plain `[name](url)` Markdown link; Discord keeps the `<…>` form
+ * that suppresses its link previews.
  */
 export function formatMarketNotificationCardLine(
  notification: MarketNotification,
@@ -122,11 +122,11 @@ export function formatMarketNotificationCardLine(
 ): string {
  const cardDetails = formatMarketNotificationCardDetails(notification);
  const url = notification.imageUrl;
- const cardName = rootMode
-  ? notification.cardName
-  : isHttpsUrl(url)
-   ? `[${notification.cardName}](<${escapeLinkUrl(url)}>)`
-   : notification.cardName;
+ const cardName = isHttpsUrl(url)
+  ? rootMode
+   ? `[${notification.cardName}](${escapeLinkUrl(url)})`
+   : `[${notification.cardName}](<${escapeLinkUrl(url)}>)`
+  : notification.cardName;
 
  return `• ${cardName} — ${cardDetails}`;
 }
@@ -268,10 +268,11 @@ export function formatMarketNotificationChunks(
 
  const sorted = sortMarketNotificationsByDetectedAt(notifications);
  const dateStr = formatMarketNotificationDate(lastSyncDate);
- const storeTitle =
-  rootMode || !isHttpsUrl(storeUrl)
-   ? `**${storeName}**`
-   : `**[${storeName}](<${escapeLinkUrl(storeUrl)}>)**`;
+ const storeTitle = isHttpsUrl(storeUrl)
+  ? rootMode
+   ? `**[${storeName}](${escapeLinkUrl(storeUrl)})**`
+   : `**[${storeName}](<${escapeLinkUrl(storeUrl)}>)**`
+  : `**${storeName}**`;
 
  const header = `${storeTitle} updated their stock!\nNew cards since ${dateStr}:`;
 

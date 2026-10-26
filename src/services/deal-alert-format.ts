@@ -35,11 +35,11 @@ function formatDealAlertCardLine(
   rootMode = false
 ): string {
   const url = listing.productUrl || listing.vendorUrl;
-  const cardName = rootMode
-    ? listing.cardName
-    : isHttpsUrl(url)
-      ? `[${listing.cardName}](<${escapeLinkUrl(url)}>)`
-      : listing.cardName;
+  const cardName = isHttpsUrl(url)
+    ? rootMode
+      ? `[${listing.cardName}](${escapeLinkUrl(url)})`
+      : `[${listing.cardName}](<${escapeLinkUrl(url)}>)`
+    : listing.cardName;
 
   return `${ball} ${cardName} - ${formatListingCollection(listing)} - ${listing.price}`;
 }
@@ -120,8 +120,8 @@ export function formatDealAlertMessage(
  * Splits the rolling deal-alert message into chunks no longer than `maxLength`
  * characters (defaulting to Discord's safe 2000-character boundary), breaking
  * only on line boundaries. When `options.maxBytes` is set (Root), chunks are
- * instead capped by UTF-8 byte length; `options.rootMode` emits plain-text card
- * names with no URLs (Root auto-unfurls URLs into preview blocks).
+ * instead capped by UTF-8 byte length; `options.rootMode` uses plain `[name](url)`
+ * links instead of Discord's `<…>`-wrapped form.
  */
 export function formatDealAlertChunks(
   matches: DealAlertMatch[],
