@@ -6,6 +6,7 @@ import {
 import { startMarketNotifier } from "./market-notifier";
 import { startDealAlertNotifier } from "./deal-alert-notifier";
 import { registerRootCommandHandlers } from "./command-handlers";
+import { AssistantRpcService } from "./assistant-rpc-service";
 import { createCommunityConfig } from "./community-config";
 import { logCommunityContext } from "./channel-diagnostics";
 import { getRootBotToken } from "./root-bot-auth";
@@ -93,6 +94,21 @@ async function onStarting(state: RootBotStartState) {
   } catch (err) {
     await reportDiagnostic({
       stage: "commands-failed",
+      communityId,
+      message: err,
+      level: CommunityAppLogType.Error,
+    });
+  }
+
+  try {
+    const assistantRpcService = new AssistantRpcService(communityId);
+    (rootServer.lifecycle as unknown as { addService(s: unknown): void }).addService(
+      assistantRpcService
+    );
+    await reportDiagnostic({ stage: "rpc-service-registered", communityId });
+  } catch (err) {
+    await reportDiagnostic({
+      stage: "rpc-service-failed",
       communityId,
       message: err,
       level: CommunityAppLogType.Error,

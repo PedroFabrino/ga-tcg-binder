@@ -4,6 +4,7 @@ const server_bot_1 = require("@rootsdk/server-bot");
 const market_notifier_1 = require("./market-notifier");
 const deal_alert_notifier_1 = require("./deal-alert-notifier");
 const command_handlers_1 = require("./command-handlers");
+const assistant_rpc_service_1 = require("./assistant-rpc-service");
 const community_config_1 = require("./community-config");
 const channel_diagnostics_1 = require("./channel-diagnostics");
 const root_bot_auth_1 = require("./root-bot-auth");
@@ -84,6 +85,19 @@ async function onStarting(state) {
     catch (err) {
         await (0, diagnostics_1.reportDiagnostic)({
             stage: "commands-failed",
+            communityId,
+            message: err,
+            level: server_bot_1.CommunityAppLogType.Error,
+        });
+    }
+    try {
+        const assistantRpcService = new assistant_rpc_service_1.AssistantRpcService(communityId);
+        server_bot_1.rootServer.lifecycle.addService(assistantRpcService);
+        await (0, diagnostics_1.reportDiagnostic)({ stage: "rpc-service-registered", communityId });
+    }
+    catch (err) {
+        await (0, diagnostics_1.reportDiagnostic)({
+            stage: "rpc-service-failed",
             communityId,
             message: err,
             level: server_bot_1.CommunityAppLogType.Error,

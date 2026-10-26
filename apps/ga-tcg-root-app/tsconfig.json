@@ -20,12 +20,17 @@
     "skipLibCheck": true,
     "rootDir": "../../",
     "paths": {
-      "@ga/contracts": ["../../packages/contracts/src/index.ts"]
+      "@ga/contracts": ["../../packages/contracts/src/index.ts"],
+      "@ga/gen-shared": ["./networking/gen/shared/src/index.ts"],
+      "@ga/gen-server": ["./networking/gen/server/src/index.ts"],
+      "@ga/gen-client": ["./networking/gen/client/src/index.ts"]
     }
   },
   "include": [
     "src/**/*.ts",
-    "../../packages/contracts/src/**/*.ts"
+    "../../packages/contracts/src/**/*.ts",
+    "networking/gen/server/src/**/*.ts",
+    "networking/gen/shared/src/**/*.ts"
   ],
   "exclude": [
     "node_modules",

@@ -1,0 +1,9 @@
+{
+  "source": ["./networking/src/**/*.proto"],
+  "protoPaths": ["./networking/src"],
+  "outputFolder": "./networking/gen",
+  "scope": "@ga",
+  "clientPackageName": "gen-client",
+  "serverPackageName": "gen-server",
+  "sharedPackageName": "gen-shared"
+}

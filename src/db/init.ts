@@ -393,6 +393,8 @@ CREATE TABLE IF NOT EXISTS \`collector_identities\` (
 	\`provider\` text NOT NULL,
 	\`provider_user_id\` text NOT NULL,
 	\`provider_username\` text,
+	\`wantlist_notifications_enabled\` integer DEFAULT 0 NOT NULL,
+	\`deal_alert_mode\` text DEFAULT 'all' NOT NULL,
 	\`linked_at\` integer NOT NULL,
 	\`created_at\` integer DEFAULT (strftime('%s', 'now')),
 	FOREIGN KEY (\`collector_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
@@ -630,6 +632,7 @@ async function doRunMigrations(customClient: typeof client) {
     "ALTER TABLE `market_stores` ADD COLUMN `last_notified_at` integer;",
     "ALTER TABLE `market_cards` ADD COLUMN `first_seen_at` integer DEFAULT 0 NOT NULL;",
     "ALTER TABLE `collector_identities` ADD COLUMN `wantlist_notifications_enabled` integer DEFAULT 0 NOT NULL;",
+    "ALTER TABLE `collector_identities` ADD COLUMN `deal_alert_mode` text DEFAULT 'all' NOT NULL;",
     "ALTER TABLE `users` ADD COLUMN `hidden_set_uuids` text DEFAULT '[]' NOT NULL;",
     "ALTER TABLE `market_cards` ADD COLUMN `last_stocked_at` integer;",
     "UPDATE `market_cards` SET `last_stocked_at` = `first_seen_at` WHERE `quantity` > 0 AND `last_stocked_at` IS NULL;",

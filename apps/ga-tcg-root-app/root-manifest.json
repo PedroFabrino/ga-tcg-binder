@@ -1,6 +1,6 @@
 {
   "id": "ADH-6fbvigmppj1_qgZSmw",
-  "version": "1.0.18",
+  "version": "1.0.20",
   "package": {
     "server": {
       "launch": "dist/main.js",
@@ -10,6 +10,9 @@
       "nodeModules": [
         "node_modules"
       ]
+    },
+    "client": {
+      "deploy": "client/dist"
     }
   },
   "permissions": {

@@ -8,6 +8,7 @@ export interface DiscordCommandOption {
   type: number; // 1 = SUB_COMMAND, 3 = STRING, 4 = INTEGER, 5 = BOOLEAN
   required?: boolean;
   autocomplete?: boolean;
+  choices?: Array<{ name: string; value: string }>;
   options?: DiscordCommandOption[];
 }
 
@@ -170,6 +171,16 @@ export const ASSISTANT_COMMANDS: DiscordCommandDefinition[] = [
             description: "Enable (True) or Disable (False) private bot deal alert DMs",
             type: 5,
             required: false,
+          },
+          {
+            name: "mode",
+            description: "What to alert on: everything, or hard shortages + wantlist only",
+            type: 3,
+            required: false,
+            choices: [
+              { name: "All", value: "all" },
+              { name: "Hard shortages only", value: "hard" },
+            ],
           },
         ],
       },

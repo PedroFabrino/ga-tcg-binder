@@ -5,6 +5,7 @@ import {
   collectorIdentities,
   type CollectorWant,
   type InsertCollectorWant,
+  type DealAlertMode,
 } from "../assistant-schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -279,16 +280,31 @@ export async function removePersonalWant(
 
 /**
  * Sets the wantlist notifications preference for a collector on a specific platform.
+ * An optional deal-alert mode ("all" or "hard") is persisted only when provided,
+ * so toggling off/on without a mode keeps the previously chosen scope.
  */
 export async function setWantlistNotificationPreference(
   collectorId: string,
   provider: string,
   enabled: boolean,
+  modeOrDb?: DealAlertMode | any,
   database = db
 ): Promise<boolean> {
-  const res = await database
+  let mode: DealAlertMode | undefined;
+  let targetDb = database;
+
+  if (typeof modeOrDb === "string") {
+    mode = modeOrDb as DealAlertMode;
+  } else if (modeOrDb && typeof modeOrDb === "object") {
+    targetDb = modeOrDb;
+  }
+
+  await targetDb
     .update(collectorIdentities)
-    .set({ wantlistNotificationsEnabled: enabled })
+    .set({
+      wantlistNotificationsEnabled: enabled,
+      ...(mode ? { dealAlertMode: mode } : {}),
+    })
     .where(
       and(
         eq(collectorIdentities.collectorId, collectorId),
@@ -319,4 +335,26 @@ export async function getWantlistNotificationPreference(
     .get();
 
   return Boolean(identity?.enabled);
+}
+
+/**
+ * Retrieves the deal alert mode ("all" or "hard") for a collector on a specific platform.
+ */
+export async function getDealAlertMode(
+  collectorId: string,
+  provider: string,
+  database = db
+): Promise<DealAlertMode> {
+  const identity = await database
+    .select({ mode: collectorIdentities.dealAlertMode })
+    .from(collectorIdentities)
+    .where(
+      and(
+        eq(collectorIdentities.collectorId, collectorId),
+        eq(collectorIdentities.provider, provider)
+      )
+    )
+    .get();
+
+  return (identity?.mode as DealAlertMode) ?? "all";
 }

@@ -7,6 +7,8 @@ import {
   cards,
   decks,
   deckCards,
+  cardEditions,
+  collectionItems,
   marketStores,
   marketCards,
 } from "../../db/schema";
@@ -204,6 +206,159 @@ describe("Discord Deal Alerts Matcher and Notifier", () => {
 
     expect(matches).toHaveLength(1);
     expect(matches[0].source).toMatchObject({ kind: "hard", deckName: "Burn Deck" });
+  });
+
+  it("filters alerts by dealAlertMode ('hard' surfaces hard shortages + wantlist, skipping shared)", async () => {
+    // 1. Add a second card that causes a shared shortage across 2 decks
+    await db.insert(cards).values({
+      slug: "arcane-intellect",
+      name: "Arcane Intellect",
+      element: "water",
+      class: "mage",
+      type: "action",
+    });
+
+    await db.insert(cardEditions).values({
+      id: "ed_arcane_1",
+      cardSlug: "arcane-intellect",
+      setPrefix: "DOA",
+      setName: "Dawn of Ashes",
+      collectorNumber: "001",
+      rarity: 1,
+      imageUrl: "https://cdn.example/arcane.png",
+    });
+
+    // Collector owns 2 copies
+    await db.insert(collectionItems).values({
+      id: "ci_arcane",
+      userId: testCollectorId,
+      editionId: "ed_arcane_1",
+      quantity: 2,
+      foil: false,
+      isDedicated: false,
+    });
+
+    // Deck 1 needs 2 copies (peakMissing = 0)
+    await db.insert(deckCards).values({
+      id: "dc_kay_arcane_1",
+      deckId: "deck_kay",
+      cardSlug: "arcane-intellect",
+      zone: "main",
+      quantity: 2,
+    });
+
+    // Deck 2 also needs 2 copies -> concurrent total 4 > 2 owned -> shared shortage
+    await db.insert(decks).values({
+      id: "deck_kay_2",
+      userId: testCollectorId,
+      name: "Control Deck",
+      format: "standard",
+    });
+
+    await db.insert(deckCards).values({
+      id: "dc_kay_arcane_2",
+      deckId: "deck_kay_2",
+      cardSlug: "arcane-intellect",
+      zone: "main",
+      quantity: 2,
+    });
+
+    const arcaneListing: MarketCard = {
+      id: "mc_arcane",
+      storeId: "store_myp",
+      cardSlug: "arcane-intellect",
+      editionId: null,
+      rawName: "Arcane Intellect",
+      cardName: "Arcane Intellect",
+      setPrefix: "DOA",
+      quantity: 1,
+      price: "R$ 15,00",
+      priceNumeric: 15.0,
+      tcgPrice: null,
+      tcgPriceNumeric: null,
+      quality: "NM",
+      isFoil: false,
+      itemId: "item_arcane",
+      productUrl: "https://myp.local/arcane",
+      vendorName: "Camelot Cards",
+      vendorUrl: null,
+      firstSeenAt: new Date(),
+      lastStockedAt: null,
+      lastSeenAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const fireballListing: MarketCard = {
+      id: "mc_fb_filter",
+      storeId: "store_myp",
+      cardSlug: "fireball",
+      editionId: null,
+      rawName: "Fireball",
+      cardName: "Fireball",
+      setPrefix: "DOA",
+      quantity: 2,
+      price: "R$ 10,00",
+      priceNumeric: 10.0,
+      tcgPrice: null,
+      tcgPriceNumeric: null,
+      quality: "NM",
+      isFoil: false,
+      itemId: "item_fb_filter",
+      productUrl: "https://myp.local/fireball",
+      vendorName: "Liga Magic Store",
+      vendorUrl: null,
+      firstSeenAt: new Date(),
+      lastStockedAt: null,
+      lastSeenAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const shockListing: MarketCard = {
+      id: "mc_shock_filter",
+      storeId: "store_myp",
+      cardSlug: "creative-shock",
+      editionId: null,
+      rawName: "Creative Shock",
+      cardName: "Creative Shock",
+      setPrefix: "DOA",
+      quantity: 1,
+      price: "R$ 50,00",
+      priceNumeric: 50.0,
+      tcgPrice: null,
+      tcgPriceNumeric: null,
+      quality: "NM",
+      isFoil: true,
+      itemId: "item_shock_filter",
+      productUrl: "https://myp.local/shock",
+      vendorName: "Liga Magic Store",
+      vendorUrl: null,
+      firstSeenAt: new Date(),
+      lastStockedAt: null,
+      lastSeenAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const allListings = [arcaneListing, fireballListing, shockListing];
+
+    // In mode 'all' (default), all 3 kinds match (shared, hard, personal-want)
+    const matchesAll = await matchDealAlerts(allListings, db);
+    expect(matchesAll.map((m) => m.source.kind).sort()).toEqual([
+      "hard",
+      "personal-want",
+      "shared",
+    ]);
+
+    // Switch to mode 'hard': shared shortages must be skipped
+    await db
+      .update(collectorIdentities)
+      .set({ dealAlertMode: "hard" })
+      .where(eq(collectorIdentities.collectorId, testCollectorId));
+
+    const matchesHard = await matchDealAlerts(allListings, db);
+    expect(matchesHard.map((m) => m.source.kind).sort()).toEqual([
+      "hard",
+      "personal-want",
+    ]);
   });
 
   it("dispatches a single plain-text DM with the wantlist section", async () => {

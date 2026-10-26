@@ -243,6 +243,86 @@ describe("Root Command Handlers (processRootCommand)", () => {
       expect(deps.setNotificationPreference).not.toHaveBeenCalled();
     });
 
+    it("enables deal alerts in hard shortages mode via /notify on hard", async () => {
+      const deps = createDeps();
+
+      const res = await processRootCommand(
+        mockUserId,
+        "/notify on hard",
+        {} as RootBotApi,
+        deps
+      );
+
+      expect(res).toContain("Deal alerts enabled (hard shortages + wantlist)");
+      expect(deps.setNotificationPreference).toHaveBeenCalledWith(
+        mockUserId,
+        true,
+        "hard"
+      );
+    });
+
+    it("enables deal alerts in all mode via /notify on all", async () => {
+      const deps = createDeps();
+
+      const res = await processRootCommand(
+        mockUserId,
+        "/notify on all",
+        {} as RootBotApi,
+        deps
+      );
+
+      expect(res).toContain("Deal alerts enabled.");
+      expect(deps.setNotificationPreference).toHaveBeenCalledWith(
+        mockUserId,
+        true,
+        "all"
+      );
+    });
+
+    it("supports shorthand /notify hard and /notify all", async () => {
+      const deps = createDeps();
+
+      const resHard = await processRootCommand(
+        mockUserId,
+        "/notify hard",
+        {} as RootBotApi,
+        deps
+      );
+      expect(resHard).toContain("Deal alerts enabled (hard shortages + wantlist)");
+      expect(deps.setNotificationPreference).toHaveBeenCalledWith(
+        mockUserId,
+        true,
+        "hard"
+      );
+
+      const resAll = await processRootCommand(
+        mockUserId,
+        "/notify all",
+        {} as RootBotApi,
+        deps
+      );
+      expect(resAll).toContain("Deal alerts enabled.");
+      expect(deps.setNotificationPreference).toHaveBeenCalledWith(
+        mockUserId,
+        true,
+        "all"
+      );
+    });
+
+    it("returns error for unknown mode in /notify on", async () => {
+      const deps = createDeps();
+
+      const res = await processRootCommand(
+        mockUserId,
+        "/notify on invalid_mode",
+        {} as RootBotApi,
+        deps
+      );
+
+      expect(res).toContain("Unknown mode");
+      expect(deps.setNotificationPreference).not.toHaveBeenCalled();
+    });
+
     it("prompts to link when the identity is not linked", async () => {
       const deps = createDeps(null);
 

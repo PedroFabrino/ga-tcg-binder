@@ -19,5 +19,7 @@ export interface RootCommunityConfig {
     setBroadcastChannelId(channelId: string): Promise<void>;
     getAlertSectionId(): Promise<string | undefined>;
     setAlertSectionId(sectionId: string): Promise<void>;
+    getAssistantChannelId(): Promise<string | undefined>;
+    setAssistantChannelId(channelId: string): Promise<void>;
 }
 export declare function createCommunityConfig(store: CommunityConfigStore): RootCommunityConfig;

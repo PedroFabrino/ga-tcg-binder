@@ -1,0 +1,13 @@
+{
+  "name": "@ga/gen-client",
+  "version": "1.0.1792993388977",
+	"dependencies": {
+		"@ga/gen-shared": "file:../shared"
+	},
+  "main": "./dist/mjs/index.js",
+  "typings": "./dist/mjs/index.d.ts",
+	"type": "module",
+	"scripts": { 
+		"build": "tsc"
+	}
+}

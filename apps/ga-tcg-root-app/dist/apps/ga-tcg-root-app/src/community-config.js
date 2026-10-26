@@ -11,6 +11,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.createCommunityConfig = createCommunityConfig;
 const BROADCAST_CHANNEL_KEY = "market.broadcastChannelId";
 const ALERT_SECTION_KEY = "dealAlert.sectionId.v2";
+const ASSISTANT_CHANNEL_KEY = "assistant.channelId.v1";
 function createCommunityConfig(store) {
     return {
         async getBroadcastChannelId() {
@@ -24,6 +25,12 @@ function createCommunityConfig(store) {
         },
         async setAlertSectionId(sectionId) {
             await store.set({ key: ALERT_SECTION_KEY, value: sectionId });
+        },
+        async getAssistantChannelId() {
+            return store.get(ASSISTANT_CHANNEL_KEY);
+        },
+        async setAssistantChannelId(channelId) {
+            await store.set({ key: ASSISTANT_CHANNEL_KEY, value: channelId });
         },
     };
 }

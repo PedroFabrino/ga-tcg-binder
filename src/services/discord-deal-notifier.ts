@@ -71,11 +71,16 @@ function resolveDealAlertSource(
     return { kind: "personal-want", desiredQuantity: matchingWant.desiredQuantity };
   }
 
+  // Check hard shortages across all decks first
   for (const deck of wantlist.decks) {
     const hard = deck.hardShortages.find((h) => h.cardSlug === listing.cardSlug);
     if (hard) {
       return { kind: "hard", deckId: deck.deckId, deckName: deck.deckName, missingQuantity: hard.missingQuantity };
     }
+  }
+
+  // Fall back to shared shortages
+  for (const deck of wantlist.decks) {
     const shared = deck.sharedShortages.find((s) => s.cardSlug === listing.cardSlug);
     if (shared) {
       return { kind: "shared", deckId: deck.deckId, deckName: deck.deckName, sharedQuantity: shared.sharedQuantity };
@@ -114,14 +119,19 @@ export async function matchDealAlerts(
 
     for (const listing of listings) {
       const source = resolveDealAlertSource(listing, personalWants, wantlist);
-      if (source) {
-        matches.push({
-          collectorId,
-          recipientId: identity.providerUserId,
-          listing,
-          source,
-        });
+      if (!source) {
+        continue;
       }
+      // "hard" mode surfaces hard shortages + personal wants, skipping shared.
+      if (identity.dealAlertMode === "hard" && source.kind === "shared") {
+        continue;
+      }
+      matches.push({
+        collectorId,
+        recipientId: identity.providerUserId,
+        listing,
+        source,
+      });
     }
   }
 

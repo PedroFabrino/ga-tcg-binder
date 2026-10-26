@@ -5,6 +5,7 @@ import {
   removePersonalWant,
   setWantlistNotificationPreference,
   getWantlistNotificationPreference,
+  getDealAlertMode,
 } from "../../db/repositories/personal-wants-repository";
 import { importOmnidexDeckToPersonalWants } from "../omnidex-wants";
 import { fetchDeckFromUrl } from "../omnidex";
@@ -195,24 +196,42 @@ export async function handleWantlistCommand(
   // Subcommand: /wantlist notify
   if (subNotify) {
     const enableVal = getOptionValue(subNotify.options, "enable");
-    if (enableVal === undefined) {
+    const modeVal = getOptionValue(subNotify.options, "mode");
+    const mode =
+      modeVal === "hard" || modeVal === "all"
+        ? (modeVal as "all" | "hard")
+        : undefined;
+
+    if (enableVal === undefined && mode === undefined) {
       const current = await getWantlistNotificationPreference(
+        collector.id,
+        "discord",
+        database as any
+      );
+      const currentMode = await getDealAlertMode(
         collector.id,
         "discord",
         database as any
       );
       return createEphemeralEmbed(
         "Marketplace Deal Notifications",
-        `Status: **${current ? "Enabled 🔔" : "Disabled 🔕"}**\n\nRun \`/wantlist notify enable: true\` to receive private bot DMs when marketplace sellers list cards you need.`,
+        `Status: **${current ? "Enabled 🔔" : "Disabled 🔕"}**\nMode: **${currentMode === "hard" ? "Hard shortages + wantlist" : "All"}**\n\nRun \`/wantlist notify enable: true\` to receive private bot DMs when marketplace sellers list cards you need.`,
         current ? DISCORD_COLORS.GREEN : DISCORD_COLORS.GOLD
       );
     }
 
-    const enabled = Boolean(enableVal);
+    const currentEnabled = await getWantlistNotificationPreference(
+      collector.id,
+      "discord",
+      database as any
+    );
+    const enabled = enableVal !== undefined ? Boolean(enableVal) : currentEnabled;
+
     await setWantlistNotificationPreference(
       collector.id,
       "discord",
       enabled,
+      mode,
       database as any
     );
 

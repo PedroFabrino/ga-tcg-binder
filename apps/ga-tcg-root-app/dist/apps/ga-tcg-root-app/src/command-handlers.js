@@ -6,6 +6,7 @@ exports.registerRootCommandHandlers = registerRootCommandHandlers;
 const server_bot_1 = require("@rootsdk/server-bot");
 const deal_alert_notifier_1 = require("./deal-alert-notifier");
 const community_config_1 = require("./community-config");
+const setup_provisioning_1 = require("./setup-provisioning");
 const root_bot_api_1 = require("./root-bot-api");
 const diagnostics_1 = require("./diagnostics");
 /** Name of the market-dump channel the bot creates inside the `/setup` group. */
@@ -37,8 +38,12 @@ function defaultRootCommandDeps(communityId, client) {
                 throw err;
             }
         },
-        async setNotificationPreference(providerUserId, enabled) {
-            await api.setNotifyPreference({ providerUserId, enabled });
+        async setNotificationPreference(providerUserId, enabled, mode) {
+            await api.setNotifyPreference({
+                providerUserId,
+                enabled,
+                ...(mode !== undefined ? { mode } : {}),
+            });
         },
         async provisionDealAlerts() {
             await (0, deal_alert_notifier_1.provisionRootDealAlerts)(recipientOptions);
@@ -51,35 +56,8 @@ function defaultRootCommandDeps(communityId, client) {
         },
         async configureFromChannel(_channelId) {
             const config = (0, community_config_1.createCommunityConfig)(server_bot_1.rootServer.dataStore.appData);
-            // Idempotent: reuse the existing group/channel if `/setup` already ran.
-            const [sectionId, broadcastId] = await Promise.all([
-                config.getAlertSectionId(),
-                config.getBroadcastChannelId(),
-            ]);
-            if (sectionId && broadcastId) {
-                return MARKET_CHANNEL_NAME;
-            }
-            // Create a dedicated bot-owned group for the dump + per-user channels,
-            // granting the bot full control over it so it can create channels inside.
-            const group = await server_bot_1.rootServer.community.channelGroups.create({
-                name: GROUP_NAME,
-                accessRuleCreates: [
-                    {
-                        roleOrMemberId: String(server_bot_1.rootServer.appId),
-                        overlay: { channelFullControl: true },
-                    },
-                ],
-            });
-            const groupId = String(group.id);
-            const created = await server_bot_1.rootServer.community.channels.create({
-                channelGroupId: groupId,
-                name: MARKET_CHANNEL_NAME,
-                channelType: server_bot_1.ChannelType.Text,
-                useChannelGroupPermission: true,
-            });
-            await config.setBroadcastChannelId(String(created.id));
-            await config.setAlertSectionId(groupId);
-            return MARKET_CHANNEL_NAME;
+            const res = await (0, setup_provisioning_1.provisionCommunityChannels)({ rootServer: server_bot_1.rootServer, config });
+            return res.marketChannel;
         },
         async isCommunityAdmin(userId) {
             const community = await server_bot_1.rootServer.community.communities.get();
@@ -225,18 +203,37 @@ async function processRootCommand(userId, messageContent, client = getRootBotApi
             }
             return lines.join("\n");
         }
-        // 6. /notify [on|off]
+        // 6. /notify [on [all|hard] | all | hard | off]
         if (command === "notify") {
-            const action = argString.toLowerCase();
+            const parts = argString.toLowerCase().split(/\s+/).filter(Boolean);
+            let action = parts[0];
+            let modeArg = parts[1];
+            // Support /notify all and /notify hard directly
+            if (action === "all" || action === "hard") {
+                modeArg = action;
+                action = "on";
+            }
             if (action !== "on" && action !== "off") {
-                return "⚠️ **Usage:** `/notify on|off`\nTurn private deal alerts on or off.";
+                return "⚠️ **Usage:** `/notify on [all|hard]`, `/notify all|hard`, or `/notify off`\n• `/notify on all`: Alert on all shortages (hard + shared) and general wantlist\n• `/notify on hard`: Alert only on hard shortages and general wantlist\n• `/notify off`: Turn off private deal alerts";
+            }
+            let mode;
+            if (action === "on") {
+                if (modeArg === "hard")
+                    mode = "hard";
+                else if (modeArg === "all")
+                    mode = "all";
+                else if (modeArg === undefined)
+                    mode = undefined;
+                else {
+                    return "⚠️ **Usage:** `/notify on [all|hard]`\nUnknown mode. Use `all` (everything) or `hard` (hard shortages + wantlist).";
+                }
             }
             const collectorId = await resolvedDeps.findCollectorId(userId);
             if (!collectorId) {
                 return "⚠️ **Grand Archive Binder Account Not Linked**\nLink your account first:\n1. Open GA Binder > **Settings > Linked Accounts**\n2. Click **Generate Code**\n3. Run `/link <code>` here in Root.";
             }
             if (action === "on") {
-                await resolvedDeps.setNotificationPreference(userId, true);
+                await resolvedDeps.setNotificationPreference(userId, true, ...(mode !== undefined ? [mode] : []));
                 let alertsChannelId = null;
                 try {
                     alertsChannelId = await resolvedDeps.ensureRecipientChannel(userId);
@@ -258,9 +255,10 @@ async function processRootCommand(userId, messageContent, client = getRootBotApi
                         level: server_bot_1.CommunityAppLogType.Error,
                     });
                 }
+                const scope = mode === "hard" ? " (hard shortages + wantlist)" : "";
                 return alertsChannelId
-                    ? `🔔 **Deal alerts enabled.** Your alerts will arrive in [your private channel](root://channel/${alertsChannelId}).`
-                    : "🔔 **Deal alerts enabled.** Your private channel will be created on the next marketplace sync.";
+                    ? `🔔 **Deal alerts enabled${scope}.** Your alerts will arrive in [your private channel](root://channel/${alertsChannelId}).`
+                    : `🔔 **Deal alerts enabled${scope}.** Your private channel will be created on the next marketplace sync.`;
             }
             await resolvedDeps.setNotificationPreference(userId, false);
             await resolvedDeps.removeDealAlertChannel(userId);

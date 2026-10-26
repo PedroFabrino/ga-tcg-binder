@@ -18,6 +18,7 @@ export const collectorIdentities = sqliteTable(
     wantlistNotificationsEnabled: integer("wantlist_notifications_enabled", { mode: "boolean" })
       .default(false)
       .notNull(),
+    dealAlertMode: text("deal_alert_mode").default("all").notNull(), // 'all' | 'hard'
     linkedAt: integer("linked_at", { mode: "timestamp" }).notNull(),
     createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
   },
@@ -84,3 +85,6 @@ export type CollectorPairingToken = typeof collectorPairingTokens.$inferSelect;
 export type InsertCollectorPairingToken = typeof collectorPairingTokens.$inferInsert;
 export type CollectorWant = typeof collectorWants.$inferSelect;
 export type InsertCollectorWant = typeof collectorWants.$inferInsert;
+
+/** Deal-alert scope: "all" (hard + shared + wantlist) or "hard" (hard + wantlist). */
+export type DealAlertMode = "all" | "hard";

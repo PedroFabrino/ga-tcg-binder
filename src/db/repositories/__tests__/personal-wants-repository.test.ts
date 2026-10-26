@@ -188,6 +188,29 @@ describe("personal-wants-repository", () => {
     expect(updated).toBe(true);
   });
 
+  it("manages deal alert mode preference on collector identity", async () => {
+    const { getDealAlertMode } = await import("../personal-wants-repository");
+
+    // Default mode is 'all'
+    const initialMode = await getDealAlertMode(testCollectorId, "discord", db);
+    expect(initialMode).toBe("all");
+
+    // Update mode to 'hard'
+    await setWantlistNotificationPreference(testCollectorId, "discord", true, "hard", db);
+    const updatedMode = await getDealAlertMode(testCollectorId, "discord", db);
+    expect(updatedMode).toBe("hard");
+
+    // Toggling preference without passing mode preserves 'hard'
+    await setWantlistNotificationPreference(testCollectorId, "discord", false, db);
+    const preservedMode = await getDealAlertMode(testCollectorId, "discord", db);
+    expect(preservedMode).toBe("hard");
+
+    // Switching back to 'all'
+    await setWantlistNotificationPreference(testCollectorId, "discord", true, "all", db);
+    const allMode = await getDealAlertMode(testCollectorId, "discord", db);
+    expect(allMode).toBe("all");
+  });
+
   it("inserts and increments multiple wants via batchUpsertPersonalWants", async () => {
     const count = await batchUpsertPersonalWants(
       [

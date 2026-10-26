@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+import "rootsdk/types.proto";
+
+message StatusResponse {
+  bool is_linked = 1;
+  string collector_id = 2;
+  string collector_name = 3;
+  string friend_code = 4;
+  bool notifications_enabled = 5;
+  string deal_alert_mode = 6;
+  string alert_channel_id = 7;
+}
+
+message LinkRequest {
+  string code = 1;
+}
+
+message LinkResponse {
+  bool success = 1;
+  string collector_name = 2;
+  string error = 3;
+}
+
+message PreferencesRequest {
+  bool notifications_enabled = 1;
+  string deal_alert_mode = 2;
+}
+
+message PreferencesResponse {
+  bool success = 1;
+  bool notifications_enabled = 2;
+  string deal_alert_mode = 3;
+  string alert_channel_id = 4;
+  string error = 5;
+}
+
+message DeckShortageCard {
+  string card_slug = 1;
+  string card_name = 2;
+  int32 quantity = 3;
+}
+
+message DeckSummary {
+  string id = 1;
+  string name = 2;
+  string champion = 3;
+  string format = 4;
+  int32 total_cards = 5;
+  int32 hard_shortages_count = 6;
+  int32 shared_shortages_count = 7;
+  repeated DeckShortageCard hard_shortages = 8;
+  repeated DeckShortageCard shared_shortages = 9;
+}
+
+message DecksResponse {
+  repeated DeckSummary decks = 1;
+}
+
+service AssistantService {
+  rpc GetStatus(rootsdk.Void) returns (StatusResponse);
+  rpc LinkAccount(LinkRequest) returns (LinkResponse);
+  rpc SetPreferences(PreferencesRequest) returns (PreferencesResponse);
+  rpc GetDecks(rootsdk.Void) returns (DecksResponse);
+}

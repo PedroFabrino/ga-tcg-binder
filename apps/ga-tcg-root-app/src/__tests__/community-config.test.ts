@@ -18,18 +18,21 @@ function fakeStore(initial: Record<string, unknown> = {}) {
 }
 
 describe("Root community config", () => {
-  it("round-trips the broadcast channel and alert section ids", async () => {
+  it("round-trips broadcast channel, alert section, and assistant channel ids", async () => {
     const { store } = fakeStore();
     const config = createCommunityConfig(store);
 
     expect(await config.getBroadcastChannelId()).toBeUndefined();
     expect(await config.getAlertSectionId()).toBeUndefined();
+    expect(await config.getAssistantChannelId()).toBeUndefined();
 
     await config.setBroadcastChannelId("chan-1");
     await config.setAlertSectionId("grp-1");
+    await config.setAssistantChannelId("app-chan-1");
 
     expect(await config.getBroadcastChannelId()).toBe("chan-1");
     expect(await config.getAlertSectionId()).toBe("grp-1");
+    expect(await config.getAssistantChannelId()).toBe("app-chan-1");
   });
 
   it("returns undefined for missing values without throwing", async () => {
@@ -38,5 +41,6 @@ describe("Root community config", () => {
 
     await expect(config.getBroadcastChannelId()).resolves.toBeUndefined();
     await expect(config.getAlertSectionId()).resolves.toBeUndefined();
+    await expect(config.getAssistantChannelId()).resolves.toBeUndefined();
   });
 });

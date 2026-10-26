@@ -448,6 +448,33 @@ describe("Discord Interactive Selection, Wants & Omnidex Integration", () => {
       // 3. Check status again
       const checkRes2 = await handleDiscordInteraction(checkPayload, db);
       expect(checkRes2.data?.embeds?.[0].description).toContain("Enabled 🔔");
+      expect(checkRes2.data?.embeds?.[0].description).toContain("Mode: **All**");
+
+      // 4. Update mode to 'hard' via /wantlist notify mode: hard
+      const modePayload: DiscordInteractionPayload = {
+        type: 2,
+        id: "int_notif_mode_hard",
+        token: "tok",
+        data: {
+          name: "wantlist",
+          options: [
+            {
+              name: "notify",
+              type: 1,
+              options: [{ name: "mode", type: 3, value: "hard" }],
+            },
+          ],
+        },
+        user: { id: discordUserId, username: "Lancelot" },
+      };
+
+      const modeRes = await handleDiscordInteraction(modePayload, db);
+      expect(modeRes.type).toBe(4);
+
+      // 5. Check status reflects updated mode 'Hard shortages + wantlist'
+      const checkRes3 = await handleDiscordInteraction(checkPayload, db);
+      expect(checkRes3.data?.embeds?.[0].description).toContain("Enabled 🔔");
+      expect(checkRes3.data?.embeds?.[0].description).toContain("Mode: **Hard shortages + wantlist**");
     });
 
     it("sends a direct message confirmation to the user when enabling notifications", async () => {

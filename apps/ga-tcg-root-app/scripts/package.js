@@ -22,6 +22,12 @@ function run(cmd, dir = cwd) {
 console.log("\nPreparing production staging package...");
 mkdirSync(stageDir, { recursive: true });
 
+// Copy networking files into staging for local file: dependencies
+if (existsSync(join(cwd, "networking"))) {
+  rmSync(join(stageDir, "networking"), { recursive: true, force: true });
+  cpSync(join(cwd, "networking"), join(stageDir, "networking"), { recursive: true });
+}
+
 // 1. Prepare stage package.json with ONLY production dependencies
 const botPkg = JSON.parse(readFileSync(join(cwd, "package.json"), "utf8"));
 const stagePkg = {
@@ -45,6 +51,13 @@ if (prevPkgContent !== newPkgContent || !existsSync(join(stageDir, "node_modules
 copyFileSync(join(cwd, "root-manifest.json"), join(stageDir, "root-manifest.json"));
 rmSync(join(stageDir, "dist"), { recursive: true, force: true });
 cpSync(join(cwd, "dist"), join(stageDir, "dist"), { recursive: true });
+
+// Copy client/dist into staging if present
+if (existsSync(join(cwd, "client/dist"))) {
+  rmSync(join(stageDir, "client/dist"), { recursive: true, force: true });
+  mkdirSync(join(stageDir, "client"), { recursive: true });
+  cpSync(join(cwd, "client/dist"), join(stageDir, "client/dist"), { recursive: true });
+}
 
 // 3. Build package inside staging directory
 console.log(`\nBuilding Root package: ${outputFile}...`);

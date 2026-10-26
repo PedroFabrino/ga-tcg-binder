@@ -16,6 +16,7 @@ import {
   removeRootDealAlertChannel,
 } from "./deal-alert-notifier";
 import { createCommunityConfig } from "./community-config";
+import { provisionCommunityChannels } from "./setup-provisioning";
 import { RootBotApi, RootBotApiError } from "./root-bot-api";
 import { reportDiagnostic } from "./diagnostics";
 
@@ -56,7 +57,8 @@ export interface RootCommandDeps {
   findCollectorId?: (userId: string) => Promise<string | null>;
   setNotificationPreference?: (
     providerUserId: string,
-    enabled: boolean
+    enabled: boolean,
+    mode?: "all" | "hard"
   ) => Promise<void>;
   provisionDealAlerts?: () => Promise<void>;
   removeDealAlertChannel?: (recipientId: string) => Promise<void>;
@@ -84,8 +86,12 @@ function defaultRootCommandDeps(
         throw err;
       }
     },
-    async setNotificationPreference(providerUserId, enabled) {
-      await api.setNotifyPreference({ providerUserId, enabled });
+    async setNotificationPreference(providerUserId, enabled, mode) {
+      await api.setNotifyPreference({
+        providerUserId,
+        enabled,
+        ...(mode !== undefined ? { mode } : {}),
+      });
     },
     async provisionDealAlerts() {
       await provisionRootDealAlerts(recipientOptions);
@@ -98,40 +104,8 @@ function defaultRootCommandDeps(
     },
     async configureFromChannel(_channelId) {
       const config = createCommunityConfig(rootServer.dataStore.appData);
-
-      // Idempotent: reuse the existing group/channel if `/setup` already ran.
-      const [sectionId, broadcastId] = await Promise.all([
-        config.getAlertSectionId(),
-        config.getBroadcastChannelId(),
-      ]);
-      if (sectionId && broadcastId) {
-        return MARKET_CHANNEL_NAME;
-      }
-
-      // Create a dedicated bot-owned group for the dump + per-user channels,
-      // granting the bot full control over it so it can create channels inside.
-      const group = await rootServer.community.channelGroups.create({
-        name: GROUP_NAME,
-        accessRuleCreates: [
-          {
-            roleOrMemberId: String(rootServer.appId) as RoleOrMemberGuid,
-            overlay: { channelFullControl: true },
-          },
-        ],
-      });
-      const groupId = String(group.id);
-
-      const created = await rootServer.community.channels.create({
-        channelGroupId: groupId as unknown as ChannelGroupGuid,
-        name: MARKET_CHANNEL_NAME,
-        channelType: ChannelType.Text,
-        useChannelGroupPermission: true,
-      });
-
-      await config.setBroadcastChannelId(String(created.id));
-      await config.setAlertSectionId(groupId);
-
-      return MARKET_CHANNEL_NAME;
+      const res = await provisionCommunityChannels({ rootServer, config });
+      return res.marketChannel;
     },
     async isCommunityAdmin(userId) {
       const community = await rootServer.community.communities.get();
@@ -313,12 +287,30 @@ export async function processRootCommand(
       return lines.join("\n");
     }
 
-    // 6. /notify [on|off]
+    // 6. /notify [on [all|hard] | all | hard | off]
     if (command === "notify") {
-      const action = argString.toLowerCase();
+      const parts = argString.toLowerCase().split(/\s+/).filter(Boolean);
+      let action = parts[0];
+      let modeArg = parts[1];
+
+      // Support /notify all and /notify hard directly
+      if (action === "all" || action === "hard") {
+        modeArg = action;
+        action = "on";
+      }
 
       if (action !== "on" && action !== "off") {
-        return "⚠️ **Usage:** `/notify on|off`\nTurn private deal alerts on or off.";
+        return "⚠️ **Usage:** `/notify on [all|hard]`, `/notify all|hard`, or `/notify off`\n• `/notify on all`: Alert on all shortages (hard + shared) and general wantlist\n• `/notify on hard`: Alert only on hard shortages and general wantlist\n• `/notify off`: Turn off private deal alerts";
+      }
+
+      let mode: "all" | "hard" | undefined;
+      if (action === "on") {
+        if (modeArg === "hard") mode = "hard";
+        else if (modeArg === "all") mode = "all";
+        else if (modeArg === undefined) mode = undefined;
+        else {
+          return "⚠️ **Usage:** `/notify on [all|hard]`\nUnknown mode. Use `all` (everything) or `hard` (hard shortages + wantlist).";
+        }
       }
 
       const collectorId = await resolvedDeps.findCollectorId(userId);
@@ -328,7 +320,11 @@ export async function processRootCommand(
       }
 
       if (action === "on") {
-        await resolvedDeps.setNotificationPreference(userId, true);
+        await resolvedDeps.setNotificationPreference(
+          userId,
+          true,
+          ...(mode !== undefined ? [mode] : [])
+        );
 
         let alertsChannelId: string | null = null;
         try {
@@ -351,9 +347,10 @@ export async function processRootCommand(
           });
         }
 
+        const scope = mode === "hard" ? " (hard shortages + wantlist)" : "";
         return alertsChannelId
-          ? `🔔 **Deal alerts enabled.** Your alerts will arrive in [your private channel](root://channel/${alertsChannelId}).`
-          : "🔔 **Deal alerts enabled.** Your private channel will be created on the next marketplace sync.";
+          ? `🔔 **Deal alerts enabled${scope}.** Your alerts will arrive in [your private channel](root://channel/${alertsChannelId}).`
+          : `🔔 **Deal alerts enabled${scope}.** Your private channel will be created on the next marketplace sync.`;
       }
 
       await resolvedDeps.setNotificationPreference(userId, false);

@@ -55,8 +55,13 @@ export interface RootBotDealAlertCleanupRequest {
 export interface RootBotCollectorResponse {
     collectorId: string;
     collectorName: string | null;
+    friendCode?: string | null;
+    notificationsEnabled?: boolean;
+    dealAlertMode?: "all" | "hard";
 }
 export interface RootBotNotifyRequest {
     providerUserId: string;
     enabled: boolean;
+    /** Deal-alert scope: "all" or "hard". Optional. */
+    mode?: "all" | "hard";
 }

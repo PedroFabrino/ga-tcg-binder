@@ -47,6 +47,9 @@ export interface RootBotDealAlertDelivery {
 export interface RootBotCollector {
   collectorId: string;
   collectorName: string | null;
+  friendCode?: string | null;
+  notificationsEnabled?: boolean;
+  dealAlertMode?: "all" | "hard";
 }
 
 /** Pending marketplace notifications, grouped by store and formatted. */
@@ -172,17 +175,28 @@ export async function resolveCommunityCollector(
   }
 
   await linkRootCommunityIdentity(communityId, providerUserId);
-  return {
+  const result: RootBotCollector = {
     collectorId: resolved.collector.id,
     collectorName: resolved.collector.name,
   };
+  if (resolved.collector.friendCode) {
+    result.friendCode = resolved.collector.friendCode;
+  }
+  if (resolved.identity?.wantlistNotificationsEnabled !== undefined) {
+    result.notificationsEnabled = Boolean(resolved.identity.wantlistNotificationsEnabled);
+  }
+  if (resolved.identity?.dealAlertMode) {
+    result.dealAlertMode = resolved.identity.dealAlertMode as "all" | "hard";
+  }
+  return result;
 }
 
 /** Returns false when the Root identity has not linked a collector. */
 export async function setCommunityNotifyPreference(
   communityId: string,
   providerUserId: string,
-  enabled: boolean
+  enabled: boolean,
+  mode?: "all" | "hard"
 ): Promise<boolean> {
   const resolved = await findCollectorByIdentity("root", providerUserId);
   if (!resolved) {
@@ -193,7 +207,8 @@ export async function setCommunityNotifyPreference(
   await setWantlistNotificationPreference(
     resolved.collector.id,
     "root",
-    enabled
+    enabled,
+    ...(mode !== undefined ? [mode] : [])
   );
   return true;
 }

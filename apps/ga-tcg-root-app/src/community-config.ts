@@ -15,12 +15,15 @@ export interface CommunityConfigStore {
 
 const BROADCAST_CHANNEL_KEY = "market.broadcastChannelId";
 const ALERT_SECTION_KEY = "dealAlert.sectionId.v2";
+const ASSISTANT_CHANNEL_KEY = "assistant.channelId.v1";
 
 export interface RootCommunityConfig {
   getBroadcastChannelId(): Promise<string | undefined>;
   setBroadcastChannelId(channelId: string): Promise<void>;
   getAlertSectionId(): Promise<string | undefined>;
   setAlertSectionId(sectionId: string): Promise<void>;
+  getAssistantChannelId(): Promise<string | undefined>;
+  setAssistantChannelId(channelId: string): Promise<void>;
 }
 
 export function createCommunityConfig(
@@ -38,6 +41,12 @@ export function createCommunityConfig(
     },
     async setAlertSectionId(sectionId) {
       await store.set({ key: ALERT_SECTION_KEY, value: sectionId });
+    },
+    async getAssistantChannelId() {
+      return store.get<string>(ASSISTANT_CHANNEL_KEY);
+    },
+    async setAssistantChannelId(channelId) {
+      await store.set({ key: ASSISTANT_CHANNEL_KEY, value: channelId });
     },
   };
 }

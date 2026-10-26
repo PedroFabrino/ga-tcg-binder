@@ -14,6 +14,7 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as {
     providerUserId?: unknown;
     enabled?: unknown;
+    mode?: unknown;
   };
 
   if (
@@ -23,10 +24,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "MISSING_FIELDS" }, { status: 400 });
   }
 
+  const mode =
+    body.mode === "hard" || body.mode === "all" ? body.mode : undefined;
+
   const updated = await setCommunityNotifyPreference(
     caller.communityId,
     body.providerUserId,
-    body.enabled
+    body.enabled,
+    mode
   );
   if (!updated) {
     return NextResponse.json(
