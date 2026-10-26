@@ -8,7 +8,7 @@ import {
   type MessageGuid,
   type RoleOrMemberGuid,
   type UserGuid,
-} from "@rootsdk/server-bot";
+} from "@rootsdk/server-app";
 import {
   parseMessageIds,
   type DealAlertNotificationSummary,

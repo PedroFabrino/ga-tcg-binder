@@ -9,7 +9,7 @@ import {
   type ChannelMessageCreatedEvent,
   type RoleOrMemberGuid,
   type UserGuid,
-} from "@rootsdk/server-bot";
+} from "@rootsdk/server-app";
 import {
   ensureRootRecipientChannel,
   provisionRootDealAlerts,

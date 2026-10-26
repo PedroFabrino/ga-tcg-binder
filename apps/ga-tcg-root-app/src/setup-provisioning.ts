@@ -2,7 +2,7 @@ import {
   ChannelType,
   type ChannelGroupGuid,
   type RoleOrMemberGuid,
-} from "@rootsdk/server-bot";
+} from "@rootsdk/server-app";
 import { type RootCommunityConfig } from "./community-config";
 
 export const MARKET_CHANNEL_NAME = "market";

@@ -2,7 +2,7 @@ import {
   JobInterval,
   type JobData,
   type JobScheduler,
-} from "@rootsdk/server-bot";
+} from "@rootsdk/server-app";
 import { describeError } from "./describe-error";
 
 export interface RootBotPollingOptions {

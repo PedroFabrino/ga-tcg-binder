@@ -2,14 +2,14 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createRootServerDealAlertApi = createRootServerDealAlertApi;
 exports.createRootDealAlertTransport = createRootDealAlertTransport;
-const server_bot_1 = require("@rootsdk/server-bot");
+const server_app_1 = require("@rootsdk/server-app");
 const deal_alert_sink_1 = require("./deal-alert-sink");
 const describe_error_1 = require("./describe-error");
 /** Default adapter over `rootServer.community`. */
-function createRootServerDealAlertApi(root = server_bot_1.rootServer) {
+function createRootServerDealAlertApi(root = server_app_1.rootServer) {
     const botId = String(root.appId);
     return {
-        everyoneRoleId: String(server_bot_1.WellKnownRootGuids.CommunityRoles.EveryoneRole),
+        everyoneRoleId: String(server_app_1.WellKnownRootGuids.CommunityRoles.EveryoneRole),
         botId,
         async createChannel(request) {
             const channel = await root.community.channels.create({
@@ -95,7 +95,7 @@ function fallbackChannelName(recipient) {
  * notification ping. Access rules deny `channelView` to everyone and grant it
  * to the recipient so other members cannot see the channel.
  */
-function createRootDealAlertTransport({ channelGroupId, api, channelType = server_bot_1.ChannelType.Text, }) {
+function createRootDealAlertTransport({ channelGroupId, api, channelType = server_app_1.ChannelType.Text, }) {
     return {
         async send(recipient, content, previousChannelId) {
             let channelName = fallbackChannelName(recipient);

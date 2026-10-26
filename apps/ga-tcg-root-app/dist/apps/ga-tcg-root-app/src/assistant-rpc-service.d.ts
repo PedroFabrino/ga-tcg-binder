@@ -11,8 +11,9 @@ export interface AssistantRpcServiceDeps {
 export declare class AssistantRpcService extends AssistantServiceBase {
     private readonly communityId?;
     private readonly deps;
-    private readonly api;
+    private readonly defaultApi?;
     constructor(communityId?: string | undefined, deps?: AssistantRpcServiceDeps);
+    private getApi;
     getStatus(client: Client): Promise<StatusResponse>;
     linkAccount(request: LinkRequest, client: Client): Promise<LinkResponse>;
     setPreferences(request: PreferencesRequest, client: Client): Promise<PreferencesResponse>;

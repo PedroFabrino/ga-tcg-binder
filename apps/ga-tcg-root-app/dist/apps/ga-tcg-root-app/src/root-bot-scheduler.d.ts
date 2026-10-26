@@ -1,4 +1,4 @@
-import { type JobScheduler } from "@rootsdk/server-bot";
+import { type JobScheduler } from "@rootsdk/server-app";
 export interface RootBotPollingOptions {
     scheduler: JobScheduler;
     resourceId: string;

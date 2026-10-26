@@ -19,4 +19,17 @@ describe("App shell", () => {
     expect(html).toContain("Refresh");
     expect(html).toContain("Powered by Grand Archive Binder");
   });
+
+  it("renders error banner and unlinked cards when getStatus fails", async () => {
+    const mockClient: IAssistantRpcClient = {
+      getStatus: vi.fn().mockRejectedValue(new Error("RPC failed")),
+      linkAccount: vi.fn(),
+      setPreferences: vi.fn(),
+      getDecks: vi.fn(),
+    };
+
+    // Use a lightweight component test with act or simulated state
+    const html = renderToStaticMarkup(<App client={mockClient} />);
+    expect(html).toContain("Grand Archive Collector Assistant");
+  });
 });

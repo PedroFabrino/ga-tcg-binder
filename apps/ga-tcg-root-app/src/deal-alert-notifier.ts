@@ -2,7 +2,7 @@ import {
   rootServer,
   CommunityAppLogType,
   type JobScheduler,
-} from "@rootsdk/server-bot";
+} from "@rootsdk/server-app";
 import type { DirectMessageRef, DirectMessageSink } from "./deal-alert-sink";
 import {
   createCommunityConfig,

@@ -2,7 +2,7 @@
   "name": "@ga/root-app",
   "author": "",
   "description": "Grand Archive TCG Collector Assistant & Market Notifier Root App",
-  "version": "1.0.20",
+  "version": "1.0.21",
   "private": true,
   "engines": {
     "node": ">=22"

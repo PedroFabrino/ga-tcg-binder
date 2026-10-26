@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.scheduleRootBotPolling = scheduleRootBotPolling;
-const server_bot_1 = require("@rootsdk/server-bot");
+const server_app_1 = require("@rootsdk/server-app");
 const describe_error_1 = require("./describe-error");
 /**
  * Polls exclusively on Root's job scheduler. Root's scheduler has no sub-daily
@@ -28,7 +28,7 @@ async function scheduleRootBotPolling(options) {
             resourceId: options.resourceId,
             tag: options.tag,
             start: new Date(now().getTime() + intervalMs),
-            jobInterval: server_bot_1.JobInterval.OneTime,
+            jobInterval: server_app_1.JobInterval.OneTime,
         });
     };
     const handle = (job) => {

@@ -1,6 +1,6 @@
 // TODO: delete this example code if not needed
 
-// Use "@rootsdk/server-bot" to import the Root API types
+// Use "@rootsdk/server-app" to import the Root API types
 import {
   rootServer,
   MessageType,
@@ -9,7 +9,7 @@ import {
   ChannelMessageCreatedEvent,
   ChannelMessageCreateRequest,
   RootApiException,
-} from "@rootsdk/server-bot";
+} from "@rootsdk/server-app";
 
 // Initialize your Bot (set up your database, subscribe to community events, etc.)
 export function initializeExample(): void {

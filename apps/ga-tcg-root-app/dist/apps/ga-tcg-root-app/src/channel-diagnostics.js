@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.describeCommunityContext = describeCommunityContext;
 exports.logCommunityContext = logCommunityContext;
-const server_bot_1 = require("@rootsdk/server-bot");
+const server_app_1 = require("@rootsdk/server-app");
 const describe_error_1 = require("./describe-error");
 const DEFAULT_ATTEMPTS = 4;
 const DEFAULT_RETRY_DELAY_MS = 5000;
@@ -51,7 +51,7 @@ async function describeCommunityContext(directory, options = {}) {
  * Logs the attached-community snapshot at startup. Retries while the devhost
  * attaches the community; never throws.
  */
-async function logCommunityContext(options = {}, attempts = DEFAULT_ATTEMPTS, retryDelayMs = DEFAULT_RETRY_DELAY_MS, directory = server_bot_1.rootServer.community) {
+async function logCommunityContext(options = {}, attempts = DEFAULT_ATTEMPTS, retryDelayMs = DEFAULT_RETRY_DELAY_MS, directory = server_app_1.rootServer.community) {
     for (let attempt = 1; attempt <= attempts; attempt++) {
         try {
             const lines = await describeCommunityContext(directory, options);

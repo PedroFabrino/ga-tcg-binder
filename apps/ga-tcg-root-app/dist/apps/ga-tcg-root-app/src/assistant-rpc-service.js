@@ -7,23 +7,40 @@ const deal_alert_notifier_1 = require("./deal-alert-notifier");
 class AssistantRpcService extends gen_server_1.AssistantServiceBase {
     communityId;
     deps;
-    api;
+    defaultApi;
     constructor(communityId, deps = {}) {
         super();
         this.communityId = communityId;
         this.deps = deps;
-        this.api =
-            deps.api ??
-                new root_bot_api_1.RootBotApi({
-                    communityId: communityId ?? process.env.COMMUNITY_ID ?? "",
-                });
+        if (deps.api) {
+            this.defaultApi = deps.api;
+        }
+        else if (communityId || process.env.COMMUNITY_ID) {
+            this.defaultApi = new root_bot_api_1.RootBotApi({
+                communityId: communityId ?? process.env.COMMUNITY_ID ?? "",
+            });
+        }
+    }
+    getApi(client) {
+        if (this.deps.api) {
+            return this.deps.api;
+        }
+        const resolvedCommunityId = client.communityId
+            ? String(client.communityId)
+            : (this.communityId ?? process.env.COMMUNITY_ID ?? "");
+        if (this.defaultApi &&
+            (!client.communityId || String(client.communityId) === this.communityId)) {
+            return this.defaultApi;
+        }
+        return new root_bot_api_1.RootBotApi({ communityId: resolvedCommunityId });
     }
     async getStatus(client) {
         const userId = String(client.userId);
+        const api = this.getApi(client);
         try {
             const [collector, channel] = await Promise.all([
-                this.api.getCollector(userId),
-                this.api.getDealAlertChannel(userId).catch(() => null),
+                api.getCollector(userId),
+                api.getDealAlertChannel(userId).catch(() => null),
             ]);
             if (!collector) {
                 return {
@@ -60,6 +77,7 @@ class AssistantRpcService extends gen_server_1.AssistantServiceBase {
     }
     async linkAccount(request, client) {
         const userId = String(client.userId);
+        const api = this.getApi(client);
         const code = (request.code || "").trim().toUpperCase();
         if (!code) {
             return {
@@ -69,7 +87,7 @@ class AssistantRpcService extends gen_server_1.AssistantServiceBase {
             };
         }
         try {
-            const res = await this.api.link({
+            const res = await api.link({
                 token: code,
                 provider: "root",
                 providerUserId: userId,
@@ -99,14 +117,15 @@ class AssistantRpcService extends gen_server_1.AssistantServiceBase {
         const userId = String(client.userId);
         const communityId = client.communityId
             ? String(client.communityId)
-            : this.communityId;
+            : (this.communityId ?? process.env.COMMUNITY_ID ?? "");
+        const api = this.getApi(client);
         const mode = request.dealAlertMode === "hard" ? "hard" : "all";
         try {
             if (this.deps.setNotificationPreference) {
                 await this.deps.setNotificationPreference(userId, request.notificationsEnabled, mode);
             }
             else {
-                await this.api.setNotifyPreference({
+                await api.setNotifyPreference({
                     providerUserId: userId,
                     enabled: request.notificationsEnabled,
                     mode,
@@ -118,7 +137,7 @@ class AssistantRpcService extends gen_server_1.AssistantServiceBase {
                     ? await this.deps.ensureRecipientChannel(userId, communityId)
                     : await (0, deal_alert_notifier_1.ensureRootRecipientChannel)(userId, {
                         communityId,
-                        api: this.api,
+                        api,
                     });
                 alertChannelId = channelUrl
                     ? channelUrl.replace(/^root:\/\/channel\//, "")
@@ -131,7 +150,7 @@ class AssistantRpcService extends gen_server_1.AssistantServiceBase {
                 else {
                     await (0, deal_alert_notifier_1.removeRootDealAlertChannel)(userId, {
                         communityId,
-                        api: this.api,
+                        api,
                     });
                 }
             }
@@ -155,13 +174,14 @@ class AssistantRpcService extends gen_server_1.AssistantServiceBase {
     }
     async getDecks(client) {
         const userId = String(client.userId);
+        const api = this.getApi(client);
         try {
-            const res = await this.api.getDecks(userId);
+            const res = await api.getDecks(userId);
             const decks = await Promise.all((res.decks || []).map(async (deck) => {
                 let hardShortages = [];
                 let sharedShortages = [];
                 try {
-                    const shortages = await this.api.getShortages(userId, deck.id);
+                    const shortages = await api.getShortages(userId, deck.id);
                     hardShortages = (shortages.hardShortages || []).map((h) => ({
                         cardSlug: h.cardSlug || "",
                         cardName: h.cardName,

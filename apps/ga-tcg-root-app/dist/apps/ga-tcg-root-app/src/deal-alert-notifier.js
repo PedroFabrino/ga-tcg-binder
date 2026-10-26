@@ -5,7 +5,7 @@ exports.startDealAlertNotifier = startDealAlertNotifier;
 exports.provisionRootDealAlerts = provisionRootDealAlerts;
 exports.ensureRootRecipientChannel = ensureRootRecipientChannel;
 exports.removeRootDealAlertChannel = removeRootDealAlertChannel;
-const server_bot_1 = require("@rootsdk/server-bot");
+const server_app_1 = require("@rootsdk/server-app");
 const community_config_1 = require("./community-config");
 const root_bot_api_1 = require("./root-bot-api");
 const root_bot_scheduler_1 = require("./root-bot-scheduler");
@@ -68,7 +68,7 @@ async function runDealAlertPoll(deps) {
 async function startDealAlertNotifier(options = {}) {
     const communityId = options.communityId ?? process.env.COMMUNITY_ID ?? "";
     const api = options.api ?? new root_bot_api_1.RootBotApi({ communityId });
-    const config = options.config ?? (0, community_config_1.createCommunityConfig)(server_bot_1.rootServer.dataStore.appData);
+    const config = options.config ?? (0, community_config_1.createCommunityConfig)(server_app_1.rootServer.dataStore.appData);
     const rootApi = options.rootApi ?? (0, root_deal_alert_transport_1.createRootServerDealAlertApi)();
     const ensureSection = () => (0, root_deal_alert_section_1.ensureAlertSection)(config);
     const createTransport = options.createTransport ??
@@ -84,7 +84,7 @@ async function startDealAlertNotifier(options = {}) {
                 stage: "deal-alert-poll-failed",
                 communityId,
                 message: err,
-                level: server_bot_1.CommunityAppLogType.Error,
+                level: server_app_1.CommunityAppLogType.Error,
             });
         }
     };
@@ -92,7 +92,7 @@ async function startDealAlertNotifier(options = {}) {
     // first scheduled job.
     await run();
     await (0, root_bot_scheduler_1.scheduleRootBotPolling)({
-        scheduler: options.scheduler ?? server_bot_1.rootServer.jobScheduler,
+        scheduler: options.scheduler ?? server_app_1.rootServer.jobScheduler,
         resourceId: "ga-deal-alerts",
         tag: "deal-alerts",
         intervalMs,
@@ -102,7 +102,7 @@ async function startDealAlertNotifier(options = {}) {
                 stage: "deal-alert-scheduler-failed",
                 communityId,
                 message: err,
-                level: server_bot_1.CommunityAppLogType.Error,
+                level: server_app_1.CommunityAppLogType.Error,
             });
         },
     });
@@ -114,7 +114,7 @@ async function startDealAlertNotifier(options = {}) {
 async function provisionRootDealAlerts(options = {}) {
     const communityId = options.communityId ?? process.env.COMMUNITY_ID ?? "";
     const api = options.api ?? new root_bot_api_1.RootBotApi({ communityId });
-    const config = options.config ?? (0, community_config_1.createCommunityConfig)(server_bot_1.rootServer.dataStore.appData);
+    const config = options.config ?? (0, community_config_1.createCommunityConfig)(server_app_1.rootServer.dataStore.appData);
     const rootApi = options.rootApi ?? (0, root_deal_alert_transport_1.createRootServerDealAlertApi)();
     await runDealAlertPoll({
         api,
@@ -143,7 +143,7 @@ async function ensureRootRecipientChannel(recipientId, options = {}) {
             // Channel gone — fall through and create a fresh one.
         }
     }
-    const config = options.config ?? (0, community_config_1.createCommunityConfig)(server_bot_1.rootServer.dataStore.appData);
+    const config = options.config ?? (0, community_config_1.createCommunityConfig)(server_app_1.rootServer.dataStore.appData);
     const sectionId = await (0, root_deal_alert_section_1.ensureAlertSection)(config);
     if (!sectionId) {
         throw new Error("No market group configured — run /setup first to create it.");

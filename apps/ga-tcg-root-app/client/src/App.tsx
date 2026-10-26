@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { Sparkles, RefreshCw } from "lucide-react";
+import { Sparkles, RefreshCw, AlertCircle } from "lucide-react";
 import { AccountLinkCard } from "./components/AccountLinkCard";
 import { DealAlertCard } from "./components/DealAlertCard";
 import { DecksDashboardCard } from "./components/DecksDashboardCard";
@@ -9,24 +9,64 @@ export interface AppProps {
   client: IAssistantRpcClient;
 }
 
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  errorMessage = "Request timed out"
+): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(errorMessage)), ms)
+    ),
+  ]);
+}
+
 export const App: React.FC<AppProps> = ({ client }) => {
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [decks, setDecks] = useState<DeckSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [errorBanner, setErrorBanner] = useState<string | null>(null);
 
   const fetchStatusAndDecks = useCallback(async () => {
     try {
-      const res = await client.getStatus();
+      setErrorBanner(null);
+      const res = await withTimeout(
+        client.getStatus(),
+        8000,
+        "Connection to assistant service timed out"
+      );
       setStatus(res);
       if (res.isLinked) {
-        const deckRes = await client.getDecks();
-        setDecks(deckRes.decks || []);
+        try {
+          const deckRes = await withTimeout(
+            client.getDecks(),
+            8000,
+            "Failed to load decks"
+          );
+          setDecks(deckRes.decks || []);
+        } catch (deckErr) {
+          console.warn("Failed to load decks:", deckErr);
+          setDecks([]);
+        }
       } else {
         setDecks([]);
       }
     } catch (err) {
       console.warn("Failed to retrieve assistant status:", err);
+      setStatus((prev) => prev ?? {
+        isLinked: false,
+        collectorId: "",
+        collectorName: "",
+        friendCode: "",
+        notificationsEnabled: false,
+        dealAlertMode: "all",
+        alertChannelId: "",
+      });
+      setErrorBanner(
+        "Unable to connect to the Assistant Service. Click Refresh to retry."
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -98,6 +138,13 @@ export const App: React.FC<AppProps> = ({ client }) => {
             Refresh
           </button>
         </header>
+
+        {errorBanner && (
+          <div className="flex items-center gap-3 p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 text-xs">
+            <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+            <span className="flex-1">{errorBanner}</span>
+          </div>
+        )}
 
         {loading ? (
           <div className="space-y-4">

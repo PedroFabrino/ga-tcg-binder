@@ -2,17 +2,17 @@
 // TODO: delete this example code if not needed
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.initializeExample = initializeExample;
-// Use "@rootsdk/server-bot" to import the Root API types
-const server_bot_1 = require("@rootsdk/server-bot");
+// Use "@rootsdk/server-app" to import the Root API types
+const server_app_1 = require("@rootsdk/server-app");
 // Initialize your Bot (set up your database, subscribe to community events, etc.)
 function initializeExample() {
     // Example: subscribe to be notified when members post new messages to any channel your Bot can see
-    server_bot_1.rootServer.community.channelMessages.on(server_bot_1.ChannelMessageEvent.ChannelMessageCreated, onMessage);
+    server_app_1.rootServer.community.channelMessages.on(server_app_1.ChannelMessageEvent.ChannelMessageCreated, onMessage);
 }
 // Example: process channel messages that start with "/echo ", send back the incoming text
 async function onMessage(evt) {
     // Ignore Root System messages - they aren't of interest to the Bot, nor will they have any 'messageContent'
-    if (evt.messageType === server_bot_1.MessageType.System)
+    if (evt.messageType === server_app_1.MessageType.System)
         return;
     const prefix = "/echo ";
     // You receive all messages, only respond to ones that start with "/echo "
@@ -29,11 +29,11 @@ async function onMessage(evt) {
     };
     try {
         // Send the response to the community
-        const cm = await server_bot_1.rootServer.community.channelMessages.create(createMessageRequest);
+        const cm = await server_app_1.rootServer.community.channelMessages.create(createMessageRequest);
     }
     catch (xcpt) {
         // Handle Root-generated exceptions
-        if (xcpt instanceof server_bot_1.RootApiException) {
+        if (xcpt instanceof server_app_1.RootApiException) {
             // 'errorCode' tells you what went wrong.
             // E.g., perhaps your Bot doesn't have permission to create messages.
             console.error("RootApiException:", xcpt.errorCode);

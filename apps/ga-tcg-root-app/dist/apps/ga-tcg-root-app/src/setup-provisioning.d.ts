@@ -1,4 +1,4 @@
-import { type ChannelGroupGuid, type RoleOrMemberGuid } from "@rootsdk/server-bot";
+import { type ChannelGroupGuid, type RoleOrMemberGuid } from "@rootsdk/server-app";
 import { type RootCommunityConfig } from "./community-config";
 export declare const MARKET_CHANNEL_NAME = "market";
 export declare const ASSISTANT_CHANNEL_NAME = "assistant";

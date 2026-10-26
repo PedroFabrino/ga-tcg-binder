@@ -1,14 +1,14 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.describeError = describeError;
-const server_bot_1 = require("@rootsdk/server-bot");
+const server_app_1 = require("@rootsdk/server-app");
 const MAX_CAUSE_DEPTH = 5;
 const ROOT_ID_FIELDS = ["id", "whoId", "whatId", "whereId", "parentId"];
 function describeRootFields(err) {
     if (typeof err.errorCode !== "number") {
         return null;
     }
-    const name = server_bot_1.ErrorCodeType[err.errorCode] ?? "Unknown";
+    const name = server_app_1.ErrorCodeType[err.errorCode] ?? "Unknown";
     const ids = ROOT_ID_FIELDS.filter((field) => err[field] != null).map((field) => `${field}=${String(err[field])}`);
     return ids.length > 0
         ? `errorCode=${name}(${err.errorCode}) ${ids.join(" ")}`

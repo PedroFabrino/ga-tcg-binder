@@ -1,4 +1,4 @@
-import { CommunityAppLogType, rootServer } from "@rootsdk/server-bot";
+import { CommunityAppLogType, rootServer } from "@rootsdk/server-app";
 import { describeError } from "./describe-error";
 import { ROOT_BOT_API_BASE_URL } from "./root-bot-config";
 

@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getRootBotApi = getRootBotApi;
 exports.processRootCommand = processRootCommand;
 exports.registerRootCommandHandlers = registerRootCommandHandlers;
-const server_bot_1 = require("@rootsdk/server-bot");
+const server_app_1 = require("@rootsdk/server-app");
 const deal_alert_notifier_1 = require("./deal-alert-notifier");
 const community_config_1 = require("./community-config");
 const setup_provisioning_1 = require("./setup-provisioning");
@@ -55,23 +55,23 @@ function defaultRootCommandDeps(communityId, client) {
             return (0, deal_alert_notifier_1.ensureRootRecipientChannel)(recipientId, recipientOptions);
         },
         async configureFromChannel(_channelId) {
-            const config = (0, community_config_1.createCommunityConfig)(server_bot_1.rootServer.dataStore.appData);
-            const res = await (0, setup_provisioning_1.provisionCommunityChannels)({ rootServer: server_bot_1.rootServer, config });
+            const config = (0, community_config_1.createCommunityConfig)(server_app_1.rootServer.dataStore.appData);
+            const res = await (0, setup_provisioning_1.provisionCommunityChannels)({ rootServer: server_app_1.rootServer, config });
             return res.marketChannel;
         },
         async isCommunityAdmin(userId) {
-            const community = await server_bot_1.rootServer.community.communities.get();
+            const community = await server_app_1.rootServer.community.communities.get();
             if (String(community.ownerUserId) === userId) {
                 return true;
             }
             const [member, roles] = await Promise.all([
-                server_bot_1.rootServer.community.communityMembers.get({
+                server_app_1.rootServer.community.communityMembers.get({
                     userId: userId,
                 }),
-                server_bot_1.rootServer.community.communityRoles.list(),
+                server_app_1.rootServer.community.communityRoles.list(),
             ]);
             const roleIds = new Set(member.communityRoleIds.map((id) => String(id)));
-            roleIds.add(String(server_bot_1.WellKnownRootGuids.CommunityRoles.EveryoneRole));
+            roleIds.add(String(server_app_1.WellKnownRootGuids.CommunityRoles.EveryoneRole));
             return roles.some((role) => roleIds.has(String(role.id)) &&
                 (role.communityPermission.communityManageApps ||
                     role.communityPermission.communityFullControl));
@@ -242,7 +242,7 @@ async function processRootCommand(userId, messageContent, client = getRootBotApi
                     await (0, diagnostics_1.reportDiagnostic)({
                         stage: "notify-create-channel-failed",
                         message: err,
-                        level: server_bot_1.CommunityAppLogType.Error,
+                        level: server_app_1.CommunityAppLogType.Error,
                     });
                 }
                 try {
@@ -252,7 +252,7 @@ async function processRootCommand(userId, messageContent, client = getRootBotApi
                     await (0, diagnostics_1.reportDiagnostic)({
                         stage: "notify-provision-failed",
                         message: err,
-                        level: server_bot_1.CommunityAppLogType.Error,
+                        level: server_app_1.CommunityAppLogType.Error,
                     });
                 }
                 const scope = mode === "hard" ? " (hard shortages + wantlist)" : "";
@@ -284,7 +284,7 @@ async function processRootCommand(userId, messageContent, client = getRootBotApi
         await (0, diagnostics_1.reportDiagnostic)({
             stage: "command-error",
             message: err,
-            level: server_bot_1.CommunityAppLogType.Error,
+            level: server_app_1.CommunityAppLogType.Error,
         });
         if (isAssistantApiError(err)) {
             if (err.code === "IDENTITY_NOT_LINKED") {
@@ -302,8 +302,8 @@ async function processRootCommand(userId, messageContent, client = getRootBotApi
  * Subscribes to Root channel messages and executes assistant commands.
  */
 function registerRootCommandHandlers(communityId) {
-    server_bot_1.rootServer.community.channelMessages.on("channelMessage.created", async (evt) => {
-        if (evt.messageType === server_bot_1.MessageType.System)
+    server_app_1.rootServer.community.channelMessages.on("channelMessage.created", async (evt) => {
+        if (evt.messageType === server_app_1.MessageType.System)
             return;
         if (!evt.messageContent || !evt.messageContent.startsWith("/"))
             return;
@@ -311,7 +311,7 @@ function registerRootCommandHandlers(communityId) {
         if (!reply)
             return;
         try {
-            await server_bot_1.rootServer.community.channelMessages.create({
+            await server_app_1.rootServer.community.channelMessages.create({
                 channelId: evt.channelId,
                 content: reply,
             });

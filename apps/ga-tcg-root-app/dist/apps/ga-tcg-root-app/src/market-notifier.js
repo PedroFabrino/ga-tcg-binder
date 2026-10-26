@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.runMarketNotificationPoll = runMarketNotificationPoll;
 exports.startMarketNotifier = startMarketNotifier;
-const server_bot_1 = require("@rootsdk/server-bot");
+const server_app_1 = require("@rootsdk/server-app");
 const community_config_1 = require("./community-config");
 const root_bot_api_1 = require("./root-bot-api");
 const root_bot_scheduler_1 = require("./root-bot-scheduler");
@@ -40,13 +40,13 @@ async function runMarketNotificationPoll(deps) {
 async function startMarketNotifier(options = {}) {
     const communityId = options.communityId ?? process.env.COMMUNITY_ID ?? "";
     const api = options.api ?? new root_bot_api_1.RootBotApi({ communityId });
-    const config = options.config ?? (0, community_config_1.createCommunityConfig)(server_bot_1.rootServer.dataStore.appData);
+    const config = options.config ?? (0, community_config_1.createCommunityConfig)(server_app_1.rootServer.dataStore.appData);
     const postMessage = options.postMessage ??
         (async (channelId, content) => {
             let lastError;
             for (let attempt = 0; attempt < 3; attempt++) {
                 try {
-                    const message = await server_bot_1.rootServer.community.channelMessages.create({
+                    const message = await server_app_1.rootServer.community.channelMessages.create({
                         channelId: channelId,
                         content,
                     });
@@ -72,13 +72,13 @@ async function startMarketNotifier(options = {}) {
                 stage: "market-poll-failed",
                 communityId,
                 message: err,
-                level: server_bot_1.CommunityAppLogType.Error,
+                level: server_app_1.CommunityAppLogType.Error,
             });
         }
     };
     await run();
     await (0, root_bot_scheduler_1.scheduleRootBotPolling)({
-        scheduler: options.scheduler ?? server_bot_1.rootServer.jobScheduler,
+        scheduler: options.scheduler ?? server_app_1.rootServer.jobScheduler,
         resourceId: "ga-market-notifications",
         tag: "market-notifications",
         intervalMs,
@@ -88,7 +88,7 @@ async function startMarketNotifier(options = {}) {
                 stage: "market-scheduler-failed",
                 communityId,
                 message: err,
-                level: server_bot_1.CommunityAppLogType.Error,
+                level: server_app_1.CommunityAppLogType.Error,
             });
         },
     });

@@ -3,7 +3,7 @@ import {
   CommunityAppLogType,
   type ChannelGuid,
   type JobScheduler,
-} from "@rootsdk/server-bot";
+} from "@rootsdk/server-app";
 import {
   createCommunityConfig,
   type RootCommunityConfig,

@@ -1,4 +1,4 @@
-import { rootServer, type RootServer } from "@rootsdk/server-bot";
+import { rootServer, type RootServer } from "@rootsdk/server-app";
 import { describeError } from "./describe-error";
 
 export type CommunityDirectory = Pick<

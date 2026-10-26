@@ -1,8 +1,8 @@
 import {
   CommunityAppLogType,
   rootServer,
-  type RootBotStartState,
-} from "@rootsdk/server-bot";
+  type RootAppStartState,
+} from "@rootsdk/server-app";
 import { startMarketNotifier } from "./market-notifier";
 import { startDealAlertNotifier } from "./deal-alert-notifier";
 import { registerRootCommandHandlers } from "./command-handlers";
@@ -19,7 +19,19 @@ void reportDiagnostic({
   message: `process started; COMMUNITY_ID=${process.env.COMMUNITY_ID ?? "(unset)"} APP_ID=${process.env.APP_ID ?? "(unset)"}`,
 });
 
-async function onStarting(state: RootBotStartState) {
+// Register the Assistant RPC service so client App frames can invoke methods.
+try {
+  rootServer.lifecycle.addService(new AssistantRpcService());
+  void reportDiagnostic({ stage: "rpc-service-registered" });
+} catch (err) {
+  void reportDiagnostic({
+    stage: "rpc-service-failed",
+    message: err,
+    level: CommunityAppLogType.Error,
+  });
+}
+
+async function onStarting(state: RootAppStartState) {
   const communityId = String(
     state.communityId ?? process.env.COMMUNITY_ID ?? ""
   );
@@ -94,21 +106,6 @@ async function onStarting(state: RootBotStartState) {
   } catch (err) {
     await reportDiagnostic({
       stage: "commands-failed",
-      communityId,
-      message: err,
-      level: CommunityAppLogType.Error,
-    });
-  }
-
-  try {
-    const assistantRpcService = new AssistantRpcService(communityId);
-    (rootServer.lifecycle as unknown as { addService(s: unknown): void }).addService(
-      assistantRpcService
-    );
-    await reportDiagnostic({ stage: "rpc-service-registered", communityId });
-  } catch (err) {
-    await reportDiagnostic({
-      stage: "rpc-service-failed",
       communityId,
       message: err,
       level: CommunityAppLogType.Error,

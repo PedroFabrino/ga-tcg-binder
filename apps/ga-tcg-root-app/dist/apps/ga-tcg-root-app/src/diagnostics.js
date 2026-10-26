@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.reportDiagnostic = reportDiagnostic;
-const server_bot_1 = require("@rootsdk/server-bot");
+const server_app_1 = require("@rootsdk/server-app");
 const describe_error_1 = require("./describe-error");
 const root_bot_config_1 = require("./root-bot-config");
 const DEFAULT_APP_ID = "ADH-6fbvigmppj1_qgZSmw";
@@ -17,9 +17,9 @@ async function reportDiagnostic(event) {
     const line = `[root] ${event.stage}${detail ? `: ${detail}` : ""}`;
     console.log(line);
     try {
-        void server_bot_1.rootServer.dataStore.logs.community
+        void server_app_1.rootServer.dataStore.logs.community
             .create({
-            communityAppLogType: event.level ?? server_bot_1.CommunityAppLogType.Info,
+            communityAppLogType: event.level ?? server_app_1.CommunityAppLogType.Info,
             message: line.slice(0, 2000),
         })
             .catch(() => {

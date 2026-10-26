@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const server_bot_1 = require("@rootsdk/server-bot");
+const server_app_1 = require("@rootsdk/server-app");
 const market_notifier_1 = require("./market-notifier");
 const deal_alert_notifier_1 = require("./deal-alert-notifier");
 const command_handlers_1 = require("./command-handlers");
@@ -15,6 +15,18 @@ void (0, diagnostics_1.reportDiagnostic)({
     stage: "boot",
     message: `process started; COMMUNITY_ID=${process.env.COMMUNITY_ID ?? "(unset)"} APP_ID=${process.env.APP_ID ?? "(unset)"}`,
 });
+// Register the Assistant RPC service so client App frames can invoke methods.
+try {
+    server_app_1.rootServer.lifecycle.addService(new assistant_rpc_service_1.AssistantRpcService());
+    void (0, diagnostics_1.reportDiagnostic)({ stage: "rpc-service-registered" });
+}
+catch (err) {
+    void (0, diagnostics_1.reportDiagnostic)({
+        stage: "rpc-service-failed",
+        message: err,
+        level: server_app_1.CommunityAppLogType.Error,
+    });
+}
 async function onStarting(state) {
     const communityId = String(state.communityId ?? process.env.COMMUNITY_ID ?? "");
     await (0, diagnostics_1.reportDiagnostic)({
@@ -33,13 +45,13 @@ async function onStarting(state) {
             stage: "install-failed",
             communityId,
             message: err,
-            level: server_bot_1.CommunityAppLogType.Error,
+            level: server_app_1.CommunityAppLogType.Error,
         });
     }
     let sectionId;
     let broadcastChannelId;
     try {
-        const config = (0, community_config_1.createCommunityConfig)(server_bot_1.rootServer.dataStore.appData);
+        const config = (0, community_config_1.createCommunityConfig)(server_app_1.rootServer.dataStore.appData);
         [sectionId, broadcastChannelId] = await Promise.all([
             config.getAlertSectionId(),
             config.getBroadcastChannelId(),
@@ -50,7 +62,7 @@ async function onStarting(state) {
             stage: "config-read-failed",
             communityId,
             message: err,
-            level: server_bot_1.CommunityAppLogType.Warn,
+            level: server_app_1.CommunityAppLogType.Warn,
         });
     }
     void (0, channel_diagnostics_1.logCommunityContext)({ sectionId, broadcastChannelId });
@@ -63,7 +75,7 @@ async function onStarting(state) {
             stage: "market-notifier-failed",
             communityId,
             message: err,
-            level: server_bot_1.CommunityAppLogType.Error,
+            level: server_app_1.CommunityAppLogType.Error,
         });
     }
     try {
@@ -75,7 +87,7 @@ async function onStarting(state) {
             stage: "deal-alert-notifier-failed",
             communityId,
             message: err,
-            level: server_bot_1.CommunityAppLogType.Error,
+            level: server_app_1.CommunityAppLogType.Error,
         });
     }
     try {
@@ -87,33 +99,20 @@ async function onStarting(state) {
             stage: "commands-failed",
             communityId,
             message: err,
-            level: server_bot_1.CommunityAppLogType.Error,
-        });
-    }
-    try {
-        const assistantRpcService = new assistant_rpc_service_1.AssistantRpcService(communityId);
-        server_bot_1.rootServer.lifecycle.addService(assistantRpcService);
-        await (0, diagnostics_1.reportDiagnostic)({ stage: "rpc-service-registered", communityId });
-    }
-    catch (err) {
-        await (0, diagnostics_1.reportDiagnostic)({
-            stage: "rpc-service-failed",
-            communityId,
-            message: err,
-            level: server_bot_1.CommunityAppLogType.Error,
+            level: server_app_1.CommunityAppLogType.Error,
         });
     }
     await (0, diagnostics_1.reportDiagnostic)({ stage: "startup-complete", communityId });
 }
 (async () => {
     try {
-        await server_bot_1.rootServer.lifecycle.start(onStarting);
+        await server_app_1.rootServer.lifecycle.start(onStarting);
     }
     catch (err) {
         await (0, diagnostics_1.reportDiagnostic)({
             stage: "lifecycle-failed",
             message: err,
-            level: server_bot_1.CommunityAppLogType.Fatal,
+            level: server_app_1.CommunityAppLogType.Fatal,
         });
         process.exitCode = 1;
     }

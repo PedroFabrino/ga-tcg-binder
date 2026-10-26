@@ -1,4 +1,4 @@
-import { type JobScheduler } from "@rootsdk/server-bot";
+import { type JobScheduler } from "@rootsdk/server-app";
 import { type RootCommunityConfig } from "./community-config";
 import { RootBotApi } from "./root-bot-api";
 export interface MarketNotificationPollDeps {

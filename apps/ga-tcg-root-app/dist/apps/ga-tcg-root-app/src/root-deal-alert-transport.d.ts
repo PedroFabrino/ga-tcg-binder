@@ -1,4 +1,4 @@
-import { rootServer } from "@rootsdk/server-bot";
+import { rootServer } from "@rootsdk/server-app";
 import { type DirectMessageSink } from "./deal-alert-sink";
 /**
  * The narrow slice of the Root server SDK the deal-alert transport needs.

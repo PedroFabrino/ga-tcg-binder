@@ -32,26 +32,45 @@ export interface AssistantRpcServiceDeps {
 }
 
 export class AssistantRpcService extends AssistantServiceBase {
-  private readonly api: RootBotApi;
+  private readonly defaultApi?: RootBotApi;
 
   constructor(
     private readonly communityId?: string,
     private readonly deps: AssistantRpcServiceDeps = {}
   ) {
     super();
-    this.api =
-      deps.api ??
-      new RootBotApi({
+    if (deps.api) {
+      this.defaultApi = deps.api;
+    } else if (communityId || process.env.COMMUNITY_ID) {
+      this.defaultApi = new RootBotApi({
         communityId: communityId ?? process.env.COMMUNITY_ID ?? "",
       });
+    }
+  }
+
+  private getApi(client: Client): RootBotApi {
+    if (this.deps.api) {
+      return this.deps.api;
+    }
+    const resolvedCommunityId = client.communityId
+      ? String(client.communityId)
+      : (this.communityId ?? process.env.COMMUNITY_ID ?? "");
+    if (
+      this.defaultApi &&
+      (!client.communityId || String(client.communityId) === this.communityId)
+    ) {
+      return this.defaultApi;
+    }
+    return new RootBotApi({ communityId: resolvedCommunityId });
   }
 
   async getStatus(client: Client): Promise<StatusResponse> {
     const userId = String(client.userId);
+    const api = this.getApi(client);
     try {
       const [collector, channel] = await Promise.all([
-        this.api.getCollector(userId),
-        this.api.getDealAlertChannel(userId).catch(() => null),
+        api.getCollector(userId),
+        api.getDealAlertChannel(userId).catch(() => null),
       ]);
 
       if (!collector) {
@@ -93,6 +112,7 @@ export class AssistantRpcService extends AssistantServiceBase {
     client: Client
   ): Promise<LinkResponse> {
     const userId = String(client.userId);
+    const api = this.getApi(client);
     const code = (request.code || "").trim().toUpperCase();
 
     if (!code) {
@@ -104,7 +124,7 @@ export class AssistantRpcService extends AssistantServiceBase {
     }
 
     try {
-      const res = await this.api.link({
+      const res = await api.link({
         token: code,
         provider: "root",
         providerUserId: userId,
@@ -138,7 +158,8 @@ export class AssistantRpcService extends AssistantServiceBase {
     const userId = String(client.userId);
     const communityId = client.communityId
       ? String(client.communityId)
-      : this.communityId;
+      : (this.communityId ?? process.env.COMMUNITY_ID ?? "");
+    const api = this.getApi(client);
     const mode = request.dealAlertMode === "hard" ? "hard" : "all";
 
     try {
@@ -149,7 +170,7 @@ export class AssistantRpcService extends AssistantServiceBase {
           mode
         );
       } else {
-        await this.api.setNotifyPreference({
+        await api.setNotifyPreference({
           providerUserId: userId,
           enabled: request.notificationsEnabled,
           mode,
@@ -162,7 +183,7 @@ export class AssistantRpcService extends AssistantServiceBase {
           ? await this.deps.ensureRecipientChannel(userId, communityId)
           : await ensureRootRecipientChannel(userId, {
               communityId,
-              api: this.api,
+              api,
             });
         alertChannelId = channelUrl
           ? channelUrl.replace(/^root:\/\/channel\//, "")
@@ -173,7 +194,7 @@ export class AssistantRpcService extends AssistantServiceBase {
         } else {
           await removeRootDealAlertChannel(userId, {
             communityId,
-            api: this.api,
+            api,
           });
         }
       }
@@ -198,8 +219,9 @@ export class AssistantRpcService extends AssistantServiceBase {
 
   async getDecks(client: Client): Promise<DecksResponse> {
     const userId = String(client.userId);
+    const api = this.getApi(client);
     try {
-      const res = await this.api.getDecks(userId);
+      const res = await api.getDecks(userId);
       const decks = await Promise.all(
         (res.decks || []).map(async (deck) => {
           let hardShortages: Array<{
@@ -214,7 +236,7 @@ export class AssistantRpcService extends AssistantServiceBase {
           }> = [];
 
           try {
-            const shortages = await this.api.getShortages(userId, deck.id);
+            const shortages = await api.getShortages(userId, deck.id);
             hardShortages = (shortages.hardShortages || []).map((h) => ({
               cardSlug: h.cardSlug || "",
               cardName: h.cardName,

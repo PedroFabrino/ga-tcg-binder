@@ -1,4 +1,4 @@
-import { type RootServer } from "@rootsdk/server-bot";
+import { type RootServer } from "@rootsdk/server-app";
 export type CommunityDirectory = Pick<RootServer["community"], "communities" | "channelGroups">;
 export interface CommunityContextOptions {
     sectionId?: string;

@@ -1,4 +1,4 @@
-import { rootServer } from "@rootsdk/server-bot";
+import { rootServer } from "@rootsdk/server-app";
 import { ROOT_BOT_API_BASE_URL } from "./root-bot-config";
 
 const TOKEN_KEY_PREFIX = "rootBot.installToken";

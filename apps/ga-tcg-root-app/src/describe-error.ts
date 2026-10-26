@@ -1,4 +1,4 @@
-import { ErrorCodeType } from "@rootsdk/server-bot";
+import { ErrorCodeType } from "@rootsdk/server-app";
 
 const MAX_CAUSE_DEPTH = 5;
 const ROOT_ID_FIELDS = ["id", "whoId", "whatId", "whereId", "parentId"] as const;

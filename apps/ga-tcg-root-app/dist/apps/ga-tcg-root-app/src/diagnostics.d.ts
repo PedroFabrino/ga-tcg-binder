@@ -1,4 +1,4 @@
-import { CommunityAppLogType } from "@rootsdk/server-bot";
+import { CommunityAppLogType } from "@rootsdk/server-app";
 export interface DiagnosticEvent {
     stage: string;
     message?: unknown;

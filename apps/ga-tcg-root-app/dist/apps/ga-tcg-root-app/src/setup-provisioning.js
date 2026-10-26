@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GROUP_NAME = exports.ASSISTANT_CHANNEL_NAME = exports.MARKET_CHANNEL_NAME = void 0;
 exports.provisionCommunityChannels = provisionCommunityChannels;
-const server_bot_1 = require("@rootsdk/server-bot");
+const server_app_1 = require("@rootsdk/server-app");
 exports.MARKET_CHANNEL_NAME = "market";
 exports.ASSISTANT_CHANNEL_NAME = "assistant";
 exports.GROUP_NAME = "GA Market";
@@ -30,7 +30,7 @@ async function provisionCommunityChannels(ctx) {
         const created = await rootServer.community.channels.create({
             channelGroupId: sectionId,
             name: exports.MARKET_CHANNEL_NAME,
-            channelType: server_bot_1.ChannelType.Text,
+            channelType: server_app_1.ChannelType.Text,
             useChannelGroupPermission: true,
         });
         broadcastId = String(created.id);
@@ -40,7 +40,7 @@ async function provisionCommunityChannels(ctx) {
         const createdApp = await rootServer.community.channels.create({
             channelGroupId: sectionId,
             name: exports.ASSISTANT_CHANNEL_NAME,
-            channelType: server_bot_1.ChannelType.App,
+            channelType: server_app_1.ChannelType.App,
             useChannelGroupPermission: true,
         });
         assistantId = String(createdApp.id);
