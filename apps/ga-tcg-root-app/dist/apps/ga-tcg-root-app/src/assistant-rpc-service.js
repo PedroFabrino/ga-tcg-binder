@@ -268,7 +268,10 @@ class AssistantRpcService extends gen_server_1.AssistantServiceBase {
         const userId = String(client.userId);
         const api = this.getApi(client);
         try {
-            const res = await api.importDeck(userId, { url: request.url });
+            const res = await api.importDeck(userId, {
+                url: request.url || undefined,
+                text: request.text || undefined,
+            });
             return {
                 success: true,
                 deckName: res.deck.name,

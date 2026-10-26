@@ -8,17 +8,18 @@ export async function handleDecksCommand(
   const parts = argString.split(/\s+/).filter(Boolean);
   const subCommand = parts[0]?.toLowerCase();
 
-  // /decks add <url>
+  // /decks add <url | text>
   if (subCommand === "add") {
-    const url = parts.slice(1).join(" ").trim();
-    if (!url) {
+    const rawInput = argString.slice(argString.indexOf("add") + 3).trim();
+    if (!rawInput) {
       return (
-        "⚠️ **Usage:** `/decks add <url>`\n" +
-        "Provide an Omnidex.gg, Silvie.gg, or GrandArchiveStats deck URL to import into your collection."
+        "⚠️ **Usage:** `/decks add <url | text>`\n" +
+        "Provide an Omnidex.gg/Silvie.gg URL or paste raw decklist text (Material Deck / Main Deck / Sideboard)."
       );
     }
 
-    const res = await client.importDeck(userId, { url });
+    const isUrl = rawInput.startsWith("http://") || rawInput.startsWith("https://");
+    const res = await client.importDeck(userId, isUrl ? { url: rawInput } : { text: rawInput });
     return (
       `🎉 **Deck "${res.deck.name}" Imported Successfully!**\n` +
       `The deck was parsed and added to your collection.\n` +
@@ -27,22 +28,39 @@ export async function handleDecksCommand(
     );
   }
 
-  // /decks update <deck> <url>
+  // /decks update <deck> <url | text>
   if (subCommand === "update") {
-    const remaining = parts.slice(1).join(" ").trim();
-    const lastSpace = remaining.lastIndexOf(" ");
+    const remaining = argString.slice(argString.indexOf("update") + 6).trim();
+    const firstNewline = remaining.indexOf("\n");
     let targetQuery = "";
     let url = "";
+    let text = "";
 
-    if (lastSpace !== -1) {
-      targetQuery = remaining.slice(0, lastSpace).trim();
-      url = remaining.slice(lastSpace + 1).trim();
+    if (firstNewline !== -1) {
+      targetQuery = remaining.slice(0, firstNewline).trim();
+      const rest = remaining.slice(firstNewline + 1).trim();
+      if (rest.startsWith("http://") || rest.startsWith("https://")) {
+        url = rest;
+      } else {
+        text = rest;
+      }
+    } else {
+      const lastSpace = remaining.lastIndexOf(" ");
+      if (lastSpace !== -1) {
+        targetQuery = remaining.slice(0, lastSpace).trim();
+        const candidate = remaining.slice(lastSpace + 1).trim();
+        if (candidate.startsWith("http://") || candidate.startsWith("https://")) {
+          url = candidate;
+        } else {
+          text = candidate;
+        }
+      }
     }
 
-    if (!targetQuery || !url || (!url.startsWith("http://") && !url.startsWith("https://"))) {
+    if (!targetQuery || (!url && !text)) {
       return (
-        "⚠️ **Usage:** `/decks update <deck_name> <url>`\n" +
-        "Provide your deck name and the updated Omnidex.gg or Silvie.gg deck URL."
+        "⚠️ **Usage:** `/decks update <deck_name> <url | text>`\n" +
+        "Provide your deck name and the updated Omnidex/Silvie URL or pasted decklist text."
       );
     }
 
@@ -57,7 +75,11 @@ export async function handleDecksCommand(
       return `❌ **Deck "${targetQuery}" not found.** Use \`/decks\` to see all your active decks.`;
     }
 
-    const res = await client.updateDeck(userId, { deckId: match.id, url });
+    const res = await client.updateDeck(userId, {
+      deckId: match.id,
+      url: url || undefined,
+      text: text || undefined,
+    });
     return (
       `🎉 **Deck "${res.deck.name}" Updated Successfully!**\n` +
       `The updated decklist has replaced the existing cards.\n` +

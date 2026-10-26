@@ -58,6 +58,7 @@ message DeckSummary {
   int32 shared_shortages_count = 7;
   repeated DeckShortageCard hard_shortages = 8;
   repeated DeckShortageCard shared_shortages = 9;
+  string omnidex_text = 10;
 }
 
 message DecksResponse {
@@ -125,6 +126,7 @@ message RemoveWantRpcResponse {
 
 message ImportDeckRpcRequest {
   string url = 1;
+  string text = 2;
 }
 
 message ImportDeckRpcResponse {

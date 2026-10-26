@@ -35,6 +35,7 @@ async function buildDeckSummariesWithShortages(api, userId, rawDecks) {
             sharedShortagesCount: deck.sharedShortageCount,
             hardShortages,
             sharedShortages,
+            omnidexText: deck.decklistText || "",
         };
     }));
 }

@@ -34,6 +34,7 @@ export interface AssistantDeckSummary {
   hardShortageCount: number;
   sharedShortageCount: number;
   webUrl?: string;
+  decklistText?: string;
 }
 
 export interface AssistantDecksResponse {

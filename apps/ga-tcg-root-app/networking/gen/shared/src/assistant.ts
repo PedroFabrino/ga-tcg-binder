@@ -185,6 +185,10 @@ export interface DeckSummary {
      * @generated from protobuf field: repeated DeckShortageCard shared_shortages = 9
      */
     sharedShortages: DeckShortageCard[];
+    /**
+     * @generated from protobuf field: string omnidex_text = 10
+     */
+    omnidexText: string;
 }
 /**
  * @generated from protobuf message DecksResponse
@@ -376,6 +380,10 @@ export interface ImportDeckRpcRequest {
      * @generated from protobuf field: string url = 1
      */
     url: string;
+    /**
+     * @generated from protobuf field: string text = 2
+     */
+    text: string;
 }
 /**
  * @generated from protobuf message ImportDeckRpcResponse
@@ -921,7 +929,8 @@ class DeckSummary$Type extends MessageType<DeckSummary> {
             { no: 6, name: "hard_shortages_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
             { no: 7, name: "shared_shortages_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
             { no: 8, name: "hard_shortages", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => DeckShortageCard },
-            { no: 9, name: "shared_shortages", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => DeckShortageCard }
+            { no: 9, name: "shared_shortages", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => DeckShortageCard },
+            { no: 10, name: "omnidex_text", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<DeckSummary>): DeckSummary {
@@ -935,6 +944,7 @@ class DeckSummary$Type extends MessageType<DeckSummary> {
         message.sharedShortagesCount = 0;
         message.hardShortages = [];
         message.sharedShortages = [];
+        message.omnidexText = "";
         if (value !== undefined)
             reflectionMergePartial<DeckSummary>(this, message, value);
         return message;
@@ -970,6 +980,9 @@ class DeckSummary$Type extends MessageType<DeckSummary> {
                     break;
                 case /* repeated DeckShortageCard shared_shortages */ 9:
                     message.sharedShortages.push(DeckShortageCard.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string omnidex_text */ 10:
+                    message.omnidexText = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1010,6 +1023,9 @@ class DeckSummary$Type extends MessageType<DeckSummary> {
         /* repeated DeckShortageCard shared_shortages = 9; */
         for (let i = 0; i < message.sharedShortages.length; i++)
             DeckShortageCard.internalBinaryWrite(message.sharedShortages[i], writer.tag(9, WireType.LengthDelimited).fork(), options).join();
+        /* string omnidex_text = 10; */
+        if (message.omnidexText !== "")
+            writer.tag(10, WireType.LengthDelimited).string(message.omnidexText);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1678,12 +1694,14 @@ export const RemoveWantRpcResponse = new RemoveWantRpcResponse$Type();
 class ImportDeckRpcRequest$Type extends MessageType<ImportDeckRpcRequest> {
     constructor() {
         super("ImportDeckRpcRequest", [
-            { no: 1, name: "url", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 1, name: "url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "text", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<ImportDeckRpcRequest>): ImportDeckRpcRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.url = "";
+        message.text = "";
         if (value !== undefined)
             reflectionMergePartial<ImportDeckRpcRequest>(this, message, value);
         return message;
@@ -1695,6 +1713,9 @@ class ImportDeckRpcRequest$Type extends MessageType<ImportDeckRpcRequest> {
             switch (fieldNo) {
                 case /* string url */ 1:
                     message.url = reader.string();
+                    break;
+                case /* string text */ 2:
+                    message.text = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1711,6 +1732,9 @@ class ImportDeckRpcRequest$Type extends MessageType<ImportDeckRpcRequest> {
         /* string url = 1; */
         if (message.url !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.url);
+        /* string text = 2; */
+        if (message.text !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.text);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

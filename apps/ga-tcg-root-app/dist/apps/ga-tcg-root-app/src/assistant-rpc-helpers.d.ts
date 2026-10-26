@@ -8,6 +8,7 @@ export declare function buildDeckSummariesWithShortages(api: RootBotApi, userId:
     totalCards: number;
     hardShortageCount: number;
     sharedShortageCount: number;
+    decklistText?: string;
 }>): Promise<DeckSummary[]>;
 export declare function updateDealAlertPreferencesHelper(api: RootBotApi, userId: string, communityId: string, notificationsEnabled: boolean, mode: "all" | "hard", overrides?: {
     setNotificationPreference?: (userId: string, enabled: boolean, mode?: "all" | "hard") => Promise<void>;

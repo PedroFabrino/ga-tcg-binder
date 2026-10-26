@@ -20,6 +20,7 @@ export async function buildDeckSummariesWithShortages(
     totalCards: number;
     hardShortageCount: number;
     sharedShortageCount: number;
+    decklistText?: string;
   }>
 ): Promise<DeckSummary[]> {
   return Promise.all(
@@ -61,6 +62,7 @@ export async function buildDeckSummariesWithShortages(
         sharedShortagesCount: deck.sharedShortageCount,
         hardShortages,
         sharedShortages,
+        omnidexText: deck.decklistText || "",
       };
     })
   );

@@ -13,6 +13,7 @@ import {
 } from "../db/repositories/assistant-repository";
 import { getUserCollectionItems } from "../db/repositories/collection-repository";
 import { computeDeckShortagesFromData } from "./assistant-shortage-math";
+import { serializeOmnidexText } from "./omnidex";
 import type {
   AssistantDeckSummary,
   AssistantShortageItem,
@@ -173,6 +174,22 @@ export async function getCollectorDecks(
     const targetCards = allDeckCards.filter((c) => c.deckId === deck.id);
     const otherCards = allDeckCards.filter((c) => c.deckId !== deck.id);
     const res = computeDeckShortagesFromData(deck, targetCards, otherCards, userInventory);
+    const materialCards = targetCards
+      .filter((c) => c.zone === "material")
+      .map((c) => ({ name: c.cardName || c.cardSlug, quantity: c.quantity }));
+    const mainCards = targetCards
+      .filter((c) => c.zone === "main")
+      .map((c) => ({ name: c.cardName || c.cardSlug, quantity: c.quantity }));
+    const sideCards = targetCards
+      .filter((c) => c.zone === "side")
+      .map((c) => ({ name: c.cardName || c.cardSlug, quantity: c.quantity }));
+
+    const decklistText = serializeOmnidexText({
+      material: materialCards,
+      main: mainCards,
+      side: sideCards,
+    });
+
     return {
       id: res.deckId,
       name: res.deckName,
@@ -183,6 +200,7 @@ export async function getCollectorDecks(
       completionPercentage: res.completionPercentage,
       hardShortageCount: res.totalHardShortages,
       sharedShortageCount: res.totalSharedShortages,
+      decklistText,
     };
   });
 }

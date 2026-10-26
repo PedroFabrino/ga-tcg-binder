@@ -179,6 +179,10 @@ export interface DeckSummary {
      * @generated from protobuf field: repeated DeckShortageCard shared_shortages = 9
      */
     sharedShortages: DeckShortageCard[];
+    /**
+     * @generated from protobuf field: string omnidex_text = 10
+     */
+    omnidexText: string;
 }
 /**
  * @generated from protobuf message DecksResponse
@@ -370,6 +374,10 @@ export interface ImportDeckRpcRequest {
      * @generated from protobuf field: string url = 1
      */
     url: string;
+    /**
+     * @generated from protobuf field: string text = 2
+     */
+    text: string;
 }
 /**
  * @generated from protobuf message ImportDeckRpcResponse

@@ -74,6 +74,50 @@ describe("Root Command Handlers - Discord Parity Features", () => {
     expect(res).toContain('Deck "Rai Aggro" Updated Successfully!');
   });
 
+  it("handles /decks add with raw decklist text", async () => {
+    const mockClient = {
+      importDeck: vi.fn().mockResolvedValue({
+        success: true,
+        deck: { id: "d-2", name: "Merlin Combo" },
+      }),
+    } as unknown as RootBotApi;
+
+    const rawDeckText = "Material Deck\n1 Spirit of Fire\n\nMain Deck\n4 Fireball";
+    const res = await processRootCommand(
+      mockUserId,
+      `/decks add ${rawDeckText}`,
+      mockClient
+    );
+    expect(mockClient.importDeck).toHaveBeenCalledWith(mockUserId, {
+      text: rawDeckText,
+    });
+    expect(res).toContain('Deck "Merlin Combo" Imported Successfully!');
+  });
+
+  it("handles /decks update <deck> with raw decklist text", async () => {
+    const mockClient = {
+      getDecks: vi.fn().mockResolvedValue({
+        decks: [{ id: "d-1", name: "Rai Aggro" }],
+      }),
+      updateDeck: vi.fn().mockResolvedValue({
+        success: true,
+        deck: { id: "d-1", name: "Rai Aggro" },
+      }),
+    } as unknown as RootBotApi;
+
+    const rawDeckText = "Material Deck\n1 Spirit of Fire\n\nMain Deck\n4 Fireball";
+    const res = await processRootCommand(
+      mockUserId,
+      `/decks update Rai Aggro\n${rawDeckText}`,
+      mockClient
+    );
+    expect(mockClient.updateDeck).toHaveBeenCalledWith(mockUserId, {
+      deckId: "d-1",
+      text: rawDeckText,
+    });
+    expect(res).toContain('Deck "Rai Aggro" Updated Successfully!');
+  });
+
   it("handles /shortages with no arguments to list user decks", async () => {
     const mockClient = {
       getDecks: vi.fn().mockResolvedValue({

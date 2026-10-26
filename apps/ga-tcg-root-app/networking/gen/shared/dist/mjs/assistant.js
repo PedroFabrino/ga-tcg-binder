@@ -487,7 +487,8 @@ class DeckSummary$Type extends MessageType {
             { no: 6, name: "hard_shortages_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
             { no: 7, name: "shared_shortages_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
             { no: 8, name: "hard_shortages", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => DeckShortageCard },
-            { no: 9, name: "shared_shortages", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => DeckShortageCard }
+            { no: 9, name: "shared_shortages", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => DeckShortageCard },
+            { no: 10, name: "omnidex_text", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value) {
@@ -501,6 +502,7 @@ class DeckSummary$Type extends MessageType {
         message.sharedShortagesCount = 0;
         message.hardShortages = [];
         message.sharedShortages = [];
+        message.omnidexText = "";
         if (value !== undefined)
             reflectionMergePartial(this, message, value);
         return message;
@@ -536,6 +538,9 @@ class DeckSummary$Type extends MessageType {
                     break;
                 case /* repeated DeckShortageCard shared_shortages */ 9:
                     message.sharedShortages.push(DeckShortageCard.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string omnidex_text */ 10:
+                    message.omnidexText = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -576,6 +581,9 @@ class DeckSummary$Type extends MessageType {
         /* repeated DeckShortageCard shared_shortages = 9; */
         for (let i = 0; i < message.sharedShortages.length; i++)
             DeckShortageCard.internalBinaryWrite(message.sharedShortages[i], writer.tag(9, WireType.LengthDelimited).fork(), options).join();
+        /* string omnidex_text = 10; */
+        if (message.omnidexText !== "")
+            writer.tag(10, WireType.LengthDelimited).string(message.omnidexText);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1244,12 +1252,14 @@ export const RemoveWantRpcResponse = new RemoveWantRpcResponse$Type();
 class ImportDeckRpcRequest$Type extends MessageType {
     constructor() {
         super("ImportDeckRpcRequest", [
-            { no: 1, name: "url", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 1, name: "url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "text", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value) {
         const message = globalThis.Object.create((this.messagePrototype));
         message.url = "";
+        message.text = "";
         if (value !== undefined)
             reflectionMergePartial(this, message, value);
         return message;
@@ -1261,6 +1271,9 @@ class ImportDeckRpcRequest$Type extends MessageType {
             switch (fieldNo) {
                 case /* string url */ 1:
                     message.url = reader.string();
+                    break;
+                case /* string text */ 2:
+                    message.text = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1277,6 +1290,9 @@ class ImportDeckRpcRequest$Type extends MessageType {
         /* string url = 1; */
         if (message.url !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.url);
+        /* string text = 2; */
+        if (message.text !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.text);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

@@ -1,6 +1,6 @@
 {
   "name": "@ga/gen-shared",
-  "version": "1.0.1793028691093",
+  "version": "1.0.1793032470324",
   "main": "./dist/cjs/index.js",
   "typings": "./dist/cjs/index.d.ts",
   "module": "./dist/mjs/index.js",

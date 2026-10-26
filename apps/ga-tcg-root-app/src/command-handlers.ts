@@ -140,8 +140,9 @@ export async function processRootCommand(
   const trimmed = messageContent.trim();
   if (!trimmed.startsWith("/")) return null;
 
-  const [command, ...args] = trimmed.slice(1).split(/\s+/);
-  const argString = args.join(" ").trim();
+  const firstWhitespace = trimmed.search(/\s/);
+  const command = firstWhitespace === -1 ? trimmed.slice(1) : trimmed.slice(1, firstWhitespace);
+  const argString = firstWhitespace === -1 ? "" : trimmed.slice(firstWhitespace + 1).trim();
   const cmd = command.toLowerCase();
 
   try {

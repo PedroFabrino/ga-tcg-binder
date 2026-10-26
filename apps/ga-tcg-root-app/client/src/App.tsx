@@ -99,8 +99,14 @@ export const App: React.FC<AppProps> = ({ client }) => {
     return { success: res.success, error: res.error };
   };
 
-  const handleImportDeck = async (url: string) => {
-    const res = await client.importDeck({ url });
+  const handleImportDeck = async (
+    data: string | { url?: string; text?: string }
+  ) => {
+    const payload =
+      typeof data === "string"
+        ? { url: data, text: "" }
+        : { url: data.url || "", text: data.text || "" };
+    const res = await client.importDeck(payload);
     if (res.success) {
       await fetchStatusAndDecks();
     }

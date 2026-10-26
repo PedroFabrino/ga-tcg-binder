@@ -7,17 +7,19 @@ import {
   CheckCircle2,
   ShieldAlert,
   Plus,
-  Loader2,
   Pencil,
-  Save,
 } from "lucide-react";
 import type { DeckSummary } from "../types";
+import { DeckImportForm } from "./DeckImportForm";
+import { DeckEditForm } from "./DeckEditForm";
 
 export interface DecksDashboardCardProps {
   isLinked: boolean;
   decks: DeckSummary[];
   loading?: boolean;
-  onImportDeck?: (url: string) => Promise<{ success: boolean; error?: string }>;
+  onImportDeck?: (
+    data: string | { url?: string; text?: string }
+  ) => Promise<{ success: boolean; error?: string }>;
   onUpdateDeck?: (
     deckId: string,
     data: { name?: string; url?: string; text?: string }
@@ -33,15 +35,7 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
 }) => {
   const [expandedDeckIds, setExpandedDeckIds] = useState<Set<string>>(new Set());
   const [showImport, setShowImport] = useState(false);
-  const [importUrl, setImportUrl] = useState("");
-  const [importing, setImporting] = useState(false);
-  const [importError, setImportError] = useState<string | null>(null);
-
   const [editingDeckId, setEditingDeckId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editUrl, setEditUrl] = useState("");
-  const [editUpdating, setEditUpdating] = useState(false);
-  const [editError, setEditError] = useState<string | null>(null);
 
   const toggleExpand = (id: string) => {
     setExpandedDeckIds((prev) => {
@@ -52,50 +46,21 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
     });
   };
 
-  const handleImportSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!onImportDeck || !importUrl.trim()) return;
-
-    setImporting(true);
-    setImportError(null);
-    try {
-      const res = await onImportDeck(importUrl.trim());
-      if (res.success) {
-        setImportUrl("");
-        setShowImport(false);
-      } else {
-        setImportError(res.error || "Failed to import deck");
-      }
-    } catch {
-      setImportError("Import failed");
-    } finally {
-      setImporting(false);
-    }
+  const handleImport = async (data: { url?: string; text?: string }) => {
+    if (!onImportDeck) return { success: false, error: "Not supported" };
+    return onImportDeck(data);
   };
 
-  const handleUpdateSubmit = async (deckId: string, e: React.FormEvent) => {
-    e.preventDefault();
-    if (!onUpdateDeck || !editName.trim()) return;
-
-    setEditUpdating(true);
-    setEditError(null);
-    try {
-      const res = await onUpdateDeck(deckId, {
-        name: editName.trim(),
-        url: editUrl.trim() || undefined,
-      });
-      if (res.success) {
-        setEditingDeckId(null);
-        setEditName("");
-        setEditUrl("");
-      } else {
-        setEditError(res.error || "Failed to update deck");
-      }
-    } catch {
-      setEditError("Update failed");
-    } finally {
-      setEditUpdating(false);
+  const handleUpdate = async (
+    deckId: string,
+    data: { name?: string; url?: string; text?: string }
+  ) => {
+    if (!onUpdateDeck) return { success: false, error: "Not supported" };
+    const res = await onUpdateDeck(deckId, data);
+    if (res.success) {
+      setEditingDeckId(null);
     }
+    return res;
   };
 
   return (
@@ -110,7 +75,9 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
             <Layers className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-base font-semibold text-slate-100">Constructed Decks & Shortages</h2>
+            <h2 className="text-base font-semibold text-slate-100">
+              Constructed Decks & Shortages
+            </h2>
             <p className="text-xs text-slate-400">
               Live inventory tracking across your active decks
             </p>
@@ -136,27 +103,11 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
         )}
       </div>
 
-      {showImport && isLinked && (
-        <form onSubmit={handleImportSubmit} className="mt-4 p-3.5 rounded-lg bg-black/30 border border-indigo-500/20 space-y-2">
-          <p className="text-xs text-slate-300">Enter an Omnidex.gg or Silvie.gg deck URL:</p>
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={importUrl}
-              onChange={(e) => setImportUrl(e.target.value)}
-              placeholder="https://omnidex.gg/deck/..."
-              className="flex-1 px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.1] text-xs text-slate-200"
-            />
-            <button
-              type="submit"
-              disabled={importing || !importUrl.trim()}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium text-xs cursor-pointer"
-            >
-              {importing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Import"}
-            </button>
-          </div>
-          {importError && <p className="text-xs text-rose-400">{importError}</p>}
-        </form>
+      {showImport && isLinked && onImportDeck && (
+        <DeckImportForm
+          onImport={handleImport}
+          onClose={() => setShowImport(false)}
+        />
       )}
 
       <div className="pt-4">
@@ -176,7 +127,8 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
           <div className="space-y-3">
             {decks.map((deck) => {
               const isExpanded = expandedDeckIds.has(deck.id);
-              const totalShortages = deck.hardShortagesCount + deck.sharedShortagesCount;
+              const totalShortages =
+                deck.hardShortagesCount + deck.sharedShortagesCount;
               const isComplete = totalShortages === 0;
 
               return (
@@ -196,8 +148,11 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
                         </span>
                       </div>
                       <p className="text-xs text-slate-400">
-                        Champion: <strong className="text-slate-300">{deck.champion || "None"}</strong> • Total:{" "}
-                        {deck.totalCards} cards
+                        Champion:{" "}
+                        <strong className="text-slate-300">
+                          {deck.champion || "None"}
+                        </strong>{" "}
+                        • Total: {deck.totalCards} cards
                       </p>
                     </div>
 
@@ -229,14 +184,9 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (editingDeckId === deck.id) {
-                              setEditingDeckId(null);
-                            } else {
-                              setEditingDeckId(deck.id);
-                              setEditName(deck.name);
-                              setEditUrl("");
-                              setEditError(null);
-                            }
+                            setEditingDeckId((prev) =>
+                              prev === deck.id ? null : deck.id
+                            );
                           }}
                           className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-300 hover:bg-white/[0.06] transition cursor-pointer"
                           aria-label={`Edit ${deck.name}`}
@@ -246,65 +196,21 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
                       )}
 
                       <div className="text-slate-500 p-1">
-                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        {isExpanded ? (
+                          <ChevronUp className="w-4 h-4" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4" />
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  {editingDeckId === deck.id && (
-                    <form
-                      onSubmit={(e) => handleUpdateSubmit(deck.id, e)}
-                      className="p-4 bg-black/40 border-t border-cyan-500/30 space-y-3"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-cyan-300">Edit Deck: {deck.name}</span>
-                        <button
-                          type="button"
-                          onClick={() => setEditingDeckId(null)}
-                          className="text-xs text-slate-500 hover:text-slate-300 cursor-pointer"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="text-[10px] uppercase font-semibold text-slate-400 block mb-1">
-                            Deck Name
-                          </label>
-                          <input
-                            type="text"
-                            value={editName}
-                            onChange={(e) => setEditName(e.target.value)}
-                            placeholder="Deck name..."
-                            className="w-full px-3 py-1.5 rounded-lg bg-black/50 border border-white/[0.1] text-xs text-slate-200"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] uppercase font-semibold text-slate-400 block mb-1">
-                            Omnidex or Silvie URL (optional)
-                          </label>
-                          <input
-                            type="text"
-                            value={editUrl}
-                            onChange={(e) => setEditUrl(e.target.value)}
-                            placeholder="https://omnidex.gg/deck/..."
-                            className="w-full px-3 py-1.5 rounded-lg bg-black/50 border border-white/[0.1] text-xs text-slate-200"
-                          />
-                        </div>
-                      </div>
-                      {editError && <p className="text-xs text-rose-400">{editError}</p>}
-                      <div className="flex justify-end gap-2 pt-1">
-                        <button
-                          type="submit"
-                          disabled={editUpdating || !editName.trim()}
-                          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-medium text-xs cursor-pointer"
-                        >
-                          {editUpdating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                          Save Changes
-                        </button>
-                      </div>
-                    </form>
+                  {editingDeckId === deck.id && onUpdateDeck && (
+                    <DeckEditForm
+                      deck={deck}
+                      onSave={handleUpdate}
+                      onCancel={() => setEditingDeckId(null)}
+                    />
                   )}
 
                   {isExpanded && (
@@ -321,7 +227,9 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
                                 className="flex items-center justify-between bg-white/[0.02] px-2.5 py-1 rounded border border-white/[0.04]"
                               >
                                 <span>{item.cardName}</span>
-                                <span className="font-mono text-rose-400 font-semibold">x{item.quantity}</span>
+                                <span className="font-mono text-rose-400 font-semibold">
+                                  x{item.quantity}
+                                </span>
                               </li>
                             ))}
                           </ul>
@@ -340,7 +248,9 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
                                 className="flex items-center justify-between bg-white/[0.02] px-2.5 py-1 rounded border border-white/[0.04]"
                               >
                                 <span>{item.cardName}</span>
-                                <span className="font-mono text-amber-400 font-semibold">x{item.quantity}</span>
+                                <span className="font-mono text-amber-400 font-semibold">
+                                  x{item.quantity}
+                                </span>
                               </li>
                             ))}
                           </ul>
