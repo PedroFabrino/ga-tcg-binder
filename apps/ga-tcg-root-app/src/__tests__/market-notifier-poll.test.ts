@@ -47,7 +47,9 @@ describe("runMarketNotificationPoll", () => {
     });
 
     expect(api.getMarketNotifications).not.toHaveBeenCalled();
-    expect(warn).toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      "No broadcast channel configured — select a channel in the Assistant App GUI. Market notifications paused."
+    );
   });
 
   it("leaves the chunk undelivered when the post throws", async () => {

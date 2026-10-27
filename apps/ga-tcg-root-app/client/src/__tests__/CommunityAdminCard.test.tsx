@@ -2,9 +2,9 @@ import React from "react";
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { CommunityAdminCard } from "../components/CommunityAdminCard";
-import type { IAssistantRpcClient } from "../types";
+import type { IAssistantRpcClient, AdminSettingsResponse } from "../types";
 
-function createMockRpcClient(overrides: Partial<IAssistantRpcClient> = {}): IAssistantRpcClient {
+function createMockRpcClient(): IAssistantRpcClient {
   return {
     getStatus: vi.fn(),
     linkAccount: vi.fn(),
@@ -26,20 +26,8 @@ function createMockRpcClient(overrides: Partial<IAssistantRpcClient> = {}): IAss
         { id: "ch-market-1", name: "market", groupName: "GA Market" },
       ],
     }),
-    setBroadcastChannel: vi.fn().mockResolvedValue({
-      success: true,
-      broadcastChannelId: "ch-gen",
-      broadcastChannelName: "general",
-      error: "",
-    }),
-    provisionMarketChannels: vi.fn().mockResolvedValue({
-      success: true,
-      broadcastChannelId: "ch-new-market",
-      broadcastChannelName: "market",
-      assistantChannelId: "ch-new-assistant",
-      error: "",
-    }),
-    ...overrides,
+    setBroadcastChannel: vi.fn(),
+    provisionMarketChannels: vi.fn(),
   };
 }
 
@@ -51,10 +39,9 @@ describe("CommunityAdminCard", () => {
     );
 
     expect(html).toBe("");
-    expect(mockClient.getAdminSettings).not.toHaveBeenCalled();
   });
 
-  it("renders admin card structure when isAdmin is true", () => {
+  it("renders loading state when initialSettings is omitted", () => {
     const mockClient = createMockRpcClient();
     const html = renderToStaticMarkup(
       <CommunityAdminCard isAdmin={true} client={mockClient} />
@@ -62,26 +49,153 @@ describe("CommunityAdminCard", () => {
 
     expect(html).toContain("Community Market Channel");
     expect(html).toContain("Admin Only");
-    expect(html).toContain("Configure where automated market updates and store deal dumps are broadcast in this community");
     expect(html).toContain("Loading channel settings...");
   });
 
-  it("calls setBroadcastChannel when saving selected channel", async () => {
+  it("renders configured channel and options when initialSettings is provided", () => {
     const mockClient = createMockRpcClient();
-    const res = await mockClient.setBroadcastChannel({ channelId: "ch-gen" });
+    const settings: AdminSettingsResponse = {
+      isAdmin: true,
+      broadcastChannelId: "ch-market-1",
+      broadcastChannelName: "market",
+      textChannels: [
+        { id: "ch-gen", name: "general", groupName: "General" },
+        { id: "ch-market-1", name: "market", groupName: "GA Market" },
+      ],
+    };
 
-    expect(res.success).toBe(true);
-    expect(res.broadcastChannelName).toBe("general");
-    expect(mockClient.setBroadcastChannel).toHaveBeenCalledWith({ channelId: "ch-gen" });
+    const html = renderToStaticMarkup(
+      <CommunityAdminCard
+        isAdmin={true}
+        client={mockClient}
+        initialSettings={settings}
+      />
+    );
+
+    expect(html).toContain("Active Broadcast Channel");
+    expect(html).toContain("market");
+    expect(html).toContain("#general (General)");
+    expect(html).toContain("#market (GA Market)");
+    expect(html).toContain("Save Channel");
+    expect(html).toContain("Provision Default Channels");
   });
 
-  it("calls provisionMarketChannels when provision action is invoked", async () => {
+  it("renders unconfigured warning when broadcastChannelId is empty", () => {
     const mockClient = createMockRpcClient();
-    const res = await mockClient.provisionMarketChannels();
+    const settings: AdminSettingsResponse = {
+      isAdmin: true,
+      broadcastChannelId: "",
+      broadcastChannelName: "",
+      textChannels: [{ id: "ch-gen", name: "general", groupName: "General" }],
+    };
 
-    expect(res.success).toBe(true);
-    expect(res.broadcastChannelId).toBe("ch-new-market");
-    expect(res.assistantChannelId).toBe("ch-new-assistant");
-    expect(mockClient.provisionMarketChannels).toHaveBeenCalled();
+    const html = renderToStaticMarkup(
+      <CommunityAdminCard
+        isAdmin={true}
+        client={mockClient}
+        initialSettings={settings}
+      />
+    );
+
+    expect(html).toContain(
+      "No channel configured — market notifications are paused"
+    );
+  });
+
+  it("renders empty channels message when no text channels exist", () => {
+    const mockClient = createMockRpcClient();
+    const settings: AdminSettingsResponse = {
+      isAdmin: true,
+      broadcastChannelId: "",
+      broadcastChannelName: "",
+      textChannels: [],
+    };
+
+    const html = renderToStaticMarkup(
+      <CommunityAdminCard
+        isAdmin={true}
+        client={mockClient}
+        initialSettings={settings}
+      />
+    );
+
+    expect(html).toContain("No text channels found");
+  });
+
+  it("renders success feedback banner", () => {
+    const mockClient = createMockRpcClient();
+    const settings: AdminSettingsResponse = {
+      isAdmin: true,
+      broadcastChannelId: "ch-gen",
+      broadcastChannelName: "general",
+      textChannels: [{ id: "ch-gen", name: "general" }],
+    };
+
+    const html = renderToStaticMarkup(
+      <CommunityAdminCard
+        isAdmin={true}
+        client={mockClient}
+        initialSettings={settings}
+        initialFeedback={{
+          type: "success",
+          text: "Market broadcast channel set to #general",
+        }}
+      />
+    );
+
+    expect(html).toContain('role="alert"');
+    expect(html).toContain("Market broadcast channel set to #general");
+    expect(html).toContain("bg-emerald-500/10");
+  });
+
+  it("renders error feedback banner", () => {
+    const mockClient = createMockRpcClient();
+    const settings: AdminSettingsResponse = {
+      isAdmin: true,
+      broadcastChannelId: "",
+      broadcastChannelName: "",
+      textChannels: [],
+    };
+
+    const html = renderToStaticMarkup(
+      <CommunityAdminCard
+        isAdmin={true}
+        client={mockClient}
+        initialSettings={settings}
+        initialFeedback={{
+          type: "error",
+          text: "Failed to update broadcast channel",
+        }}
+      />
+    );
+
+    expect(html).toContain('role="alert"');
+    expect(html).toContain("Failed to update broadcast channel");
+    expect(html).toContain("bg-rose-500/10");
+  });
+
+  it("supports pt-BR localized text", () => {
+    const mockClient = createMockRpcClient();
+    const settings: AdminSettingsResponse = {
+      isAdmin: true,
+      broadcastChannelId: "ch-market-1",
+      broadcastChannelName: "market",
+      textChannels: [{ id: "ch-market-1", name: "market" }],
+    };
+
+    const html = renderToStaticMarkup(
+      <CommunityAdminCard
+        isAdmin={true}
+        client={mockClient}
+        locale="pt-BR"
+        initialSettings={settings}
+      />
+    );
+
+    expect(html).toContain("Canal de Mercado da Comunidade");
+    expect(html).toContain("Apenas Administradores");
+    expect(html).toContain("Canal de Transmissão Ativo");
+    expect(html).toContain("Salvar Canal");
+    expect(html).toContain("Provisionar Canais Padrão");
   });
 });

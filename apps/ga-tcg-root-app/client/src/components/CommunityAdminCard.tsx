@@ -9,34 +9,51 @@ import {
   Hash,
   ShieldCheck,
 } from "lucide-react";
-import { createTranslator } from "@ga/contracts";
+import { createTranslator, resolveLocale, type SupportedLocale } from "@ga/contracts";
 import type {
   IAssistantRpcClient,
   CommunityChannelOption,
+  AdminSettingsResponse,
 } from "../types";
 
 export interface CommunityAdminCardProps {
   isAdmin: boolean;
   client: IAssistantRpcClient;
+  locale?: SupportedLocale;
+  initialSettings?: AdminSettingsResponse;
+  initialFeedback?: {
+    type: "success" | "error";
+    text: string;
+  };
 }
-
-const t = createTranslator("en");
 
 export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
   isAdmin,
   client,
+  locale,
+  initialSettings,
+  initialFeedback,
 }) => {
-  const [loading, setLoading] = useState(true);
+  const t = createTranslator(resolveLocale(locale));
+  const [loading, setLoading] = useState(!initialSettings);
   const [saving, setSaving] = useState(false);
   const [provisioning, setProvisioning] = useState(false);
-  const [broadcastChannelId, setBroadcastChannelId] = useState("");
-  const [broadcastChannelName, setBroadcastChannelName] = useState("");
-  const [textChannels, setTextChannels] = useState<CommunityChannelOption[]>([]);
-  const [selectedChannelId, setSelectedChannelId] = useState("");
+  const [broadcastChannelId, setBroadcastChannelId] = useState(
+    initialSettings?.broadcastChannelId ?? ""
+  );
+  const [broadcastChannelName, setBroadcastChannelName] = useState(
+    initialSettings?.broadcastChannelName ?? ""
+  );
+  const [textChannels, setTextChannels] = useState<CommunityChannelOption[]>(
+    initialSettings?.textChannels ?? []
+  );
+  const [selectedChannelId, setSelectedChannelId] = useState(
+    initialSettings?.broadcastChannelId || (initialSettings?.textChannels?.[0]?.id ?? "")
+  );
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
     text: string;
-  } | null>(null);
+  } | null>(initialFeedback ?? null);
 
   const loadSettings = useCallback(async () => {
     try {
@@ -160,7 +177,7 @@ export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
       {loading ? (
         <div className="pt-4 flex items-center justify-center py-6 text-slate-400 text-xs">
           <Loader2 className="w-4 h-4 animate-spin mr-2 text-amber-400" />
-          Loading channel settings...
+          {t("communityAdmin.loadingSettings")}
         </div>
       ) : (
         <div className="pt-4 space-y-4">
@@ -212,7 +229,7 @@ export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
                 className="w-full appearance-none rounded-lg border border-white/[0.12] bg-black/40 px-3.5 py-2 text-xs text-slate-200 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50 disabled:opacity-50"
               >
                 {textChannels.length === 0 ? (
-                  <option value="">No text channels found</option>
+                  <option value="">{t("communityAdmin.noChannelsFound")}</option>
                 ) : (
                   textChannels.map((ch) => (
                     <option key={ch.id} value={ch.id}>

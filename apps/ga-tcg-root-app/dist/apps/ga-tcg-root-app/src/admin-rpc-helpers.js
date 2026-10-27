@@ -7,6 +7,10 @@ exports.provisionMarketChannelsHelper = provisionMarketChannelsHelper;
 const server_app_1 = require("@rootsdk/server-app");
 const community_admin_1 = require("./community-admin");
 const setup_provisioning_1 = require("./setup-provisioning");
+async function checkAdmin(userId, deps) {
+    const isAdminCheck = deps.isCommunityAdmin ?? community_admin_1.checkIsCommunityAdmin;
+    return isAdminCheck(userId);
+}
 async function fetchCommunityTextChannels(deps = {}) {
     const listGroups = deps.listChannelGroups ?? (() => server_app_1.rootServer.community.channelGroups.list());
     const listChannels = deps.listChannels ??
@@ -30,9 +34,7 @@ async function fetchCommunityTextChannels(deps = {}) {
     return textChannels;
 }
 async function getAdminSettingsHelper(userId, config, deps = {}) {
-    const isAdminCheck = deps.isCommunityAdmin ?? community_admin_1.checkIsCommunityAdmin;
-    const isAdmin = await isAdminCheck(userId);
-    if (!isAdmin) {
+    if (!(await checkAdmin(userId, deps))) {
         return {
             isAdmin: false,
             broadcastChannelId: "",
@@ -55,9 +57,7 @@ async function getAdminSettingsHelper(userId, config, deps = {}) {
     };
 }
 async function setBroadcastChannelHelper(userId, request, config, deps = {}) {
-    const isAdminCheck = deps.isCommunityAdmin ?? community_admin_1.checkIsCommunityAdmin;
-    const isAdmin = await isAdminCheck(userId);
-    if (!isAdmin) {
+    if (!(await checkAdmin(userId, deps))) {
         return {
             success: false,
             broadcastChannelId: "",
@@ -93,9 +93,7 @@ async function setBroadcastChannelHelper(userId, request, config, deps = {}) {
     };
 }
 async function provisionMarketChannelsHelper(userId, config, deps = {}) {
-    const isAdminCheck = deps.isCommunityAdmin ?? community_admin_1.checkIsCommunityAdmin;
-    const isAdmin = await isAdminCheck(userId);
-    if (!isAdmin) {
+    if (!(await checkAdmin(userId, deps))) {
         return {
             success: false,
             broadcastChannelId: "",

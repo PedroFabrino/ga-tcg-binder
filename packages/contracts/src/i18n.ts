@@ -869,6 +869,17 @@ export const enCatalog = {
     saveError: "Failed to update broadcast channel",
     provisionError: "Failed to provision market channels",
     adminBadge: "Admin Only",
+    loadingSettings: "Loading channel settings...",
+    noChannelsFound: "No text channels found",
+  },
+  rootApp: {
+    title: "Grand Archive Collector Assistant",
+    subtitle: "Deck shortages, wishlists, and automated marketplace deal alerts",
+    refresh: "Refresh",
+    connectionTimeout: "Connection to assistant service timed out",
+    loadDecksError: "Failed to load decks",
+    serviceUnavailableBanner: "Unable to connect to the Assistant Service. Click Refresh to retry.",
+    footerNomenclature: "Powered by Grand Archive Binder • Official Game Nomenclature in canonical English",
   },
 };
 
@@ -1736,6 +1747,17 @@ export const ptBRCatalog: TranslationCatalog = {
     saveError: "Falha ao atualizar canal de transmissão",
     provisionError: "Falha ao provisionar canais de mercado",
     adminBadge: "Apenas Administradores",
+    loadingSettings: "Carregando configurações de canais...",
+    noChannelsFound: "Nenhum canal de texto encontrado",
+  },
+  rootApp: {
+    title: "Assistente de Colecionador Grand Archive",
+    subtitle: "Cartas necessárias para decks, listas de desejos e alertas automáticos de mercado",
+    refresh: "Atualizar",
+    connectionTimeout: "Conexão com o serviço de assistente expirou",
+    loadDecksError: "Falha ao carregar decks",
+    serviceUnavailableBanner: "Não foi possível conectar ao Serviço do Assistente. Clique em Atualizar para tentar novamente.",
+    footerNomenclature: "Desenvolvido por Grand Archive Binder • Nomenclatura Oficial do Jogo em inglês canônico",
   },
 };
 

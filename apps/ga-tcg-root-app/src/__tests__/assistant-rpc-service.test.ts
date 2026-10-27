@@ -19,7 +19,10 @@ describe("AssistantRpcService", () => {
         getDealAlertChannel: vi.fn().mockResolvedValue(null),
       } as unknown as RootBotApi;
 
-      const service = new AssistantRpcService("comm-456", { api: mockApi });
+      const service = new AssistantRpcService("comm-456", {
+        api: mockApi,
+        isCommunityAdmin: vi.fn().mockResolvedValue(false),
+      });
       const status = await service.getStatus(createMockClient("user-unlinked"));
 
       expect(status.isLinked).toBe(false);
@@ -67,7 +70,10 @@ describe("AssistantRpcService", () => {
         getDealAlertChannel: vi.fn().mockRejectedValue(new Error("Network fail")),
       } as unknown as RootBotApi;
 
-      const service = new AssistantRpcService("comm-456", { api: mockApi });
+      const service = new AssistantRpcService("comm-456", {
+        api: mockApi,
+        isCommunityAdmin: vi.fn().mockResolvedValue(false),
+      });
       const status = await service.getStatus(createMockClient("user-err"));
 
       expect(status.isLinked).toBe(false);
@@ -81,7 +87,10 @@ describe("AssistantRpcService", () => {
         link: vi.fn(),
       } as unknown as RootBotApi;
 
-      const service = new AssistantRpcService("comm-456", { api: mockApi });
+      const service = new AssistantRpcService("comm-456", {
+        api: mockApi,
+        isCommunityAdmin: vi.fn().mockResolvedValue(false),
+      });
       const result = await service.linkAccount({ code: "   " }, createMockClient());
 
       expect(result.success).toBe(false);
@@ -98,7 +107,10 @@ describe("AssistantRpcService", () => {
         }),
       } as unknown as RootBotApi;
 
-      const service = new AssistantRpcService("comm-456", { api: mockApi });
+      const service = new AssistantRpcService("comm-456", {
+        api: mockApi,
+        isCommunityAdmin: vi.fn().mockResolvedValue(false),
+      });
       const result = await service.linkAccount({ code: "abc123" }, createMockClient("user-123"));
 
       expect(mockApi.link).toHaveBeenCalledWith({
@@ -116,7 +128,10 @@ describe("AssistantRpcService", () => {
         link: vi.fn().mockRejectedValue(new RootBotApiError(400, "EXPIRED_CODE", "Token expired")),
       } as unknown as RootBotApi;
 
-      const service = new AssistantRpcService("comm-456", { api: mockApi });
+      const service = new AssistantRpcService("comm-456", {
+        api: mockApi,
+        isCommunityAdmin: vi.fn().mockResolvedValue(false),
+      });
       const result = await service.linkAccount({ code: "EXPIRE" }, createMockClient("user-123"));
 
       expect(result.success).toBe(false);
@@ -227,7 +242,10 @@ describe("AssistantRpcService", () => {
         }),
       } as unknown as RootBotApi;
 
-      const service = new AssistantRpcService("comm-456", { api: mockApi });
+      const service = new AssistantRpcService("comm-456", {
+        api: mockApi,
+        isCommunityAdmin: vi.fn().mockResolvedValue(false),
+      });
       const response = await service.getDecks(createMockClient("user-123"));
 
       expect(response.decks).toHaveLength(1);
@@ -250,7 +268,10 @@ describe("AssistantRpcService", () => {
         getDecks: vi.fn().mockRejectedValue(new Error("Network fail")),
       } as unknown as RootBotApi;
 
-      const service = new AssistantRpcService("comm-456", { api: mockApi });
+      const service = new AssistantRpcService("comm-456", {
+        api: mockApi,
+        isCommunityAdmin: vi.fn().mockResolvedValue(false),
+      });
       const response = await service.getDecks(createMockClient("user-123"));
 
       expect(response.decks).toEqual([]);
@@ -266,7 +287,10 @@ describe("AssistantRpcService", () => {
         }),
       } as unknown as RootBotApi;
 
-      const service = new AssistantRpcService("comm-456", { api: mockApi });
+      const service = new AssistantRpcService("comm-456", {
+        api: mockApi,
+        isCommunityAdmin: vi.fn().mockResolvedValue(false),
+      });
       const res = await service.registerAccount(createMockClient("user-123"));
       expect(res.success).toBe(true);
       expect(res.collectorName).toBe("Bob");
@@ -282,7 +306,10 @@ describe("AssistantRpcService", () => {
         }),
       } as unknown as RootBotApi;
 
-      const service = new AssistantRpcService("comm-456", { api: mockApi });
+      const service = new AssistantRpcService("comm-456", {
+        api: mockApi,
+        isCommunityAdmin: vi.fn().mockResolvedValue(false),
+      });
       const res = await service.autocomplete(
         { type: "card", query: "fire" },
         createMockClient("user-123")
@@ -300,7 +327,10 @@ describe("AssistantRpcService", () => {
         }),
       } as unknown as RootBotApi;
 
-      const service = new AssistantRpcService("comm-456", { api: mockApi });
+      const service = new AssistantRpcService("comm-456", {
+        api: mockApi,
+        isCommunityAdmin: vi.fn().mockResolvedValue(false),
+      });
       const res = await service.getPersonalWants(createMockClient("user-123"));
       expect(res.wants).toHaveLength(1);
       expect(res.wants[0].desiredQuantity).toBe(2);
@@ -313,7 +343,10 @@ describe("AssistantRpcService", () => {
         }),
       } as unknown as RootBotApi;
 
-      const service = new AssistantRpcService("comm-456", { api: mockApi });
+      const service = new AssistantRpcService("comm-456", {
+        api: mockApi,
+        isCommunityAdmin: vi.fn().mockResolvedValue(false),
+      });
       const res = await service.addWant(
         { card: "Fireball", quantity: 2, foil: false, omnidexUrl: "" },
         createMockClient("user-123")
@@ -331,7 +364,10 @@ describe("AssistantRpcService", () => {
         }),
       } as unknown as RootBotApi;
 
-      const service = new AssistantRpcService("comm-456", { api: mockApi });
+      const service = new AssistantRpcService("comm-456", {
+        api: mockApi,
+        isCommunityAdmin: vi.fn().mockResolvedValue(false),
+      });
       const res = await service.removeWant(
         { card: "Fireball", quantity: 1 },
         createMockClient("user-123")
@@ -349,7 +385,10 @@ describe("AssistantRpcService", () => {
         }),
       } as unknown as RootBotApi;
 
-      const service = new AssistantRpcService("comm-456", { api: mockApi });
+      const service = new AssistantRpcService("comm-456", {
+        api: mockApi,
+        isCommunityAdmin: vi.fn().mockResolvedValue(false),
+      });
       const res = await service.importDeck(
         { url: "https://omnidex.gg/deck/123" },
         createMockClient("user-123")

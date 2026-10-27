@@ -867,6 +867,17 @@ export declare const enCatalog: {
         saveError: string;
         provisionError: string;
         adminBadge: string;
+        loadingSettings: string;
+        noChannelsFound: string;
+    };
+    rootApp: {
+        title: string;
+        subtitle: string;
+        refresh: string;
+        connectionTimeout: string;
+        loadDecksError: string;
+        serviceUnavailableBanner: string;
+        footerNomenclature: string;
     };
 };
 export type TranslationCatalog = typeof enCatalog;

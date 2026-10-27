@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Sparkles, RefreshCw, AlertCircle } from "lucide-react";
+import { createTranslator, resolveLocale, type SupportedLocale } from "@ga/contracts";
 import { AccountLinkCard } from "./components/AccountLinkCard";
 import { DealAlertCard } from "./components/DealAlertCard";
 import { DecksDashboardCard } from "./components/DecksDashboardCard";
@@ -9,6 +10,7 @@ import type { IAssistantRpcClient, StatusResponse, DeckSummary } from "./types";
 
 export interface AppProps {
   client: IAssistantRpcClient;
+  locale?: SupportedLocale;
 }
 
 function withTimeout<T>(
@@ -24,7 +26,8 @@ function withTimeout<T>(
   ]);
 }
 
-export const App: React.FC<AppProps> = ({ client }) => {
+export const App: React.FC<AppProps> = ({ client, locale }) => {
+  const t = createTranslator(resolveLocale(locale));
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [decks, setDecks] = useState<DeckSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,7 +40,7 @@ export const App: React.FC<AppProps> = ({ client }) => {
       const res = await withTimeout(
         client.getStatus(),
         8000,
-        "Connection to assistant service timed out"
+        t("rootApp.connectionTimeout")
       );
       setStatus(res);
       if (res.isLinked) {
@@ -45,7 +48,7 @@ export const App: React.FC<AppProps> = ({ client }) => {
           const deckRes = await withTimeout(
             client.getDecks(),
             8000,
-            "Failed to load decks"
+            t("rootApp.loadDecksError")
           );
           setDecks(deckRes.decks || []);
         } catch (deckErr) {
@@ -67,14 +70,12 @@ export const App: React.FC<AppProps> = ({ client }) => {
         alertChannelId: "",
         isAdmin: false,
       });
-      setErrorBanner(
-        "Unable to connect to the Assistant Service. Click Refresh to retry."
-      );
+      setErrorBanner(t("rootApp.serviceUnavailableBanner"));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [client]);
+  }, [client, t]);
 
   useEffect(() => {
     fetchStatusAndDecks();
@@ -162,10 +163,10 @@ export const App: React.FC<AppProps> = ({ client }) => {
             </div>
             <div>
               <h1 className="text-xl font-bold text-white tracking-tight">
-                Grand Archive Collector Assistant
+                {t("rootApp.title")}
               </h1>
               <p className="text-xs text-slate-400">
-                Deck shortages, wishlists, and automated marketplace deal alerts
+                {t("rootApp.subtitle")}
               </p>
             </div>
           </div>
@@ -177,7 +178,7 @@ export const App: React.FC<AppProps> = ({ client }) => {
             className="self-start sm:self-auto flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.06] text-xs font-medium text-slate-300 transition cursor-pointer disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin text-indigo-400" : ""}`} />
-            Refresh
+            {t("rootApp.refresh")}
           </button>
         </header>
 
@@ -199,6 +200,7 @@ export const App: React.FC<AppProps> = ({ client }) => {
             <CommunityAdminCard
               isAdmin={status?.isAdmin ?? false}
               client={client}
+              locale={locale}
             />
 
             <AccountLinkCard
@@ -233,7 +235,7 @@ export const App: React.FC<AppProps> = ({ client }) => {
         )}
 
         <footer className="text-center pt-6 border-t border-white/[0.04] text-xs text-slate-500">
-          Powered by Grand Archive Binder • Official Game Nomenclature in canonical English
+          {t("rootApp.footerNomenclature")}
         </footer>
       </div>
     </div>

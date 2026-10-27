@@ -129,7 +129,7 @@ A Collector's public Deck displayed on their Public Collector Profile with its l
 _Avoid_: Goal deck, wanted deck, project deck
 
 **Collector Assistant**:
-The conversational multi-platform bot service (deployed across Discord and Root) providing a linked Collector with real-time chat access to their personal Decks, Shortages, Binder holdings, and Wantlists.
+The multi-platform assistant service deployed across Discord (slash-command bot) and Root (GUI application at `apps/ga-tcg-root-app`) providing a linked Collector with access to their personal Decks, Shortages, Binder holdings, Wantlists, and community administration.
 _Avoid_: Chat bot, discord bot, ga bot
 
 **Collector Identity Link**:
@@ -282,13 +282,13 @@ _Avoid_: Shop engine, site type, crawler adapter
 A change-detection strategy for LigaStore marketplaces that compares the most recently added product (`txt_order=12&ultimas=1`) against a previously recorded reference ID (`lastLatestCardRefId`), catching single-card swaps that count-based detection would miss.
 
 **Notification Outbox**:
-A persisted queue table (`market_notifications`) in the application database that decouples the marketplace sync process from the Root bot notification delivery. The sync process writes pending notifications; the bot polls and sends them, marking rows as sent.
+A persisted queue table (`market_notifications`) in the application database that decouples the marketplace sync process from the Root App notification delivery. The sync process writes pending notifications; the Root App polls and sends them, marking rows as sent.
 
-**Root Bot**:
-The `@rootsdk/server-bot` application at `apps/ga-tcg-binder-bot/` that sends marketplace update messages to a configured Root community channel. It polls the Notification Outbox and formats detected new cards as Markdown messages.
+**Root App**:
+The `@ga/root-app` application at `apps/ga-tcg-root-app/` built with `@rootsdk/server-app` that provides a rich embedded GUI Collector Assistant and dispatches marketplace update messages to a community channel configured via the in-app admin GUI. It polls the Notification Outbox and formats detected new cards as Markdown messages.
 
-**Bot Channel**:
-The Root community channel (identified by `ROOT_BOT_MARKET_CHANNEL_ID`) where the Root Bot posts market update notifications.
+**Broadcast Channel**:
+The Root community channel (persisted in app community settings as `broadcast_channel_id`) where the Root App posts market update notifications.
 _Avoid_: Vendor, shop profile, site account
 
 **Destination**:
@@ -300,7 +300,7 @@ A recorded, successful send of a market notification to a specific Destination, 
 _Avoid_: Send log, dispatch record, delivery receipt
 
 **Sink**:
-A pluggable notification delivery implementation (for example Discord) that formats, sends, and records deliveries for a specific Destination through the `MarketNotificationSink` interface. The Root bot is the only pull-based consumer and does not use this abstraction.
+A pluggable notification delivery implementation (for example Discord) that formats, sends, and records deliveries for a specific Destination through the `MarketNotificationSink` interface. The Root App is a pull-based consumer and does not use this abstraction.
 _Avoid_: Adapter, driver, transport
 
 **LigaStore**:

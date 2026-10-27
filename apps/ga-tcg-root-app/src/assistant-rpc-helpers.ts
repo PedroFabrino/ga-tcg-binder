@@ -51,8 +51,8 @@ export async function buildDeckSummariesWithShortages(
           cardName: s.cardName,
           quantity: s.sharedQuantity,
         }));
-      } catch {
-        // Degrades gracefully on missing shortages
+      } catch (err) {
+        console.warn(`[assistant-rpc] Failed to load shortages for deck ${deck.id}:`, err);
       }
 
       return {

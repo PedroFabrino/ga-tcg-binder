@@ -53,7 +53,8 @@ export async function checkIsCommunityAdmin(
         (Boolean(role.communityPermission?.communityManageApps) ||
           Boolean(role.communityPermission?.communityFullControl))
     );
-  } catch {
+  } catch (err) {
+    console.warn(`[community-admin] Failed to check admin status for user ${userId}:`, err);
     return false;
   }
 }
