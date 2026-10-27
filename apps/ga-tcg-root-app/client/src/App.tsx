@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Sparkles, RefreshCw, AlertCircle } from "lucide-react";
-import { createTranslator, resolveLocale, type SupportedLocale } from "@ga/contracts";
+import { type SupportedLocale } from "@ga/contracts";
+import { useTranslator } from "./hooks/useTranslator";
 import { AccountLinkCard } from "./components/AccountLinkCard";
 import { DealAlertCard } from "./components/DealAlertCard";
 import { DecksDashboardCard } from "./components/DecksDashboardCard";
@@ -27,7 +28,7 @@ function withTimeout<T>(
 }
 
 export const App: React.FC<AppProps> = ({ client, locale }) => {
-  const t = createTranslator(resolveLocale(locale));
+  const t = useTranslator(locale);
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [decks, setDecks] = useState<DeckSummary[]>([]);
   const [loading, setLoading] = useState(true);

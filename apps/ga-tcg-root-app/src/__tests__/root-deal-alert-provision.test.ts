@@ -138,4 +138,24 @@ describe("ensureRootRecipientChannel", () => {
       lastListingKeys: [],
     });
   });
+
+  it("throws descriptive error when no market group is configured", async () => {
+    const root = createRootApi();
+    const bot = createBotApi();
+    const unconfiguredConfig = {
+      getAlertSectionId: vi.fn().mockResolvedValue(undefined),
+      setAlertSectionId: vi.fn(),
+    } as unknown as RootCommunityConfig;
+
+    await expect(
+      ensureRootRecipientChannel("root_user_1", {
+        communityId: "comm-1",
+        api: bot.api,
+        config: unconfiguredConfig,
+        rootApi: root.api,
+      })
+    ).rejects.toThrow(
+      "No market group configured — provision market channels in the Assistant App GUI first."
+    );
+  });
 });

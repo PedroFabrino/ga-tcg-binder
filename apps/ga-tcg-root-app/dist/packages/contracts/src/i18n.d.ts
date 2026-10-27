@@ -869,6 +869,11 @@ export declare const enCatalog: {
         adminBadge: string;
         loadingSettings: string;
         noChannelsFound: string;
+        errors: {
+            forbidden: string;
+            channelNotFound: string;
+            invalidChannel: string;
+        };
     };
     rootApp: {
         title: string;

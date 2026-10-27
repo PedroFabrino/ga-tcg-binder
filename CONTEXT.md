@@ -289,7 +289,7 @@ The `@ga/root-app` application at `apps/ga-tcg-root-app/` built with `@rootsdk/s
 
 **Broadcast Channel**:
 The Root community channel (persisted in app community settings as `broadcast_channel_id`) where the Root App posts market update notifications.
-_Avoid_: Vendor, shop profile, site account
+_Avoid_: Bot channel, dump channel, setup channel
 
 **Destination**:
 A named delivery channel (for example `discord`) that receives market update notifications. Each Notification Outbox row tracks delivery independently per Destination in `notification_deliveries`.

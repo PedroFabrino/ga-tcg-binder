@@ -27,7 +27,7 @@ export interface AdminRpcHelperDeps {
   provisionChannels?: () => Promise<{ marketChannel: string; assistantChannel: string }>;
 }
 
-async function checkAdmin(
+async function resolveIsAdmin(
   userId: string,
   deps: AdminRpcHelperDeps
 ): Promise<boolean> {
@@ -70,7 +70,7 @@ export async function getAdminSettingsHelper(
   config: RootCommunityConfig,
   deps: AdminRpcHelperDeps = {}
 ): Promise<AdminSettingsResponse> {
-  if (!(await checkAdmin(userId, deps))) {
+  if (!(await resolveIsAdmin(userId, deps))) {
     return {
       isAdmin: false,
       broadcastChannelId: "",
@@ -102,7 +102,7 @@ export async function setBroadcastChannelHelper(
   config: RootCommunityConfig,
   deps: AdminRpcHelperDeps = {}
 ): Promise<SetBroadcastChannelResponse> {
-  if (!(await checkAdmin(userId, deps))) {
+  if (!(await resolveIsAdmin(userId, deps))) {
     return {
       success: false,
       broadcastChannelId: "",
@@ -148,7 +148,7 @@ export async function provisionMarketChannelsHelper(
   config: RootCommunityConfig,
   deps: AdminRpcHelperDeps = {}
 ): Promise<ProvisionMarketChannelsResponse> {
-  if (!(await checkAdmin(userId, deps))) {
+  if (!(await resolveIsAdmin(userId, deps))) {
     return {
       success: false,
       broadcastChannelId: "",

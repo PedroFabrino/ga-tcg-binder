@@ -23,7 +23,7 @@ async function checkIsCommunityAdmin(userId, ctx = server_app_1.rootServer.commu
                 Boolean(role.communityPermission?.communityFullControl)));
     }
     catch (err) {
-        console.warn(`[community-admin] Failed to check admin status for user ${userId}:`, err);
+        console.warn("[community-admin] Failed to check admin permissions:", err);
         return false;
     }
 }

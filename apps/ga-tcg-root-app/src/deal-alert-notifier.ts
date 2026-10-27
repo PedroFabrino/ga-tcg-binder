@@ -212,7 +212,7 @@ export async function ensureRootRecipientChannel(
   const sectionId = await ensureAlertSection(config);
   if (!sectionId) {
     throw new Error(
-      "No market group configured — run /setup first to create it."
+      "No market group configured — provision market channels in the Assistant App GUI first."
     );
   }
   const transport = createRootDealAlertTransport({

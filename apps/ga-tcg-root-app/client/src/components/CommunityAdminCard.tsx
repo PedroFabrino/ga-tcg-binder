@@ -9,22 +9,27 @@ import {
   Hash,
   ShieldCheck,
 } from "lucide-react";
-import { createTranslator, resolveLocale, type SupportedLocale } from "@ga/contracts";
+import { type SupportedLocale } from "@ga/contracts";
+import { useTranslator } from "../hooks/useTranslator";
+import {
+  pickInitialChannelId,
+  resolveAdminErrorMessage,
+} from "./admin-card-helpers";
 import type {
   IAssistantRpcClient,
   CommunityChannelOption,
   AdminSettingsResponse,
+  AdminFeedback,
 } from "../types";
 
 export interface CommunityAdminCardProps {
   isAdmin: boolean;
   client: IAssistantRpcClient;
   locale?: SupportedLocale;
+  /** Seeds settings state for SSR tests and instant first paint */
   initialSettings?: AdminSettingsResponse;
-  initialFeedback?: {
-    type: "success" | "error";
-    text: string;
-  };
+  /** Seeds feedback state for SSR tests */
+  initialFeedback?: AdminFeedback;
 }
 
 export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
@@ -34,7 +39,7 @@ export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
   initialSettings,
   initialFeedback,
 }) => {
-  const t = createTranslator(resolveLocale(locale));
+  const t = useTranslator(locale);
   const [loading, setLoading] = useState(!initialSettings);
   const [saving, setSaving] = useState(false);
   const [provisioning, setProvisioning] = useState(false);
@@ -48,12 +53,11 @@ export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
     initialSettings?.textChannels ?? []
   );
   const [selectedChannelId, setSelectedChannelId] = useState(
-    initialSettings?.broadcastChannelId || (initialSettings?.textChannels?.[0]?.id ?? "")
+    pickInitialChannelId(initialSettings)
   );
-  const [feedback, setFeedback] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(initialFeedback ?? null);
+  const [feedback, setFeedback] = useState<AdminFeedback | null>(
+    initialFeedback ?? null
+  );
 
   const loadSettings = useCallback(async () => {
     try {
@@ -62,9 +66,7 @@ export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
         setBroadcastChannelId(res.broadcastChannelId);
         setBroadcastChannelName(res.broadcastChannelName);
         setTextChannels(res.textChannels || []);
-        setSelectedChannelId(
-          res.broadcastChannelId || (res.textChannels?.[0]?.id ?? "")
-        );
+        setSelectedChannelId(pickInitialChannelId(res));
       }
     } catch (err) {
       console.warn("Failed to load community admin settings:", err);
@@ -101,7 +103,7 @@ export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
       } else {
         setFeedback({
           type: "error",
-          text: res.error || t("communityAdmin.saveError"),
+          text: resolveAdminErrorMessage(res.error, t),
         });
       }
     } catch (err) {
@@ -133,7 +135,7 @@ export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
       } else {
         setFeedback({
           type: "error",
-          text: res.error || t("communityAdmin.provisionError"),
+          text: resolveAdminErrorMessage(res.error, t),
         });
       }
     } catch (err) {

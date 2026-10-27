@@ -874,6 +874,11 @@ exports.enCatalog = {
         adminBadge: "Admin Only",
         loadingSettings: "Loading channel settings...",
         noChannelsFound: "No text channels found",
+        errors: {
+            forbidden: "You do not have permission to manage community settings",
+            channelNotFound: "Selected channel was not found",
+            invalidChannel: "Invalid channel selected",
+        },
     },
     rootApp: {
         title: "Grand Archive Collector Assistant",
@@ -1749,6 +1754,11 @@ exports.ptBRCatalog = {
         adminBadge: "Apenas Administradores",
         loadingSettings: "Carregando configurações de canais...",
         noChannelsFound: "Nenhum canal de texto encontrado",
+        errors: {
+            forbidden: "Você não tem permissão para gerenciar configurações da comunidade",
+            channelNotFound: "O canal selecionado não foi encontrado",
+            invalidChannel: "Canal selecionado inválido",
+        },
     },
     rootApp: {
         title: "Assistente de Colecionador Grand Archive",

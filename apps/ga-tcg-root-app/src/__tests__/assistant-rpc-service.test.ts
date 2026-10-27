@@ -276,6 +276,42 @@ describe("AssistantRpcService", () => {
 
       expect(response.decks).toEqual([]);
     });
+
+    it("degrades gracefully and logs warning when getShortages rejects", async () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const mockApi = {
+        getDecks: vi.fn().mockResolvedValue({
+          collectorId: "col-1",
+          collectorName: "Astraea",
+          decks: [
+            {
+              id: "deck-1",
+              name: "Fire Rai",
+              format: "Standard",
+              totalCards: 60,
+              hardShortageCount: 3,
+              sharedShortageCount: 2,
+            },
+          ],
+        }),
+        getShortages: vi.fn().mockRejectedValue(new Error("Shortages service unavailable")),
+      } as unknown as RootBotApi;
+
+      const service = new AssistantRpcService("comm-456", {
+        api: mockApi,
+        isCommunityAdmin: vi.fn().mockResolvedValue(false),
+      });
+      const response = await service.getDecks(createMockClient("user-123"));
+
+      expect(response.decks).toHaveLength(1);
+      expect(response.decks[0].hardShortages).toEqual([]);
+      expect(response.decks[0].sharedShortages).toEqual([]);
+      expect(warnSpy).toHaveBeenCalledWith(
+        "[assistant-rpc] Failed to load shortages for deck deck-1:",
+        expect.any(Error)
+      );
+      warnSpy.mockRestore();
+    });
   });
 
   describe("registerAccount", () => {

@@ -146,7 +146,7 @@ async function ensureRootRecipientChannel(recipientId, options = {}) {
     const config = options.config ?? (0, community_config_1.createCommunityConfig)(server_app_1.rootServer.dataStore.appData);
     const sectionId = await (0, root_deal_alert_section_1.ensureAlertSection)(config);
     if (!sectionId) {
-        throw new Error("No market group configured — run /setup first to create it.");
+        throw new Error("No market group configured — provision market channels in the Assistant App GUI first.");
     }
     const transport = (0, root_deal_alert_transport_1.createRootDealAlertTransport)({
         channelGroupId: sectionId,

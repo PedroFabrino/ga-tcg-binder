@@ -122,6 +122,7 @@ describe("checkIsCommunityAdmin", () => {
   });
 
   it("returns false safely when an error is thrown", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const ctx: CommunityAdminContext = {
       communities: {
         get: vi.fn().mockRejectedValue(new Error("Network failed")),
@@ -136,5 +137,10 @@ describe("checkIsCommunityAdmin", () => {
 
     const isAdmin = await checkIsCommunityAdmin("any-user", ctx);
     expect(isAdmin).toBe(false);
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[community-admin] Failed to check admin permissions:",
+      expect.any(Error)
+    );
+    warnSpy.mockRestore();
   });
 });

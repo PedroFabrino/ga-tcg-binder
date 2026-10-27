@@ -9,7 +9,7 @@ const root_bot_scheduler_1 = require("./root-bot-scheduler");
 const diagnostics_1 = require("./diagnostics");
 /**
  * One market-notification poll: pull pending chunks from the API, post them to
- * the `/setup` channel, and report each delivered chunk. A thrown post leaves
+ * the configured broadcast channel, and report each delivered chunk. A thrown post leaves
  * the remainder for the next poll; a successful post without a message id is
  * still recorded so it is not re-sent.
  */
@@ -34,8 +34,8 @@ async function runMarketNotificationPoll(deps) {
 /**
  * Starts the market-notification poller. It runs one poll immediately, then
  * schedules subsequent polls on Root's job scheduler (with a local watchdog).
- * The broadcast channel comes from per-community config (`/setup`); all data
- * comes from the API, so the bot holds no database or Discord secrets.
+ * The broadcast channel comes from per-community config configured via the GUI; all data
+ * comes from the API, so the app holds no database or Discord secrets.
  */
 async function startMarketNotifier(options = {}) {
     const communityId = options.communityId ?? process.env.COMMUNITY_ID ?? "";

@@ -56,6 +56,11 @@ export type {
   UpdateDeckRpcResponse,
 };
 
+export type AdminFeedback = {
+  type: "success" | "error";
+  text: string;
+};
+
 export interface IAssistantRpcClient {
   getStatus(): Promise<StatusResponse>;
   linkAccount(request: LinkRequest): Promise<LinkResponse>;

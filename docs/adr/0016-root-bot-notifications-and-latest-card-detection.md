@@ -8,6 +8,9 @@ Proposed
 > MyP now also uses latest-card detection (single catalog request) and the
 > notification outbox. The MyP exclusion in FR1.5 of the original spec no
 > longer applies.
+>
+> **Superseded in part by [ADR 0018](./0018-multi-platform-collector-assistant-and-identity-linking.md) and Spec #172 (Root App GUI-Only):**
+> The standalone bot at `apps/ga-tcg-binder-bot` was migrated to `apps/ga-tcg-root-app` using `@rootsdk/server-app` with GUI configuration. Broadcast channel selection is stored in community config via the in-app admin GUI instead of the static `ROOT_BOT_MARKET_CHANNEL_ID` environment variable.
 
 ## Context
 

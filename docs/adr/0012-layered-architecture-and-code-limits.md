@@ -23,7 +23,7 @@ Persistence calls are spread across ~12 services, 5 API routes, and `src/auth.ts
 
 ## Transition
 
-Rules apply immediately to new code. Existing violators migrate when touched and must not grow. Known debt: files over 400 lines (`services/marketplace.ts`, `services/shortage.ts`, `services/meta.ts`, `services/watchlist.ts`, `services/scanner.ts`, `components/collection/MypStoreView.tsx`, `components/decks/AllShortagesView.tsx`, `app/marketplace/page.tsx`, `app/scan/dashboard/page.tsx`, `app/meta/page.tsx`, `apps/mobile/src/screens/ScannerScreen.tsx`) and direct DB use in services, `src/app/api/{decks,friends,settings}`, and `src/auth.ts`.
+Rules apply immediately to new code. Existing violators migrate when touched and must not grow. Known debt: files over 400 lines (`services/marketplace.ts`, `services/shortage.ts`, `services/meta.ts`, `services/watchlist.ts`, `services/scanner.ts`, `components/collection/MypStoreView.tsx`, `components/decks/AllShortagesView.tsx`, `app/marketplace/page.tsx`, `app/scan/dashboard/page.tsx`, `app/meta/page.tsx`, `apps/mobile/src/screens/ScannerScreen.tsx`, `packages/contracts/src/i18n.ts`) and direct DB use in services, `src/app/api/{decks,friends,settings}`, and `src/auth.ts`.
 
 ## Consequences
 
