@@ -429,87 +429,13 @@ export function cleanMypUsername(input: string): string {
 import { execFileSync } from "child_process";
 
 export async function fetchMypText(url: string, customFetch?: typeof fetch): Promise<string> {
-  const userAgent =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-
-  if (customFetch && customFetch !== fetch) {
-    const res = await customFetch(url, {
-      headers: {
-        "User-Agent": userAgent,
-        Accept: "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
-      },
-    });
-    if (!res.ok) {
-      throw new Error(`Failed to fetch MyP URL (${res.status})`);
-    }
-    const text = typeof res.text === "function" ? await res.text() : JSON.stringify(await res.json());
-    if (isCloudflareChallenge(text)) {
-      throw new Error("Blocked by Cloudflare challenge");
-    }
-    return text;
-  }
-
-  // 1. If FlareSolverr proxy is configured (e.g. in GitHub Actions runner), query it
-  const flareUrl = process.env.FLARESOLVERR_URL;
-  if (flareUrl) {
-    try {
-      const solverRes = await fetch(`${flareUrl.replace(/\/$/, "")}/v1`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cmd: "request.get",
-          url,
-          maxTimeout: 60000,
-        }),
-      });
-      if (solverRes.ok) {
-        const solverJson = await solverRes.json();
-        if (solverJson?.solution?.response) {
-          const solutionText = solverJson.solution.response;
-          if (!isCloudflareChallenge(solutionText)) {
-            return solutionText;
-          }
-        }
-      }
-    } catch {
-      // Fallback to normal fetch/curl
-    }
-  }
-
-  // Try native fetch first; if Cloudflare blocks Undici TLS (403), use system curl
-  try {
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent": userAgent,
-        Accept: "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
-      },
-    });
-    if (res.ok) {
-      const text = await res.text();
-      if (isCloudflareChallenge(text)) {
-        throw new Error("Blocked by Cloudflare challenge");
-      }
-      return text;
-    }
-  } catch (err: any) {
-    console.warn(
-      `[marketplace] Native fetch for ${url} encountered ${err?.message || err}; falling back to system curl.`
-    );
-  }
-
-  const curlBin = process.platform === "win32" ? "curl.exe" : "curl";
-  const stdout = execFileSync(
-    curlBin,
-    ["-s", "-L", "--max-time", "20", "-A", userAgent, url],
-    { encoding: "utf-8", maxBuffer: 15 * 1024 * 1024 }
-  );
-  if (!stdout || stdout.trim().length === 0) {
-    throw new Error("Empty response from MyP Cards");
-  }
-  if (isCloudflareChallenge(stdout)) {
-    throw new Error("Blocked by Cloudflare challenge");
-  }
-  return stdout;
+  const { fetchWithRetry } = await import("./market-request-helper");
+  return fetchWithRetry(url, {
+    storeId: "myp",
+    customFetch,
+    maxRetries: customFetch ? 1 : 3,
+    timeoutMs: 30000,
+  });
 }
 
 // ---------------------------------------------------------------------------

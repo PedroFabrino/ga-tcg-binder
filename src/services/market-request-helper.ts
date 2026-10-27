@@ -163,27 +163,35 @@ export async function fetchWithCurl(
   timeoutSec = 25
 ): Promise<string> {
   const { execFileSync } = await import("node:child_process");
-  const curlBin = process.platform === "win32" ? "curl.exe" : "curl";
+  let curlBin = "curl_chrome152";
+  if (process.platform === "win32") {
+    curlBin = "curl.exe";
+  }
   const headerArgs: string[] = [];
   if (headers) {
     for (const [k, v] of Object.entries(headers)) {
       headerArgs.push("-H", `${k}: ${v}`);
     }
   }
-  return execFileSync(
-    curlBin,
-    [
-      "-sS",
-      "-L",
-      "--max-time",
-      String(timeoutSec),
-      "-A",
-      DEFAULT_BROWSER_USER_AGENT,
-      ...headerArgs,
-      url,
-    ],
-    { encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 }
-  );
+  const args = [
+    "-sS",
+    "-L",
+    "--max-time",
+    String(timeoutSec),
+    "-A",
+    DEFAULT_BROWSER_USER_AGENT,
+    ...headerArgs,
+    url,
+  ];
+
+  try {
+    return execFileSync(curlBin, args, { encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 });
+  } catch (err) {
+    if (curlBin === "curl_chrome152") {
+      return execFileSync("curl", args, { encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 });
+    }
+    throw err;
+  }
 }
 
 export interface FetchWithRetryOptions extends StoreFetchConfig {
