@@ -135,7 +135,11 @@ export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
       } else {
         setFeedback({
           type: "error",
-          text: resolveAdminErrorMessage(res.error, t),
+          text: resolveAdminErrorMessage(
+            res.error,
+            t,
+            "communityAdmin.provisionError"
+          ),
         });
       }
     } catch (err) {

@@ -63,7 +63,9 @@ describe("describeCommunityContext", () => {
     const text = lines.join("\n");
 
     expect(text).toContain("COMMUNITY_ID env: (unset)");
-    expect(text).toContain("Deal-alert section: not configured");
+    expect(text).toContain(
+      "Deal-alert section: not configured (provision market channels in the Assistant App GUI)."
+    );
     expect(text).toContain("Market broadcast channel: not configured");
     expect(text).toContain("self-granted via the bot's own app id");
   });

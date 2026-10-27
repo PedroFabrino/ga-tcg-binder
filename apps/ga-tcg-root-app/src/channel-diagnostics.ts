@@ -58,7 +58,7 @@ export async function describeCommunityContext(
     );
   } else {
     lines.push(
-      "Deal-alert section: not configured (created automatically on first use)."
+      "Deal-alert section: not configured (provision market channels in the Assistant App GUI)."
     );
   }
 

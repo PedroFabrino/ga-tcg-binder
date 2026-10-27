@@ -39,7 +39,7 @@ async function describeCommunityContext(directory, options = {}) {
                 .join(", ")}`);
     }
     else {
-        lines.push("Deal-alert section: not configured (created automatically on first use).");
+        lines.push("Deal-alert section: not configured (provision market channels in the Assistant App GUI).");
     }
     lines.push(options.broadcastChannelId
         ? `Market broadcast channel: ${options.broadcastChannelId}`

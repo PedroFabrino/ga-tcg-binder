@@ -17,7 +17,10 @@ describe("admin-card-helpers", () => {
         isAdmin: true,
         broadcastChannelId: "ch-broadcast-1",
         broadcastChannelName: "market",
-        textChannels: [{ id: "ch-first", name: "general" }],
+        textChannels: [
+          { id: "ch-first", name: "general" },
+          { id: "ch-broadcast-1", name: "market" },
+        ],
       };
       expect(pickInitialChannelId(settings)).toBe("ch-broadcast-1");
     });
@@ -31,6 +34,16 @@ describe("admin-card-helpers", () => {
           { id: "ch-first", name: "general" },
           { id: "ch-second", name: "rules" },
         ],
+      };
+      expect(pickInitialChannelId(settings)).toBe("ch-first");
+    });
+
+    it("falls back to the first text channel when the configured channel no longer exists", () => {
+      const settings: AdminSettingsResponse = {
+        isAdmin: true,
+        broadcastChannelId: "ch-deleted",
+        broadcastChannelName: "gone",
+        textChannels: [{ id: "ch-first", name: "general" }],
       };
       expect(pickInitialChannelId(settings)).toBe("ch-first");
     });
@@ -81,6 +94,12 @@ describe("admin-card-helpers", () => {
       expect(resolveAdminErrorMessage("", tEn)).toBe(
         "Failed to update broadcast channel"
       );
+    });
+
+    it("uses the provided fallback key for unmapped empty errors", () => {
+      expect(
+        resolveAdminErrorMessage(undefined, tEn, "communityAdmin.provisionError")
+      ).toBe("Failed to provision market channels");
     });
 
     it("preserves custom unmapped error messages", () => {
