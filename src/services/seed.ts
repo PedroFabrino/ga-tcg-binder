@@ -68,6 +68,14 @@ export async function seedMarketStores(database?: AuthDatabase) {
       enabled: true,
     },
     {
+      id: "tabletopsorocaba",
+      platform: "liga_store",
+      name: "TabletopSorocaba",
+      baseUrl: "https://www.tabletoptcg.com.br",
+      tcgId: "21",
+      enabled: true,
+    },
+    {
       id: "lootcards",
       platform: "lootcards",
       name: "Lootcards",

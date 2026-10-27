@@ -17,7 +17,7 @@ import {
   type ParsedLootcardsCard,
 } from "./lootcards-parser";
 import { resolveListing } from "./listing-resolver";
-import { fetchHtml } from "./market-crawl";
+import { fetchWithRetry } from "./market-request-helper";
 
 export interface LootcardsSyncOptions {
   storeId?: string;
@@ -64,7 +64,7 @@ export async function syncLootcards(
   const baseUrl = (store.baseUrl ?? "https://lootcards.store").replace(/\/+$/, "");
 
   async function fetchText(url: string): Promise<string> {
-    return fetchHtml(url, { customFetch: fetchFn });
+    return fetchWithRetry(url, { storeId, customFetch: fetchFn });
   }
 
   // 1. Broad in-stock catalog scan

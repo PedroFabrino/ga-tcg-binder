@@ -1,7 +1,7 @@
 /**
  * Market Sync runner: the market-store scope of the sync system.
  *
- * Crawls every enabled Marketplace Store (MyP, Lootcards), writes the
+ * Crawls every enabled Marketplace Store (MyP, Lootcards, LigaStore), writes the
  * Notification Outbox and delivers Discord notifications per store, then
  * dispatches Deal Alerts exactly once after all stores have synced. The daily
  * `runFullSyncPipeline` does not dispatch Deal Alerts, so a collector never
@@ -14,6 +14,7 @@ import {
 } from "../db/repositories/marketplace-repository";
 import { syncGlobalMarketplace } from "./myp-sync";
 import { syncLootcards } from "./lootcards-sync";
+import { syncLigaStore } from "./ligastore-sync";
 import { writeMarketNotifications } from "./market-notifications";
 import { deliverDiscordNotifications } from "./discord-market-notifier";
 import { dispatchDealAlerts } from "./discord-deal-notifier";
@@ -66,7 +67,36 @@ export async function runMarketSync(options: {
     return result;
   }
 
-  for (const store of stores) {
+  const mypStores = stores.filter((s) => s.platform === "myp");
+  const ligaStores = stores.filter((s) => s.platform === "liga_store");
+  const lootcardsStores = stores.filter((s) => s.platform === "lootcards");
+  const otherStores = stores.filter(
+    (s) => !["myp", "liga_store", "lootcards"].includes(s.platform)
+  );
+
+  const pipelines = [
+    mypStores,
+    ligaStores,
+    lootcardsStores,
+    otherStores,
+  ].filter((group) => group.length > 0);
+
+  let deliveryQueue = Promise.resolve();
+  const queueDiscordNotification = (storeId: string, bootstrapIfNeverNotified = false) => {
+    deliveryQueue = deliveryQueue.then(async () => {
+      try {
+        await notifyMarketChanges(storeId, database, bootstrapIfNeverNotified);
+      } catch (err) {
+        console.error(
+          `Failed to notify market changes for store ${storeId}:`,
+          err instanceof Error ? err.message : err
+        );
+      }
+    });
+    return deliveryQueue;
+  };
+
+  const syncSingleStore = async (store: (typeof stores)[number]) => {
     console.log(`\n=== Starting Synchronization for Store: ${store.name} (${store.id}) ===`);
     const startTime = Date.now();
 
@@ -81,7 +111,7 @@ export async function runMarketSync(options: {
         console.log(`- Duration: ${durationSec}s`);
 
         if (stats.complete) {
-          await notifyMarketChanges(store.id, database, true);
+          await queueDiscordNotification(store.id, true);
         }
       } else if (store.platform === "lootcards") {
         const stats = await syncLootcards({ storeId: store.id, database });
@@ -92,11 +122,20 @@ export async function runMarketSync(options: {
         console.log(`- Enriched: ${stats.enrichedCount}`);
         console.log(`- Duration: ${durationSec}s`);
 
-        await notifyMarketChanges(store.id, database);
+        await queueDiscordNotification(store.id);
+      } else if (store.platform === "liga_store") {
+        const stats = await syncLigaStore({ storeId: store.id, database });
+        const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
+        console.log(`- Total Synced: ${stats.totalSynced}`);
+        console.log(`- Matched: ${stats.matchedCount}`);
+        console.log(`- Unmatched: ${stats.unmatchedCount}`);
+        console.log(`- Enriched: ${stats.enrichedCount}`);
+        console.log(`- Duration: ${durationSec}s`);
+
+        await queueDiscordNotification(store.id);
       } else {
-        // LigaStore is retired (ADR-0025); any other platform is unknown.
-        console.warn(`Skipping retired/unknown platform ${store.platform} for store ${store.id}.`);
-        continue;
+        console.warn(`Skipping unknown platform ${store.platform} for store ${store.id}.`);
+        return;
       }
 
       result.stores.push({ storeId: store.id, status: "success" });
@@ -112,7 +151,17 @@ export async function runMarketSync(options: {
         error instanceof Error ? error.message : error
       );
     }
-  }
+  };
+
+  await Promise.all(
+    pipelines.map(async (pipelineStores) => {
+      for (const store of pipelineStores) {
+        await syncSingleStore(store);
+      }
+    })
+  );
+
+  await deliveryQueue;
 
   // Deal alert dispatch runs once after all stores have synced so matching
   // sees the complete set of freshly updated listings. Root delivery runs in

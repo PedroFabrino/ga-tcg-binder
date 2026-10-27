@@ -73,7 +73,10 @@ describe("store-session", () => {
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/155.0.0.0",
       };
 
-      const session = loadStoreSession("tabletopsorocaba", { env: mockEnv });
+      const session = loadStoreSession("tabletopsorocaba", {
+        env: mockEnv,
+        fs: { existsSync: () => false, readFileSync: () => "" },
+      });
       expect(session).not.toBeNull();
       expect(session?.storeId).toBe("tabletopsorocaba");
       expect(session?.cookie).toBe("cf_clearance=secret-val; foo=bar");
