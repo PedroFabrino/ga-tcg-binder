@@ -45,7 +45,10 @@ describe("AssistantRpcService", () => {
         }),
       } as unknown as RootBotApi;
 
-      const service = new AssistantRpcService("comm-456", { api: mockApi });
+      const service = new AssistantRpcService("comm-456", {
+        api: mockApi,
+        isCommunityAdmin: vi.fn().mockResolvedValue(true),
+      });
       const status = await service.getStatus(createMockClient("user-linked"));
 
       expect(status.isLinked).toBe(true);
@@ -55,6 +58,7 @@ describe("AssistantRpcService", () => {
       expect(status.notificationsEnabled).toBe(true);
       expect(status.dealAlertMode).toBe("hard");
       expect(status.alertChannelId).toBe("chan-789");
+      expect(status.isAdmin).toBe(true);
     });
 
     it("handles API rejection gracefully", async () => {
@@ -378,6 +382,170 @@ describe("AssistantRpcService", () => {
         name: "Updated",
         champion: undefined,
       });
+    });
+  });
+
+  describe("admin channel configuration RPCs", () => {
+    const mockChannelGroups = [
+      { id: "group-1", name: "General Category" },
+      { id: "group-2", name: "GA Market" },
+    ];
+
+    const mockChannelsByGroup = (params: { channelGroupId: any }) => {
+      if (params.channelGroupId === "group-1") {
+        return Promise.resolve([
+          { id: "ch-gen", name: "general", channelType: 1 }, // text
+          { id: "ch-voice", name: "lounge", channelType: 2 }, // voice
+        ]);
+      }
+      return Promise.resolve([
+        { id: "ch-market", name: "market", channelType: 1 },
+        { id: "ch-app", name: "assistant", channelType: 3 }, // app
+      ]);
+    };
+
+    it("getAdminSettings returns empty channels and isAdmin false for non-admins", async () => {
+      const service = new AssistantRpcService("comm-123", {
+        isCommunityAdmin: vi.fn().mockResolvedValue(false),
+      });
+
+      const res = await service.getAdminSettings(createMockClient("regular-user"));
+      expect(res.isAdmin).toBe(false);
+      expect(res.broadcastChannelId).toBe("");
+      expect(res.textChannels).toEqual([]);
+    });
+
+    it("getAdminSettings returns text channels across groups for admins", async () => {
+      let storedBroadcastId = "ch-market";
+      const mockConfig = {
+        getBroadcastChannelId: vi.fn().mockImplementation(async () => storedBroadcastId),
+        setBroadcastChannelId: vi.fn().mockImplementation(async (id: string) => {
+          storedBroadcastId = id;
+        }),
+      } as any;
+
+      const service = new AssistantRpcService("comm-123", {
+        isCommunityAdmin: vi.fn().mockResolvedValue(true),
+        listChannelGroups: vi.fn().mockResolvedValue(mockChannelGroups),
+        listChannels: vi.fn().mockImplementation(mockChannelsByGroup),
+        config: mockConfig,
+      });
+
+      const res = await service.getAdminSettings(createMockClient("admin-user"));
+      expect(res.isAdmin).toBe(true);
+      expect(res.broadcastChannelId).toBe("ch-market");
+      expect(res.broadcastChannelName).toBe("market");
+      expect(res.textChannels).toEqual([
+        { id: "ch-gen", name: "general", groupName: "General Category" },
+        { id: "ch-market", name: "market", groupName: "GA Market" },
+      ]);
+    });
+
+    it("setBroadcastChannel rejects non-admins with FORBIDDEN", async () => {
+      const service = new AssistantRpcService("comm-123", {
+        isCommunityAdmin: vi.fn().mockResolvedValue(false),
+      });
+
+      const res = await service.setBroadcastChannel(
+        { channelId: "ch-gen" },
+        createMockClient("non-admin")
+      );
+      expect(res.success).toBe(false);
+      expect(res.error).toBe("FORBIDDEN");
+    });
+
+    it("setBroadcastChannel rejects unknown channels with CHANNEL_NOT_FOUND", async () => {
+      const service = new AssistantRpcService("comm-123", {
+        isCommunityAdmin: vi.fn().mockResolvedValue(true),
+        listChannelGroups: vi.fn().mockResolvedValue(mockChannelGroups),
+        listChannels: vi.fn().mockImplementation(mockChannelsByGroup),
+        config: {
+          getBroadcastChannelId: vi.fn(),
+          setBroadcastChannelId: vi.fn(),
+        } as any,
+      });
+
+      const res = await service.setBroadcastChannel(
+        { channelId: "ch-nonexistent" },
+        createMockClient("admin-user")
+      );
+      expect(res.success).toBe(false);
+      expect(res.error).toBe("CHANNEL_NOT_FOUND");
+    });
+
+    it("setBroadcastChannel rejects non-text channels with CHANNEL_NOT_FOUND", async () => {
+      const service = new AssistantRpcService("comm-123", {
+        isCommunityAdmin: vi.fn().mockResolvedValue(true),
+        listChannelGroups: vi.fn().mockResolvedValue(mockChannelGroups),
+        listChannels: vi.fn().mockImplementation(mockChannelsByGroup),
+        config: {
+          getBroadcastChannelId: vi.fn(),
+          setBroadcastChannelId: vi.fn(),
+        } as any,
+      });
+
+      const res = await service.setBroadcastChannel(
+        { channelId: "ch-voice" },
+        createMockClient("admin-user")
+      );
+      expect(res.success).toBe(false);
+      expect(res.error).toBe("CHANNEL_NOT_FOUND");
+    });
+
+    it("setBroadcastChannel saves valid text channel and returns metadata", async () => {
+      const setBroadcastChannelId = vi.fn().mockResolvedValue(undefined);
+      const service = new AssistantRpcService("comm-123", {
+        isCommunityAdmin: vi.fn().mockResolvedValue(true),
+        listChannelGroups: vi.fn().mockResolvedValue(mockChannelGroups),
+        listChannels: vi.fn().mockImplementation(mockChannelsByGroup),
+        config: {
+          getBroadcastChannelId: vi.fn().mockResolvedValue(undefined),
+          setBroadcastChannelId,
+        } as any,
+      });
+
+      const res = await service.setBroadcastChannel(
+        { channelId: "ch-gen" },
+        createMockClient("admin-user")
+      );
+      expect(res.success).toBe(true);
+      expect(res.broadcastChannelId).toBe("ch-gen");
+      expect(res.broadcastChannelName).toBe("general");
+      expect(res.error).toBe("");
+      expect(setBroadcastChannelId).toHaveBeenCalledWith("ch-gen");
+    });
+
+    it("provisionMarketChannels rejects non-admins with FORBIDDEN", async () => {
+      const service = new AssistantRpcService("comm-123", {
+        isCommunityAdmin: vi.fn().mockResolvedValue(false),
+      });
+
+      const res = await service.provisionMarketChannels(createMockClient("non-admin"));
+      expect(res.success).toBe(false);
+      expect(res.error).toBe("FORBIDDEN");
+    });
+
+    it("provisionMarketChannels calls provisionChannels and returns provisioned IDs", async () => {
+      const provisionChannels = vi.fn().mockResolvedValue({
+        marketChannel: "market",
+        assistantChannel: "assistant",
+      });
+      const service = new AssistantRpcService("comm-123", {
+        isCommunityAdmin: vi.fn().mockResolvedValue(true),
+        provisionChannels,
+        config: {
+          getBroadcastChannelId: vi.fn().mockResolvedValue("ch-new-market"),
+          getAssistantChannelId: vi.fn().mockResolvedValue("ch-new-assistant"),
+        } as any,
+      });
+
+      const res = await service.provisionMarketChannels(createMockClient("admin-user"));
+      expect(res.success).toBe(true);
+      expect(res.broadcastChannelId).toBe("ch-new-market");
+      expect(res.broadcastChannelName).toBe("market");
+      expect(res.assistantChannelId).toBe("ch-new-assistant");
+      expect(res.error).toBe("");
+      expect(provisionChannels).toHaveBeenCalled();
     });
   });
 });

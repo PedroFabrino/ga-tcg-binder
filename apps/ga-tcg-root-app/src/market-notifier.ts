@@ -34,7 +34,7 @@ export async function runMarketNotificationPoll(
   const broadcastChannelId = await deps.config.getBroadcastChannelId();
   if (!broadcastChannelId) {
     deps.warn?.(
-      "No broadcast channel configured — run /setup in the target channel. Market notifications paused."
+      "No broadcast channel configured — select a channel in the Assistant App GUI. Market notifications paused."
     );
     return;
   }

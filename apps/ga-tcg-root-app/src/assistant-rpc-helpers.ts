@@ -2,8 +2,11 @@ import type {
   DeckSummary,
   AutocompleteChoiceItem,
   PersonalWantRpcItem,
+  StatusResponse,
+  LinkResponse,
+  RegisterResponse,
 } from "@ga/gen-shared";
-import type { RootBotApi } from "./root-bot-api";
+import { RootBotApi, RootBotApiError } from "./root-bot-api";
 import {
   ensureRootRecipientChannel,
   removeRootDealAlertChannel,
@@ -152,3 +155,86 @@ export function mapPersonalWant(w: {
     foil: Boolean(w.foil),
   };
 }
+
+export function createUnlinkedStatus(isAdmin = false): StatusResponse {
+  return {
+    isLinked: false,
+    collectorId: "",
+    collectorName: "",
+    friendCode: "",
+    notificationsEnabled: false,
+    dealAlertMode: "all",
+    alertChannelId: "",
+    isAdmin,
+  };
+}
+
+export function mapSuggestion(s: {
+  name: string;
+  slug: string;
+  quantity?: number;
+}): AutocompleteChoiceItem {
+  return {
+    name: s.name,
+    value: s.slug,
+    element: "",
+    type: "",
+    quantity: s.quantity ?? 0,
+    foil: false,
+  };
+}
+
+export async function linkAccountHelper(
+  api: RootBotApi,
+  userId: string,
+  rawCode?: string
+): Promise<LinkResponse> {
+  const code = (rawCode || "").trim().toUpperCase();
+  if (!code) {
+    return { success: false, collectorName: "", error: "INVALID_CODE" };
+  }
+  try {
+    const res = await api.link({
+      token: code,
+      provider: "root",
+      providerUserId: userId,
+    });
+    return { success: true, collectorName: res.collectorName ?? "", error: "" };
+  } catch (err: unknown) {
+    if (err instanceof RootBotApiError) {
+      return {
+        success: false,
+        collectorName: "",
+        error: err.code || err.message,
+      };
+    }
+    return {
+      success: false,
+      collectorName: "",
+      error: err instanceof Error ? err.message : "LINK_FAILED",
+    };
+  }
+}
+
+export async function registerAccountHelper(
+  api: RootBotApi,
+  userId: string
+): Promise<RegisterResponse> {
+  try {
+    const res = await api.register(userId);
+    return {
+      success: true,
+      collectorName: res.collector.name ?? "",
+      friendCode: res.collector.friendCode ?? "",
+      error: "",
+    };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      collectorName: "",
+      friendCode: "",
+      error: err instanceof Error ? err.message : "REGISTER_FAILED",
+    };
+  }
+}
+

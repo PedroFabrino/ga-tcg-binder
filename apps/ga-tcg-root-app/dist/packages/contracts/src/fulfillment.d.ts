@@ -113,6 +113,7 @@ export interface FulfillmentReport {
 }
 export declare const UNMATCHED_ELEMENT = "UNMATCHED";
 export declare const CANONICAL_ELEMENT_ORDER: readonly string[];
+export declare function createEmptyFulfillmentReport(): FulfillmentReport;
 export declare function normalizeBuyerNick(nick: string): string;
 export type FulfillmentOrderStatus = "open" | "processed" | "sent";
 export type ShippingTicketStatus = "pending" | "released" | "posted" | "cancelled" | "unknown";

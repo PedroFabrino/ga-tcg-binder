@@ -852,6 +852,22 @@ export declare const enCatalog: {
             generic: string;
         };
     };
+    communityAdmin: {
+        cardTitle: string;
+        cardDescription: string;
+        activeChannelLabel: string;
+        noChannelConfigured: string;
+        selectChannelPlaceholder: string;
+        saveChannelButton: string;
+        savingChannel: string;
+        provisionButton: string;
+        provisioning: string;
+        provisionSuccess: string;
+        saveSuccess: string;
+        saveError: string;
+        provisionError: string;
+        adminBadge: string;
+    };
 };
 export type TranslationCatalog = typeof enCatalog;
 export declare const ptBRCatalog: TranslationCatalog;

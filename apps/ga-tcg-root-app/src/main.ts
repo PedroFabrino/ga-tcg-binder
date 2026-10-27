@@ -5,7 +5,6 @@ import {
 } from "@rootsdk/server-app";
 import { startMarketNotifier } from "./market-notifier";
 import { startDealAlertNotifier } from "./deal-alert-notifier";
-import { registerRootCommandHandlers } from "./command-handlers";
 import { AssistantRpcService } from "./assistant-rpc-service";
 import { createCommunityConfig } from "./community-config";
 import { logCommunityContext } from "./channel-diagnostics";
@@ -94,18 +93,6 @@ async function onStarting(state: RootAppStartState) {
   } catch (err) {
     await reportDiagnostic({
       stage: "deal-alert-notifier-failed",
-      communityId,
-      message: err,
-      level: CommunityAppLogType.Error,
-    });
-  }
-
-  try {
-    registerRootCommandHandlers(communityId);
-    await reportDiagnostic({ stage: "commands-registered", communityId });
-  } catch (err) {
-    await reportDiagnostic({
-      stage: "commands-failed",
       communityId,
       message: err,
       level: CommunityAppLogType.Error,

@@ -13,7 +13,6 @@
     "@ga/gen-shared": "file:./networking/gen/shared",
     "@rootsdk/client-app": "^0.21.3",
     "@rootsdk/server-app": "^0.21.3",
-    "@rootsdk/server-bot": "*",
     "lucide-react": "^1.61.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
@@ -30,6 +29,7 @@
     "build:client": "vite build --config client/vite.config.mjs client",
     "build": "tsc && node -e \"if (fs.existsSync('dist/apps/ga-tcg-root-app/src/main.js')) fs.writeFileSync('dist/main.js', 'require(\\\"./apps/ga-tcg-root-app/src/main.js\\\");\\n');\" && npm run build:client",
     "clean": "node clean.js",
+    "app": "rootsdk start devhost",
     "bot": "rootsdk start devhost",
     "package": "node scripts/package.js",
     "upload": "node scripts/upload.js",

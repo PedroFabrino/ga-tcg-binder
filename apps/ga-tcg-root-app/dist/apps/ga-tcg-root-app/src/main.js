@@ -3,7 +3,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const server_app_1 = require("@rootsdk/server-app");
 const market_notifier_1 = require("./market-notifier");
 const deal_alert_notifier_1 = require("./deal-alert-notifier");
-const command_handlers_1 = require("./command-handlers");
 const assistant_rpc_service_1 = require("./assistant-rpc-service");
 const community_config_1 = require("./community-config");
 const channel_diagnostics_1 = require("./channel-diagnostics");
@@ -85,18 +84,6 @@ async function onStarting(state) {
     catch (err) {
         await (0, diagnostics_1.reportDiagnostic)({
             stage: "deal-alert-notifier-failed",
-            communityId,
-            message: err,
-            level: server_app_1.CommunityAppLogType.Error,
-        });
-    }
-    try {
-        (0, command_handlers_1.registerRootCommandHandlers)(communityId);
-        await (0, diagnostics_1.reportDiagnostic)({ stage: "commands-registered", communityId });
-    }
-    catch (err) {
-        await (0, diagnostics_1.reportDiagnostic)({
-            stage: "commands-failed",
             communityId,
             message: err,
             level: server_app_1.CommunityAppLogType.Error,

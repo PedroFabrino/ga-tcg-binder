@@ -4,6 +4,11 @@ exports.buildDeckSummariesWithShortages = buildDeckSummariesWithShortages;
 exports.updateDealAlertPreferencesHelper = updateDealAlertPreferencesHelper;
 exports.mapAutocompleteChoice = mapAutocompleteChoice;
 exports.mapPersonalWant = mapPersonalWant;
+exports.createUnlinkedStatus = createUnlinkedStatus;
+exports.mapSuggestion = mapSuggestion;
+exports.linkAccountHelper = linkAccountHelper;
+exports.registerAccountHelper = registerAccountHelper;
+const root_bot_api_1 = require("./root-bot-api");
 const deal_alert_notifier_1 = require("./deal-alert-notifier");
 async function buildDeckSummariesWithShortages(api, userId, rawDecks) {
     return Promise.all(rawDecks.map(async (deck) => {
@@ -86,4 +91,73 @@ function mapPersonalWant(w) {
         desiredQuantity: w.desiredQuantity,
         foil: Boolean(w.foil),
     };
+}
+function createUnlinkedStatus(isAdmin = false) {
+    return {
+        isLinked: false,
+        collectorId: "",
+        collectorName: "",
+        friendCode: "",
+        notificationsEnabled: false,
+        dealAlertMode: "all",
+        alertChannelId: "",
+        isAdmin,
+    };
+}
+function mapSuggestion(s) {
+    return {
+        name: s.name,
+        value: s.slug,
+        element: "",
+        type: "",
+        quantity: s.quantity ?? 0,
+        foil: false,
+    };
+}
+async function linkAccountHelper(api, userId, rawCode) {
+    const code = (rawCode || "").trim().toUpperCase();
+    if (!code) {
+        return { success: false, collectorName: "", error: "INVALID_CODE" };
+    }
+    try {
+        const res = await api.link({
+            token: code,
+            provider: "root",
+            providerUserId: userId,
+        });
+        return { success: true, collectorName: res.collectorName ?? "", error: "" };
+    }
+    catch (err) {
+        if (err instanceof root_bot_api_1.RootBotApiError) {
+            return {
+                success: false,
+                collectorName: "",
+                error: err.code || err.message,
+            };
+        }
+        return {
+            success: false,
+            collectorName: "",
+            error: err instanceof Error ? err.message : "LINK_FAILED",
+        };
+    }
+}
+async function registerAccountHelper(api, userId) {
+    try {
+        const res = await api.register(userId);
+        return {
+            success: true,
+            collectorName: res.collector.name ?? "",
+            friendCode: res.collector.friendCode ?? "",
+            error: "",
+        };
+    }
+    catch (err) {
+        return {
+            success: false,
+            collectorName: "",
+            friendCode: "",
+            error: err instanceof Error ? err.message : "REGISTER_FAILED",
+        };
+    }
 }

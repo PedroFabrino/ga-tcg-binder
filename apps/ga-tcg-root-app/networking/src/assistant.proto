@@ -10,6 +10,7 @@ message StatusResponse {
   bool notifications_enabled = 5;
   string deal_alert_mode = 6;
   string alert_channel_id = 7;
+  bool is_admin = 8;
 }
 
 message LinkRequest {
@@ -150,6 +151,38 @@ message UpdateDeckRpcResponse {
   string error = 3;
 }
 
+message CommunityChannelOption {
+  string id = 1;
+  string name = 2;
+  string group_name = 3;
+}
+
+message AdminSettingsResponse {
+  bool is_admin = 1;
+  string broadcast_channel_id = 2;
+  string broadcast_channel_name = 3;
+  repeated CommunityChannelOption text_channels = 4;
+}
+
+message SetBroadcastChannelRequest {
+  string channel_id = 1;
+}
+
+message SetBroadcastChannelResponse {
+  bool success = 1;
+  string broadcast_channel_id = 2;
+  string broadcast_channel_name = 3;
+  string error = 4;
+}
+
+message ProvisionMarketChannelsResponse {
+  bool success = 1;
+  string broadcast_channel_id = 2;
+  string broadcast_channel_name = 3;
+  string assistant_channel_id = 4;
+  string error = 5;
+}
+
 service AssistantService {
   rpc GetStatus(rootsdk.Void) returns (StatusResponse);
   rpc LinkAccount(LinkRequest) returns (LinkResponse);
@@ -162,4 +195,7 @@ service AssistantService {
   rpc RemoveWant(RemoveWantRpcRequest) returns (RemoveWantRpcResponse);
   rpc ImportDeck(ImportDeckRpcRequest) returns (ImportDeckRpcResponse);
   rpc UpdateDeck(UpdateDeckRpcRequest) returns (UpdateDeckRpcResponse);
+  rpc GetAdminSettings(rootsdk.Void) returns (AdminSettingsResponse);
+  rpc SetBroadcastChannel(SetBroadcastChannelRequest) returns (SetBroadcastChannelResponse);
+  rpc ProvisionMarketChannels(rootsdk.Void) returns (ProvisionMarketChannelsResponse);
 }

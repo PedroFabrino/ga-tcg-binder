@@ -2,8 +2,12 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AssistantRpcService = void 0;
 const gen_server_1 = require("@ga/gen-server");
+const server_app_1 = require("@rootsdk/server-app");
 const root_bot_api_1 = require("./root-bot-api");
 const assistant_rpc_helpers_1 = require("./assistant-rpc-helpers");
+const community_config_1 = require("./community-config");
+const community_admin_1 = require("./community-admin");
+const admin_rpc_helpers_1 = require("./admin-rpc-helpers");
 class AssistantRpcService extends gen_server_1.AssistantServiceBase {
     communityId;
     deps;
@@ -34,24 +38,20 @@ class AssistantRpcService extends gen_server_1.AssistantServiceBase {
         }
         return new root_bot_api_1.RootBotApi({ communityId: resolvedCommunityId });
     }
+    getConfig() {
+        return this.deps.config ?? (0, community_config_1.createCommunityConfig)(server_app_1.rootServer.dataStore.appData);
+    }
     async getStatus(client) {
         const userId = String(client.userId);
         const api = this.getApi(client);
+        const isAdmin = await (this.deps.isCommunityAdmin ?? community_admin_1.checkIsCommunityAdmin)(userId);
         try {
             const [collector, channel] = await Promise.all([
                 api.getCollector(userId),
                 api.getDealAlertChannel(userId).catch(() => null),
             ]);
             if (!collector) {
-                return {
-                    isLinked: false,
-                    collectorId: "",
-                    collectorName: "",
-                    friendCode: "",
-                    notificationsEnabled: false,
-                    dealAlertMode: "all",
-                    alertChannelId: "",
-                };
+                return (0, assistant_rpc_helpers_1.createUnlinkedStatus)(isAdmin);
             }
             return {
                 isLinked: true,
@@ -61,78 +61,18 @@ class AssistantRpcService extends gen_server_1.AssistantServiceBase {
                 notificationsEnabled: Boolean(collector.notificationsEnabled),
                 dealAlertMode: collector.dealAlertMode ?? "all",
                 alertChannelId: channel?.channelId ?? "",
+                isAdmin,
             };
         }
         catch {
-            return {
-                isLinked: false,
-                collectorId: "",
-                collectorName: "",
-                friendCode: "",
-                notificationsEnabled: false,
-                dealAlertMode: "all",
-                alertChannelId: "",
-            };
+            return (0, assistant_rpc_helpers_1.createUnlinkedStatus)(isAdmin);
         }
     }
     async linkAccount(request, client) {
-        const userId = String(client.userId);
-        const api = this.getApi(client);
-        const code = (request.code || "").trim().toUpperCase();
-        if (!code) {
-            return {
-                success: false,
-                collectorName: "",
-                error: "INVALID_CODE",
-            };
-        }
-        try {
-            const res = await api.link({
-                token: code,
-                provider: "root",
-                providerUserId: userId,
-            });
-            return {
-                success: true,
-                collectorName: res.collectorName ?? "",
-                error: "",
-            };
-        }
-        catch (err) {
-            if (err instanceof root_bot_api_1.RootBotApiError) {
-                return {
-                    success: false,
-                    collectorName: "",
-                    error: err.code || err.message,
-                };
-            }
-            return {
-                success: false,
-                collectorName: "",
-                error: err instanceof Error ? err.message : "LINK_FAILED",
-            };
-        }
+        return (0, assistant_rpc_helpers_1.linkAccountHelper)(this.getApi(client), String(client.userId), request.code);
     }
     async registerAccount(client) {
-        const userId = String(client.userId);
-        const api = this.getApi(client);
-        try {
-            const res = await api.register(userId);
-            return {
-                success: true,
-                collectorName: res.collector.name ?? "",
-                friendCode: res.collector.friendCode ?? "",
-                error: "",
-            };
-        }
-        catch (err) {
-            return {
-                success: false,
-                collectorName: "",
-                friendCode: "",
-                error: err instanceof Error ? err.message : "REGISTER_FAILED",
-            };
-        }
+        return (0, assistant_rpc_helpers_1.registerAccountHelper)(this.getApi(client), String(client.userId));
     }
     async setPreferences(request, client) {
         const userId = String(client.userId);
@@ -211,14 +151,7 @@ class AssistantRpcService extends gen_server_1.AssistantServiceBase {
                 success: true,
                 message: res.card ? `Added ${res.card.name}` : "Imported Omnidex shortages",
                 error: "",
-                suggestions: (res.suggestions || []).map((s) => ({
-                    name: s.name,
-                    value: s.slug,
-                    element: "",
-                    type: "",
-                    quantity: 0,
-                    foil: false,
-                })),
+                suggestions: (res.suggestions || []).map(assistant_rpc_helpers_1.mapSuggestion),
             };
         }
         catch (err) {
@@ -244,14 +177,7 @@ class AssistantRpcService extends gen_server_1.AssistantServiceBase {
                 remainingQuantity: res.remainingQuantity,
                 cardName: res.cardName,
                 error: "",
-                suggestions: (res.suggestions || []).map((s) => ({
-                    name: s.name,
-                    value: s.slug,
-                    element: "",
-                    type: "",
-                    quantity: s.quantity,
-                    foil: false,
-                })),
+                suggestions: (res.suggestions || []).map(assistant_rpc_helpers_1.mapSuggestion),
             };
         }
         catch (err) {
@@ -311,6 +237,15 @@ class AssistantRpcService extends gen_server_1.AssistantServiceBase {
                 error: err instanceof Error ? err.message : "UPDATE_DECK_FAILED",
             };
         }
+    }
+    async getAdminSettings(client) {
+        return (0, admin_rpc_helpers_1.getAdminSettingsHelper)(String(client.userId), this.getConfig(), this.deps);
+    }
+    async setBroadcastChannel(request, client) {
+        return (0, admin_rpc_helpers_1.setBroadcastChannelHelper)(String(client.userId), request, this.getConfig(), this.deps);
+    }
+    async provisionMarketChannels(client) {
+        return (0, admin_rpc_helpers_1.provisionMarketChannelsHelper)(String(client.userId), this.getConfig(), this.deps);
     }
 }
 exports.AssistantRpcService = AssistantRpcService;

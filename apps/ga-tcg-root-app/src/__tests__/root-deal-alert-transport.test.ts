@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 
-vi.mock("@rootsdk/server-bot", () => ({
+vi.mock("@rootsdk/server-app", () => ({
   ChannelType: { Text: 1, ThreadedText: 2 },
   WellKnownRootGuids: {
     CommunityRoles: { EveryoneRole: "role_everyone" },

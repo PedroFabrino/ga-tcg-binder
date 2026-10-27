@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { JobInterval, type JobScheduler } from "@rootsdk/server-bot";
+import { JobInterval, type JobScheduler } from "@rootsdk/server-app";
 import { scheduleRootBotPolling } from "../root-bot-scheduler";
 
 function fakeScheduler() {

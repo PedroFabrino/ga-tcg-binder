@@ -1,8 +1,9 @@
 import { AssistantServiceBase } from "@ga/gen-server";
 import { type Client } from "@rootsdk/server-app";
-import { type AddWantRpcRequest, type AddWantRpcResponse, type AutocompleteRpcRequest, type AutocompleteRpcResponse, type DecksResponse, type ImportDeckRpcRequest, type ImportDeckRpcResponse, type LinkRequest, type LinkResponse, type PersonalWantsRpcResponse, type PreferencesRequest, type PreferencesResponse, type RegisterResponse, type RemoveWantRpcRequest, type RemoveWantRpcResponse, type StatusResponse, type UpdateDeckRpcRequest, type UpdateDeckRpcResponse } from "@ga/gen-shared";
+import { type AddWantRpcRequest, type AddWantRpcResponse, type AdminSettingsResponse, type AutocompleteRpcRequest, type AutocompleteRpcResponse, type DecksResponse, type ImportDeckRpcRequest, type ImportDeckRpcResponse, type LinkRequest, type LinkResponse, type PersonalWantsRpcResponse, type PreferencesRequest, type PreferencesResponse, type ProvisionMarketChannelsResponse, type RegisterResponse, type RemoveWantRpcRequest, type RemoveWantRpcResponse, type SetBroadcastChannelRequest, type SetBroadcastChannelResponse, type StatusResponse, type UpdateDeckRpcRequest, type UpdateDeckRpcResponse } from "@ga/gen-shared";
 import { RootBotApi } from "./root-bot-api";
-export interface AssistantRpcServiceDeps {
+import { type AdminRpcHelperDeps } from "./admin-rpc-helpers";
+export interface AssistantRpcServiceDeps extends AdminRpcHelperDeps {
     api?: RootBotApi;
     ensureRecipientChannel?: (recipientId: string, communityId?: string) => Promise<string | null>;
     removeDealAlertChannel?: (recipientId: string, communityId?: string) => Promise<void>;
@@ -14,6 +15,7 @@ export declare class AssistantRpcService extends AssistantServiceBase {
     private readonly defaultApi?;
     constructor(communityId?: string | undefined, deps?: AssistantRpcServiceDeps);
     private getApi;
+    private getConfig;
     getStatus(client: Client): Promise<StatusResponse>;
     linkAccount(request: LinkRequest, client: Client): Promise<LinkResponse>;
     registerAccount(client: Client): Promise<RegisterResponse>;
@@ -25,4 +27,7 @@ export declare class AssistantRpcService extends AssistantServiceBase {
     removeWant(request: RemoveWantRpcRequest, client: Client): Promise<RemoveWantRpcResponse>;
     importDeck(request: ImportDeckRpcRequest, client: Client): Promise<ImportDeckRpcResponse>;
     updateDeck(request: UpdateDeckRpcRequest, client: Client): Promise<UpdateDeckRpcResponse>;
+    getAdminSettings(client: Client): Promise<AdminSettingsResponse>;
+    setBroadcastChannel(request: SetBroadcastChannelRequest, client: Client): Promise<SetBroadcastChannelResponse>;
+    provisionMarketChannels(client: Client): Promise<ProvisionMarketChannelsResponse>;
 }

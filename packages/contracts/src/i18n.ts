@@ -854,6 +854,22 @@ export const enCatalog = {
       generic: "Something went wrong. Try reconnecting.",
     },
   },
+  communityAdmin: {
+    cardTitle: "Community Market Channel",
+    cardDescription: "Configure where automated market updates and store deal dumps are broadcast in this community",
+    activeChannelLabel: "Active Broadcast Channel",
+    noChannelConfigured: "No channel configured — market notifications are paused",
+    selectChannelPlaceholder: "Select a community text channel...",
+    saveChannelButton: "Save Channel",
+    savingChannel: "Saving...",
+    provisionButton: "Provision Default Channels",
+    provisioning: "Provisioning...",
+    provisionSuccess: "Created GA Market group and #{channel} broadcast channel",
+    saveSuccess: "Market broadcast channel set to #{channel}",
+    saveError: "Failed to update broadcast channel",
+    provisionError: "Failed to provision market channels",
+    adminBadge: "Admin Only",
+  },
 };
 
 export type TranslationCatalog = typeof enCatalog;
@@ -1704,6 +1720,22 @@ export const ptBRCatalog: TranslationCatalog = {
       noTarget: "Esse dispositivo não está conectado.",
       generic: "Algo deu errado. Tente reconectar.",
     },
+  },
+  communityAdmin: {
+    cardTitle: "Canal de Mercado da Comunidade",
+    cardDescription: "Configure onde as atualizações automáticas de mercado e novidades de lojas são transmitidas nesta comunidade",
+    activeChannelLabel: "Canal de Transmissão Ativo",
+    noChannelConfigured: "Nenhum canal configurado — notificações de mercado pausadas",
+    selectChannelPlaceholder: "Selecione um canal de texto da comunidade...",
+    saveChannelButton: "Salvar Canal",
+    savingChannel: "Salvando...",
+    provisionButton: "Provisionar Canais Padrão",
+    provisioning: "Provisionando...",
+    provisionSuccess: "Grupo GA Market e canal #{channel} criados com sucesso",
+    saveSuccess: "Canal de transmissão de mercado definido para #{channel}",
+    saveError: "Falha ao atualizar canal de transmissão",
+    provisionError: "Falha ao provisionar canais de mercado",
+    adminBadge: "Apenas Administradores",
   },
 };
 

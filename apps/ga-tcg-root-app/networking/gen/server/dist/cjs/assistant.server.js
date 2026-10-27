@@ -95,6 +95,30 @@ class AssistantServiceBase {
                 requestDeserialize: bytes => gen_shared_1.UpdateDeckRpcRequest.fromBinary(bytes),
                 responseSerialize: value => gen_shared_1.UpdateDeckRpcResponse.toBinary(value)
             },
+            {
+                serviceName: 'AssistantService',
+                methodName: 'GetAdminSettings',
+                funct: (e, c) => { return this.getAdminSettings(c); },
+                path: '/.AssistantService/GetAdminSettings',
+                requestDeserialize: bytes => gen_shared_1.Void.fromBinary(bytes),
+                responseSerialize: value => gen_shared_1.AdminSettingsResponse.toBinary(value)
+            },
+            {
+                serviceName: 'AssistantService',
+                methodName: 'SetBroadcastChannel',
+                funct: (e, c) => { return this.setBroadcastChannel(e, c); },
+                path: '/.AssistantService/SetBroadcastChannel',
+                requestDeserialize: bytes => gen_shared_1.SetBroadcastChannelRequest.fromBinary(bytes),
+                responseSerialize: value => gen_shared_1.SetBroadcastChannelResponse.toBinary(value)
+            },
+            {
+                serviceName: 'AssistantService',
+                methodName: 'ProvisionMarketChannels',
+                funct: (e, c) => { return this.provisionMarketChannels(c); },
+                path: '/.AssistantService/ProvisionMarketChannels',
+                requestDeserialize: bytes => gen_shared_1.Void.fromBinary(bytes),
+                responseSerialize: value => gen_shared_1.ProvisionMarketChannelsResponse.toBinary(value)
+            },
         ];
     }
     get ServerServiceName() {

@@ -1,5 +1,5 @@
-import type { DeckSummary, AutocompleteChoiceItem, PersonalWantRpcItem } from "@ga/gen-shared";
-import type { RootBotApi } from "./root-bot-api";
+import type { DeckSummary, AutocompleteChoiceItem, PersonalWantRpcItem, StatusResponse, LinkResponse, RegisterResponse } from "@ga/gen-shared";
+import { RootBotApi } from "./root-bot-api";
 export declare function buildDeckSummariesWithShortages(api: RootBotApi, userId: string, rawDecks: Array<{
     id: string;
     name: string;
@@ -33,3 +33,11 @@ export declare function mapPersonalWant(w: {
     desiredQuantity: number;
     foil?: boolean | number | null;
 }): PersonalWantRpcItem;
+export declare function createUnlinkedStatus(isAdmin?: boolean): StatusResponse;
+export declare function mapSuggestion(s: {
+    name: string;
+    slug: string;
+    quantity?: number;
+}): AutocompleteChoiceItem;
+export declare function linkAccountHelper(api: RootBotApi, userId: string, rawCode?: string): Promise<LinkResponse>;
+export declare function registerAccountHelper(api: RootBotApi, userId: string): Promise<RegisterResponse>;

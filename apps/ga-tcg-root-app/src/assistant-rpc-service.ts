@@ -1,8 +1,9 @@
 import { AssistantServiceBase } from "@ga/gen-server";
-import { type Client } from "@rootsdk/server-app";
+import { rootServer, type Client } from "@rootsdk/server-app";
 import {
   type AddWantRpcRequest,
   type AddWantRpcResponse,
+  type AdminSettingsResponse,
   type AutocompleteRpcRequest,
   type AutocompleteRpcResponse,
   type DecksResponse,
@@ -13,9 +14,12 @@ import {
   type PersonalWantsRpcResponse,
   type PreferencesRequest,
   type PreferencesResponse,
+  type ProvisionMarketChannelsResponse,
   type RegisterResponse,
   type RemoveWantRpcRequest,
   type RemoveWantRpcResponse,
+  type SetBroadcastChannelRequest,
+  type SetBroadcastChannelResponse,
   type StatusResponse,
   type UpdateDeckRpcRequest,
   type UpdateDeckRpcResponse,
@@ -26,9 +30,24 @@ import {
   updateDealAlertPreferencesHelper,
   mapAutocompleteChoice,
   mapPersonalWant,
+  createUnlinkedStatus,
+  mapSuggestion,
+  linkAccountHelper,
+  registerAccountHelper,
 } from "./assistant-rpc-helpers";
+import {
+  createCommunityConfig,
+  type RootCommunityConfig,
+} from "./community-config";
+import { checkIsCommunityAdmin } from "./community-admin";
+import {
+  getAdminSettingsHelper,
+  setBroadcastChannelHelper,
+  provisionMarketChannelsHelper,
+  type AdminRpcHelperDeps,
+} from "./admin-rpc-helpers";
 
-export interface AssistantRpcServiceDeps {
+export interface AssistantRpcServiceDeps extends AdminRpcHelperDeps {
   api?: RootBotApi;
   ensureRecipientChannel?: (
     recipientId: string,
@@ -78,9 +97,14 @@ export class AssistantRpcService extends AssistantServiceBase {
     return new RootBotApi({ communityId: resolvedCommunityId });
   }
 
+  private getConfig(): RootCommunityConfig {
+    return this.deps.config ?? createCommunityConfig(rootServer.dataStore.appData);
+  }
+
   async getStatus(client: Client): Promise<StatusResponse> {
     const userId = String(client.userId);
     const api = this.getApi(client);
+    const isAdmin = await (this.deps.isCommunityAdmin ?? checkIsCommunityAdmin)(userId);
     try {
       const [collector, channel] = await Promise.all([
         api.getCollector(userId),
@@ -88,15 +112,7 @@ export class AssistantRpcService extends AssistantServiceBase {
       ]);
 
       if (!collector) {
-        return {
-          isLinked: false,
-          collectorId: "",
-          collectorName: "",
-          friendCode: "",
-          notificationsEnabled: false,
-          dealAlertMode: "all",
-          alertChannelId: "",
-        };
+        return createUnlinkedStatus(isAdmin);
       }
 
       return {
@@ -107,17 +123,10 @@ export class AssistantRpcService extends AssistantServiceBase {
         notificationsEnabled: Boolean(collector.notificationsEnabled),
         dealAlertMode: collector.dealAlertMode ?? "all",
         alertChannelId: channel?.channelId ?? "",
+        isAdmin,
       };
     } catch {
-      return {
-        isLinked: false,
-        collectorId: "",
-        collectorName: "",
-        friendCode: "",
-        notificationsEnabled: false,
-        dealAlertMode: "all",
-        alertChannelId: "",
-      };
+      return createUnlinkedStatus(isAdmin);
     }
   }
 
@@ -125,65 +134,11 @@ export class AssistantRpcService extends AssistantServiceBase {
     request: LinkRequest,
     client: Client
   ): Promise<LinkResponse> {
-    const userId = String(client.userId);
-    const api = this.getApi(client);
-    const code = (request.code || "").trim().toUpperCase();
-
-    if (!code) {
-      return {
-        success: false,
-        collectorName: "",
-        error: "INVALID_CODE",
-      };
-    }
-
-    try {
-      const res = await api.link({
-        token: code,
-        provider: "root",
-        providerUserId: userId,
-      });
-
-      return {
-        success: true,
-        collectorName: res.collectorName ?? "",
-        error: "",
-      };
-    } catch (err: unknown) {
-      if (err instanceof RootBotApiError) {
-        return {
-          success: false,
-          collectorName: "",
-          error: err.code || err.message,
-        };
-      }
-      return {
-        success: false,
-        collectorName: "",
-        error: err instanceof Error ? err.message : "LINK_FAILED",
-      };
-    }
+    return linkAccountHelper(this.getApi(client), String(client.userId), request.code);
   }
 
   async registerAccount(client: Client): Promise<RegisterResponse> {
-    const userId = String(client.userId);
-    const api = this.getApi(client);
-    try {
-      const res = await api.register(userId);
-      return {
-        success: true,
-        collectorName: res.collector.name ?? "",
-        friendCode: res.collector.friendCode ?? "",
-        error: "",
-      };
-    } catch (err: unknown) {
-      return {
-        success: false,
-        collectorName: "",
-        friendCode: "",
-        error: err instanceof Error ? err.message : "REGISTER_FAILED",
-      };
-    }
+    return registerAccountHelper(this.getApi(client), String(client.userId));
   }
 
   async setPreferences(
@@ -286,14 +241,7 @@ export class AssistantRpcService extends AssistantServiceBase {
         success: true,
         message: res.card ? `Added ${res.card.name}` : "Imported Omnidex shortages",
         error: "",
-        suggestions: (res.suggestions || []).map((s) => ({
-          name: s.name,
-          value: s.slug,
-          element: "",
-          type: "",
-          quantity: 0,
-          foil: false,
-        })),
+        suggestions: (res.suggestions || []).map(mapSuggestion),
       };
     } catch (err: unknown) {
       return {
@@ -322,14 +270,7 @@ export class AssistantRpcService extends AssistantServiceBase {
         remainingQuantity: res.remainingQuantity,
         cardName: res.cardName,
         error: "",
-        suggestions: (res.suggestions || []).map((s) => ({
-          name: s.name,
-          value: s.slug,
-          element: "",
-          type: "",
-          quantity: s.quantity,
-          foil: false,
-        })),
+        suggestions: (res.suggestions || []).map(mapSuggestion),
       };
     } catch (err: unknown) {
       return {
@@ -394,5 +335,35 @@ export class AssistantRpcService extends AssistantServiceBase {
         error: err instanceof Error ? err.message : "UPDATE_DECK_FAILED",
       };
     }
+  }
+
+  async getAdminSettings(client: Client): Promise<AdminSettingsResponse> {
+    return getAdminSettingsHelper(
+      String(client.userId),
+      this.getConfig(),
+      this.deps
+    );
+  }
+
+  async setBroadcastChannel(
+    request: SetBroadcastChannelRequest,
+    client: Client
+  ): Promise<SetBroadcastChannelResponse> {
+    return setBroadcastChannelHelper(
+      String(client.userId),
+      request,
+      this.getConfig(),
+      this.deps
+    );
+  }
+
+  async provisionMarketChannels(
+    client: Client
+  ): Promise<ProvisionMarketChannelsResponse> {
+    return provisionMarketChannelsHelper(
+      String(client.userId),
+      this.getConfig(),
+      this.deps
+    );
   }
 }

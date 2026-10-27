@@ -4,6 +4,7 @@ import { AccountLinkCard } from "./components/AccountLinkCard";
 import { DealAlertCard } from "./components/DealAlertCard";
 import { DecksDashboardCard } from "./components/DecksDashboardCard";
 import { WantlistCard } from "./components/WantlistCard";
+import { CommunityAdminCard } from "./components/CommunityAdminCard";
 import type { IAssistantRpcClient, StatusResponse, DeckSummary } from "./types";
 
 export interface AppProps {
@@ -64,6 +65,7 @@ export const App: React.FC<AppProps> = ({ client }) => {
         notificationsEnabled: false,
         dealAlertMode: "all",
         alertChannelId: "",
+        isAdmin: false,
       });
       setErrorBanner(
         "Unable to connect to the Assistant Service. Click Refresh to retry."
@@ -194,6 +196,11 @@ export const App: React.FC<AppProps> = ({ client }) => {
           </div>
         ) : (
           <main className="space-y-6">
+            <CommunityAdminCard
+              isAdmin={status?.isAdmin ?? false}
+              client={client}
+            />
+
             <AccountLinkCard
               isLinked={status?.isLinked ?? false}
               collectorName={status?.collectorName ?? ""}

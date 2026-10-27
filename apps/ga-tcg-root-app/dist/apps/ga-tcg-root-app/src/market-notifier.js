@@ -16,7 +16,7 @@ const diagnostics_1 = require("./diagnostics");
 async function runMarketNotificationPoll(deps) {
     const broadcastChannelId = await deps.config.getBroadcastChannelId();
     if (!broadcastChannelId) {
-        deps.warn?.("No broadcast channel configured — run /setup in the target channel. Market notifications paused.");
+        deps.warn?.("No broadcast channel configured — select a channel in the Assistant App GUI. Market notifications paused.");
         return;
     }
     const { chunks } = await deps.api.getMarketNotifications();

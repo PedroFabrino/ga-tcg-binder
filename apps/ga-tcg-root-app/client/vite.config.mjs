@@ -38,6 +38,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@ga/contracts": path.resolve(__dirname, "../../../packages/contracts/src"),
       "@ga/gen-client": path.resolve(__dirname, "../networking/gen/client/src"),
       "@ga/gen-shared": path.resolve(__dirname, "../networking/gen/shared/src"),
     },

@@ -65,7 +65,7 @@ export async function describeCommunityContext(
   lines.push(
     options.broadcastChannelId
       ? `Market broadcast channel: ${options.broadcastChannelId}`
-      : "Market broadcast channel: not configured (run /setup in the target channel)."
+      : "Market broadcast channel: not configured (configure in the Assistant App GUI)."
   );
 
   lines.push(

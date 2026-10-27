@@ -43,7 +43,7 @@ async function describeCommunityContext(directory, options = {}) {
     }
     lines.push(options.broadcastChannelId
         ? `Market broadcast channel: ${options.broadcastChannelId}`
-        : "Market broadcast channel: not configured (run /setup in the target channel).");
+        : "Market broadcast channel: not configured (configure in the Assistant App GUI).");
     lines.push("Deal-alert access: self-granted via the bot's own app id (no bot role needed).");
     return lines;
 }

@@ -16,8 +16,8 @@ Build an interactive, in-community GUI application inside Root using `@rootsdk/c
 2. **Account Linking Portal Card**: Displays live link status. If unlinked, displays an input field for the 6-character code, an instant "Link Account" action button, and a direct button linking out to the web portal's `Settings > Linked Accounts` page. If linked, displays the collector's name and friend code with an unlink option.
 3. **Deal Alert Preference Switchboard**: Provides an interactive toggle switch for private deal alerts (`Active` / `Disabled`) and a segmented mode picker (`All Shortages` vs `Hard Shortages Only`), explaining clearly what each mode delivers without typing text commands.
 4. **Decks & Shortages Dashboard**: Displays collapsible cards for each of the collector's active constructed decks, highlighting Champion, Format, total card counts, and distinct badges for Hard Shortages (compra necessária) and Shared Shortages (revezamento).
-5. **Dedicated Community Channel**: During `/setup`, the bot automatically provisions a dedicated `#assistant` channel inside the **GA Market** channel group with the GUI App tab pre-loaded.
-6. **Backward Compatibility**: Text commands in chat remain fully functional as a fallback.
+5. **Dedicated Community Channel & Admin In-App Configuration**: Administrators can select any community text channel as the broadcast dump channel or trigger one-click idempotent channel provisioning directly inside the Assistant GUI (`CommunityAdminCard`), removing any dependency on `/setup`.
+6. **GUI-Only Architecture**: All interaction is handled through the interactive GUI; legacy `/` text commands in chat are fully removed to eliminate noisy bot messages and duplicated interface layers.
 
 ## User Stories
 
@@ -34,8 +34,8 @@ Build an interactive, in-community GUI application inside Root using `@rootsdk/c
 11. As a linked collector, I want to see the count of Hard Shortages displayed with a distinct red/rose badge on each deck, so that I instantly know how many copies I must purchase.
 12. As a linked collector, I want to see the count of Shared Shortages displayed with a distinct amber badge on each deck, so that I know which cards can be borrowed or rotated from other decks.
 13. As a linked collector, I want to click any deck card to expand its missing card breakdown, so that I can see the exact card names and deficit quantities.
-14. As a community administrator, I want running `/setup` to create the `#assistant` app channel automatically in the GA Market group, so that my members can access the GUI immediately.
-15. As a community administrator, I want running `/setup confirm` to avoid duplicating the app channel if it already exists, so that setup is completely idempotent.
+14. As a community administrator, I want to configure the market broadcast channel directly inside the Assistant GUI, so that marketplace deal updates are routed without typing `/setup` in chat.
+15. As a community administrator, I want a "Provision Default Channels" button inside the GUI that idempotently creates the `#market` and `#assistant` channels in the `GA Market` group if not yet created.
 16. As a developer, I want all GUI static text to follow the canonical English game nomenclature rules, so that card names and game elements remain official.
 17. As a developer, I want the client app to communicate with the server via typed Root RPC, so that user identity verification is handled cryptographically by the platform without exposing server secrets.
 
@@ -60,11 +60,13 @@ Build an interactive, in-community GUI application inside Root using `@rootsdk/c
   - Accent colors: Indigo for provider/identity tags, Emerald for active status, Rose for hard shortages, Amber for shared shortages.
   - Icons: `lucide-react` icons (`Link2`, `Bell`, `ShieldCheck`, `Layers`, `ExternalLink`, `AlertCircle`, `CheckCircle2`).
 
-### 4. Idempotent Provisioning
-- Update `/setup` in `command-handlers.ts` to provision:
-  1. Community Channel Group: `GA Market`
-  2. Public Store Listing Channel: `#market`
-  3. Assistant GUI Channel: `#assistant` (configured as an App Channel hosting the client UI)
+### 4. Idempotent Provisioning & Channel Configuration
+- Provide in-app configuration via `CommunityAdminCard` and `admin-rpc-helpers.ts` allowing admins to:
+  1. Select any existing community text channel to serve as the market broadcast dump channel.
+  2. Or click "Provision Default Channels" to idempotently create:
+     - Community Channel Group: `GA Market`
+     - Public Store Listing Channel: `#market`
+     - Assistant GUI Channel: `#assistant` (configured as an App Channel hosting the client UI)
 
 ## Testing Decisions
 
@@ -74,7 +76,7 @@ Build an interactive, in-community GUI application inside Root using `@rootsdk/c
   - Successful account linking with token vs error responses (`INVALID_CODE`, `EXPIRED_CODE`).
   - Preference updating toggling `enabled` and `mode` (`all` vs `hard`).
   - Deck list and shortage aggregation retrieval.
-- Prior art: [`apps/ga-tcg-root-app/src/__tests__/command-handlers.test.ts`](file:///c:/Users/pfabr/Documents/Git/ga-tcg-binder/apps/ga-tcg-root-app/src/__tests__/command-handlers.test.ts).
+- Prior art: [`apps/ga-tcg-root-app/src/__tests__/assistant-rpc-service.test.ts`](file:///c:/Users/pfabr/Documents/Git/ga-tcg-binder/apps/ga-tcg-root-app/src/__tests__/assistant-rpc-service.test.ts).
 
 ### 2. Client Component Unit Testing
 - Test the React views using `@testing-library/react` and Vitest:
@@ -84,8 +86,8 @@ Build an interactive, in-community GUI application inside Root using `@rootsdk/c
   - Deck cards display badges with correct counts for hard vs shared shortages.
 
 ### 3. Provisioning Integration Testing
-- Verify that running `/setup confirm` creates the `#assistant` app channel in addition to the `#market` channel, and avoids duplicate creation if already configured.
-- Prior art: [`apps/ga-tcg-root-app/src/__tests__/community-config.test.ts`](file:///c:/Users/pfabr/Documents/Git/ga-tcg-binder/apps/ga-tcg-root-app/src/__tests__/community-config.test.ts).
+- Verify that provisioning creates the `#assistant` app channel in addition to the `#market` channel, and avoids duplicate creation if already configured.
+- Prior art: [`apps/ga-tcg-root-app/src/__tests__/setup-provisioning.test.ts`](file:///c:/Users/pfabr/Documents/Git/ga-tcg-binder/apps/ga-tcg-root-app/src/__tests__/setup-provisioning.test.ts).
 
 ## Out of Scope (Phase 2 Deferred Backlog)
 

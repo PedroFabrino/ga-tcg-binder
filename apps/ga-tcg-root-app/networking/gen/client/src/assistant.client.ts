@@ -5,6 +5,7 @@
 import {
   AddWantRpcRequest,
 	AddWantRpcResponse,
+	AdminSettingsResponse,
 	AutocompleteRpcRequest,
 	AutocompleteRpcResponse,
 	DecksResponse,
@@ -15,9 +16,12 @@ import {
 	PersonalWantsRpcResponse,
 	PreferencesRequest,
 	PreferencesResponse,
+	ProvisionMarketChannelsResponse,
 	RegisterResponse,
 	RemoveWantRpcRequest,
 	RemoveWantRpcResponse,
+	SetBroadcastChannelRequest,
+	SetBroadcastChannelResponse,
 	StatusResponse,
 	UpdateDeckRpcRequest,
 	UpdateDeckRpcResponse,
@@ -70,6 +74,15 @@ export class AssistantServiceClient  {
 	}
 	updateDeck(request: UpdateDeckRpcRequest):Promise<UpdateDeckRpcResponse> {
 		return (<any>rootClient).sendWithResponse('/.AssistantService/UpdateDeck',request, this.updateDeck);
+	}
+	getAdminSettings():Promise<AdminSettingsResponse> {
+		return (<any>rootClient).sendWithResponse('/.AssistantService/GetAdminSettings',{}, this.getAdminSettings);
+	}
+	setBroadcastChannel(request: SetBroadcastChannelRequest):Promise<SetBroadcastChannelResponse> {
+		return (<any>rootClient).sendWithResponse('/.AssistantService/SetBroadcastChannel',request, this.setBroadcastChannel);
+	}
+	provisionMarketChannels():Promise<ProvisionMarketChannelsResponse> {
+		return (<any>rootClient).sendWithResponse('/.AssistantService/ProvisionMarketChannels',{}, this.provisionMarketChannels);
 	}private __register(): UntypedClientMethodDefinition[] {
 		return [	{
       serviceName: 'AssistantServiceClient',
@@ -147,6 +160,27 @@ export class AssistantServiceClient  {
 			path: '/.AssistantService/UpdateDeck',
 			requestSerialize: value => UpdateDeckRpcRequest.toBinary(value),
 			responseDeserialize: bytes => UpdateDeckRpcResponse.fromBinary(bytes)
+    },
+		{
+      serviceName: 'AssistantServiceClient',
+			methodName: 'GetAdminSettings',
+			path: '/.AssistantService/GetAdminSettings',
+			requestSerialize: () => Void.toBinary({}),
+			responseDeserialize: bytes => AdminSettingsResponse.fromBinary(bytes)
+    },
+		{
+      serviceName: 'AssistantServiceClient',
+			methodName: 'SetBroadcastChannel',
+			path: '/.AssistantService/SetBroadcastChannel',
+			requestSerialize: value => SetBroadcastChannelRequest.toBinary(value),
+			responseDeserialize: bytes => SetBroadcastChannelResponse.fromBinary(bytes)
+    },
+		{
+      serviceName: 'AssistantServiceClient',
+			methodName: 'ProvisionMarketChannels',
+			path: '/.AssistantService/ProvisionMarketChannels',
+			requestSerialize: () => Void.toBinary({}),
+			responseDeserialize: bytes => ProvisionMarketChannelsResponse.fromBinary(bytes)
     },
 	]}
 }

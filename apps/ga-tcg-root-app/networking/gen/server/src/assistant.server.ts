@@ -5,6 +5,7 @@
 import {
   AddWantRpcRequest,
 	AddWantRpcResponse,
+	AdminSettingsResponse,
 	AutocompleteRpcRequest,
 	AutocompleteRpcResponse,
 	DecksResponse,
@@ -15,9 +16,12 @@ import {
 	PersonalWantsRpcResponse,
 	PreferencesRequest,
 	PreferencesResponse,
+	ProvisionMarketChannelsResponse,
 	RegisterResponse,
 	RemoveWantRpcRequest,
 	RemoveWantRpcResponse,
+	SetBroadcastChannelRequest,
+	SetBroadcastChannelResponse,
 	StatusResponse,
 	UpdateDeckRpcRequest,
 	UpdateDeckRpcResponse,
@@ -45,6 +49,9 @@ export abstract class AssistantServiceBase implements RootServerService {
 	abstract removeWant(request: RemoveWantRpcRequest, client: Client): Promise<RemoveWantRpcResponse>;
 	abstract importDeck(request: ImportDeckRpcRequest, client: Client): Promise<ImportDeckRpcResponse>;
 	abstract updateDeck(request: UpdateDeckRpcRequest, client: Client): Promise<UpdateDeckRpcResponse>;
+	abstract getAdminSettings(client: Client): Promise<AdminSettingsResponse>;
+	abstract setBroadcastChannel(request: SetBroadcastChannelRequest, client: Client): Promise<SetBroadcastChannelResponse>;
+	abstract provisionMarketChannels(client: Client): Promise<ProvisionMarketChannelsResponse>;
 
 	private __register(): UntypedServerMethodDefinition[] {
 		return [	{
@@ -134,6 +141,30 @@ export abstract class AssistantServiceBase implements RootServerService {
 			path: '/.AssistantService/UpdateDeck',
 			requestDeserialize: bytes => UpdateDeckRpcRequest.fromBinary(bytes),
 			responseSerialize: value => UpdateDeckRpcResponse.toBinary(value)
+		},
+		{
+			serviceName: 'AssistantService',
+			methodName: 'GetAdminSettings',
+			funct: (e: Void, c: Client) => { return this.getAdminSettings(c) },
+			path: '/.AssistantService/GetAdminSettings',
+			requestDeserialize: bytes => Void.fromBinary(bytes),
+			responseSerialize: value => AdminSettingsResponse.toBinary(value)
+		},
+		{
+			serviceName: 'AssistantService',
+			methodName: 'SetBroadcastChannel',
+			funct: (e: SetBroadcastChannelRequest, c: Client) => { return this.setBroadcastChannel(e, c) },
+			path: '/.AssistantService/SetBroadcastChannel',
+			requestDeserialize: bytes => SetBroadcastChannelRequest.fromBinary(bytes),
+			responseSerialize: value => SetBroadcastChannelResponse.toBinary(value)
+		},
+		{
+			serviceName: 'AssistantService',
+			methodName: 'ProvisionMarketChannels',
+			funct: (e: Void, c: Client) => { return this.provisionMarketChannels(c) },
+			path: '/.AssistantService/ProvisionMarketChannels',
+			requestDeserialize: bytes => Void.fromBinary(bytes),
+			responseSerialize: value => ProvisionMarketChannelsResponse.toBinary(value)
 		},
 	]}
 

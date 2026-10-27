@@ -42,6 +42,10 @@ export interface StatusResponse {
      * @generated from protobuf field: string alert_channel_id = 7
      */
     alertChannelId: string;
+    /**
+     * @generated from protobuf field: bool is_admin = 8
+     */
+    isAdmin: boolean;
 }
 /**
  * @generated from protobuf message LinkRequest
@@ -448,6 +452,99 @@ export interface UpdateDeckRpcResponse {
      */
     error: string;
 }
+/**
+ * @generated from protobuf message CommunityChannelOption
+ */
+export interface CommunityChannelOption {
+    /**
+     * @generated from protobuf field: string id = 1
+     */
+    id: string;
+    /**
+     * @generated from protobuf field: string name = 2
+     */
+    name: string;
+    /**
+     * @generated from protobuf field: string group_name = 3
+     */
+    groupName: string;
+}
+/**
+ * @generated from protobuf message AdminSettingsResponse
+ */
+export interface AdminSettingsResponse {
+    /**
+     * @generated from protobuf field: bool is_admin = 1
+     */
+    isAdmin: boolean;
+    /**
+     * @generated from protobuf field: string broadcast_channel_id = 2
+     */
+    broadcastChannelId: string;
+    /**
+     * @generated from protobuf field: string broadcast_channel_name = 3
+     */
+    broadcastChannelName: string;
+    /**
+     * @generated from protobuf field: repeated CommunityChannelOption text_channels = 4
+     */
+    textChannels: CommunityChannelOption[];
+}
+/**
+ * @generated from protobuf message SetBroadcastChannelRequest
+ */
+export interface SetBroadcastChannelRequest {
+    /**
+     * @generated from protobuf field: string channel_id = 1
+     */
+    channelId: string;
+}
+/**
+ * @generated from protobuf message SetBroadcastChannelResponse
+ */
+export interface SetBroadcastChannelResponse {
+    /**
+     * @generated from protobuf field: bool success = 1
+     */
+    success: boolean;
+    /**
+     * @generated from protobuf field: string broadcast_channel_id = 2
+     */
+    broadcastChannelId: string;
+    /**
+     * @generated from protobuf field: string broadcast_channel_name = 3
+     */
+    broadcastChannelName: string;
+    /**
+     * @generated from protobuf field: string error = 4
+     */
+    error: string;
+}
+/**
+ * @generated from protobuf message ProvisionMarketChannelsResponse
+ */
+export interface ProvisionMarketChannelsResponse {
+    /**
+     * @generated from protobuf field: bool success = 1
+     */
+    success: boolean;
+    /**
+     * @generated from protobuf field: string broadcast_channel_id = 2
+     */
+    broadcastChannelId: string;
+    /**
+     * @generated from protobuf field: string broadcast_channel_name = 3
+     */
+    broadcastChannelName: string;
+    /**
+     * @generated from protobuf field: string assistant_channel_id = 4
+     */
+    assistantChannelId: string;
+    /**
+     * @generated from protobuf field: string error = 5
+     */
+    error: string;
+}
 // @generated message type with reflection information, may provide speed optimized methods
 class StatusResponse$Type extends MessageType<StatusResponse> {
     constructor() {
@@ -458,7 +555,8 @@ class StatusResponse$Type extends MessageType<StatusResponse> {
             { no: 4, name: "friend_code", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 5, name: "notifications_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 6, name: "deal_alert_mode", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 7, name: "alert_channel_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 7, name: "alert_channel_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 8, name: "is_admin", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<StatusResponse>): StatusResponse {
@@ -470,6 +568,7 @@ class StatusResponse$Type extends MessageType<StatusResponse> {
         message.notificationsEnabled = false;
         message.dealAlertMode = "";
         message.alertChannelId = "";
+        message.isAdmin = false;
         if (value !== undefined)
             reflectionMergePartial<StatusResponse>(this, message, value);
         return message;
@@ -499,6 +598,9 @@ class StatusResponse$Type extends MessageType<StatusResponse> {
                     break;
                 case /* string alert_channel_id */ 7:
                     message.alertChannelId = reader.string();
+                    break;
+                case /* bool is_admin */ 8:
+                    message.isAdmin = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -533,6 +635,9 @@ class StatusResponse$Type extends MessageType<StatusResponse> {
         /* string alert_channel_id = 7; */
         if (message.alertChannelId !== "")
             writer.tag(7, WireType.LengthDelimited).string(message.alertChannelId);
+        /* bool is_admin = 8; */
+        if (message.isAdmin !== false)
+            writer.tag(8, WireType.Varint).bool(message.isAdmin);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1962,3 +2067,334 @@ class UpdateDeckRpcResponse$Type extends MessageType<UpdateDeckRpcResponse> {
  * @generated MessageType for protobuf message UpdateDeckRpcResponse
  */
 export const UpdateDeckRpcResponse = new UpdateDeckRpcResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class CommunityChannelOption$Type extends MessageType<CommunityChannelOption> {
+    constructor() {
+        super("CommunityChannelOption", [
+            { no: 1, name: "id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "group_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<CommunityChannelOption>): CommunityChannelOption {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.id = "";
+        message.name = "";
+        message.groupName = "";
+        if (value !== undefined)
+            reflectionMergePartial<CommunityChannelOption>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CommunityChannelOption): CommunityChannelOption {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string id */ 1:
+                    message.id = reader.string();
+                    break;
+                case /* string name */ 2:
+                    message.name = reader.string();
+                    break;
+                case /* string group_name */ 3:
+                    message.groupName = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: CommunityChannelOption, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string id = 1; */
+        if (message.id !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.id);
+        /* string name = 2; */
+        if (message.name !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.name);
+        /* string group_name = 3; */
+        if (message.groupName !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.groupName);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message CommunityChannelOption
+ */
+export const CommunityChannelOption = new CommunityChannelOption$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AdminSettingsResponse$Type extends MessageType<AdminSettingsResponse> {
+    constructor() {
+        super("AdminSettingsResponse", [
+            { no: 1, name: "is_admin", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 2, name: "broadcast_channel_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "broadcast_channel_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "text_channels", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => CommunityChannelOption }
+        ]);
+    }
+    create(value?: PartialMessage<AdminSettingsResponse>): AdminSettingsResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.isAdmin = false;
+        message.broadcastChannelId = "";
+        message.broadcastChannelName = "";
+        message.textChannels = [];
+        if (value !== undefined)
+            reflectionMergePartial<AdminSettingsResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AdminSettingsResponse): AdminSettingsResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* bool is_admin */ 1:
+                    message.isAdmin = reader.bool();
+                    break;
+                case /* string broadcast_channel_id */ 2:
+                    message.broadcastChannelId = reader.string();
+                    break;
+                case /* string broadcast_channel_name */ 3:
+                    message.broadcastChannelName = reader.string();
+                    break;
+                case /* repeated CommunityChannelOption text_channels */ 4:
+                    message.textChannels.push(CommunityChannelOption.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AdminSettingsResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* bool is_admin = 1; */
+        if (message.isAdmin !== false)
+            writer.tag(1, WireType.Varint).bool(message.isAdmin);
+        /* string broadcast_channel_id = 2; */
+        if (message.broadcastChannelId !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.broadcastChannelId);
+        /* string broadcast_channel_name = 3; */
+        if (message.broadcastChannelName !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.broadcastChannelName);
+        /* repeated CommunityChannelOption text_channels = 4; */
+        for (let i = 0; i < message.textChannels.length; i++)
+            CommunityChannelOption.internalBinaryWrite(message.textChannels[i], writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message AdminSettingsResponse
+ */
+export const AdminSettingsResponse = new AdminSettingsResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SetBroadcastChannelRequest$Type extends MessageType<SetBroadcastChannelRequest> {
+    constructor() {
+        super("SetBroadcastChannelRequest", [
+            { no: 1, name: "channel_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SetBroadcastChannelRequest>): SetBroadcastChannelRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.channelId = "";
+        if (value !== undefined)
+            reflectionMergePartial<SetBroadcastChannelRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SetBroadcastChannelRequest): SetBroadcastChannelRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string channel_id */ 1:
+                    message.channelId = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SetBroadcastChannelRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string channel_id = 1; */
+        if (message.channelId !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.channelId);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message SetBroadcastChannelRequest
+ */
+export const SetBroadcastChannelRequest = new SetBroadcastChannelRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SetBroadcastChannelResponse$Type extends MessageType<SetBroadcastChannelResponse> {
+    constructor() {
+        super("SetBroadcastChannelResponse", [
+            { no: 1, name: "success", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 2, name: "broadcast_channel_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "broadcast_channel_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SetBroadcastChannelResponse>): SetBroadcastChannelResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.success = false;
+        message.broadcastChannelId = "";
+        message.broadcastChannelName = "";
+        message.error = "";
+        if (value !== undefined)
+            reflectionMergePartial<SetBroadcastChannelResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SetBroadcastChannelResponse): SetBroadcastChannelResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* bool success */ 1:
+                    message.success = reader.bool();
+                    break;
+                case /* string broadcast_channel_id */ 2:
+                    message.broadcastChannelId = reader.string();
+                    break;
+                case /* string broadcast_channel_name */ 3:
+                    message.broadcastChannelName = reader.string();
+                    break;
+                case /* string error */ 4:
+                    message.error = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SetBroadcastChannelResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* bool success = 1; */
+        if (message.success !== false)
+            writer.tag(1, WireType.Varint).bool(message.success);
+        /* string broadcast_channel_id = 2; */
+        if (message.broadcastChannelId !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.broadcastChannelId);
+        /* string broadcast_channel_name = 3; */
+        if (message.broadcastChannelName !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.broadcastChannelName);
+        /* string error = 4; */
+        if (message.error !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.error);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message SetBroadcastChannelResponse
+ */
+export const SetBroadcastChannelResponse = new SetBroadcastChannelResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ProvisionMarketChannelsResponse$Type extends MessageType<ProvisionMarketChannelsResponse> {
+    constructor() {
+        super("ProvisionMarketChannelsResponse", [
+            { no: 1, name: "success", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 2, name: "broadcast_channel_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "broadcast_channel_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "assistant_channel_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ProvisionMarketChannelsResponse>): ProvisionMarketChannelsResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.success = false;
+        message.broadcastChannelId = "";
+        message.broadcastChannelName = "";
+        message.assistantChannelId = "";
+        message.error = "";
+        if (value !== undefined)
+            reflectionMergePartial<ProvisionMarketChannelsResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ProvisionMarketChannelsResponse): ProvisionMarketChannelsResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* bool success */ 1:
+                    message.success = reader.bool();
+                    break;
+                case /* string broadcast_channel_id */ 2:
+                    message.broadcastChannelId = reader.string();
+                    break;
+                case /* string broadcast_channel_name */ 3:
+                    message.broadcastChannelName = reader.string();
+                    break;
+                case /* string assistant_channel_id */ 4:
+                    message.assistantChannelId = reader.string();
+                    break;
+                case /* string error */ 5:
+                    message.error = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ProvisionMarketChannelsResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* bool success = 1; */
+        if (message.success !== false)
+            writer.tag(1, WireType.Varint).bool(message.success);
+        /* string broadcast_channel_id = 2; */
+        if (message.broadcastChannelId !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.broadcastChannelId);
+        /* string broadcast_channel_name = 3; */
+        if (message.broadcastChannelName !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.broadcastChannelName);
+        /* string assistant_channel_id = 4; */
+        if (message.assistantChannelId !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.assistantChannelId);
+        /* string error = 5; */
+        if (message.error !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.error);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message ProvisionMarketChannelsResponse
+ */
+export const ProvisionMarketChannelsResponse = new ProvisionMarketChannelsResponse$Type();

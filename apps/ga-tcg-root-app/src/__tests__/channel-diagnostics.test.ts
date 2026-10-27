@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@rootsdk/server-bot", () => ({
+vi.mock("@rootsdk/server-app", () => ({
   rootServer: { community: {} },
   ErrorCodeType: {},
 }));

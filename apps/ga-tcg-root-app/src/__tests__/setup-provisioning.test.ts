@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { provisionCommunityChannels } from "../setup-provisioning";
 import { type RootCommunityConfig } from "../community-config";
-import { ChannelType } from "@rootsdk/server-bot";
+import { ChannelType } from "@rootsdk/server-app";
 
 function createMockConfig(initial: {
   sectionId?: string;
