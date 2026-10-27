@@ -6,11 +6,13 @@ updateStoreFullScanAt,
 upsertMarketCards,
 } from "../db/repositories/marketplace-repository";
 import {
-  parseLigaStoreItemDetails,
+  LIGA_STORE_CONFIGS,
   parseLigaStoreSearchPage,
   type ParsedLigaStoreItem,
 } from "./ligastore-parser";
 import { resolveListing } from "./listing-resolver";
+import { fetchWithRetry } from "./market-request-helper";
+import { isSessionExpiredError } from "./store-session";
 import {
   loadCatalogResolutionData,
   type CatalogResolutionData,
@@ -23,9 +25,13 @@ export function resolveLigaStoreItem(
   catalog: CatalogResolutionData
 ): { cardSlug: string | null; editionId: string | null; setPrefix: string } {
   return resolveListing(
-    { name: item.cardName, collectorNumber: item.collectorNumber },
+    {
+      name: item.cardName,
+      collectorNumber: item.collectorNumber,
+      setPrefix: item.setPrefix,
+    },
     catalog,
-    { keepCardWhenEditionMissing: false }
+    { keepCardWhenEditionMissing: true }
   );
 }
 
@@ -54,66 +60,32 @@ export async function syncLigaStore(options?: {
   }
 
   const storeData = store as any;
-  const buildPageUrl = (page: number) =>
-    `${storeData.baseUrl}/?view=ecom/itens&page=${page}&id=${
-      storeData.id === "brandao" ? "207836" : storeData.id
-    }&tcg=${encodeURIComponent(storeData.tcgId || "21")}&ultimas=1&txt_order=6&txt_limit=30&txt_estoque=1&btFiltrar=Filtrar`;
+  const config = LIGA_STORE_CONFIGS[storeData.id.toLowerCase()] || {
+    ecomId: storeData.id,
+    hasWorkingStockFilter: true,
+    limit: 30,
+    order: 6,
+    ultimas: "1",
+  };
 
-  async function fetchText(url: string): Promise<string> {
+  const buildPageUrl = (page: number) => {
+    const stockParam = config.hasWorkingStockFilter ? "&txt_estoque=1" : "";
+    const ultimasParam = config.ultimas ? `&ultimas=${encodeURIComponent(config.ultimas)}` : "&ultimas=";
+    return `${storeData.baseUrl}/?view=ecom/itens&page=${page}&id=${
+      config.ecomId
+    }&comdesconto=&tcg=${encodeURIComponent(storeData.tcgId || "21")}&txt_idioma=&txt_qualid=&${ultimasParam}&txt_filtro_multiestoque=&txt_extras%5B%5D=&txt_order=${config.order}&txt_raridade=&txt_cor=&txt_limit=${config.limit}${stockParam}&btFiltrar=Filtrar`;
+  };
+
+  async function fetchText(url: string, retries = 3): Promise<string> {
     const fullUrl = url.startsWith("http")
       ? url
       : new URL(url, storeData.baseUrl).toString();
 
-    const flareUrl = process.env.FLARESOLVERR_URL;
-    if (flareUrl && !options?.customFetch) {
-      try {
-        const solverRes = await fetch(`${flareUrl.replace(/\/$/, "")}/v1`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            cmd: "request.get",
-            url: fullUrl,
-            maxTimeout: 60000,
-          }),
-        });
-        if (solverRes.ok) {
-          const solverJson = await solverRes.json();
-          if (solverJson?.solution?.response) {
-            return solverJson.solution.response;
-          }
-        }
-      } catch {
-        // Fallback to direct fetch
-      }
-    }
-
-    const browserHeaders = {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-      "Accept":
-        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-      "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-      "Cache-Control": "no-cache",
-      "Pragma": "no-cache",
-      "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-      "Sec-Ch-Ua-Mobile": "?0",
-      "Sec-Ch-Ua-Platform": '"Windows"',
-      "Sec-Fetch-Dest": "document",
-      "Sec-Fetch-Mode": "navigate",
-      "Sec-Fetch-Site": "none",
-      "Sec-Fetch-User": "?1",
-      "Upgrade-Insecure-Requests": "1",
-    };
-
-    const response = await fetchFn(fullUrl, {
-      headers: browserHeaders,
+    return fetchWithRetry(fullUrl, {
+      storeId,
+      customFetch: options?.customFetch,
+      maxRetries: retries,
     });
-
-    if (response.ok === false) {
-      throw new Error(`LigaStore request failed (${response.status}) for ${fullUrl}`);
-    }
-
-    return response.text();
   }
 
   const firstPageHtml = await fetchText(buildPageUrl(1));
@@ -121,26 +93,49 @@ export async function syncLigaStore(options?: {
   const totalCount = Number(firstPage.totalCount) || firstPage.items.length;
   const parsedItems: ParsedLigaStoreItem[] = [...firstPage.items];
 
-  if (totalCount > 30) {
-    const maxPages = Math.min(15, Math.ceil(totalCount / 30));
+  const pageSize = config.limit || 30;
+
+  if (totalCount > pageSize) {
+    const maxPages = Math.min(25, Math.ceil(totalCount / pageSize));
 
     for (let page = 2; page <= maxPages; page += 1) {
       if (!options?.customFetch) {
-        await new Promise<void>((resolve) => setTimeout(resolve, 250));
+        const delay = 2800 + Math.floor(Math.random() * 700);
+        await new Promise<void>((resolve) => setTimeout(resolve, delay));
       }
-      const pageHtml = await fetchText(buildPageUrl(page));
-      const parsedPage = parseLigaStoreSearchPage(pageHtml);
-      parsedItems.push(...parsedPage.items);
+      try {
+        const pageHtml = await fetchText(buildPageUrl(page));
+        const parsedPage = parseLigaStoreSearchPage(pageHtml);
+        parsedItems.push(...parsedPage.items);
+      } catch (err: unknown) {
+        if (isSessionExpiredError(err)) {
+          throw err;
+        }
+        console.warn(
+          `[LigaStore: ${storeId}] Failed to fetch page ${page}/${maxPages} after retries; continuing with remaining pages:`,
+          err instanceof Error ? err.message : err
+        );
+      }
     }
   }
 
+  const totalParsed = parsedItems.length;
+  if (totalCount > pageSize && totalParsed < totalCount) {
+    throw new Error(
+      `[LigaStore: ${storeId}] Parity check failed: store reports ${totalCount} items but only parsed ${totalParsed} items across pages; aborting without updating store listings.`
+    );
+  }
+
   const catalog = await loadCatalogResolutionData(database);
+  const inStockItems = parsedItems.filter(
+    (item) => item.hasPrice === true || (typeof item.quantity === "number" && item.quantity > 0)
+  );
   const rowsToInsert: InsertMarketCard[] = [];
   let matchedCount = 0;
   let unmatchedCount = 0;
   let enrichedCount = 0;
 
-  for (const item of parsedItems) {
+  for (const item of inStockItems) {
     const workingItem: any = { ...(item as any) };
     const resolved = resolveLigaStoreItem(workingItem, catalog);
 
@@ -148,31 +143,6 @@ export async function syncLigaStore(options?: {
       matchedCount += 1;
     } else {
       unmatchedCount += 1;
-    }
-
-    if (
-      (options?.enrichShortages &&
-       workingItem.productUrl &&
-       resolved.cardSlug &&
-       options.neededSlugs?.has(resolved.cardSlug)) ||
-      (workingItem.priceNumeric === 0 && workingItem.productUrl)
-    ) {
-      try {
-        if (!options?.customFetch) {
-          await new Promise<void>((resolve) => setTimeout(resolve, 250));
-        }
-        const detailHtml = await fetchText(workingItem.productUrl);
-        const details = parseLigaStoreItemDetails(detailHtml);
-
-        if (details.price) workingItem.price = details.price;
-        if (details.priceNumeric > 0) workingItem.priceNumeric = details.priceNumeric;
-        if (details.stockQuantity > 0) workingItem.quantity = details.stockQuantity;
-        if (details.condition) workingItem.condition = details.condition;
-
-        enrichedCount += 1;
-      } catch {
-        // Fall back to surface search page data on detail fetch failure
-      }
     }
 
     rowsToInsert.push({
@@ -185,13 +155,17 @@ export async function syncLigaStore(options?: {
       rawName: workingItem.rawTitle,
       cardName: workingItem.cardName,
       setPrefix: resolved.setPrefix,
-      quantity: workingItem.quantity > 0 ? workingItem.quantity : 1,
+      quantity: typeof workingItem.quantity === "number" ? Math.max(1, workingItem.quantity) : 1,
       price: workingItem.price,
       priceNumeric: workingItem.priceNumeric,
       quality: workingItem.condition || "NM",
       isFoil: workingItem.isFoil,
       itemId: workingItem.refId || null,
-      productUrl: workingItem.productUrl,
+      productUrl: workingItem.productUrl
+        ? (workingItem.productUrl.startsWith("http")
+            ? workingItem.productUrl
+            : new URL(workingItem.productUrl, storeData.baseUrl).toString())
+        : null,
       vendorName: storeData.name,
       vendorUrl: storeData.baseUrl,
     } as InsertMarketCard);
@@ -199,7 +173,7 @@ export async function syncLigaStore(options?: {
 
   await upsertMarketCards(rowsToInsert, database);
 
-  const observedItemIds = parsedItems
+  const observedItemIds = inStockItems
     .map((item) => (item as any).refId)
     .filter(Boolean);
 

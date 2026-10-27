@@ -219,6 +219,41 @@ describe("parseLigaStoreSearchPage", () => {
     expect(result.items[0].rawTitle).toBe("Shanks (022) (Manga) (#OP17-022-MA)");
     expect(result.items[0].collectorNumber).toBe("OP17-022-MA");
   });
+
+  it("detects out-of-stock items and assigns quantity 0", () => {
+    const result = parseLigaStoreSearchPage(`
+      <div class="card-item">
+        <a href="?view=ecom/item&refid=oos-1">Flame-Rune Swordsman (#136)</a>
+        <div class="card-preco">R$ 15,00</div>
+        <div class="estoque">0 unid.</div>
+      </div>
+      <div class="card-item">
+        <a href="?view=ecom/item&refid=oos-2">Frostbind (028) (#28b)</a>
+        <div class="card-preco">R$ 8,50</div>
+        <div class="sem-estoque">Sem Estoque</div>
+      </div>
+      <div class="card-item">
+        <a href="?view=ecom/item&refid=oos-3">Level One (#1)</a>
+        <span class="indisponivel">Indisponível</span>
+      </div>
+      <div class="card-item">
+        <a href="?view=ecom/item&refid=oos-4">Creative Shock (#001)</a>
+        <a class="btn-aviseme">Avise-me quando chegar</a>
+      </div>
+      <div class="card-item">
+        <a href="?view=ecom/item&refid=in-stock">Dungeon Guide (#100)</a>
+        <div class="card-preco">R$ 5,00</div>
+        <div class="estoque">4 unid.</div>
+      </div>
+    `);
+
+    expect(result.items).toHaveLength(5);
+    expect(result.items[0].quantity).toBe(0);
+    expect(result.items[1].quantity).toBe(0);
+    expect(result.items[2].quantity).toBe(0);
+    expect(result.items[3].quantity).toBe(0);
+    expect(result.items[4].quantity).toBe(4);
+  });
 });
 
 describe("parseLigaStoreLatestCardRefId", () => {
@@ -300,5 +335,23 @@ describe("buildLigaStoreSearchUrl", () => {
 
   it("returns null if baseUrl is empty", () => {
     expect(buildLigaStoreSearchUrl({ ...store, baseUrl: "" })).toBeNull();
+  });
+
+  it("produces TabletopSorocaba search URL with id=546923, txt_limit=120, txt_order=1, and without txt_estoque", () => {
+    const tabletopStore = {
+      id: "tabletopsorocaba",
+      platform: "liga_store",
+      baseUrl: "https://www.tabletoptcg.com.br",
+      tcgId: "21",
+      lastCount: 100,
+      lastLatestCardRefId: null,
+    };
+    const url = buildLigaStoreSearchUrl(tabletopStore);
+    expect(url).not.toBeNull();
+    expect(url).toContain("id=546923");
+    expect(url).toContain("txt_limit=120");
+    expect(url).toContain("txt_order=1");
+    expect(url).toContain("ultimas=");
+    expect(url).not.toContain("txt_estoque=1");
   });
 });

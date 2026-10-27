@@ -1,12 +1,19 @@
-FROM node:20-alpine
+FROM lexiforest/curl-impersonate:latest AS curl-impersonate-src
+
+FROM node:20-bookworm-slim
 
 WORKDIR /app
 
-RUN apk add --no-cache curl \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+  && rm -rf /var/lib/apt/lists/* \
   && corepack enable && corepack prepare pnpm@latest --activate \
-  && addgroup -S app \
-  && adduser -S app -G app \
+  && groupadd -r app && useradd -r -g app -m app \
   && chown -R app:app /app
+
+COPY --from=curl-impersonate-src /usr/local/bin/curl-impersonate /usr/local/bin/curl-impersonate
+COPY --from=curl-impersonate-src /usr/local/bin/curl_chrome152 /usr/local/bin/curl_chrome152
 
 USER app
 

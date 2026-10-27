@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted (LigaStore retirement clause superseded by [ADR 0027](0027-liga-store-availability-adapter-and-curl-impersonate.md))
 
 ## Context
 

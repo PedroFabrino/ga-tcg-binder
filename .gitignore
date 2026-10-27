@@ -64,3 +64,8 @@ apps/ga-tcg-binder-bot/*.zip
 apps/ga-tcg-root-app/*.zip
 *.sqlite3
 *.sqlite3-journal
+
+# secrets and sessions
+.secrets/
+*.session
+*.cookie

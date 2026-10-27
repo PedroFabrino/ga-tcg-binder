@@ -7,6 +7,12 @@ type MarketplaceDatabase,
 import { parseLootcardsTotalCount, parseLootcardsLatestCardRefId } from "./lootcards-parser";
 import { fetchMarketHtml } from "./market-fetch";
 import {
+  buildLigaStoreSearchUrl,
+  parseLigaStoreTotalCount,
+  parseLigaStoreLatestCardRefId,
+  LIGA_STORE_CONFIGS,
+} from "./ligastore-parser";
+import {
   getActiveBackoff,
   recordStoreFailure,
   recordStoreSuccess,
@@ -85,6 +91,7 @@ export function parseMypLatestCardRefId(html: string): string | null {
 interface StoreObservation {
   count: number | null;
   latestCardRefId: string | null;
+  skipped?: boolean;
 }
 
 /**
@@ -115,7 +122,44 @@ async function fetchStoreObservation(
   }
 
   // LigaStore is retired (ADR-0025): it is no longer polled or rescanned.
-  throw new Error(`Unsupported or retired marketplace platform "${store.platform}"`);
+  if (store.platform === "liga_store") {
+    const config = LIGA_STORE_CONFIGS[store.id.toLowerCase()];
+    if (!config?.hasWorkingStockFilter) {
+      console.log(
+        `[market-check] Store "${store.id}" skipped from 5-minute Count Poll: stock filter is broken, relying on 6-hour full sync.`
+      );
+      return {
+        count: null,
+        latestCardRefId: null,
+        skipped: true,
+      };
+    }
+
+    const countUrl = buildLigaStoreSearchUrl(store, "count");
+    if (!countUrl) {
+      return { count: null, latestCardRefId: null };
+    }
+    const html = await fetchMarketHtml(countUrl, customFetch);
+    const count = parseLigaStoreTotalCount(html);
+
+    let latestCardRefId: string | null = null;
+    try {
+      const latestUrl = buildLigaStoreSearchUrl(store, "latest");
+      if (latestUrl) {
+        const latestHtml = await fetchMarketHtml(latestUrl, customFetch);
+        latestCardRefId = parseLigaStoreLatestCardRefId(latestHtml);
+      }
+    } catch (err) {
+      warnLatestCardCheckFailure(store, err);
+    }
+
+    return {
+      count,
+      latestCardRefId,
+    };
+  }
+
+  throw new Error(`Unsupported marketplace platform "${store.platform}"`);
 }
 
 async function dispatchMarketSync(
@@ -242,6 +286,15 @@ export async function checkMarketStores(
 
     try {
     const observation = await fetchStoreObservation(store, customFetch);
+    if (observation.skipped) {
+      results.push({
+        ...baseResult,
+        skipped: true,
+        changed: false,
+        dispatched: false,
+      });
+      continue;
+    }
     const observedCount = observation.count;
     
     if (observedCount === null) {
@@ -260,7 +313,7 @@ export async function checkMarketStores(
     let latestCardRefId: string | null = observation.latestCardRefId;
     let latestCardChanged = false;
     
-    if (store.platform === "myp") {
+    if (store.platform === "myp" || store.platform === "liga_store") {
       latestCardChanged = await applyLatestCardChange(
         store,
         latestCardRefId,

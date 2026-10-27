@@ -1,4 +1,4 @@
-﻿import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestDb } from "../../db/test-utils";
 import * as schema from "../../db/schema";
 import {
@@ -293,5 +293,68 @@ describe("checkMarketStores resilience", () => {
     const third = await checkMarketStores(db, failingFetch as any);
     expect(third.stores[0].skipped).toBeFalsy();
     expect(failingFetch).toHaveBeenCalledTimes(2);
+  });
+
+  describe("LigaStore count poll handling", () => {
+    it("skips TabletopSorocaba from 5-minute Count Poll because stock filter is broken", async () => {
+      const { db } = await createTestDb();
+      await db.update(schema.marketStores).set({ enabled: false });
+
+      await db.insert(schema.marketStores).values({
+        id: "tabletopsorocaba",
+        platform: "liga_store",
+        name: "TabletopSorocaba",
+        baseUrl: "https://www.tabletoptcg.com.br",
+        tcgId: "21",
+        enabled: true,
+        lastCount: 2919,
+      });
+
+      const mockFetch = vi.fn();
+      const report = await checkMarketStores(db, mockFetch as any);
+
+      expect(report.stores).toHaveLength(1);
+      expect(report.stores[0].storeId).toBe("tabletopsorocaba");
+      expect(report.stores[0].skipped).toBe(true);
+      expect(report.stores[0].changed).toBe(false);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("polls Brandão TCG and detects count changes with working stock filter", async () => {
+      const { db } = await createTestDb();
+      await db.update(schema.marketStores).set({ enabled: false });
+
+      await db.insert(schema.marketStores).values({
+        id: "brandao",
+        platform: "liga_store",
+        name: "Brandao TCG",
+        baseUrl: "https://www.brandaocardgame.com.br",
+        tcgId: "21",
+        enabled: true,
+        lastCount: 5,
+      });
+
+      const mockFetch = vi.fn().mockImplementation(async (url: string) => {
+        if (url.includes("txt_order=6")) {
+          return {
+            ok: true,
+            text: async () => `<td class="textoMaior"> 1-6 de <b>6</b></td>`,
+          };
+        }
+        return {
+          ok: true,
+          text: async () => `<a href="?refid=ref_latest">Latest Card</a>`,
+        };
+      });
+
+      const report = await checkMarketStores(db, mockFetch as any);
+
+      expect(report.stores).toHaveLength(1);
+      const brandao = report.stores[0];
+      expect(brandao.storeId).toBe("brandao");
+      expect(brandao.skipped).toBeFalsy();
+      expect(brandao.observedCount).toBe(6);
+      expect(brandao.changed).toBe(true);
+    });
   });
 });

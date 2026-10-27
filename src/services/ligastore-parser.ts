@@ -26,6 +26,7 @@ export interface ParsedLigaStoreItem {
   rawName?: string;
   cardName: string;
   collectorNumber: string;
+  setPrefix?: string;
   isFoil: boolean;
   productUrl: string;
   refId: string;
@@ -35,6 +36,7 @@ export interface ParsedLigaStoreItem {
   price: string;
   priceNumeric: number;
   quantity: number;
+  hasPrice?: boolean;
 }
 
 export interface ParsedLigaStoreSearchResult {
@@ -51,25 +53,41 @@ export interface ParsedLigaStoreItemDetails {
   editionCode: string | null;
 }
 
-function extractTitle(rawTitle: string): { cardName: string; collectorNumber: string } {
+export function hasPriceBlock(cardHtml: string): boolean {
+  return /<div\b[^>]*\bclass=(["'])[^"']*\b(?:price|card-preco)\b[^"']*\1[^>]*>/i.test(cardHtml);
+}
+
+export function extractTitle(rawTitle: string): {
+  cardName: string;
+  collectorNumber: string;
+  setPrefix?: string;
+} {
   const normalized = stripHtml(rawTitle);
   const collectorMatch = normalized.match(/\s*\(#\s*([a-z\d-]+)\)\s*$/i);
 
-  if (!collectorMatch) {
-    return {
-      cardName: normalized,
-      collectorNumber: "",
-    };
+  const collectorNumber = collectorMatch ? collectorMatch[1] : "";
+  let working = collectorMatch
+    ? normalized.slice(0, collectorMatch.index)
+    : normalized;
+
+  // Extract set code if present in parentheses e.g. (ALC1E), (DOA1E), (FTC)
+  let setPrefix: string | undefined;
+  const setMatch = working.match(/\s*\(([a-z]{3,5}(?:\d[e])?)\)\s*/i);
+  if (setMatch) {
+    setPrefix = setMatch[1].toUpperCase();
+    working = working.replace(setMatch[0], " ");
   }
 
-  const cardName = normalized
-    .slice(0, collectorMatch.index)
-    .replace(/\s*\([^)]*\)\s*$/, "")
+  // Strip variant/finish parentheses e.g. (CSR), (Curio Foil), (Cur...), (Foil), etc.
+  const cleanedName = working
+    .replace(/\s*\([^)]*\)\s*/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
 
   return {
-    cardName,
-    collectorNumber: collectorMatch[1],
+    cardName: cleanedName || normalized,
+    collectorNumber,
+    setPrefix,
   };
 }
 
@@ -107,7 +125,25 @@ function extractPlainOrSpritePrice(
   return normalizePrice(dataPrice);
 }
 
+export function isOutOfStockHtml(cardHtml: string): boolean {
+  if (/\b(?:sem\s+estoque|indispon[íi]vel|esgotado|avise-me|fora\s+de\s+estoque)\b/i.test(cardHtml)) {
+    return true;
+  }
+  if (/\bclass=["'][^"']*\b(?:indisponivel|sem-estoque|btn-aviseme)\b/i.test(cardHtml)) {
+    return true;
+  }
+  const zeroUnidMatch = stripHtml(cardHtml).match(/\b0\s*(?:unid|un)\.?/i);
+  if (zeroUnidMatch) {
+    return true;
+  }
+  return false;
+}
+
 function extractQuantity(cardHtml: string, spriteClasses: Map<string, string>): number {
+  if (isOutOfStockHtml(cardHtml)) {
+    return 0;
+  }
+
   const plainMatch = stripHtml(cardHtml).match(/\b(\d+)\s*(?:unid|un)\.?/i);
   if (plainMatch) {
     return Number(plainMatch[1]);
@@ -125,7 +161,11 @@ function extractQuantity(cardHtml: string, spriteClasses: Map<string, string>): 
 
   const spriteText = getSpriteText(cardHtml, spriteClasses);
   const spriteMatch = spriteText.match(/\b(\d+)\s*unid\.?/i);
-  return spriteMatch ? Number(spriteMatch[1]) : 0;
+  if (spriteMatch) {
+    return Number(spriteMatch[1]);
+  }
+
+  return 1;
 }
 
 /**
@@ -160,36 +200,21 @@ export function parseLigaStoreTotalCount(html: string): number {
  * Parses a LigaStore product-detail page.
  */
 export function parseLigaStoreItemDetails(html: string): ParsedLigaStoreItemDetails {
-  const qualityContent = findDivContentByClasses(html, [
-    "table-cards-body-cell",
-    "quality",
-  ]) || findDivContentByClasses(html, ["quality"]);
-  const condition =
-    qualityContent.match(/\b(NM|SP|MP|HP|D)\b/i)?.[1]?.toUpperCase() ??
-    html.match(
-      /<div[^>]*class=(['"])[^"']*\bquality\b[^"']*\1[^>]*>\s*(NM|SP|MP|HP|D)\s*<\/div>/i
-    )?.[2]?.toUpperCase() ??
-    html.match(/\b(NM|SP|MP|HP|D)\b/i)?.[1]?.toUpperCase() ??
-    "NM";
+  const qualityContent = findDivContentByClasses(html, ["table-cards-body-cell", "quality"]) || findDivContentByClasses(html, ["quality"]);
+  const condition = (qualityContent.match(/\b(NM|SP|MP|HP|D)\b/i)?.[1] ||
+    html.match(/<div[^>]*class=(['"])[^"']*\bquality\b[^"']*\1[^>]*>\s*(NM|SP|MP|HP|D)\s*<\/div>/i)?.[2] ||
+    html.match(/\b(NM|SP|MP|HP|D)\b/i)?.[1] || "NM").toUpperCase();
 
-  const languageContent = findDivContentByClasses(html, [
-    "table-cards-body-cell",
-    "tooltip-item",
-    "text-center",
-  ]);
-  const language =
-    languageContent.match(/<img[^>]*\balt=(['"])(.*?)\1/i)?.[2] ??
-    html.match(/<img[^>]*\balt=(['"])(Ingl[êe]s|Portugu[êe]s|EN|PT|JP|Japon[êe]s)\1/i)?.[2] ??
-    (stripHtml(languageContent) || "EN");
+  const languageContent = findDivContentByClasses(html, ["table-cards-body-cell", "tooltip-item", "text-center"]);
+  const language = languageContent.match(/<img[^>]*\balt=(['"])(.*?)\1/i)?.[2] ||
+    html.match(/<img[^>]*\balt=(['"])(Ingl[êe]s|Portugu[êe]s|EN|PT|JP|Japon[êe]s)\1/i)?.[2] ||
+    stripHtml(languageContent) || "EN";
 
-  const stockMatch =
-    html.match(
-      /<div[^>]*class=(['"])[^"']*\btable-cards-body-cell\b[^"']*\btooltip-item\b[^"']*\1[^>]*>\s*(\d+)\s*unid\./i
-    ) ??
-    html.match(/\b(\d+)\s*unid\./i) ??
+  const isOutOfStock = isOutOfStockHtml(html);
+  const stockMatch = html.match(/<div[^>]*class=(['"])[^"']*\btable-cards-body-cell\b[^"']*\btooltip-item\b[^"']*\1[^>]*>\s*(\d+)\s*unid\./i) ||
+    html.match(/\b(\d+)\s*unid\./i) ||
     html.match(/\bmax=["'](\d+)["']/i);
-
-  const stockQuantity = Number(stockMatch?.[2] ?? stockMatch?.[1] ?? 0);
+  const stockQuantity = isOutOfStock ? 0 : Number(stockMatch?.[2] ?? stockMatch?.[1] ?? 0);
 
   const priceContent = findDivContentByClasses(html, ["card-preco"]);
   const price = normalizePrice(priceContent || html);
@@ -241,12 +266,14 @@ export function parseLigaStoreSearchPage(html: string): ParsedLigaStoreSearchRes
 
     const price = extractPlainOrSpritePrice(cardHtml, spriteClasses);
 
+    const hasPrice = hasPriceBlock(cardHtml) && !isOutOfStockHtml(cardHtml);
     const refId = extractRefId(productUrl);
     return {
       rawTitle,
       rawName: rawTitle,
       cardName: title.cardName,
       collectorNumber: title.collectorNumber,
+      setPrefix: title.setPrefix,
       isFoil: /<img\b[^>]*\balt=(['"])FOIL\1/i.test(cardHtml),
       productUrl,
       refId,
@@ -254,7 +281,8 @@ export function parseLigaStoreSearchPage(html: string): ParsedLigaStoreSearchRes
       imageUrl,
       price,
       priceNumeric: priceToNumeric(price),
-      quantity: extractQuantity(cardHtml, spriteClasses) || 1,
+      quantity: hasPrice ? Math.max(1, extractQuantity(cardHtml, spriteClasses)) : 0,
+      hasPrice,
     };
   });
 
@@ -301,6 +329,38 @@ export function parseLigaStoreLatestCardRefId(html: string): string | null {
   return null;
 }
 
+export interface LigaStoreConfig {
+  ecomId: string;
+  hasWorkingStockFilter: boolean;
+  limit: number;
+  order: number;
+  ultimas: string;
+}
+
+export const LIGA_STORE_CONFIGS: Record<string, LigaStoreConfig> = {
+  brandao: {
+    ecomId: "207836",
+    hasWorkingStockFilter: true,
+    limit: 30,
+    order: 6,
+    ultimas: "1",
+  },
+  tabletopsorocaba: {
+    ecomId: "546923",
+    hasWorkingStockFilter: false,
+    limit: 120,
+    order: 1,
+    ultimas: "",
+  },
+  tabletop_sorocaba: {
+    ecomId: "546923",
+    hasWorkingStockFilter: false,
+    limit: 120,
+    order: 1,
+    ultimas: "",
+  },
+};
+
 /**
  * Retired (ADR-0025): builds the LigaStore search URL. Kept alongside the
  * retired parser for reference; LigaStore is no longer crawled.
@@ -315,12 +375,20 @@ export function buildLigaStoreSearchUrl(
 
   const baseUrl = store.baseUrl.replace(/\/+$/, "");
   const tcgId = store.tcgId ?? "21";
-  const storeIdParam =
-    store.id === "brandao" ? "&id=207836" : `&id=${encodeURIComponent(store.id)}`;
-  const orderParam = sort === "latest" ? "txt_order=12" : "txt_order=6";
+  const config = LIGA_STORE_CONFIGS[store.id.toLowerCase()] || {
+    ecomId: store.id,
+    hasWorkingStockFilter: true,
+    limit: 30,
+    order: 6,
+    ultimas: "1",
+  };
+
+  const storeIdParam = `&id=${encodeURIComponent(config.ecomId)}`;
+  const orderParam = sort === "latest" ? "txt_order=12" : `txt_order=${config.order}`;
+  const ultimasParam = sort === "latest" ? "ultimas=1" : (config.ultimas ? `ultimas=${config.ultimas}` : "ultimas=");
+  const stockParam = config.hasWorkingStockFilter ? "&txt_estoque=1" : "";
 
   return (
-    `${baseUrl}/?view=ecom/itens&page=1&tcg=${encodeURIComponent(tcgId)}${storeIdParam}` +
-    `&ultimas=1&${orderParam}&txt_limit=30&txt_estoque=1&btFiltrar=Filtrar`
+    `${baseUrl}/?view=ecom/itens&page=1&id=${encodeURIComponent(config.ecomId)}&comdesconto=&tcg=${encodeURIComponent(tcgId)}&txt_idioma=&txt_qualid=&${ultimasParam}&txt_filtro_multiestoque=&txt_extras%5B%5D=&${orderParam}&txt_raridade=&txt_cor=&txt_limit=${config.limit}${stockParam}&btFiltrar=Filtrar`
   );
 }
