@@ -322,3 +322,36 @@ export function filterReportExcludingOrders(
   };
 }
 
+export interface MypVendasUrlOptions {
+  mypUsername?: string | null;
+  userId?: string | null;
+  syncToken?: string | null;
+  origin?: string;
+}
+
+export function buildMypVendasUrl({
+  mypUsername,
+  userId,
+  syncToken,
+  origin = typeof window !== "undefined" ? window.location.origin : "",
+}: MypVendasUrlOptions): string {
+  const cleanUser = mypUsername?.trim();
+  const baseVendasUrl = cleanUser
+    ? `https://mypcards.com/${encodeURIComponent(cleanUser)}/vendas`
+    : "https://mypcards.com/Fabrino/vendas";
+
+  if (!origin) return baseVendasUrl;
+
+  if (userId && syncToken) {
+    const bridge = {
+      version: 1,
+      appUrl: origin,
+      userId,
+      token: syncToken,
+    };
+    return `${baseVendasUrl}#ga_fulfillment_bridge=${encodeURIComponent(JSON.stringify(bridge))}`;
+  }
+
+  return `${baseVendasUrl}#ga_app_url=${encodeURIComponent(origin)}`;
+}
+

@@ -1,11 +1,17 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Package, ListChecks, Users } from "lucide-react";
-import { FulfillmentReport } from "@ga/contracts";
+import { Package, ListChecks, Users, ExternalLink } from "lucide-react";
+import { FulfillmentReport, createEmptyFulfillmentReport } from "@ga/contracts";
+import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/lib/i18n";
 import { useToast } from "@/components/ToastProvider";
-import { formatFulfillmentTextReport, filterReportExcludingOrders } from "@/scripts/fulfillment-helpers";
+import {
+  formatFulfillmentTextReport,
+  filterReportExcludingOrders,
+  buildMypVendasUrl,
+} from "@/scripts/fulfillment-helpers";
+import { useFulfillmentShipping } from "./useFulfillmentShipping";
 import FulfillmentHeader from "./FulfillmentHeader";
 import FulfillmentPickList from "./FulfillmentPickList";
 import FulfillmentBuyerPacks from "./FulfillmentBuyerPacks";
@@ -14,14 +20,14 @@ import FulfillmentEmptyState from "./FulfillmentEmptyState";
 import FulfillmentNonGaBanner from "./FulfillmentNonGaBanner";
 import FulfillmentProcessedTab from "./FulfillmentProcessedTab";
 import FulfillmentSentTab from "./FulfillmentSentTab";
-import type { QuotedBuyerPack } from "@/services/superfrete";
 
-interface FulfillmentViewProps {
-
+export interface FulfillmentViewProps {
   mypUsername?: string | null;
   hasShippingCapability?: boolean;
   userId?: string;
   syncToken?: string;
+  initialReport?: FulfillmentReport | null;
+  initialHasDbEntries?: boolean;
 }
 
 export default function FulfillmentView({
@@ -29,23 +35,39 @@ export default function FulfillmentView({
   hasShippingCapability = false,
   userId: propUserId,
   syncToken: propSyncToken,
+  initialReport = null,
+  initialHasDbEntries = false,
 }: FulfillmentViewProps = {}) {
   const { t } = useTranslation();
   const { showToast } = useToast();
 
-  const [report, setReport] = useState<FulfillmentReport | null>(null);
+  const [hasDbEntries, setHasDbEntries] = useState<boolean>(initialHasDbEntries);
+  const [report, setReport] = useState<FulfillmentReport | null>(initialReport);
   const [lifecycleTab, setLifecycleTab] = useState<"open" | "processed" | "sent">("open");
   const [activeTab, setActiveTab] = useState<"pick" | "buyer">("pick");
   const [cardNotes, setCardNotes] = useState<Record<string, string>>({});
-  const [isShippingModalOpen, setIsShippingModalOpen] = useState(false);
-  const [quotedPacks, setQuotedPacks] = useState<QuotedBuyerPack[]>([]);
-  const [isQuotingShipping, setIsQuotingShipping] = useState(false);
+
+  const {
+    isShippingModalOpen,
+    setIsShippingModalOpen,
+    quotedPacks,
+    isQuotingShipping,
+    handleOpenShippingModal,
+    handleConfirmShippingTickets,
+  } = useFulfillmentShipping({
+    report,
+    setReport,
+    onSuccess: () => setLifecycleTab("processed"),
+  });
 
   const sanitizeReportAgainstDb = useCallback(async (currentReport: FulfillmentReport) => {
     try {
       const res = await fetch("/api/marketplace/fulfillment");
       if (!res.ok) return currentReport;
       const dbOrders: Array<{ mypOrderId: string; status: string }> = await res.json();
+      if (Array.isArray(dbOrders) && dbOrders.length > 0) {
+        setHasDbEntries(true);
+      }
       const nonOpenOrderIds = new Set(
         dbOrders
           .filter((o) => o.status !== "open")
@@ -65,6 +87,7 @@ export default function FulfillmentView({
   const applyBatch = useCallback(
     (incoming: FulfillmentReport) => {
       setReport(incoming);
+      setHasDbEntries(true);
       localStorage.setItem("ga_fulfillment_batch", JSON.stringify(incoming));
       sanitizeReportAgainstDb(incoming).then((cleaned) => {
         setReport(cleaned);
@@ -80,7 +103,7 @@ export default function FulfillmentView({
       if (rawNotes) {
         try {
           setCardNotes(JSON.parse(rawNotes));
-        } catch (e) {
+        } catch {
           localStorage.removeItem("ga_fulfillment_notes");
         }
       }
@@ -94,6 +117,7 @@ export default function FulfillmentView({
           const parsed: FulfillmentReport = JSON.parse(jsonStr);
           history.replaceState(null, document.title, window.location.pathname + window.location.search);
           applyBatch(parsed);
+          setHasDbEntries(true);
           return;
         } catch (e) {
           console.error("Failed to parse fulfillment hash payload:", e);
@@ -101,31 +125,56 @@ export default function FulfillmentView({
       }
 
       // 2. Check localStorage
+      let cachedBatch: FulfillmentReport | null = null;
       const cached = localStorage.getItem("ga_fulfillment_batch");
       if (cached) {
         try {
           const parsed: FulfillmentReport = JSON.parse(cached);
           if (parsed && parsed.buyerPacks && parsed.buyerPacks.length > 0) {
-            applyBatch(parsed);
-            return;
+            cachedBatch = parsed;
           }
-        } catch (e) {
+        } catch {
           localStorage.removeItem("ga_fulfillment_batch");
         }
       }
 
-      // 3. Fallback: Check if user has open orders in the database
+      // 3. Check database orders
       try {
-        const dbRes = await fetch("/api/marketplace/fulfillment?format=report");
-        if (dbRes.ok) {
-          const dbReport: FulfillmentReport = await dbRes.json();
-          if (dbReport && dbReport.buyerPacks && dbReport.buyerPacks.length > 0) {
-            applyBatch(dbReport);
+        const res = await fetch("/api/marketplace/fulfillment");
+        if (res.ok) {
+          const dbOrders: Array<{ mypOrderId: string; status: string }> = await res.json();
+          const hasOrders = Array.isArray(dbOrders) && dbOrders.length > 0;
+          setHasDbEntries(hasOrders);
+
+          if (cachedBatch) {
+            applyBatch(cachedBatch);
+            return;
+          }
+
+          const hasOpen = hasOrders && dbOrders.some((o) => o.status === "open");
+          if (hasOpen) {
+            const dbReportRes = await fetch("/api/marketplace/fulfillment?format=report");
+            if (dbReportRes.ok) {
+              const dbReport: FulfillmentReport = await dbReportRes.json();
+              if (dbReport && dbReport.buyerPacks && dbReport.buyerPacks.length > 0) {
+                applyBatch(dbReport);
+                return;
+              }
+            }
+          }
+
+          if (hasOrders) {
+            setReport(createEmptyFulfillmentReport());
             return;
           }
         }
       } catch {
         // ignore offline / unauth
+      }
+
+      if (cachedBatch) {
+        applyBatch(cachedBatch);
+        setHasDbEntries(true);
       }
     }
   }, [applyBatch]);
@@ -136,6 +185,7 @@ export default function FulfillmentView({
     const handleMessage = (event: MessageEvent) => {
       if (event.data && event.data.type === "GA_FULFILLMENT_BATCH" && event.data.report) {
         applyBatch(event.data.report);
+        setHasDbEntries(true);
       }
     };
 
@@ -181,102 +231,26 @@ export default function FulfillmentView({
     localStorage.removeItem("ga_fulfillment_batch");
     localStorage.removeItem("ga_fulfillment_notes");
     setCardNotes({});
-    setReport(null);
+    if (hasDbEntries) {
+      setReport(createEmptyFulfillmentReport());
+    } else {
+      setReport(null);
+    }
     showToast(t("fulfillment.batchClearedToast"));
   };
 
-  const handleOpenShippingModal = async () => {
-    setIsQuotingShipping(true);
-    try {
-      const res = await fetch("/api/marketplace/fulfillment/shipping/quote", {
-        method: "POST",
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        if (data.error === "SUPERFRETE_API_KEY_NOT_CONFIGURED") {
-          showToast(t("fulfillment.superfreteNotConfigured"));
-          return;
-        }
-        throw new Error(data.error || "Failed to quote shipping");
-      }
-      setQuotedPacks(data);
-      setIsShippingModalOpen(true);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Error quoting shipping";
-      showToast(msg);
-    } finally {
-      setIsQuotingShipping(false);
-    }
+  const handleOpenVendas = () => {
+    const targetUrl = buildMypVendasUrl({
+      mypUsername,
+      userId: propUserId,
+      syncToken: propSyncToken,
+    });
+    window.open(targetUrl, "_blank");
   };
 
-  const handleConfirmShippingTickets = async (
-    selectedPacks: Array<{
-      buyerNick: string;
-      selectedServiceCode: string;
-      selectedServiceName?: string;
-      quotedPriceBrl?: number;
-    }>
-  ) => {
-    try {
-      const res = await fetch("/api/marketplace/fulfillment/shipping/create-tickets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ packs: selectedPacks }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        const errorMsg = data.error || t("fulfillment.generateTicketsError");
-        showToast(errorMsg);
-        throw new Error(errorMsg);
-      }
+  const activeReport = report || (hasDbEntries ? createEmptyFulfillmentReport() : null);
 
-      // Only prune orders whose tickets were ACTUALLY created in Superfrete
-      const createdTickets: Array<{ buyerNick: string }> = data.tickets || [];
-      const succeededBuyerNicks = new Set(createdTickets.map((t) => t.buyerNick));
-
-      const confirmedOrderIds = new Set<string>();
-      if (report) {
-        for (const bp of report.buyerPacks) {
-          if (succeededBuyerNicks.has(bp.buyerNick)) {
-            for (const o of bp.orders) {
-              confirmedOrderIds.add(o.orderId);
-            }
-          }
-        }
-      }
-
-      if (report && confirmedOrderIds.size > 0) {
-        const nextReport = filterReportExcludingOrders(report, confirmedOrderIds);
-        setReport(nextReport);
-        localStorage.setItem("ga_fulfillment_batch", JSON.stringify(nextReport));
-      }
-
-      if (createdTickets.length > 0) {
-        showToast(t("fulfillment.ticketsCreatedToast", { count: createdTickets.length }));
-      }
-
-      // If any orders errored, show the error toast so the user knows what happened
-      if (data.errors && data.errors.length > 0) {
-        const errorDetails = data.errors
-          .map((e: { buyerNick: string; error: string }) => `${e.buyerNick}: ${e.error}`)
-          .join("\n");
-        showToast(errorDetails);
-      }
-
-      setIsShippingModalOpen(false);
-
-      // Only switch to processed tab if all succeeded without errors
-      if (!data.errors || data.errors.length === 0) {
-        setLifecycleTab("processed");
-      }
-    } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : t("fulfillment.generateTicketsError");
-      showToast(errorMsg);
-      throw err;
-    }
-  };
-
-  if (!report) {
+  if (!activeReport) {
     return (
       <FulfillmentEmptyState
         mypUsername={mypUsername}
@@ -290,7 +264,7 @@ export default function FulfillmentView({
     <div className="space-y-6">
       {/* Header bar */}
       <FulfillmentHeader
-        report={report}
+        report={activeReport}
         lifecycleTab={lifecycleTab}
         onSelectTab={setLifecycleTab}
         hasShippingCapability={hasShippingCapability}
@@ -301,12 +275,24 @@ export default function FulfillmentView({
       />
 
       {/* Non-GA Orders Banner */}
-      <FulfillmentNonGaBanner orders={report.nonGrandArchiveOrders || []} />
+      <FulfillmentNonGaBanner orders={activeReport.nonGrandArchiveOrders || []} />
 
       {lifecycleTab === "open" ? (
-        report.buyerPacks.length === 0 ? (
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-8 text-center text-slate-400">
-            <p className="text-sm">{t("fulfillment.noOpenOrders")}</p>
+        activeReport.buyerPacks.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-800 bg-slate-900/60 p-8 text-center text-slate-400">
+            <Package className="h-8 w-8 text-slate-500 mb-2" />
+            <p className="text-sm font-medium">{t("fulfillment.noOpenOrders")}</p>
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleOpenVendas}
+                className="gap-2 text-xs"
+              >
+                {t("fulfillment.openMypVendasBtn")}
+                <ExternalLink className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           </div>
         ) : (
           <>
@@ -342,13 +328,13 @@ export default function FulfillmentView({
             {/* Tab Panels */}
             {activeTab === "pick" ? (
               <FulfillmentPickList
-                report={report}
+                report={activeReport}
                 cardNotes={cardNotes}
                 onUpdateNote={handleUpdateNote}
               />
             ) : (
               <FulfillmentBuyerPacks
-                report={report}
+                report={activeReport}
                 cardNotes={cardNotes}
                 onUpdateNote={handleUpdateNote}
               />

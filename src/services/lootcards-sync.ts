@@ -18,6 +18,7 @@ import {
 } from "./lootcards-parser";
 import { resolveListing } from "./listing-resolver";
 import { fetchWithRetry } from "./market-request-helper";
+import type { StoreProgressCallback } from "./market-sync-progress";
 
 export interface LootcardsSyncOptions {
   storeId?: string;
@@ -25,6 +26,7 @@ export interface LootcardsSyncOptions {
   enrichShortages?: boolean;
   neededSlugs?: Set<string>;
   customFetch?: typeof fetch;
+  onProgress?: StoreProgressCallback;
 }
 
 export interface LootcardsSyncStats {
@@ -76,6 +78,13 @@ export async function syncLootcards(
   const totalCount = firstPage.totalCards || firstPage.cards.length;
   const allCards: ParsedLootcardsCard[] = [...firstPage.cards];
 
+  options?.onProgress?.({
+    page: 1,
+    totalPages,
+    itemsCount: allCards.length,
+    status: "running",
+  });
+
   if (totalPages > 1) {
     for (let page = 2; page <= totalPages; page += 1) {
       if (!options?.customFetch) {
@@ -86,7 +95,20 @@ export async function syncLootcards(
         const pageText = await fetchText(pageUrl);
         const parsedPage = parseLootcardsCatalogResponse(pageText);
         allCards.push(...parsedPage.cards);
+        options?.onProgress?.({
+          page,
+          totalPages,
+          itemsCount: allCards.length,
+          status: "running",
+        });
       } catch (err) {
+        options?.onProgress?.({
+          page,
+          totalPages,
+          itemsCount: allCards.length,
+          status: "retrying",
+          message: `Page ${page} failed`,
+        });
         console.warn(`[Lootcards Sync] Failed to fetch page ${page}:`, err);
       }
     }

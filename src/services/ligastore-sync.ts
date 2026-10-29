@@ -19,6 +19,7 @@ import {
 } from "./marketplace";
 import { db } from "../db";
 import type { InsertMarketCard } from "../db/schema";
+import type { StoreProgressCallback } from "./market-sync-progress";
 
 export function resolveLigaStoreItem(
   item: ParsedLigaStoreItem,
@@ -49,6 +50,7 @@ export async function syncLigaStore(options?: {
   database?: any;
   enrichShortages?: boolean;
   neededSlugs?: Set<string>;
+  onProgress?: StoreProgressCallback;
 }): Promise<LigaStoreSyncResult> {
   const storeId = options?.storeId ?? "brandao";
   const database = options?.database || db;
@@ -94,10 +96,16 @@ export async function syncLigaStore(options?: {
   const parsedItems: ParsedLigaStoreItem[] = [...firstPage.items];
 
   const pageSize = config.limit || 30;
+  const maxPages = totalCount > pageSize ? Math.min(25, Math.ceil(totalCount / pageSize)) : 1;
+
+  options?.onProgress?.({
+    page: 1,
+    totalPages: maxPages,
+    itemsCount: parsedItems.length,
+    status: "running",
+  });
 
   if (totalCount > pageSize) {
-    const maxPages = Math.min(25, Math.ceil(totalCount / pageSize));
-
     for (let page = 2; page <= maxPages; page += 1) {
       if (!options?.customFetch) {
         const delay = 2800 + Math.floor(Math.random() * 700);
@@ -107,10 +115,23 @@ export async function syncLigaStore(options?: {
         const pageHtml = await fetchText(buildPageUrl(page));
         const parsedPage = parseLigaStoreSearchPage(pageHtml);
         parsedItems.push(...parsedPage.items);
+        options?.onProgress?.({
+          page,
+          totalPages: maxPages,
+          itemsCount: parsedItems.length,
+          status: "running",
+        });
       } catch (err: unknown) {
         if (isSessionExpiredError(err)) {
           throw err;
         }
+        options?.onProgress?.({
+          page,
+          totalPages: maxPages,
+          itemsCount: parsedItems.length,
+          status: "retrying",
+          message: `Page ${page} failed`,
+        });
         console.warn(
           `[LigaStore: ${storeId}] Failed to fetch page ${page}/${maxPages} after retries; continuing with remaining pages:`,
           err instanceof Error ? err.message : err

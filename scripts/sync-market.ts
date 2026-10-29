@@ -19,14 +19,31 @@ function readStoreIdArgument(args: string[]): string | undefined {
   return storeId;
 }
 
+function hasFlag(args: string[], flag: string): boolean {
+  return args.includes(flag);
+}
+
 async function main() {
-  console.log("=== Initializing Database Schema & Stores ===");
+  const args = process.argv.slice(2);
+  const isPlain = hasFlag(args, "--plain") || hasFlag(args, "--no-dashboard");
+  const isSequential = hasFlag(args, "--sequential");
+  const requestedStoreId = readStoreIdArgument(args);
+
+  if (isPlain) {
+    console.log("=== Initializing Database Schema & Stores ===");
+  }
   await runMigrations();
   await ensureDefaultUserAndSeed(db);
-  console.log("Schema initialized successfully.");
+  if (isPlain) {
+    console.log("Schema initialized successfully.");
+  }
 
-  const requestedStoreId = readStoreIdArgument(process.argv.slice(2));
-  await runMarketSync({ storeId: requestedStoreId, database: db });
+  await runMarketSync({
+    storeId: requestedStoreId,
+    database: db,
+    sequential: isSequential,
+    showDashboard: !isPlain,
+  });
 }
 
 main().catch((err) => {

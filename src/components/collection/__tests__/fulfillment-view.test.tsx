@@ -222,4 +222,27 @@ describe("Fulfillment UI Components", () => {
     expect(pickHtml).toContain("didnt find 4, only 3, is it ok?");
     expect(buyerHtml).toContain("didnt find 4, only 3, is it ok?");
   });
+
+  it("renders full screen with empty Open state and tabs when DB has entries but no open orders", () => {
+    const html = renderWithProviders(<FulfillmentView initialHasDbEntries={true} />);
+    // Should NOT show the batch-empty state
+    expect(html).not.toContain("No active fulfillment batch");
+    // Should show the full screen header and tabs
+    expect(html).toContain("Order Fulfillment");
+    expect(html).toContain("Open Orders");
+    expect(html).toContain("Processed");
+    expect(html).toContain("Sent");
+    // Open tab should show no open orders waiting message
+    expect(html).toContain("No open orders waiting to be fulfilled or shipped.");
+    // Open tab should offer the Open MyP Vendas button
+    expect(html).toContain("Open MyP Vendas");
+  });
+
+  it("renders full screen with loaded orders when initialReport is provided", () => {
+    const html = renderWithProviders(<FulfillmentView initialReport={mockReport} initialHasDbEntries={true} />);
+    expect(html).not.toContain("No active fulfillment batch");
+    expect(html).toContain("Order Fulfillment");
+    expect(html).toContain("Void&#x27;s Cloak");
+    expect(html).toContain("Creative Shock");
+  });
 });

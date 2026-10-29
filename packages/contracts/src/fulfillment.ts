@@ -142,6 +142,21 @@ export const CANONICAL_ELEMENT_ORDER: readonly string[] = [
   UNMATCHED_ELEMENT,
 ] as const;
 
+export function createEmptyFulfillmentReport(): FulfillmentReport {
+  const pickListByElement: Record<string, PickListEntry[]> = {};
+  for (const el of CANONICAL_ELEMENT_ORDER) {
+    pickListByElement[el] = [];
+  }
+  return {
+    generatedAt: Math.floor(Date.now() / 1000),
+    totalGrandArchiveOrders: 0,
+    totalGrandArchiveCopies: 0,
+    pickListByElement,
+    buyerPacks: [],
+    nonGrandArchiveOrders: [],
+  };
+}
+
 export function normalizeBuyerNick(nick: string): string {
   return nick.trim().replace(/\s+/g, " ").toLowerCase();
 }

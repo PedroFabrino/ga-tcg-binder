@@ -5,6 +5,7 @@ import { Package, ExternalLink, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/lib/i18n";
 import { useToast } from "@/components/ToastProvider";
+import { buildMypVendasUrl } from "@/scripts/fulfillment-helpers";
 
 interface FulfillmentEmptyStateProps {
   mypUsername?: string | null;
@@ -38,27 +39,12 @@ export default function FulfillmentEmptyState({
     }
   }, [resolvedSyncToken, resolvedUserId, propUserId, propSyncToken]);
 
-  const cleanUser = mypUsername?.trim();
-  const baseVendasUrl = cleanUser
-    ? `https://mypcards.com/${encodeURIComponent(cleanUser)}/vendas`
-    : "https://mypcards.com/Fabrino/vendas";
-
   const handleOpenVendas = () => {
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    let targetUrl = baseVendasUrl;
-    if (origin) {
-      if (resolvedUserId && resolvedSyncToken) {
-        const bridge = {
-          version: 1,
-          appUrl: origin,
-          userId: resolvedUserId,
-          token: resolvedSyncToken,
-        };
-        targetUrl = `${baseVendasUrl}#ga_fulfillment_bridge=${encodeURIComponent(JSON.stringify(bridge))}`;
-      } else {
-        targetUrl = `${baseVendasUrl}#ga_app_url=${encodeURIComponent(origin)}`;
-      }
-    }
+    const targetUrl = buildMypVendasUrl({
+      mypUsername,
+      userId: resolvedUserId,
+      syncToken: resolvedSyncToken,
+    });
     window.open(targetUrl, "_blank");
   };
 

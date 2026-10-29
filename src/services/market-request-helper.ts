@@ -28,6 +28,18 @@ export const DEFAULT_BROWSER_HEADERS: Record<string, string> = {
   "Upgrade-Insecure-Requests": "1",
 };
 
+function shortenUrl(rawUrl: string, maxLen = 75): string {
+  try {
+    const u = new URL(rawUrl);
+    const base = `${u.origin}${u.pathname}`;
+    const firstParam = u.searchParams.keys().next().value;
+    const compact = firstParam ? `${base}?${firstParam}=...` : base;
+    return compact.length > maxLen ? compact.slice(0, maxLen - 3) + "..." : compact;
+  } catch {
+    return rawUrl.length > maxLen ? rawUrl.slice(0, maxLen - 3) + "..." : rawUrl;
+  }
+}
+
 /**
  * Detects whether the response content represents a Cloudflare Turnstile,
  * interstitial, or bot challenge.
@@ -249,11 +261,11 @@ export async function fetchWithRetry(
         }
 
         console.warn(
-          `[fetchWithRetry] Cloudflare challenge detected on 200 response for ${url} (attempt ${attempt}/${maxRetries})`
+          `[fetchWithRetry] Cloudflare challenge detected on 200 response for ${shortenUrl(url)} (attempt ${attempt}/${maxRetries})`
         );
       } else {
         console.warn(
-          `[fetchWithRetry] Request failed with HTTP ${response.status} for ${url} (attempt ${attempt}/${maxRetries})`
+          `[fetchWithRetry] Request failed with HTTP ${response.status} for ${shortenUrl(url)} (attempt ${attempt}/${maxRetries})`
         );
       }
 
@@ -271,7 +283,7 @@ export async function fetchWithRetry(
 
       // If challenge detected or non-2xx status, try FlareSolverr if enabled
       if (solveCloudflare && process.env.FLARESOLVERR_URL) {
-        console.log(`[fetchWithRetry] Attempting FlareSolverr solve for ${url}...`);
+        console.log(`[fetchWithRetry] Attempting FlareSolverr solve for ${shortenUrl(url)}...`);
         const solvedHtml = await solveWithFlareSolverr(url, {
           customFetch: options?.customFetch,
           timeoutMs: 60000,
@@ -283,7 +295,7 @@ export async function fetchWithRetry(
       }
 
       lastError = new Error(
-        `Request returned HTTP ${response.status} or Cloudflare challenge for ${url}`
+        `Request returned HTTP ${response.status} or Cloudflare challenge for ${shortenUrl(url)}`
       );
     } catch (err: unknown) {
       if (isSessionExpiredError(err)) {
@@ -291,7 +303,7 @@ export async function fetchWithRetry(
       }
       lastError = err instanceof Error ? err : new Error(String(err));
       console.warn(
-        `[fetchWithRetry] Network or timeout error for ${url} (attempt ${attempt}/${maxRetries}): ${lastError.message}`
+        `[fetchWithRetry] Network or timeout error for ${shortenUrl(url)} (attempt ${attempt}/${maxRetries}): ${lastError.message}`
       );
 
       // On network failure or timeout in real runtime, attempt curl

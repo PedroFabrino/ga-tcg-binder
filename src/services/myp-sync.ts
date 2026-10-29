@@ -19,12 +19,24 @@ import {
   type ParsedMypItem,
 } from "./marketplace";
 
-export interface MypSyncCheckpoint {
-  page: number;
-  observedTotal: number;
-  parsedItems: ParsedMypItem[];
-  savedAt: number;
-}
+import type { StoreProgressCallback } from "./market-sync-progress";
+import {
+  MypSyncCheckpoint,
+  loadMypSyncCheckpoint,
+  saveMypSyncCheckpoint,
+  clearMypSyncCheckpoint,
+  DEFAULT_CHECKPOINT_FILE,
+  MAX_CHECKPOINT_AGE_MS,
+} from "./myp-sync-checkpoint";
+
+export {
+  type MypSyncCheckpoint,
+  loadMypSyncCheckpoint,
+  saveMypSyncCheckpoint,
+  clearMypSyncCheckpoint,
+  DEFAULT_CHECKPOINT_FILE,
+  MAX_CHECKPOINT_AGE_MS,
+};
 
 export interface GlobalMarketplaceSyncOptions {
   customFetch?: typeof fetch;
@@ -35,6 +47,7 @@ export interface GlobalMarketplaceSyncOptions {
   forceRestart?: boolean;
   checkpointFile?: string;
   persistToDisk?: boolean;
+  onProgress?: StoreProgressCallback;
 }
 
 export interface GlobalMarketplaceSyncResult {
@@ -49,81 +62,7 @@ export interface GlobalMarketplaceSyncResult {
 
 const MYP_PAGE_1_URL =
   "https://mypcards.com/grandarchive?ProdutoSearch%5BexibirSomenteVenda%5D=1";
-
 const MAX_SAFE_PAGES = 75;
-const DEFAULT_CHECKPOINT_FILE = path.join(process.cwd(), ".scratch", "myp-sync-checkpoint.json");
-const MAX_CHECKPOINT_AGE_MS = 12 * 60 * 60 * 1000;
-
-let inMemoryCheckpoint: MypSyncCheckpoint | null = null;
-
-export function loadMypSyncCheckpoint(options?: {
-  checkpointFile?: string;
-  allowDisk?: boolean;
-}): MypSyncCheckpoint | null {
-  if (inMemoryCheckpoint) {
-    if (Date.now() - inMemoryCheckpoint.savedAt <= MAX_CHECKPOINT_AGE_MS) {
-      return inMemoryCheckpoint;
-    }
-    inMemoryCheckpoint = null;
-  }
-
-  const allowDisk = options?.allowDisk ?? true;
-  if (!allowDisk) {
-    return null;
-  }
-
-  const file = options?.checkpointFile || DEFAULT_CHECKPOINT_FILE;
-  try {
-    if (fs.existsSync(file)) {
-      const data = JSON.parse(fs.readFileSync(file, "utf-8"));
-      if (
-        data &&
-        typeof data.page === "number" &&
-        Array.isArray(data.parsedItems) &&
-        typeof data.savedAt === "number" &&
-        Date.now() - data.savedAt <= MAX_CHECKPOINT_AGE_MS
-      ) {
-        inMemoryCheckpoint = data;
-        return data;
-      }
-    }
-  } catch {
-    // Ignore unreadable checkpoint file
-  }
-
-  return null;
-}
-
-export function saveMypSyncCheckpoint(
-  checkpoint: MypSyncCheckpoint,
-  options?: { checkpointFile?: string; persistToDisk?: boolean }
-): void {
-  inMemoryCheckpoint = checkpoint;
-  const persistToDisk = options?.persistToDisk ?? true;
-  if (!persistToDisk) {
-    return;
-  }
-
-  const file = options?.checkpointFile || DEFAULT_CHECKPOINT_FILE;
-  try {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, JSON.stringify(checkpoint), "utf-8");
-  } catch {
-    // Best-effort persistence
-  }
-}
-
-export function clearMypSyncCheckpoint(options?: { checkpointFile?: string }): void {
-  inMemoryCheckpoint = null;
-  const file = options?.checkpointFile || DEFAULT_CHECKPOINT_FILE;
-  try {
-    if (fs.existsSync(file)) {
-      fs.unlinkSync(file);
-    }
-  } catch {
-    // Best effort
-  }
-}
 
 function buildMypLoadMoreUrl(page: number): string {
   return `https://mypcards.com/produto/load-more?marca=grandarchive&ProdutoSearch%5BexibirSomenteVenda%5D=1&page=${page}`;
@@ -191,6 +130,13 @@ export async function syncGlobalMarketplace(
   const truncated = neededPages > MAX_SAFE_PAGES;
   const maxPages = Math.min(neededPages, MAX_SAFE_PAGES);
 
+  options.onProgress?.({
+    page: 1,
+    totalPages: maxPages,
+    itemsCount: parsedItems.length,
+    status: "running",
+  });
+
   let stoppedAtPage: number | undefined = undefined;
   let failedPageCount = 0;
 
@@ -230,6 +176,13 @@ export async function syncGlobalMarketplace(
         pageItems = items;
         break;
       } catch (err: unknown) {
+        options.onProgress?.({
+          page: p,
+          totalPages: maxPages,
+          itemsCount: parsedItems.length,
+          status: "retrying",
+          message: `Retry ${attempt}/${maxPageRetries}`,
+        });
         console.warn(
           `[myp-sync] Page ${p} attempt ${attempt}/${maxPageRetries} failed: ${err instanceof Error ? err.message : String(err)}`
         );
@@ -241,6 +194,12 @@ export async function syncGlobalMarketplace(
 
     if (pageItems) {
       parsedItems.push(...pageItems);
+      options.onProgress?.({
+        page: p,
+        totalPages: maxPages,
+        itemsCount: parsedItems.length,
+        status: "running",
+      });
     } else {
       failedPageCount += 1;
       stoppedAtPage = p;

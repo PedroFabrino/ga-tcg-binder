@@ -22,10 +22,18 @@ import {
   DISCORD_DM_DESTINATION,
   readDealAlertDestinations,
 } from "../lib/market-vocabulary";
+import { MarketSyncProgressDashboard } from "./market-sync-progress";
 
 export interface MarketSyncResult {
   stores: { storeId: string; status: "success" | "failed"; error?: string }[];
   dealAlerts: { matched: number; sent: number } | null;
+}
+
+export interface RunMarketSyncOptions {
+  storeId?: string;
+  database: MarketplaceDatabase;
+  sequential?: boolean;
+  showDashboard?: boolean;
 }
 
 async function notifyMarketChanges(
@@ -36,20 +44,16 @@ async function notifyMarketChanges(
   const notificationsWritten = await writeMarketNotifications(storeId, database, {
     bootstrapIfNeverNotified,
   });
-  console.log(`- Outbox Notifications Written: ${notificationsWritten}`);
 
   const discord = await deliverDiscordNotifications(database);
   if (discord.disabled) {
-    console.warn("- Discord Notifications: disabled (DISCORD_WEBHOOK is missing or invalid)");
-  } else {
+    // Discord disabled silently in background
+  } else if (discord.attempted > 0) {
     console.log(`- Discord Notifications: ${discord.delivered}/${discord.attempted} delivered`);
   }
 }
 
-export async function runMarketSync(options: {
-  storeId?: string;
-  database: MarketplaceDatabase;
-}): Promise<MarketSyncResult> {
+export async function runMarketSync(options: RunMarketSyncOptions): Promise<MarketSyncResult> {
   const database = options.database;
   const enabledStores = await getEnabledMarketStores(database);
   const stores = options.storeId
@@ -65,6 +69,13 @@ export async function runMarketSync(options: {
   if (stores.length === 0) {
     console.log("No enabled marketplace stores to sync.");
     return result;
+  }
+
+  const showDashboard = options.showDashboard ?? true;
+  const dashboard = showDashboard ? new MarketSyncProgressDashboard() : null;
+
+  if (dashboard) {
+    dashboard.init(stores.map((s) => ({ id: s.id, name: s.name, platform: s.platform })));
   }
 
   const mypStores = stores.filter((s) => s.platform === "myp");
@@ -97,76 +108,75 @@ export async function runMarketSync(options: {
   };
 
   const syncSingleStore = async (store: (typeof stores)[number]) => {
-    console.log(`\n=== Starting Synchronization for Store: ${store.name} (${store.id}) ===`);
+    const onProgress = dashboard?.getCallback(store.id);
+    dashboard?.startStore(store.id);
     const startTime = Date.now();
 
     try {
-      if (store.platform === "myp") {
-        const stats = await syncGlobalMarketplace(database);
-        const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
-        console.log(`- Total Listings Synced: ${stats.totalSynced}`);
-        console.log(`- Matched Catalog Printings: ${stats.matchedCount}`);
-        console.log(`- Unmatched Listings: ${stats.unmatchedCount}`);
-        console.log(`- Full Scan Complete: ${stats.complete}`);
-        console.log(`- Duration: ${durationSec}s`);
+      let stats = { totalSynced: 0, matchedCount: 0 };
 
-        if (stats.complete) {
+      if (store.platform === "myp") {
+        const mypStats = await syncGlobalMarketplace(database, { onProgress });
+        stats = { totalSynced: mypStats.totalSynced, matchedCount: mypStats.matchedCount };
+        if (mypStats.complete) {
           await queueDiscordNotification(store.id, true);
         }
       } else if (store.platform === "lootcards") {
-        const stats = await syncLootcards({ storeId: store.id, database });
-        const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
-        console.log(`- Total Synced: ${stats.totalSynced}`);
-        console.log(`- Matched: ${stats.matchedCount}`);
-        console.log(`- Unmatched: ${stats.unmatchedCount}`);
-        console.log(`- Enriched: ${stats.enrichedCount}`);
-        console.log(`- Duration: ${durationSec}s`);
-
+        const lootStats = await syncLootcards({ storeId: store.id, database, onProgress });
+        stats = { totalSynced: lootStats.totalSynced, matchedCount: lootStats.matchedCount };
         await queueDiscordNotification(store.id);
       } else if (store.platform === "liga_store") {
-        const stats = await syncLigaStore({ storeId: store.id, database });
-        const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
-        console.log(`- Total Synced: ${stats.totalSynced}`);
-        console.log(`- Matched: ${stats.matchedCount}`);
-        console.log(`- Unmatched: ${stats.unmatchedCount}`);
-        console.log(`- Enriched: ${stats.enrichedCount}`);
-        console.log(`- Duration: ${durationSec}s`);
-
+        const ligaStats = await syncLigaStore({ storeId: store.id, database, onProgress });
+        stats = { totalSynced: ligaStats.totalSynced, matchedCount: ligaStats.matchedCount };
         await queueDiscordNotification(store.id);
       } else {
         console.warn(`Skipping unknown platform ${store.platform} for store ${store.id}.`);
         return;
       }
 
+      const durationSec = (Date.now() - startTime) / 1000;
+      dashboard?.completeStore(store.id, {
+        totalSynced: stats.totalSynced,
+        matchedCount: stats.matchedCount,
+        durationSec,
+      });
+
       result.stores.push({ storeId: store.id, status: "success" });
-      console.log(`=== Finished Synchronization for ${store.name} ===`);
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      dashboard?.failStore(store.id, errorMsg);
       result.stores.push({
         storeId: store.id,
         status: "failed",
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMsg,
       });
-      console.error(
-        `Failed to synchronize store "${store.name}" (${store.id}):`,
-        error instanceof Error ? error.message : error
-      );
+      if (!dashboard) {
+        console.error(`Failed to synchronize store "${store.name}" (${store.id}):`, errorMsg);
+      }
     }
   };
 
-  await Promise.all(
-    pipelines.map(async (pipelineStores) => {
-      for (const store of pipelineStores) {
-        await syncSingleStore(store);
-      }
-    })
-  );
+  if (options.sequential) {
+    for (const store of stores) {
+      await syncSingleStore(store);
+    }
+  } else {
+    await Promise.all(
+      pipelines.map(async (pipelineStores) => {
+        for (const store of pipelineStores) {
+          await syncSingleStore(store);
+        }
+      })
+    );
+  }
 
   await deliveryQueue;
 
-  // Deal alert dispatch runs once after all stores have synced so matching
-  // sees the complete set of freshly updated listings. Root delivery runs in
-  // the Root bot (the only process with the Root SDK); this process owns only
-  // the Discord DM destination.
+  if (dashboard) {
+    dashboard.printFinalSummary();
+  }
+
+  // Deal alert dispatch runs once after all stores have synced
   if (readDealAlertDestinations().includes(DISCORD_DM_DESTINATION)) {
     try {
       const dealAlerts = await dispatchDealAlerts(database, undefined, undefined, {
