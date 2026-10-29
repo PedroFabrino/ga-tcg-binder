@@ -17,7 +17,8 @@ export interface MarketNotificationPollDeps {
     RootBotApi,
     "getMarketNotifications" | "markMarketNotificationsDelivered"
   >;
-  config: Pick<RootCommunityConfig, "getBroadcastChannelId">;
+  config: Pick<RootCommunityConfig, "getBroadcastChannelId"> &
+    Partial<Pick<RootCommunityConfig, "getBroadcastLocale">>;
   postMessage: (channelId: string, content: string) => Promise<string | null>;
   warn?: (message: string) => void;
 }
@@ -39,7 +40,8 @@ export async function runMarketNotificationPoll(
     return;
   }
 
-  const { chunks } = await deps.api.getMarketNotifications();
+  const broadcastLocale = (await deps.config.getBroadcastLocale?.()) ?? "en";
+  const { chunks } = await deps.api.getMarketNotifications(broadcastLocale);
 
   for (const chunk of chunks) {
     const messageId = await deps.postMessage(broadcastChannelId, chunk.content);

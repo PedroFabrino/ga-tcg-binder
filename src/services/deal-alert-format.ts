@@ -1,4 +1,5 @@
 import type { MarketCard } from "../db/repositories/marketplace-repository";
+import type { SupportedLocale } from "@ga/contracts";
 import { MESSAGE_MAX_LENGTH } from "../lib/market-vocabulary";
 import { extractCollectorNumber } from "./market-notifications";
 import {
@@ -80,8 +81,10 @@ export function matchKey(match: DealAlertMatch): string {
 export function formatDealAlertMessage(
   matches: DealAlertMatch[],
   now: Date = new Date(),
-  rootMode = false
+  rootMode = false,
+  locale: SupportedLocale = "en"
 ): string {
+  const wantlistTitle = locale === "pt-BR" ? "Lista de Desejos" : WANTLIST_GROUP_TITLE;
   const groups = new Map<
     string,
     { title: string; isWantlist: boolean; lines: string[] }
@@ -92,7 +95,7 @@ export function formatDealAlertMessage(
     const groupKey =
       source.kind === "personal-want" ? "wantlist" : `deck:${source.deckId}`;
     const title =
-      source.kind === "personal-want" ? WANTLIST_GROUP_TITLE : source.deckName;
+      source.kind === "personal-want" ? wantlistTitle : source.deckName;
 
     if (!groups.has(groupKey)) {
       groups.set(groupKey, {
@@ -113,7 +116,8 @@ export function formatDealAlertMessage(
     })
     .map((group) => `**${group.title}**\n${group.lines.join("\n")}`);
 
-  return [`🕒 Last update: ${formatDateTimeInBrazil(now)}`, ...sections].join("\n\n");
+  const timePrefix = locale === "pt-BR" ? "🕒 Última atualização:" : "🕒 Last update:";
+  return [`${timePrefix} ${formatDateTimeInBrazil(now)}`, ...sections].join("\n\n");
 }
 
 /**
@@ -127,9 +131,14 @@ export function formatDealAlertChunks(
   matches: DealAlertMatch[],
   now: Date = new Date(),
   maxLength: number = MESSAGE_MAX_LENGTH,
-  options: { rootMode?: boolean; maxBytes?: number } = {}
+  options: { rootMode?: boolean; maxBytes?: number; locale?: SupportedLocale } = {}
 ): string[] {
-  const full = formatDealAlertMessage(matches, now, options.rootMode);
+  const full = formatDealAlertMessage(
+    matches,
+    now,
+    options.rootMode,
+    options.locale ?? "en"
+  );
   if (!full) {
     return [];
   }
@@ -206,7 +215,8 @@ function truncateSummary(value: string, max: number): string {
  * message.
  */
 export function formatDealAlertNotificationSummary(
-  matches: DealAlertMatch[]
+  matches: DealAlertMatch[],
+  locale: SupportedLocale = "en"
 ): DealAlertNotificationSummary {
   const uniqueCards = [
     ...new Set(matches.map((match) => match.listing.cardName).filter(Boolean)),
@@ -219,6 +229,33 @@ export function formatDealAlertNotificationSummary(
         .filter(Boolean)
     ),
   ];
+
+  if (locale === "pt-BR") {
+    const count = uniqueCards.length;
+    const title = truncateSummary(
+      `🔔 ${count} nova${count === 1 ? "" : "s"} carta${count === 1 ? "" : "s"} — confira seu canal de alertas`,
+      NOTIFICATION_TITLE_MAX
+    );
+
+    let description: string;
+    if (hardCards.length > 0) {
+      const shown = hardCards.slice(0, 3);
+      const list =
+        shown.length === 1
+          ? shown[0]
+          : `${shown.slice(0, -1).join(", ")} e ${shown[shown.length - 1]}`;
+      const suffix = hardCards.length > shown.length ? " e mais" : "";
+      const noun = shown.length === 1 ? "Carta" : "Cartas";
+      description = `${noun}: ${list}${suffix} à venda!`;
+    } else {
+      description = "Novas cartas da sua lista de desejos estão à venda.";
+    }
+
+    return {
+      title,
+      description: truncateSummary(description, NOTIFICATION_DESCRIPTION_MAX),
+    };
+  }
 
   const title = truncateSummary(
     `🔔 ${uniqueCards.length} new card${uniqueCards.length === 1 ? "" : "s"} — check your alerts channel`,

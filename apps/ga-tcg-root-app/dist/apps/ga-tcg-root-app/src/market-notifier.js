@@ -19,7 +19,8 @@ async function runMarketNotificationPoll(deps) {
         deps.warn?.("No broadcast channel configured — select a channel in the Assistant App GUI. Market notifications paused.");
         return;
     }
-    const { chunks } = await deps.api.getMarketNotifications();
+    const broadcastLocale = (await deps.config.getBroadcastLocale?.()) ?? "en";
+    const { chunks } = await deps.api.getMarketNotifications(broadcastLocale);
     for (const chunk of chunks) {
         const messageId = await deps.postMessage(broadcastChannelId, chunk.content);
         if (!messageId) {

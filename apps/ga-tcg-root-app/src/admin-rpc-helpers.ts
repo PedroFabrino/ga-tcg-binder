@@ -70,12 +70,15 @@ export async function getAdminSettingsHelper(
   config: RootCommunityConfig,
   deps: AdminRpcHelperDeps = {}
 ): Promise<AdminSettingsResponse> {
+  const broadcastLocale = (await config.getBroadcastLocale?.()) ?? "en";
+
   if (!(await resolveIsAdmin(userId, deps))) {
     return {
       isAdmin: false,
       broadcastChannelId: "",
       broadcastChannelName: "",
       textChannels: [],
+      broadcastLocale,
     };
   }
 
@@ -93,6 +96,7 @@ export async function getAdminSettingsHelper(
     broadcastChannelId: broadcastChannelId ?? "",
     broadcastChannelName: activeChannel?.name ?? "",
     textChannels,
+    broadcastLocale: broadcastLocale ?? "en",
   };
 }
 
@@ -102,43 +106,68 @@ export async function setBroadcastChannelHelper(
   config: RootCommunityConfig,
   deps: AdminRpcHelperDeps = {}
 ): Promise<SetBroadcastChannelResponse> {
+  const currentLocale = (await config.getBroadcastLocale?.()) ?? "en";
+
   if (!(await resolveIsAdmin(userId, deps))) {
     return {
       success: false,
       broadcastChannelId: "",
       broadcastChannelName: "",
+      broadcastLocale: currentLocale,
       error: "FORBIDDEN",
     };
   }
 
   const targetChannelId = (request.channelId || "").trim();
-  if (!targetChannelId) {
+  const rawLocale = (request.broadcastLocale || "").trim();
+  const hasLocale = rawLocale === "en" || rawLocale === "pt-BR";
+
+  if (!targetChannelId && !hasLocale) {
     return {
       success: false,
       broadcastChannelId: "",
       broadcastChannelName: "",
+      broadcastLocale: currentLocale,
       error: "INVALID_CHANNEL",
     };
   }
 
-  const textChannels = await fetchCommunityTextChannels(deps);
-  const matched = textChannels.find((ch) => ch.id === targetChannelId);
+  let finalChannelId = await config.getBroadcastChannelId();
+  let finalChannelName = "";
 
-  if (!matched) {
-    return {
-      success: false,
-      broadcastChannelId: "",
-      broadcastChannelName: "",
-      error: "CHANNEL_NOT_FOUND",
-    };
+  if (targetChannelId) {
+    const textChannels = await fetchCommunityTextChannels(deps);
+    const matched = textChannels.find((ch) => ch.id === targetChannelId);
+
+    if (!matched) {
+      return {
+        success: false,
+        broadcastChannelId: "",
+        broadcastChannelName: "",
+        broadcastLocale: currentLocale,
+        error: "CHANNEL_NOT_FOUND",
+      };
+    }
+
+    await config.setBroadcastChannelId(targetChannelId);
+    finalChannelId = targetChannelId;
+    finalChannelName = matched.name;
+  } else if (finalChannelId) {
+    const textChannels = await fetchCommunityTextChannels(deps);
+    finalChannelName = textChannels.find((ch) => ch.id === finalChannelId)?.name ?? "";
   }
 
-  await config.setBroadcastChannelId(targetChannelId);
+  if (hasLocale && config.setBroadcastLocale) {
+    await config.setBroadcastLocale(rawLocale as "en" | "pt-BR");
+  }
+
+  const updatedLocale = (await config.getBroadcastLocale?.()) ?? currentLocale;
 
   return {
     success: true,
-    broadcastChannelId: targetChannelId,
-    broadcastChannelName: matched.name,
+    broadcastChannelId: finalChannelId ?? "",
+    broadcastChannelName: finalChannelName,
+    broadcastLocale: updatedLocale,
     error: "",
   };
 }

@@ -81,33 +81,52 @@ export async function updateDealAlertPreferencesHelper(
     setNotificationPreference?: (
       userId: string,
       enabled: boolean,
-      mode?: "all" | "hard"
+      mode?: "all" | "hard",
+      locale?: string
     ) => Promise<void>;
     ensureRecipientChannel?: (
       userId: string,
-      communityId?: string
+      communityId?: string,
+      locale?: string
     ) => Promise<string | null>;
     removeDealAlertChannel?: (
       userId: string,
       communityId?: string
     ) => Promise<void>;
-  }
+  },
+  locale?: string
 ): Promise<{ alertChannelId: string }> {
   if (overrides?.setNotificationPreference) {
-    await overrides.setNotificationPreference(userId, notificationsEnabled, mode);
+    if (locale !== undefined) {
+      await overrides.setNotificationPreference(
+        userId,
+        notificationsEnabled,
+        mode,
+        locale
+      );
+    } else {
+      await overrides.setNotificationPreference(
+        userId,
+        notificationsEnabled,
+        mode
+      );
+    }
   } else {
     await api.setNotifyPreference({
       providerUserId: userId,
       enabled: notificationsEnabled,
       mode,
+      locale,
     });
   }
 
   let alertChannelId = "";
   if (notificationsEnabled) {
     const channelUrl = overrides?.ensureRecipientChannel
-      ? await overrides.ensureRecipientChannel(userId, communityId)
-      : await ensureRootRecipientChannel(userId, { communityId, api });
+      ? (locale !== undefined
+          ? await overrides.ensureRecipientChannel(userId, communityId, locale)
+          : await overrides.ensureRecipientChannel(userId, communityId))
+      : await ensureRootRecipientChannel(userId, { communityId, api, locale });
     alertChannelId = channelUrl ? channelUrl.replace(/^root:\/\/channel\//, "") : "";
   } else {
     if (overrides?.removeDealAlertChannel) {
@@ -156,7 +175,7 @@ export function mapPersonalWant(w: {
   };
 }
 
-export function createUnlinkedStatus(isAdmin = false): StatusResponse {
+export function createUnlinkedStatus(isAdmin = false, locale = ""): StatusResponse {
   return {
     isLinked: false,
     collectorId: "",
@@ -166,6 +185,7 @@ export function createUnlinkedStatus(isAdmin = false): StatusResponse {
     dealAlertMode: "all",
     alertChannelId: "",
     isAdmin,
+    locale,
   };
 }
 

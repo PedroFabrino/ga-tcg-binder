@@ -112,7 +112,8 @@ export class AssistantRpcService extends AssistantServiceBase {
       ]);
 
       if (!collector) {
-        return createUnlinkedStatus(isAdmin);
+        const broadcastLocale = (await this.getConfig().getBroadcastLocale().catch(() => "en")) || "en";
+        return createUnlinkedStatus(isAdmin, broadcastLocale);
       }
 
       return {
@@ -124,9 +125,11 @@ export class AssistantRpcService extends AssistantServiceBase {
         dealAlertMode: collector.dealAlertMode ?? "all",
         alertChannelId: channel?.channelId ?? "",
         isAdmin,
+        locale: collector.locale || "en",
       };
     } catch {
-      return createUnlinkedStatus(isAdmin);
+      const broadcastLocale = (await this.getConfig().getBroadcastLocale().catch(() => "en")) || "en";
+      return createUnlinkedStatus(isAdmin, broadcastLocale);
     }
   }
 
@@ -151,6 +154,7 @@ export class AssistantRpcService extends AssistantServiceBase {
       : (this.communityId ?? process.env.COMMUNITY_ID ?? "");
     const api = this.getApi(client);
     const mode = request.dealAlertMode === "hard" ? "hard" : "all";
+    const locale = request.locale === "pt-BR" ? "pt-BR" : (request.locale === "en" ? "en" : undefined);
 
     try {
       const { alertChannelId } = await updateDealAlertPreferencesHelper(
@@ -159,7 +163,8 @@ export class AssistantRpcService extends AssistantServiceBase {
         communityId,
         request.notificationsEnabled,
         mode,
-        this.deps
+        this.deps,
+        locale
       );
 
       return {
@@ -167,6 +172,7 @@ export class AssistantRpcService extends AssistantServiceBase {
         notificationsEnabled: request.notificationsEnabled,
         dealAlertMode: mode,
         alertChannelId,
+        locale: locale || "",
         error: "",
       };
     } catch (err: unknown) {
@@ -175,6 +181,7 @@ export class AssistantRpcService extends AssistantServiceBase {
         notificationsEnabled: false,
         dealAlertMode: "all",
         alertChannelId: "",
+        locale: "",
         error: err instanceof Error ? err.message : "SET_PREFERENCES_FAILED",
       };
     }

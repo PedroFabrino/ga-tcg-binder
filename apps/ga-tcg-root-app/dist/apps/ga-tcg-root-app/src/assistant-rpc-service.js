@@ -51,7 +51,8 @@ class AssistantRpcService extends gen_server_1.AssistantServiceBase {
                 api.getDealAlertChannel(userId).catch(() => null),
             ]);
             if (!collector) {
-                return (0, assistant_rpc_helpers_1.createUnlinkedStatus)(isAdmin);
+                const broadcastLocale = (await this.getConfig().getBroadcastLocale().catch(() => "en")) || "en";
+                return (0, assistant_rpc_helpers_1.createUnlinkedStatus)(isAdmin, broadcastLocale);
             }
             return {
                 isLinked: true,
@@ -62,10 +63,12 @@ class AssistantRpcService extends gen_server_1.AssistantServiceBase {
                 dealAlertMode: collector.dealAlertMode ?? "all",
                 alertChannelId: channel?.channelId ?? "",
                 isAdmin,
+                locale: collector.locale || "en",
             };
         }
         catch {
-            return (0, assistant_rpc_helpers_1.createUnlinkedStatus)(isAdmin);
+            const broadcastLocale = (await this.getConfig().getBroadcastLocale().catch(() => "en")) || "en";
+            return (0, assistant_rpc_helpers_1.createUnlinkedStatus)(isAdmin, broadcastLocale);
         }
     }
     async linkAccount(request, client) {
@@ -81,13 +84,15 @@ class AssistantRpcService extends gen_server_1.AssistantServiceBase {
             : (this.communityId ?? process.env.COMMUNITY_ID ?? "");
         const api = this.getApi(client);
         const mode = request.dealAlertMode === "hard" ? "hard" : "all";
+        const locale = request.locale === "pt-BR" ? "pt-BR" : (request.locale === "en" ? "en" : undefined);
         try {
-            const { alertChannelId } = await (0, assistant_rpc_helpers_1.updateDealAlertPreferencesHelper)(api, userId, communityId, request.notificationsEnabled, mode, this.deps);
+            const { alertChannelId } = await (0, assistant_rpc_helpers_1.updateDealAlertPreferencesHelper)(api, userId, communityId, request.notificationsEnabled, mode, this.deps, locale);
             return {
                 success: true,
                 notificationsEnabled: request.notificationsEnabled,
                 dealAlertMode: mode,
                 alertChannelId,
+                locale: locale || "",
                 error: "",
             };
         }
@@ -97,6 +102,7 @@ class AssistantRpcService extends gen_server_1.AssistantServiceBase {
                 notificationsEnabled: false,
                 dealAlertMode: "all",
                 alertChannelId: "",
+                locale: "",
                 error: err instanceof Error ? err.message : "SET_PREFERENCES_FAILED",
             };
         }

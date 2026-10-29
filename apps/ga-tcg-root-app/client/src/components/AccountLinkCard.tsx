@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { Link2, ShieldCheck, ExternalLink, Loader2, AlertCircle, UserPlus } from "lucide-react";
+import type { SupportedLocale } from "@ga/contracts";
+import { useTranslator } from "../hooks/useTranslator";
 
 export interface AccountLinkCardProps {
   isLinked: boolean;
@@ -8,6 +10,7 @@ export interface AccountLinkCardProps {
   onLink: (code: string) => Promise<{ success: boolean; error?: string }>;
   onRegister?: () => Promise<{ success: boolean; error?: string }>;
   portalUrl?: string;
+  locale?: SupportedLocale;
 }
 
 export const AccountLinkCard: React.FC<AccountLinkCardProps> = ({
@@ -17,7 +20,9 @@ export const AccountLinkCard: React.FC<AccountLinkCardProps> = ({
   onLink,
   onRegister,
   portalUrl = "https://ga-tcg-binder.vercel.app/settings/linked-accounts",
+  locale,
 }) => {
+  const t = useTranslator(locale);
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [registering, setRegistering] = useState(false);
@@ -27,7 +32,7 @@ export const AccountLinkCard: React.FC<AccountLinkCardProps> = ({
     e.preventDefault();
     const trimmed = code.trim().toUpperCase();
     if (!trimmed) {
-      setError("Please enter your 6-character pairing code");
+      setError(t("rootApp.accountLink.errEnterCode"));
       return;
     }
     setLoading(true);
@@ -36,17 +41,17 @@ export const AccountLinkCard: React.FC<AccountLinkCardProps> = ({
       const res = await onLink(trimmed);
       if (!res.success) {
         if (res.error === "INVALID_CODE") {
-          setError("Invalid code. Check for typos and try again.");
+          setError(t("rootApp.accountLink.errInvalidCode"));
         } else if (res.error === "EXPIRED_CODE") {
-          setError("Code has expired. Generate a fresh one in the portal.");
+          setError(t("rootApp.accountLink.errExpiredCode"));
         } else {
-          setError(res.error || "Failed to link account. Please try again.");
+          setError(res.error || t("rootApp.accountLink.errLinkFailed"));
         }
       } else {
         setCode("");
       }
     } catch {
-      setError("Network or RPC error. Please retry.");
+      setError(t("rootApp.accountLink.errNetworkRpc"));
     } finally {
       setLoading(false);
     }
@@ -59,10 +64,10 @@ export const AccountLinkCard: React.FC<AccountLinkCardProps> = ({
     try {
       const res = await onRegister();
       if (!res.success) {
-        setError(res.error || "Failed to create account. Please try again.");
+        setError(res.error || t("rootApp.accountLink.errRegisterFailed"));
       }
     } catch {
-      setError("Failed to register. Please retry.");
+      setError(t("rootApp.accountLink.errRegisterFailed"));
     } finally {
       setRegistering(false);
     }
@@ -77,12 +82,14 @@ export const AccountLinkCard: React.FC<AccountLinkCardProps> = ({
           </div>
           <div>
             <h2 className="text-base font-semibold text-slate-100">
-              {isLinked ? "Connected Binder Account" : "Link GA Binder Account"}
+              {isLinked
+                ? t("rootApp.accountLink.titleConnected")
+                : t("rootApp.accountLink.titleUnlinked")}
             </h2>
             <p className="text-xs text-slate-400">
               {isLinked
-                ? "Synchronized with Grand Archive Binder"
-                : "Pair your existing account or register a new one directly with your Root profile"}
+                ? t("rootApp.accountLink.subtitleConnected")
+                : t("rootApp.accountLink.subtitleUnlinked")}
             </p>
           </div>
         </div>
@@ -90,12 +97,12 @@ export const AccountLinkCard: React.FC<AccountLinkCardProps> = ({
         {isLinked ? (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            Connected
+            {t("rootApp.accountLink.statusConnected")}
           </span>
         ) : (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-            Unlinked
+            {t("rootApp.accountLink.statusUnlinked")}
           </span>
         )}
       </div>
@@ -104,12 +111,18 @@ export const AccountLinkCard: React.FC<AccountLinkCardProps> = ({
         {isLinked ? (
           <div className="flex flex-wrap items-center justify-between gap-4 bg-black/20 rounded-lg p-4 border border-white/[0.04]">
             <div className="space-y-1">
-              <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Collector</span>
-              <p className="text-lg font-bold text-slate-100">{collectorName || "Collector"}</p>
+              <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
+                {t("rootApp.accountLink.labelCollector")}
+              </span>
+              <p className="text-lg font-bold text-slate-100">
+                {collectorName || t("rootApp.accountLink.labelCollector")}
+              </p>
             </div>
             {friendCode && (
               <div className="space-y-1 text-right">
-                <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Friend Code</span>
+                <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
+                  {t("rootApp.accountLink.labelFriendCode")}
+                </span>
                 <p className="text-sm font-mono text-indigo-300 bg-indigo-500/10 px-2.5 py-1 rounded border border-indigo-500/20">
                   {friendCode}
                 </p>
@@ -120,8 +133,12 @@ export const AccountLinkCard: React.FC<AccountLinkCardProps> = ({
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 p-4 rounded-lg bg-indigo-500/5 border border-indigo-500/20">
               <div className="space-y-1">
-                <h3 className="text-sm font-medium text-indigo-300">New to GA Binder?</h3>
-                <p className="text-xs text-slate-400">Create an account instantly using your Root profile without leaving the app.</p>
+                <h3 className="text-sm font-medium text-indigo-300">
+                  {t("rootApp.accountLink.newToTitle")}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  {t("rootApp.accountLink.newToDesc")}
+                </p>
               </div>
               <button
                 type="button"
@@ -130,13 +147,15 @@ export const AccountLinkCard: React.FC<AccountLinkCardProps> = ({
                 className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium text-xs transition shadow-lg shadow-emerald-600/20 cursor-pointer shrink-0"
               >
                 {registering ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserPlus className="w-3.5 h-3.5" />}
-                Register with Root
+                {t("rootApp.accountLink.registerButton")}
               </button>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-3 pt-2">
               <p className="text-xs text-slate-400">
-                Already have an account? Visit <strong>Settings &gt; Linked Accounts</strong> on GA Binder to generate a 6-character code.
+                {t("rootApp.accountLink.alreadyHaveAccount", {
+                  portalLink: t("rootApp.accountLink.portalSettingsLink"),
+                })}
               </p>
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -145,7 +164,7 @@ export const AccountLinkCard: React.FC<AccountLinkCardProps> = ({
                   value={code}
                   maxLength={6}
                   onChange={(e) => setCode(e.target.value.toUpperCase())}
-                  placeholder="6-DIGIT CODE"
+                  placeholder={t("rootApp.accountLink.placeholderCode")}
                   disabled={loading || registering}
                   className="w-full sm:w-48 px-3.5 py-2 rounded-lg bg-black/40 border border-white/[0.12] text-slate-100 text-center font-mono text-sm tracking-widest placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 uppercase disabled:opacity-50"
                 />
@@ -155,7 +174,7 @@ export const AccountLinkCard: React.FC<AccountLinkCardProps> = ({
                   className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium text-xs transition cursor-pointer"
                 >
                   {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
-                  Link Account
+                  {t("rootApp.accountLink.buttonLink")}
                 </button>
                 <a
                   href={portalUrl}
@@ -163,7 +182,7 @@ export const AccountLinkCard: React.FC<AccountLinkCardProps> = ({
                   rel="noopener noreferrer"
                   className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white font-medium text-xs transition"
                 >
-                  Get Code
+                  {t("rootApp.accountLink.buttonGetCode")}
                   <ExternalLink className="w-3 h-3 text-slate-400" />
                 </a>
               </div>

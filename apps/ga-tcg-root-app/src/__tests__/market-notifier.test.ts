@@ -173,6 +173,27 @@ describe("formatMarketNotificationChunks", () => {
     );
   });
 
+  it("formats header in pt-BR when locale is pt-BR", () => {
+    const fixedDate = new Date("2026-10-21T21:45:00.000Z");
+    const expectedDateStr = formatMarketNotificationDate(fixedDate);
+    const chunks = formatMarketNotificationChunks(
+      [baseNotification],
+      "Brandao Card Game",
+      fixedDate,
+      undefined,
+      "https://brandaocardgame.com.br",
+      true,
+      "pt-BR"
+    );
+
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0].content).toBe(
+      `**[Brandao Card Game](https://brandaocardgame.com.br)** atualizou o estoque!\n` +
+      `Novas cartas desde ${expectedDateStr}:\n` +
+      `• [Flame-Rune Swordsman](https://example.com/card.jpg) — FTC 136 — R$ 15,00`
+    );
+  });
+
   it("splits large batches into chunks without exceeding MESSAGE_MAX_LENGTH", () => {
     // Generate 100 notifications (~5,000 characters)
     const notifications: MarketNotification[] = Array.from({ length: 100 }, (_, i) => ({

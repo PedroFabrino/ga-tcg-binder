@@ -6,6 +6,7 @@ import {
   getMarketCards,
   type MarketplaceDatabase,
 } from "../db/repositories/marketplace-repository";
+import { getUserById } from "../db/repositories/settings-repository";
 import {
   formatDealAlertChunks,
   formatDealAlertNotificationSummary,
@@ -30,6 +31,7 @@ export interface DealAlertPlan {
   chunks: string[];
   summary: DealAlertNotificationSummary;
   lastListingKeys: string[];
+  locale?: string;
 }
 
 export interface DealAlertCleanup {
@@ -108,6 +110,10 @@ export async function planDealAlerts(
       continue;
     }
 
+    const collectorId = userMatches[0]?.collectorId;
+    const user = collectorId ? await getUserById(collectorId, database) : undefined;
+    const userLocale = user?.locale === "pt-BR" ? "pt-BR" : "en";
+
     plans.push({
       recipientId,
       channelId: stored?.channelId ?? null,
@@ -115,9 +121,11 @@ export async function planDealAlerts(
       chunks: formatDealAlertChunks(userMatches, now, MESSAGE_MAX_LENGTH, {
         rootMode: isRoot,
         maxBytes: isRoot ? ROOT_MESSAGE_MAX_BYTES : undefined,
+        locale: userLocale,
       }),
-      summary: formatDealAlertNotificationSummary(userMatches),
+      summary: formatDealAlertNotificationSummary(userMatches, userLocale),
       lastListingKeys: currentKeys,
+      locale: userLocale,
     });
   }
 

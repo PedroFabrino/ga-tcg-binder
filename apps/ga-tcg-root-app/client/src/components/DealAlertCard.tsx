@@ -1,5 +1,8 @@
 import React, { useState } from "react";
 import { Bell, BellOff, MessageSquare, Loader2 } from "lucide-react";
+import type { SupportedLocale } from "@ga/contracts";
+import { useTranslator } from "../hooks/useTranslator";
+import { InfoTermBadge, type NomenclatureTerm } from "./InfoTermBadge";
 
 export interface DealAlertCardProps {
   isLinked: boolean;
@@ -7,6 +10,8 @@ export interface DealAlertCardProps {
   dealAlertMode: string;
   alertChannelId: string;
   onUpdatePreferences: (enabled: boolean, mode: "all" | "hard") => Promise<void>;
+  locale?: SupportedLocale;
+  onNavigateTerm?: (term: NomenclatureTerm) => void;
 }
 
 export const DealAlertCard: React.FC<DealAlertCardProps> = ({
@@ -15,7 +20,10 @@ export const DealAlertCard: React.FC<DealAlertCardProps> = ({
   dealAlertMode,
   alertChannelId,
   onUpdatePreferences,
+  locale,
+  onNavigateTerm,
 }) => {
+  const t = useTranslator(locale);
   const [loading, setLoading] = useState(false);
 
   const handleToggle = async () => {
@@ -50,9 +58,11 @@ export const DealAlertCard: React.FC<DealAlertCardProps> = ({
             {notificationsEnabled ? <Bell className="w-5 h-5 text-indigo-400" /> : <BellOff className="w-5 h-5 text-slate-500" />}
           </div>
           <div>
-            <h2 className="text-base font-semibold text-slate-100">Market Deal Alerts</h2>
+            <h2 className="text-base font-semibold text-slate-100">
+              {t("rootApp.dealAlerts.title")}
+            </h2>
             <p className="text-xs text-slate-400">
-              Receive automated notifications when cards you need are listed at or below market value
+              {t("rootApp.dealAlerts.subtitle")}
             </p>
           </div>
         </div>
@@ -79,8 +89,9 @@ export const DealAlertCard: React.FC<DealAlertCardProps> = ({
       <div className="pt-4 space-y-4">
         {/* Mode Selector */}
         <div className="space-y-2">
-          <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">
-            Alert Scope Mode
+          <label className="text-xs font-medium text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+            <span>{t("rootApp.dealAlerts.scopeModeLabel")}</span>
+            <InfoTermBadge term="alertScope" locale={locale} onNavigate={onNavigateTerm} />
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button
@@ -94,11 +105,14 @@ export const DealAlertCard: React.FC<DealAlertCardProps> = ({
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold">All Shortages</span>
+                <span className="text-sm font-semibold flex items-center gap-1.5">
+                  {t("rootApp.dealAlerts.allShortagesTitle")}
+                  <InfoTermBadge term="shortages" locale={locale} onNavigate={onNavigateTerm} />
+                </span>
                 {dealAlertMode !== "hard" && <span className="w-2 h-2 rounded-full bg-indigo-400" />}
               </div>
               <p className="text-xs text-slate-400 mt-1">
-                Hard shortages + shared deck rotations + personal wantlist
+                {t("rootApp.dealAlerts.allShortagesDesc")}
               </p>
             </button>
 
@@ -113,11 +127,14 @@ export const DealAlertCard: React.FC<DealAlertCardProps> = ({
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold">Hard Shortages Only</span>
+                <span className="text-sm font-semibold flex items-center gap-1.5">
+                  {t("rootApp.dealAlerts.hardOnlyTitle")}
+                  <InfoTermBadge term="hardShortages" locale={locale} onNavigate={onNavigateTerm} />
+                </span>
                 {dealAlertMode === "hard" && <span className="w-2 h-2 rounded-full bg-indigo-400" />}
               </div>
               <p className="text-xs text-slate-400 mt-1">
-                Only unowned cards you need to buy + personal wantlist
+                {t("rootApp.dealAlerts.hardOnlyDesc")}
               </p>
             </button>
           </div>
@@ -129,7 +146,7 @@ export const DealAlertCard: React.FC<DealAlertCardProps> = ({
             <div className="flex items-center gap-2.5">
               <MessageSquare className="w-4 h-4 text-indigo-400" />
               <span className="text-xs text-slate-300">
-                Delivering alerts to your private channel:
+                {t("rootApp.dealAlerts.deliveringToChannel")}
               </span>
             </div>
             <a
@@ -144,7 +161,7 @@ export const DealAlertCard: React.FC<DealAlertCardProps> = ({
         {loading && (
           <div className="flex items-center gap-2 text-xs text-indigo-400">
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            Updating notification preferences...
+            {t("rootApp.dealAlerts.updatingPreferences")}
           </div>
         )}
       </div>

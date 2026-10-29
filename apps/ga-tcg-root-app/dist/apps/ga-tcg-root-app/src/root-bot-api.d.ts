@@ -24,7 +24,7 @@ export declare class RootBotApi {
     constructor(options: RootBotApiOptions);
     private token;
     private request;
-    getMarketNotifications(): Promise<RootBotMarketNotificationsResponse>;
+    getMarketNotifications(locale?: "en" | "pt-BR"): Promise<RootBotMarketNotificationsResponse>;
     markMarketNotificationsDelivered(request: RootBotMarketDeliveredRequest): Promise<void>;
     getDealAlerts(): Promise<RootBotDealAlertsResponse>;
     recordDealAlertDelivery(request: RootBotDealAlertDeliveredRequest): Promise<void>;

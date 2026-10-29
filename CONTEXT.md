@@ -101,7 +101,7 @@ The circulating copy limit below which a Printing is classified as low populatio
 _Avoid_: Rarity cutoff, scarcity limit
 
 **Collector**:
-An authenticated user who maintains a personal collection of Owned Copies and personal Decks.
+An authenticated user who maintains a personal collection of Owned Copies, personal Decks, and a synced `locale` preference (`en` or `pt-BR`) shared across the web Binder, Root App GUI, and personal notification channels.
 _Avoid_: Player, account, user
 
 **Public Collector Profile**:
@@ -291,6 +291,14 @@ The `@ga/root-app` application at `apps/ga-tcg-root-app/` built with `@rootsdk/s
 The Root community channel (persisted in app community settings as `broadcast_channel_id`) where the Root App posts market update notifications.
 _Avoid_: Bot channel, dump channel, setup channel
 
+**Community Broadcast Locale**:
+The community-level language (`en` or `pt-BR`) configured by a community administrator in the Root App (`RootCommunityConfig`), governing the language of global `#market` Broadcast Channel messages and serving as the default fallback GUI locale for unlinked community members.
+_Avoid_: Bot language, global locale, server language
+
+**Omnidex Format**:
+The canonical deck representation accepted by the Binder and Collector Assistant for deck import and editing—either an `omnidex.lugia.ca` deck URL or a raw text decklist partitioned by `# Main Deck`, `# Material Deck`, and `# Sideboard` section headers.
+_Avoid_: Raw deck string, lugia format, deck code
+
 **Destination**:
 A named delivery channel (for example `discord`) that receives market update notifications. Each Notification Outbox row tracks delivery independently per Destination in `notification_deliveries`.
 _Avoid_: Channel, transport, sink type
@@ -342,4 +350,13 @@ _Avoid_: DAO, data layer, db helper
 **Service**:
 A module in `src/services/` holding domain logic and orchestration, calling Repositories and never the database directly.
 _Avoid_: Manager, util
+
+**Wantlist Radar**:
+An in-browser storefront overlay and expandable jump-list that highlights in-stock Marketplace Listings matching a Collector's Aggregate Wantlist and optional Staple Deficits directly on external storefront pages.
+_Avoid_: Store highlighter, page scanner, wishlist badge
+
+**Store Session Secret**:
+A per-store credential payload combining a Collector's Cloudflare clearance cookie and browser User-Agent, exported from an authenticated browser session to authorize automated storefront crawls.
+_Avoid_: Cookie dump, Cloudflare token, scraper secret
+
 

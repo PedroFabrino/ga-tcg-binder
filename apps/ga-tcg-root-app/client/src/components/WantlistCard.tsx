@@ -11,19 +11,30 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
+import type { SupportedLocale } from "@ga/contracts";
+import { useTranslator } from "../hooks/useTranslator";
 import type {
   IAssistantRpcClient,
   PersonalWantRpcItem,
   AutocompleteChoiceItem,
 } from "../types";
 import { WantlistOmnidexGapForm } from "./WantlistOmnidexGapForm";
+import { InfoTermBadge, type NomenclatureTerm } from "./InfoTermBadge";
 
 export interface WantlistCardProps {
   isLinked: boolean;
   client: IAssistantRpcClient;
+  locale?: SupportedLocale;
+  onNavigateTerm?: (term: NomenclatureTerm) => void;
 }
 
-export const WantlistCard: React.FC<WantlistCardProps> = ({ isLinked, client }) => {
+export const WantlistCard: React.FC<WantlistCardProps> = ({
+  isLinked,
+  client,
+  locale,
+  onNavigateTerm,
+}) => {
+  const t = useTranslator(locale);
   const [wants, setWants] = useState<PersonalWantRpcItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -99,17 +110,23 @@ export const WantlistCard: React.FC<WantlistCardProps> = ({ isLinked, client }) 
       });
 
       if (res.success) {
-        setFeedback({ type: "success", text: `Added ${cardName} x${quantity} to wishlist` });
+        setFeedback({
+          type: "success",
+          text: t("rootApp.wantlist.msgAdded", { name: cardName, quantity }),
+        });
         setSearchQuery("");
         setSelectedCard(null);
         setQuantity(1);
         setFoil(false);
         await fetchWants();
       } else {
-        setFeedback({ type: "error", text: res.error || "Failed to add card" });
+        setFeedback({
+          type: "error",
+          text: res.error || t("rootApp.wantlist.errAddFailed"),
+        });
       }
     } catch {
-      setFeedback({ type: "error", text: "Error communicating with service" });
+      setFeedback({ type: "error", text: t("rootApp.wantlist.errServiceComms") });
     } finally {
       setActionLoading(false);
     }
@@ -123,12 +140,17 @@ export const WantlistCard: React.FC<WantlistCardProps> = ({ isLinked, client }) 
       if (res.success) {
         setFeedback({
           type: "success",
-          text: res.removed ? `Removed ${res.cardName}` : `Decremented ${res.cardName}`,
+          text: res.removed
+            ? t("rootApp.wantlist.msgRemoved", { name: res.cardName })
+            : t("rootApp.wantlist.msgDecremented", { name: res.cardName }),
         });
         await fetchWants();
       }
     } catch {
-      setFeedback({ type: "error", text: "Failed to remove card from wishlist" });
+      setFeedback({
+        type: "error",
+        text: t("rootApp.wantlist.errRemoveFailed"),
+      });
     } finally {
       setActionLoading(false);
     }
@@ -147,13 +169,22 @@ export const WantlistCard: React.FC<WantlistCardProps> = ({ isLinked, client }) 
       });
 
       if (res.success) {
-        setFeedback({ type: "success", text: "Imported shortage gap from Omnidex into wishlist!" });
+        setFeedback({
+          type: "success",
+          text: t("rootApp.wantlist.msgImportedGap"),
+        });
         await fetchWants();
       } else {
-        setFeedback({ type: "error", text: res.error || "Failed to import Omnidex deck" });
+        setFeedback({
+          type: "error",
+          text: res.error || t("rootApp.wantlist.errImportGapFailed"),
+        });
       }
     } catch {
-      setFeedback({ type: "error", text: "Failed to fetch or parse Omnidex deck" });
+      setFeedback({
+        type: "error",
+        text: t("rootApp.wantlist.errOmnidexParse"),
+      });
     } finally {
       setActionLoading(false);
     }
@@ -172,14 +203,17 @@ export const WantlistCard: React.FC<WantlistCardProps> = ({ isLinked, client }) 
             <Heart className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-base font-semibold text-slate-100">Personal Wishlist & Wants</h2>
+            <h2 className="text-base font-semibold text-slate-100 flex items-center gap-1.5">
+              <span>{t("rootApp.wantlist.title")}</span>
+              <InfoTermBadge term="wantlist" locale={locale} onNavigate={onNavigateTerm} />
+            </h2>
             <p className="text-xs text-slate-400">
-              Manage individual wanted cards and Omnidex shortage gaps
+              {t("rootApp.wantlist.subtitle")}
             </p>
           </div>
         </div>
         <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-pink-500/10 text-pink-400 border border-pink-500/20">
-          {wants.length} Wanted
+          {t("rootApp.wantlist.wantedCount", { count: wants.length })}
         </span>
       </div>
 
@@ -204,7 +238,7 @@ export const WantlistCard: React.FC<WantlistCardProps> = ({ isLinked, client }) 
       <div className="space-y-3 p-4 rounded-lg bg-black/20 border border-white/[0.04]">
         <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
           <Plus className="w-3.5 h-3.5 text-pink-400" />
-          Add Card to Wishlist (with Autocomplete)
+          {t("rootApp.wantlist.addCardHeading")}
         </h3>
 
         <form onSubmit={handleAddWant} className="space-y-3">
@@ -218,7 +252,7 @@ export const WantlistCard: React.FC<WantlistCardProps> = ({ isLinked, client }) 
                   setSearchQuery(e.target.value);
                   setSelectedCard(null);
                 }}
-                placeholder="Search card name (e.g. Fireball, Fracturize)..."
+                placeholder={t("rootApp.wantlist.searchPlaceholder")}
                 className="w-full pl-9 pr-4 py-2 rounded-lg bg-black/40 border border-white/[0.1] text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-pink-500"
               />
             </div>
@@ -245,7 +279,9 @@ export const WantlistCard: React.FC<WantlistCardProps> = ({ isLinked, client }) 
 
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
-              <label className="text-xs text-slate-400">Qty:</label>
+              <label className="text-xs text-slate-400">
+                {t("rootApp.wantlist.qtyLabel")}
+              </label>
               <input
                 type="number"
                 min={1}
@@ -264,7 +300,7 @@ export const WantlistCard: React.FC<WantlistCardProps> = ({ isLinked, client }) 
                 className="rounded border-white/[0.2] bg-black/40 text-pink-500 focus:ring-0"
               />
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              Prefer Foil
+              {t("rootApp.wantlist.preferFoil")}
             </label>
 
             <button
@@ -273,7 +309,7 @@ export const WantlistCard: React.FC<WantlistCardProps> = ({ isLinked, client }) 
               className="ml-auto flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-pink-600 hover:bg-pink-500 disabled:opacity-50 text-white font-medium text-xs transition cursor-pointer"
             >
               {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-              Add to Wishlist
+              {t("rootApp.wantlist.addButton")}
             </button>
           </div>
         </form>
@@ -283,16 +319,22 @@ export const WantlistCard: React.FC<WantlistCardProps> = ({ isLinked, client }) 
       <WantlistOmnidexGapForm
         loading={actionLoading}
         onImportGap={handleImportGap}
+        locale={locale}
+        onNavigateTerm={onNavigateTerm}
       />
 
       {/* Wishlist Items List */}
       <div className="space-y-2">
-        <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Current Wishlist Items</h3>
+        <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+          {t("rootApp.wantlist.currentItemsHeading")}
+        </h3>
         {loading ? (
-          <div className="p-4 text-center text-xs text-slate-500">Loading wishlist...</div>
+          <div className="p-4 text-center text-xs text-slate-500">
+            {t("rootApp.wantlist.loadingItems")}
+          </div>
         ) : wants.length === 0 ? (
           <div className="p-4 text-center text-xs text-slate-500 border border-dashed border-white/[0.08] rounded-lg">
-            No personal wants recorded. Use the search bar above to add cards!
+            {t("rootApp.wantlist.noItemsEmpty")}
           </div>
         ) : (
           <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
@@ -305,11 +347,11 @@ export const WantlistCard: React.FC<WantlistCardProps> = ({ isLinked, client }) 
                   <span className="font-medium text-slate-200">{w.cardName}</span>
                   {w.foil && (
                     <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1 rounded">
-                      ★ Foil
+                      {t("rootApp.wantlist.foilBadge")}
                     </span>
                   )}
                   <span className="text-[10px] text-slate-400 bg-white/[0.04] px-1 rounded">
-                    x{w.desiredQuantity} wanted
+                    {t("rootApp.wantlist.wantedQuantity", { count: w.desiredQuantity })}
                   </span>
                 </div>
 
@@ -318,7 +360,7 @@ export const WantlistCard: React.FC<WantlistCardProps> = ({ isLinked, client }) 
                     type="button"
                     onClick={() => handleRemove(w.cardSlug, 1)}
                     disabled={actionLoading}
-                    title="Decrement by 1"
+                    title={t("rootApp.wantlist.decrementTitle")}
                     className="p-1 hover:bg-white/[0.08] rounded text-slate-400 hover:text-slate-200 cursor-pointer"
                   >
                     <Minus className="w-3.5 h-3.5" />
@@ -327,7 +369,7 @@ export const WantlistCard: React.FC<WantlistCardProps> = ({ isLinked, client }) 
                     type="button"
                     onClick={() => handleRemove(w.cardSlug)}
                     disabled={actionLoading}
-                    title="Remove entire entry"
+                    title={t("rootApp.wantlist.removeTitle")}
                     className="p-1 hover:bg-rose-500/20 rounded text-slate-400 hover:text-rose-400 cursor-pointer"
                   >
                     <Trash2 className="w-3.5 h-3.5" />

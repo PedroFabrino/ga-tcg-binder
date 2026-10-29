@@ -15,6 +15,7 @@ export async function POST(request: Request) {
     providerUserId?: unknown;
     enabled?: unknown;
     mode?: unknown;
+    locale?: unknown;
   };
 
   if (
@@ -26,12 +27,15 @@ export async function POST(request: Request) {
 
   const mode =
     body.mode === "hard" || body.mode === "all" ? body.mode : undefined;
+  const locale =
+    body.locale === "pt-BR" || body.locale === "en" ? body.locale : undefined;
 
   const updated = await setCommunityNotifyPreference(
     caller.communityId,
     body.providerUserId,
     body.enabled,
-    mode
+    mode,
+    locale
   );
   if (!updated) {
     return NextResponse.json(

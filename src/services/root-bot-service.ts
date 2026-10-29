@@ -18,6 +18,7 @@ import {
   listRootCommunityIdentities,
 } from "../db/repositories/root-community-identity-repository";
 import { revokeRootBotInstall } from "../db/repositories/root-bot-install-repository";
+import { updateUserSettings } from "../db/repositories/settings-repository";
 import { parseMessageIds } from "./discord-dm-client";
 import { ROOT_MESSAGE_MAX_BYTES } from "../lib/market-vocabulary";
 import {
@@ -29,6 +30,7 @@ import {
   groupMarketNotificationsByStore,
 } from "./market-notification-message";
 import { rootBotDestination } from "./root-bot-scope";
+import type { SupportedLocale } from "@ga/contracts";
 
 export interface RootBotMarketChunk {
   storeId: string;
@@ -50,11 +52,13 @@ export interface RootBotCollector {
   friendCode?: string | null;
   notificationsEnabled?: boolean;
   dealAlertMode?: "all" | "hard";
+  locale?: string;
 }
 
 /** Pending marketplace notifications, grouped by store and formatted. */
 export async function listPendingMarketChunks(
-  communityId: string
+  communityId: string,
+  locale: SupportedLocale = "en"
 ): Promise<RootBotMarketChunk[]> {
   const pending = await getUndeliveredNotifications(
     rootBotDestination(communityId)
@@ -76,7 +80,8 @@ export async function listPendingMarketChunks(
       store?.lastFullScanAt ?? null,
       ROOT_MESSAGE_MAX_BYTES,
       store?.baseUrl ?? null,
-      true
+      true,
+      locale
     )) {
       chunks.push({
         storeId,
@@ -178,6 +183,7 @@ export async function resolveCommunityCollector(
   const result: RootBotCollector = {
     collectorId: resolved.collector.id,
     collectorName: resolved.collector.name,
+    locale: resolved.collector.locale || "en",
   };
   if (resolved.collector.friendCode) {
     result.friendCode = resolved.collector.friendCode;
@@ -196,7 +202,8 @@ export async function setCommunityNotifyPreference(
   communityId: string,
   providerUserId: string,
   enabled: boolean,
-  mode?: "all" | "hard"
+  mode?: "all" | "hard",
+  locale?: string
 ): Promise<boolean> {
   const resolved = await findCollectorByIdentity("root", providerUserId);
   if (!resolved) {
@@ -210,6 +217,9 @@ export async function setCommunityNotifyPreference(
     enabled,
     ...(mode !== undefined ? [mode] : [])
   );
+  if (locale === "en" || locale === "pt-BR") {
+    await updateUserSettings(resolved.collector.id, { locale });
+  }
   return true;
 }
 

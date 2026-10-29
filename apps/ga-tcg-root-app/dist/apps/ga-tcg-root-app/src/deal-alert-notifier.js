@@ -1,5 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.WELCOME_MESSAGE = void 0;
+exports.getWelcomeMessage = getWelcomeMessage;
 exports.runDealAlertPoll = runDealAlertPoll;
 exports.startDealAlertNotifier = startDealAlertNotifier;
 exports.provisionRootDealAlerts = provisionRootDealAlerts;
@@ -12,7 +14,13 @@ const root_bot_scheduler_1 = require("./root-bot-scheduler");
 const root_deal_alert_section_1 = require("./root-deal-alert-section");
 const root_deal_alert_transport_1 = require("./root-deal-alert-transport");
 const diagnostics_1 = require("./diagnostics");
-const WELCOME_MESSAGE = "🔔 **Deal alerts are on.** I'll keep this channel updated with cards from your wantlist and deck shortages that are for sale.";
+function getWelcomeMessage(locale = "en") {
+    if (locale === "pt-BR") {
+        return "🔔 **Alertas de ofertas ativados.** Vou manter este canal atualizado com cartas da sua lista de desejos e cartas necessárias para seus decks que estiverem à venda.";
+    }
+    return "🔔 **Deal alerts are on.** I'll keep this channel updated with cards from your wantlist and deck shortages that are for sale.";
+}
+exports.WELCOME_MESSAGE = getWelcomeMessage("en");
 /**
  * One deal-alert poll: ask the API for changed lists + cleanup, deliver to Root
  * channels/notifications, and report the results back. No matching or database
@@ -27,7 +35,12 @@ async function runDealAlertPoll(deps) {
     const transport = deps.createTransport(sectionId);
     for (const item of cleanup) {
         for (const id of item.messageIds) {
-            await transport.delete({ channelId: item.channelId, messageId: id });
+            try {
+                await transport.delete({ channelId: item.channelId, messageId: id });
+            }
+            catch (err) {
+                console.warn(`[deal-alert-notifier] Could not delete cleanup message ${id} in channel ${item.channelId}:`, err instanceof Error ? err.message : err);
+            }
         }
         await deps.api.recordDealAlertCleanup(item.recipientId);
     }
@@ -38,7 +51,12 @@ async function runDealAlertPoll(deps) {
             const ref = await transport.send(plan.recipientId, chunk, channelId);
             if (!ref) {
                 for (const partial of sentRefs) {
-                    await transport.delete(partial);
+                    try {
+                        await transport.delete(partial);
+                    }
+                    catch (err) {
+                        console.warn(`[deal-alert-notifier] Could not roll back partial message ${partial.messageId}:`, err instanceof Error ? err.message : err);
+                    }
                 }
                 sentRefs.length = 0;
                 break;
@@ -49,20 +67,31 @@ async function runDealAlertPoll(deps) {
         if (sentRefs.length !== plan.chunks.length) {
             continue;
         }
-        if (plan.channelId) {
-            for (const oldId of plan.previousMessageIds) {
-                await transport.delete({ channelId: plan.channelId, messageId: oldId });
-            }
-        }
-        if (transport.notify) {
-            await transport.notify(plan.recipientId, plan.summary);
-        }
+        const deliveredChannelId = sentRefs[0].channelId;
         await deps.api.recordDealAlertDelivery({
             recipientId: plan.recipientId,
-            channelId: sentRefs[0].channelId,
+            channelId: deliveredChannelId,
             messageIds: sentRefs.map((ref) => ref.messageId),
             lastListingKeys: plan.lastListingKeys,
         });
+        if (plan.channelId && plan.channelId === deliveredChannelId) {
+            for (const oldId of plan.previousMessageIds) {
+                try {
+                    await transport.delete({ channelId: plan.channelId, messageId: oldId });
+                }
+                catch (err) {
+                    console.warn(`[deal-alert-notifier] Could not delete previous message ${oldId} in channel ${plan.channelId}:`, err instanceof Error ? err.message : err);
+                }
+            }
+        }
+        if (transport.notify) {
+            try {
+                await transport.notify(plan.recipientId, plan.summary);
+            }
+            catch (err) {
+                console.warn(`[deal-alert-notifier] Could not send notification summary for ${plan.recipientId}:`, err instanceof Error ? err.message : err);
+            }
+        }
     }
 }
 async function startDealAlertNotifier(options = {}) {
@@ -152,7 +181,20 @@ async function ensureRootRecipientChannel(recipientId, options = {}) {
         channelGroupId: sectionId,
         api: rootApi,
     });
-    const ref = await transport.send(recipientId, WELCOME_MESSAGE);
+    let locale = options.locale;
+    if (!locale) {
+        try {
+            const collector = await api.getCollector(recipientId);
+            if (collector?.locale) {
+                locale = collector.locale;
+            }
+        }
+        catch {
+            // Ignore collector lookup failure, fallback to "en"
+        }
+    }
+    const welcomeText = getWelcomeMessage(locale);
+    const ref = await transport.send(recipientId, welcomeText);
     if (!ref) {
         throw new Error("Could not create the deal-alert channel.");
     }
@@ -176,7 +218,12 @@ async function removeRootDealAlertChannel(recipientId, options = {}) {
     }
     const rootApi = options.rootApi ?? (0, root_deal_alert_transport_1.createRootServerDealAlertApi)();
     for (const id of existing.messageIds) {
-        await rootApi.deleteMessage({ channelId: existing.channelId, id });
+        try {
+            await rootApi.deleteMessage({ channelId: existing.channelId, id });
+        }
+        catch (err) {
+            console.warn(`[deal-alert-notifier] Could not delete message ${id} in channel ${existing.channelId}:`, err instanceof Error ? err.message : err);
+        }
     }
     try {
         await rootApi.deleteChannel(existing.channelId);

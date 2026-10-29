@@ -11,7 +11,11 @@ export async function GET(request: Request) {
     );
   }
 
+  const url = new URL(request.url);
+  const localeParam = url.searchParams.get("locale");
+  const locale = localeParam === "pt-BR" ? "pt-BR" : "en";
+
   return NextResponse.json({
-    chunks: await listPendingMarketChunks(caller.communityId),
+    chunks: await listPendingMarketChunks(caller.communityId, locale),
   });
 }

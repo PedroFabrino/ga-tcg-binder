@@ -37,6 +37,7 @@ export interface RootBotDealAlertPlan {
   chunks: string[];
   summary: { title: string; description: string };
   lastListingKeys: string[];
+  locale?: string;
 }
 
 export interface RootBotDealAlertsResponse {
@@ -65,6 +66,7 @@ export interface RootBotCollectorResponse {
   friendCode?: string | null;
   notificationsEnabled?: boolean;
   dealAlertMode?: "all" | "hard";
+  locale?: string;
 }
 
 export interface RootBotNotifyRequest {
@@ -72,4 +74,5 @@ export interface RootBotNotifyRequest {
   enabled: boolean;
   /** Deal-alert scope: "all" or "hard". Optional. */
   mode?: "all" | "hard";
+  locale?: string;
 }

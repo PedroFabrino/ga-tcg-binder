@@ -43,6 +43,11 @@ export interface RootDealAlertApi {
     getChannel(id: string): Promise<{
         id: string;
     }>;
+    /** Lists channels in a group so orphaned/duplicate wantlist channels can be cleaned up. */
+    listChannels?(channelGroupId: string): Promise<Array<{
+        id: string;
+        name: string;
+    }>>;
     deleteMessage(request: {
         channelId: string;
         id: string;

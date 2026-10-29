@@ -11,6 +11,7 @@ message StatusResponse {
   string deal_alert_mode = 6;
   string alert_channel_id = 7;
   bool is_admin = 8;
+  string locale = 9;
 }
 
 message LinkRequest {
@@ -33,6 +34,7 @@ message RegisterResponse {
 message PreferencesRequest {
   bool notifications_enabled = 1;
   string deal_alert_mode = 2;
+  string locale = 3;
 }
 
 message PreferencesResponse {
@@ -41,6 +43,7 @@ message PreferencesResponse {
   string deal_alert_mode = 3;
   string alert_channel_id = 4;
   string error = 5;
+  string locale = 6;
 }
 
 message DeckShortageCard {
@@ -162,10 +165,12 @@ message AdminSettingsResponse {
   string broadcast_channel_id = 2;
   string broadcast_channel_name = 3;
   repeated CommunityChannelOption text_channels = 4;
+  string broadcast_locale = 5;
 }
 
 message SetBroadcastChannelRequest {
   string channel_id = 1;
+  string broadcast_locale = 2;
 }
 
 message SetBroadcastChannelResponse {
@@ -173,6 +178,7 @@ message SetBroadcastChannelResponse {
   string broadcast_channel_id = 2;
   string broadcast_channel_name = 3;
   string error = 4;
+  string broadcast_locale = 5;
 }
 
 message ProvisionMarketChannelsResponse {

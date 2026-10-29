@@ -40,6 +40,10 @@ export interface StatusResponse {
      * @generated from protobuf field: bool is_admin = 8
      */
     isAdmin: boolean;
+    /**
+     * @generated from protobuf field: string locale = 9
+     */
+    locale: string;
 }
 /**
  * @generated from protobuf message LinkRequest
@@ -100,6 +104,10 @@ export interface PreferencesRequest {
      * @generated from protobuf field: string deal_alert_mode = 2
      */
     dealAlertMode: string;
+    /**
+     * @generated from protobuf field: string locale = 3
+     */
+    locale: string;
 }
 /**
  * @generated from protobuf message PreferencesResponse
@@ -125,6 +133,10 @@ export interface PreferencesResponse {
      * @generated from protobuf field: string error = 5
      */
     error: string;
+    /**
+     * @generated from protobuf field: string locale = 6
+     */
+    locale: string;
 }
 /**
  * @generated from protobuf message DeckShortageCard
@@ -483,6 +495,10 @@ export interface AdminSettingsResponse {
      * @generated from protobuf field: repeated CommunityChannelOption text_channels = 4
      */
     textChannels: CommunityChannelOption[];
+    /**
+     * @generated from protobuf field: string broadcast_locale = 5
+     */
+    broadcastLocale: string;
 }
 /**
  * @generated from protobuf message SetBroadcastChannelRequest
@@ -492,6 +508,10 @@ export interface SetBroadcastChannelRequest {
      * @generated from protobuf field: string channel_id = 1
      */
     channelId: string;
+    /**
+     * @generated from protobuf field: string broadcast_locale = 2
+     */
+    broadcastLocale: string;
 }
 /**
  * @generated from protobuf message SetBroadcastChannelResponse
@@ -513,6 +533,10 @@ export interface SetBroadcastChannelResponse {
      * @generated from protobuf field: string error = 4
      */
     error: string;
+    /**
+     * @generated from protobuf field: string broadcast_locale = 5
+     */
+    broadcastLocale: string;
 }
 /**
  * @generated from protobuf message ProvisionMarketChannelsResponse

@@ -8,11 +8,15 @@ const preferenceMocks = vi.hoisted(() => ({
 const communityMocks = vi.hoisted(() => ({
   linkRootCommunityIdentity: vi.fn(),
 }));
+const settingsMocks = vi.hoisted(() => ({
+  updateUserSettings: vi.fn(),
+}));
 
 vi.mock("@/services/root-bot-auth", () => authMocks);
 vi.mock("@/db/repositories/assistant-repository", () => identityMocks);
 vi.mock("@/db/repositories/personal-wants-repository", () => preferenceMocks);
 vi.mock("@/db/repositories/root-community-identity-repository", () => communityMocks);
+vi.mock("@/db/repositories/settings-repository", () => settingsMocks);
 
 import { POST } from "../route";
 
@@ -38,7 +42,7 @@ describe("POST /api/root-bot/notify", () => {
     expect(preferenceMocks.setWantlistNotificationPreference).not.toHaveBeenCalled();
   });
 
-  it("sets the preference for the linked collector", async () => {
+  it("sets the preference and locale for the linked collector", async () => {
     authMocks.authenticateRootBot.mockResolvedValue({
       appId: "app",
       communityId: "comm-1",
@@ -48,13 +52,16 @@ describe("POST /api/root-bot/notify", () => {
     });
 
     const response = await POST(
-      request({ providerUserId: "u1", enabled: true })
+      request({ providerUserId: "u1", enabled: true, mode: "hard", locale: "pt-BR" })
     );
 
     expect(response.status).toBe(200);
     expect(
       preferenceMocks.setWantlistNotificationPreference
-    ).toHaveBeenCalledWith("collector-1", "root", true);
+    ).toHaveBeenCalledWith("collector-1", "root", true, "hard");
+    expect(settingsMocks.updateUserSettings).toHaveBeenCalledWith("collector-1", {
+      locale: "pt-BR",
+    });
   });
 
   it("returns 404 when the identity is not linked", async () => {

@@ -91,6 +91,7 @@ function parseFeatureFlag(val, defaultValue = false) {
 // Internationalization (i18n)
 // ---------------------------------------------------------------------------
 __exportStar(require("./i18n"), exports);
+__exportStar(require("./i18n-root-app"), exports);
 // ---------------------------------------------------------------------------
 // Fulfillment Contracts
 // ---------------------------------------------------------------------------

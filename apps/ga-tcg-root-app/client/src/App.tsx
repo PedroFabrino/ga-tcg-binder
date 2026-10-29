@@ -7,11 +7,19 @@ import { DealAlertCard } from "./components/DealAlertCard";
 import { DecksDashboardCard } from "./components/DecksDashboardCard";
 import { WantlistCard } from "./components/WantlistCard";
 import { CommunityAdminCard } from "./components/CommunityAdminCard";
+import { NomenclatureGuideCard } from "./components/NomenclatureGuideCard";
+import type { NomenclatureTerm } from "./components/InfoTermBadge";
 import type { IAssistantRpcClient, StatusResponse, DeckSummary } from "./types";
+import {
+  getStoredUserLocale,
+  resolveEffectiveLocale,
+  setStoredUserLocale,
+} from "./locale";
 
 export interface AppProps {
   client: IAssistantRpcClient;
   locale?: SupportedLocale;
+  initialStatus?: StatusResponse;
 }
 
 function withTimeout<T>(
@@ -27,13 +35,31 @@ function withTimeout<T>(
   ]);
 }
 
-export const App: React.FC<AppProps> = ({ client, locale }) => {
-  const t = useTranslator(locale);
-  const [status, setStatus] = useState<StatusResponse | null>(null);
+export const App: React.FC<AppProps> = ({ client, locale, initialStatus }) => {
+  const [status, setStatus] = useState<StatusResponse | null>(initialStatus ?? null);
+  const [currentLocale, setCurrentLocale] = useState<SupportedLocale>(() => {
+    const stored = getStoredUserLocale();
+    if (stored) return stored;
+    if (initialStatus?.locale === "en" || initialStatus?.locale === "pt-BR") {
+      return initialStatus.locale as SupportedLocale;
+    }
+    return resolveEffectiveLocale({ browserLocale: locale });
+  });
+  const t = useTranslator(currentLocale);
   const [decks, setDecks] = useState<DeckSummary[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialStatus);
   const [refreshing, setRefreshing] = useState(false);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
+  const [highlightedTerm, setHighlightedTerm] = useState<NomenclatureTerm | null>(null);
+
+  const handleNavigateTerm = useCallback((term: NomenclatureTerm) => {
+    setHighlightedTerm(term);
+    const el = document.getElementById(`nomenclature-${term}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => {
+      setHighlightedTerm((prev) => (prev === term ? null : prev));
+    }, 2500);
+  }, []);
 
   const fetchStatusAndDecks = useCallback(async () => {
     try {
@@ -44,6 +70,12 @@ export const App: React.FC<AppProps> = ({ client, locale }) => {
         t("rootApp.connectionTimeout")
       );
       setStatus(res);
+      if (res.isLinked && (res.locale === "en" || res.locale === "pt-BR")) {
+        setCurrentLocale(res.locale as SupportedLocale);
+        setStoredUserLocale(res.locale as SupportedLocale);
+      } else if (!getStoredUserLocale() && (res.locale === "en" || res.locale === "pt-BR")) {
+        setCurrentLocale(res.locale as SupportedLocale);
+      }
       if (res.isLinked) {
         try {
           const deckRes = await withTimeout(
@@ -70,6 +102,7 @@ export const App: React.FC<AppProps> = ({ client, locale }) => {
         dealAlertMode: "all",
         alertChannelId: "",
         isAdmin: false,
+        locale: "",
       });
       setErrorBanner(t("rootApp.serviceUnavailableBanner"));
     } finally {
@@ -153,6 +186,23 @@ export const App: React.FC<AppProps> = ({ client, locale }) => {
     }
   };
 
+  const handleToggleLocale = async (newLocale: SupportedLocale) => {
+    setCurrentLocale(newLocale);
+    setStoredUserLocale(newLocale);
+    if (status?.isLinked) {
+      try {
+        await client.setPreferences({
+          notificationsEnabled: status.notificationsEnabled,
+          dealAlertMode: status.dealAlertMode,
+          locale: newLocale,
+        });
+        setStatus((prev) => (prev ? { ...prev, locale: newLocale } : null));
+      } catch (err) {
+        console.warn("Failed to persist user locale preference:", err);
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#0a0f18] text-slate-200 p-4 sm:p-6 lg:p-8">
       <div className="max-w-4xl mx-auto space-y-6">
@@ -172,15 +222,46 @@ export const App: React.FC<AppProps> = ({ client, locale }) => {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleRefresh}
-            disabled={loading || refreshing}
-            className="self-start sm:self-auto flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.06] text-xs font-medium text-slate-300 transition cursor-pointer disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin text-indigo-400" : ""}`} />
-            {t("rootApp.refresh")}
-          </button>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <div className="inline-flex rounded-lg border border-white/[0.08] bg-white/[0.02] p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => handleToggleLocale("en")}
+                className={`px-2.5 py-1 rounded-md font-medium transition cursor-pointer ${
+                  currentLocale === "en"
+                    ? "bg-indigo-600 text-white shadow-sm"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+                aria-label={t("rootApp.switchToEnglish")}
+                aria-pressed={currentLocale === "en"}
+              >
+                EN
+              </button>
+              <button
+                type="button"
+                onClick={() => handleToggleLocale("pt-BR")}
+                className={`px-2.5 py-1 rounded-md font-medium transition cursor-pointer ${
+                  currentLocale === "pt-BR"
+                    ? "bg-indigo-600 text-white shadow-sm"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+                aria-label={t("rootApp.switchToPortuguese")}
+                aria-pressed={currentLocale === "pt-BR"}
+              >
+                PT-BR
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={loading || refreshing}
+              className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.06] text-xs font-medium text-slate-300 transition cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin text-indigo-400" : ""}`} />
+              {t("rootApp.refresh")}
+            </button>
+          </div>
         </header>
 
         {errorBanner && (
@@ -201,7 +282,7 @@ export const App: React.FC<AppProps> = ({ client, locale }) => {
             <CommunityAdminCard
               isAdmin={status?.isAdmin ?? false}
               client={client}
-              locale={locale}
+              locale={currentLocale}
             />
 
             <AccountLinkCard
@@ -210,6 +291,7 @@ export const App: React.FC<AppProps> = ({ client, locale }) => {
               friendCode={status?.friendCode ?? ""}
               onLink={handleLink}
               onRegister={handleRegister}
+              locale={currentLocale}
             />
 
             <DealAlertCard
@@ -218,6 +300,8 @@ export const App: React.FC<AppProps> = ({ client, locale }) => {
               dealAlertMode={status?.dealAlertMode ?? "all"}
               alertChannelId={status?.alertChannelId ?? ""}
               onUpdatePreferences={handleUpdatePreferences}
+              locale={currentLocale}
+              onNavigateTerm={handleNavigateTerm}
             />
 
             <DecksDashboardCard
@@ -226,14 +310,23 @@ export const App: React.FC<AppProps> = ({ client, locale }) => {
               loading={refreshing}
               onImportDeck={handleImportDeck}
               onUpdateDeck={handleUpdateDeck}
+              locale={currentLocale}
+              onNavigateTerm={handleNavigateTerm}
             />
 
             <WantlistCard
               isLinked={status?.isLinked ?? false}
               client={client}
+              locale={currentLocale}
+              onNavigateTerm={handleNavigateTerm}
             />
           </main>
         )}
+
+        <NomenclatureGuideCard
+          locale={currentLocale}
+          highlightedTerm={highlightedTerm}
+        />
 
         <footer className="text-center pt-6 border-t border-white/[0.04] text-xs text-slate-500">
           {t("rootApp.footerNomenclature")}

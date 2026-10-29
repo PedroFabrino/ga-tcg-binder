@@ -1,6 +1,9 @@
 import React, { useState } from "react";
 import { Loader2, Save, FileText, Link as LinkIcon } from "lucide-react";
+import type { SupportedLocale } from "@ga/contracts";
+import { useTranslator } from "../hooks/useTranslator";
 import type { DeckSummary } from "../types";
+import { InfoTermBadge, type NomenclatureTerm } from "./InfoTermBadge";
 
 const OMNIDEX_PLACEHOLDER = `# Material Deck
 1 Spirit of Fire
@@ -20,13 +23,18 @@ export interface DeckEditFormProps {
     data: { name?: string; url?: string; text?: string }
   ) => Promise<{ success: boolean; error?: string }>;
   onCancel: () => void;
+  locale?: SupportedLocale;
+  onNavigateTerm?: (term: NomenclatureTerm) => void;
 }
 
 export const DeckEditForm: React.FC<DeckEditFormProps> = ({
   deck,
   onSave,
   onCancel,
+  locale,
+  onNavigateTerm,
 }) => {
+  const t = useTranslator(locale);
   const [name, setName] = useState(deck.name);
   const [mode, setMode] = useState<"text" | "url">("text");
   const [text, setText] = useState(deck.omnidexText || "");
@@ -51,10 +59,10 @@ export const DeckEditForm: React.FC<DeckEditFormProps> = ({
         url: isUrl ? activeValue : undefined,
       });
       if (!res.success) {
-        setError(res.error || "Failed to update deck");
+        setError(res.error || t("rootApp.deckForms.errFailedToUpdate"));
       }
     } catch {
-      setError("Update failed");
+      setError(t("rootApp.deckForms.errUpdateFailed"));
     } finally {
       setUpdating(false);
     }
@@ -74,26 +82,26 @@ export const DeckEditForm: React.FC<DeckEditFormProps> = ({
     >
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-cyan-300">
-          Edit Deck: {deck.name}
+          {t("rootApp.deckForms.editTitle", { name: deck.name })}
         </span>
         <button
           type="button"
           onClick={onCancel}
           className="text-xs text-slate-500 hover:text-slate-300 cursor-pointer"
         >
-          Cancel
+          {t("rootApp.deckForms.cancelButton")}
         </button>
       </div>
 
       <div>
         <label className="text-[10px] uppercase font-semibold text-slate-400 block mb-1">
-          Deck Name
+          {t("rootApp.deckForms.deckNameLabel")}
         </label>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Deck name..."
+          placeholder={t("rootApp.deckForms.deckNamePlaceholder")}
           className="w-full px-3 py-1.5 rounded-lg bg-black/50 border border-white/[0.1] text-xs text-slate-200 focus:outline-none focus:border-cyan-500/50"
         />
       </div>
@@ -109,7 +117,7 @@ export const DeckEditForm: React.FC<DeckEditFormProps> = ({
           }`}
         >
           <FileText className="w-3.5 h-3.5" />
-          Decklist Text
+          {t("rootApp.deckForms.tabEditText")}
         </button>
         <button
           type="button"
@@ -121,14 +129,15 @@ export const DeckEditForm: React.FC<DeckEditFormProps> = ({
           }`}
         >
           <LinkIcon className="w-3.5 h-3.5" />
-          Omnidex / Silvie URL
+          {t("rootApp.deckForms.tabEditUrl")}
         </button>
       </div>
 
       {mode === "text" ? (
         <div>
-          <label className="text-[10px] uppercase font-semibold text-slate-400 block mb-1">
-            Decklist (Material Deck, Main Deck, Sideboard)
+          <label className="text-[10px] uppercase font-semibold text-slate-400 mb-1 flex items-center gap-1.5">
+            <span>{t("rootApp.deckForms.textLabel")}</span>
+            <InfoTermBadge term="omnidexFormat" locale={locale} onNavigate={onNavigateTerm} />
           </label>
           <textarea
             value={text}
@@ -140,14 +149,15 @@ export const DeckEditForm: React.FC<DeckEditFormProps> = ({
         </div>
       ) : (
         <div>
-          <label className="text-[10px] uppercase font-semibold text-slate-400 block mb-1">
-            Omnidex or Silvie URL
+          <label className="text-[10px] uppercase font-semibold text-slate-400 mb-1 flex items-center gap-1.5">
+            <span>{t("rootApp.deckForms.urlLabel")}</span>
+            <InfoTermBadge term="omnidexFormat" locale={locale} onNavigate={onNavigateTerm} />
           </label>
           <input
             type="text"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://omnidex.gg/deck/..."
+            placeholder={t("rootApp.deckForms.urlPlaceholder")}
             className="w-full px-3 py-1.5 rounded-lg bg-black/50 border border-white/[0.1] text-xs text-slate-200 focus:outline-none focus:border-cyan-500/50"
           />
         </div>
@@ -166,7 +176,7 @@ export const DeckEditForm: React.FC<DeckEditFormProps> = ({
           ) : (
             <Save className="w-3.5 h-3.5" />
           )}
-          Save Changes
+          {t("rootApp.deckForms.saveChangesButton")}
         </button>
       </div>
     </form>

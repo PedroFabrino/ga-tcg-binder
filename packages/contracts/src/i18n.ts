@@ -3,6 +3,8 @@
  * for Grand Archive TCG Collector & Companion Scanner.
  */
 
+import { rootAppEnCatalog, rootAppPtCatalog } from "./i18n-root-app";
+
 export type SupportedLocale = "en" | "pt-BR";
 export const SUPPORTED_LOCALES: readonly SupportedLocale[] = ["en", "pt-BR"] as const;
 export const DEFAULT_LOCALE: SupportedLocale = "en";
@@ -871,21 +873,18 @@ export const enCatalog = {
     adminBadge: "Admin Only",
     loadingSettings: "Loading channel settings...",
     noChannelsFound: "No text channels found",
+    broadcastLocaleLabel: "Broadcast Language",
+    broadcastLocaleEn: "English",
+    broadcastLocalePtBr: "Português (Brasil)",
+    saveLocaleSuccess: "Broadcast language set to {locale}",
+    savingLocale: "Saving...",
     errors: {
       forbidden: "You do not have permission to manage community settings",
       channelNotFound: "Selected channel was not found",
       invalidChannel: "Invalid channel selected",
     },
   },
-  rootApp: {
-    title: "Grand Archive Collector Assistant",
-    subtitle: "Deck shortages, wishlists, and automated marketplace deal alerts",
-    refresh: "Refresh",
-    connectionTimeout: "Connection to assistant service timed out",
-    loadDecksError: "Failed to load decks",
-    serviceUnavailableBanner: "Unable to connect to the Assistant Service. Click Refresh to retry.",
-    footerNomenclature: "Powered by Grand Archive Binder • Official Game Nomenclature in canonical English",
-  },
+  rootApp: rootAppEnCatalog,
 };
 
 export type TranslationCatalog = typeof enCatalog;
@@ -1754,21 +1753,18 @@ export const ptBRCatalog: TranslationCatalog = {
     adminBadge: "Apenas Administradores",
     loadingSettings: "Carregando configurações de canais...",
     noChannelsFound: "Nenhum canal de texto encontrado",
+    broadcastLocaleLabel: "Idioma de Transmissão",
+    broadcastLocaleEn: "Inglês",
+    broadcastLocalePtBr: "Português (Brasil)",
+    saveLocaleSuccess: "Idioma de transmissão alterado para {locale}",
+    savingLocale: "Salvando...",
     errors: {
       forbidden: "Você não tem permissão para gerenciar configurações da comunidade",
       channelNotFound: "O canal selecionado não foi encontrado",
       invalidChannel: "Canal selecionado inválido",
     },
   },
-  rootApp: {
-    title: "Assistente de Colecionador Grand Archive",
-    subtitle: "Cartas necessárias para decks, listas de desejos e alertas automáticos de mercado",
-    refresh: "Atualizar",
-    connectionTimeout: "Conexão com o serviço de assistente expirou",
-    loadDecksError: "Falha ao carregar decks",
-    serviceUnavailableBanner: "Não foi possível conectar ao Serviço do Assistente. Clique em Atualizar para tentar novamente.",
-    footerNomenclature: "Desenvolvido por Grand Archive Binder • Nomenclatura Oficial do Jogo em inglês canônico",
-  },
+  rootApp: rootAppPtCatalog,
 };
 
 export type NestedKeyOf<ObjectType extends object> = {

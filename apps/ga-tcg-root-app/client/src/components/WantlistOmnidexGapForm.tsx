@@ -1,5 +1,8 @@
 import React, { useState } from "react";
 import { Upload, Loader2, FileText, Link as LinkIcon } from "lucide-react";
+import type { SupportedLocale } from "@ga/contracts";
+import { useTranslator } from "../hooks/useTranslator";
+import { InfoTermBadge, type NomenclatureTerm } from "./InfoTermBadge";
 
 const OMNIDEX_PLACEHOLDER = `# Material Deck
 1 Spirit of Fire
@@ -18,12 +21,17 @@ export interface WantlistOmnidexGapFormProps {
     url?: string;
     text?: string;
   }) => Promise<void>;
+  locale?: SupportedLocale;
+  onNavigateTerm?: (term: NomenclatureTerm) => void;
 }
 
 export const WantlistOmnidexGapForm: React.FC<WantlistOmnidexGapFormProps> = ({
   loading,
   onImportGap,
+  locale,
+  onNavigateTerm,
 }) => {
+  const t = useTranslator(locale);
   const [mode, setMode] = useState<"url" | "text">("url");
   const [url, setUrl] = useState("");
   const [text, setText] = useState("");
@@ -54,7 +62,8 @@ export const WantlistOmnidexGapForm: React.FC<WantlistOmnidexGapFormProps> = ({
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
           <Upload className="w-3.5 h-3.5 text-indigo-400" />
-          Import Omnidex Shortage Gap
+          <span>{t("rootApp.wantlist.importGapHeading")}</span>
+          <InfoTermBadge term="omnidexFormat" locale={locale} onNavigate={onNavigateTerm} />
         </h3>
 
         <div className="flex items-center gap-1.5">
@@ -68,7 +77,7 @@ export const WantlistOmnidexGapForm: React.FC<WantlistOmnidexGapFormProps> = ({
             }`}
           >
             <LinkIcon className="w-3 h-3" />
-            Deck URL
+            {t("rootApp.deckForms.tabUrl")}
           </button>
           <button
             type="button"
@@ -80,13 +89,13 @@ export const WantlistOmnidexGapForm: React.FC<WantlistOmnidexGapFormProps> = ({
             }`}
           >
             <FileText className="w-3 h-3" />
-            Paste Decklist Text
+            {t("rootApp.deckForms.tabText")}
           </button>
         </div>
       </div>
 
       <p className="text-[11px] text-slate-400">
-        Paste an Omnidex deck URL or raw decklist. Only cards you do not currently own in your binder will be added to your wishlist.
+        {t("rootApp.wantlist.importGapDesc")}
       </p>
 
       {mode === "url" ? (
@@ -95,7 +104,7 @@ export const WantlistOmnidexGapForm: React.FC<WantlistOmnidexGapFormProps> = ({
             type="text"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://omnidex.gg/deck/..."
+            placeholder={t("rootApp.deckForms.urlPlaceholder")}
             className="flex-1 px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.1] text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-indigo-500/50"
           />
           <button
@@ -106,7 +115,7 @@ export const WantlistOmnidexGapForm: React.FC<WantlistOmnidexGapFormProps> = ({
             {loading ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
             ) : (
-              "Import Gap"
+              t("rootApp.wantlist.importGapButton")
             )}
           </button>
         </div>
@@ -128,7 +137,7 @@ export const WantlistOmnidexGapForm: React.FC<WantlistOmnidexGapFormProps> = ({
               {loading ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
-                "Import Gap"
+                t("rootApp.wantlist.importGapButton")
               )}
             </button>
           </div>

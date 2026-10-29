@@ -106,8 +106,11 @@ export class RootBotApi {
     return data as T;
   }
 
-  async getMarketNotifications(): Promise<RootBotMarketNotificationsResponse> {
-    return this.request("/api/root-bot/market-notifications");
+  async getMarketNotifications(
+    locale?: "en" | "pt-BR"
+  ): Promise<RootBotMarketNotificationsResponse> {
+    const query = locale ? `?locale=${encodeURIComponent(locale)}` : "";
+    return this.request(`/api/root-bot/market-notifications${query}`);
   }
 
   async markMarketNotificationsDelivered(

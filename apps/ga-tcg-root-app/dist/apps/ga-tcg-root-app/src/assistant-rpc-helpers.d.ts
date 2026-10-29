@@ -11,10 +11,10 @@ export declare function buildDeckSummariesWithShortages(api: RootBotApi, userId:
     decklistText?: string;
 }>): Promise<DeckSummary[]>;
 export declare function updateDealAlertPreferencesHelper(api: RootBotApi, userId: string, communityId: string, notificationsEnabled: boolean, mode: "all" | "hard", overrides?: {
-    setNotificationPreference?: (userId: string, enabled: boolean, mode?: "all" | "hard") => Promise<void>;
-    ensureRecipientChannel?: (userId: string, communityId?: string) => Promise<string | null>;
+    setNotificationPreference?: (userId: string, enabled: boolean, mode?: "all" | "hard", locale?: string) => Promise<void>;
+    ensureRecipientChannel?: (userId: string, communityId?: string, locale?: string) => Promise<string | null>;
     removeDealAlertChannel?: (userId: string, communityId?: string) => Promise<void>;
-}): Promise<{
+}, locale?: string): Promise<{
     alertChannelId: string;
 }>;
 export declare function mapAutocompleteChoice(r: {
@@ -33,7 +33,7 @@ export declare function mapPersonalWant(w: {
     desiredQuantity: number;
     foil?: boolean | number | null;
 }): PersonalWantRpcItem;
-export declare function createUnlinkedStatus(isAdmin?: boolean): StatusResponse;
+export declare function createUnlinkedStatus(isAdmin?: boolean, locale?: string): StatusResponse;
 export declare function mapSuggestion(s: {
     name: string;
     slug: string;

@@ -320,6 +320,7 @@ export function parseFeatureFlag(val: unknown, defaultValue = false): boolean {
 // Internationalization (i18n)
 // ---------------------------------------------------------------------------
 export * from "./i18n";
+export * from "./i18n-root-app";
 
 // ---------------------------------------------------------------------------
 // Fulfillment Contracts

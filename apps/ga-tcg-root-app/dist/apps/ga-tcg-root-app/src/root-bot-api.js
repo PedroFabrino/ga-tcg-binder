@@ -67,8 +67,9 @@ class RootBotApi {
         }
         return data;
     }
-    async getMarketNotifications() {
-        return this.request("/api/root-bot/market-notifications");
+    async getMarketNotifications(locale) {
+        const query = locale ? `?locale=${encodeURIComponent(locale)}` : "";
+        return this.request(`/api/root-bot/market-notifications${query}`);
     }
     async markMarketNotificationsDelivered(request) {
         await this.request("/api/root-bot/market-notifications/delivered", {

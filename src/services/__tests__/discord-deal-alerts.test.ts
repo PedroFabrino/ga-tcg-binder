@@ -13,6 +13,7 @@ import {
   marketCards,
 } from "../../db/schema";
 import { upsertPersonalWant } from "../../db/repositories/personal-wants-repository";
+import { formatDealAlertNotificationSummary } from "../deal-alert-format";
 import {
   matchDealAlerts,
   formatDealAlertMessage,
@@ -566,6 +567,100 @@ describe("Discord Deal Alerts Matcher and Notifier", () => {
         "🎯 [Creative Shock](<https://loot.local/shock>) - DOA 064 - R$ 50,00",
       ].join("\n")
     );
+  });
+
+  it("formats deal alert message and summary in pt-BR when locale is pt-BR", () => {
+    const matches: DealAlertMatch[] = [
+      {
+        collectorId: testCollectorId,
+        recipientId: discordUserId,
+        listing: {
+          id: "mc_1",
+          storeId: "store_liga",
+          cardSlug: "fireball",
+          editionId: null,
+          rawName: "Fireball",
+          cardName: "Fireball",
+          setPrefix: "DOA",
+          quantity: 2,
+          price: "R$ 10,00",
+          priceNumeric: 10,
+          tcgPrice: null,
+          tcgPriceNumeric: null,
+          quality: "NM",
+          isFoil: false,
+          itemId: "1",
+          productUrl: "https://liga.local/fireball",
+          vendorName: "Liga Store",
+          vendorUrl: null,
+          firstSeenAt: new Date(),
+          lastStockedAt: null,
+          lastSeenAt: new Date(),
+          updatedAt: new Date(),
+        },
+        source: {
+          kind: "hard",
+          deckId: "deck_burn",
+          deckName: "Burn Deck",
+          missingQuantity: 1,
+        },
+      },
+      {
+        collectorId: testCollectorId,
+        recipientId: discordUserId,
+        listing: {
+          id: "mc_2",
+          storeId: "store_loot",
+          cardSlug: "creative-shock",
+          editionId: null,
+          rawName: "Creative Shock #064",
+          cardName: "Creative Shock",
+          setPrefix: "DOA",
+          quantity: 1,
+          price: "R$ 50,00",
+          priceNumeric: 50,
+          tcgPrice: null,
+          tcgPriceNumeric: null,
+          quality: "NM",
+          isFoil: false,
+          itemId: "064",
+          productUrl: "https://loot.local/shock",
+          vendorName: "Loot",
+          vendorUrl: null,
+          firstSeenAt: new Date(),
+          lastStockedAt: null,
+          lastSeenAt: new Date(),
+          updatedAt: new Date(),
+        },
+        source: {
+          kind: "personal-want",
+          desiredQuantity: 1,
+        },
+      },
+    ];
+
+    const content = formatDealAlertMessage(
+      matches,
+      new Date("2026-10-22T20:15:00Z"),
+      true,
+      "pt-BR"
+    );
+
+    expect(content).toBe(
+      [
+        "🕒 Última atualização: 22/10/2026 17:15",
+        "",
+        "**Burn Deck**",
+        "🔴 [Fireball](https://liga.local/fireball) - DOA - R$ 10,00",
+        "",
+        "**Lista de Desejos**",
+        "🎯 [Creative Shock](https://loot.local/shock) - DOA - R$ 50,00",
+      ].join("\n")
+    );
+
+    const summary = formatDealAlertNotificationSummary(matches, "pt-BR");
+    expect(summary.title).toContain("novas cartas");
+    expect(summary.description).toContain("à venda!");
   });
 
   describe("parseMessageIds", () => {

@@ -53,6 +53,10 @@ export interface RootDealAlertApi {
   }): Promise<{ id: string }>;
   /** Resolves the channel if it still exists, or throws when it does not. */
   getChannel(id: string): Promise<{ id: string }>;
+  /** Lists channels in a group so orphaned/duplicate wantlist channels can be cleaned up. */
+  listChannels?(
+    channelGroupId: string
+  ): Promise<Array<{ id: string; name: string }>>;
   deleteMessage(request: { channelId: string; id: string }): Promise<void>;
   deleteChannel(id: string): Promise<void>;
   sendNotification(request: {
@@ -128,6 +132,15 @@ export function createRootServerDealAlertApi(
       });
       return { id: String(channel.id) };
     },
+    async listChannels(channelGroupId) {
+      const channels = await root.community.channels.list({
+        channelGroupId: channelGroupId as ChannelGroupGuid,
+      });
+      return channels.map((channel) => ({
+        id: String(channel.id),
+        name: channel.name,
+      }));
+    },
     async deleteMessage(request) {
       await root.community.channelMessages.delete({
         channelId: request.channelId as ChannelGuid,
@@ -170,54 +183,105 @@ export function createRootDealAlertTransport({
   api,
   channelType = ChannelType.Text,
 }: RootDealAlertTransportOptions): DirectMessageSink {
+  const verifiedChannels = new Set<string>();
+
   return {
     async send(recipient, content, previousChannelId) {
-      let channelName = fallbackChannelName(recipient);
+      if (previousChannelId && verifiedChannels.has(previousChannelId)) {
+        const message = await api.createMessage({
+          channelId: previousChannelId,
+          content,
+        });
+        return { channelId: previousChannelId, messageId: message.id };
+      }
+
+      const fallbackName = fallbackChannelName(recipient);
+      let channelName = fallbackName;
       try {
         const displayName = await api.getMemberName(recipient);
         if (displayName && displayName.trim()) {
           // Root channel names reject spaces, so use a dash separator.
           channelName = `${displayName.trim()}-Wantlist`.slice(0, 100);
         }
-      } catch {
-        // Keep the id-based fallback when the member can't be resolved.
-      }
-
-      const createChannel = () =>
-        api.createChannel({
-          channelGroupId,
-          name: channelName,
-          channelType,
-          useChannelGroupPermission: true,
-          accessRuleCreates: [],
-        });
-
-      let channelId: string;
-      try {
-        if (previousChannelId) {
-          try {
-            await api.getChannel(previousChannelId);
-            channelId = previousChannelId;
-          } catch {
-            // Stale channel (deleted on reinstall) — create a fresh one.
-            channelId = (await createChannel()).id;
-          }
-        } else {
-          channelId = (await createChannel()).id;
-        }
       } catch (err) {
-        throw new Error(
-          `Channel create failed (name="${channelName}", group="${channelGroupId}"): ${describeError(err)}`
+        console.warn(
+          `[deal-alert-transport] Could not resolve member name for ${recipient}; using fallback:`,
+          describeError(err)
         );
       }
 
+      let channelId: string | undefined;
+      if (previousChannelId) {
+        try {
+          await api.getChannel(previousChannelId);
+          channelId = previousChannelId;
+        } catch (err) {
+          console.warn(
+            `[deal-alert-transport] Stored channel ${previousChannelId} is no longer accessible; recreating:`,
+            describeError(err)
+          );
+        }
+      }
+
+      if (api.listChannels) {
+        try {
+          const existingChannels = await api.listChannels(channelGroupId);
+          const matching = existingChannels.filter(
+            (ch) => ch.name === channelName || ch.name === fallbackName
+          );
+          for (const ch of matching) {
+            if (ch.id !== channelId) {
+              try {
+                await api.deleteChannel(ch.id);
+              } catch (err) {
+                console.warn(
+                  `[deal-alert-transport] Could not delete duplicate channel ${ch.id}:`,
+                  describeError(err)
+                );
+              }
+            }
+          }
+        } catch (err) {
+          console.warn(
+            `[deal-alert-transport] Could not list channels in group ${channelGroupId}:`,
+            describeError(err)
+          );
+        }
+      }
+
+      if (!channelId) {
+        try {
+          channelId = (
+            await api.createChannel({
+              channelGroupId,
+              name: channelName,
+              channelType,
+              useChannelGroupPermission: true,
+              accessRuleCreates: [],
+            })
+          ).id;
+        } catch (err) {
+          throw new Error(
+            `Channel create failed (name="${channelName}", group="${channelGroupId}"): ${describeError(err)}`
+          );
+        }
+      }
+
+      verifiedChannels.add(channelId);
       const message = await api.createMessage({ channelId, content });
       return { channelId, messageId: message.id };
     },
 
     async delete(ref: DirectMessageRef) {
       for (const id of parseMessageIds(ref.messageId)) {
-        await api.deleteMessage({ channelId: ref.channelId, id });
+        try {
+          await api.deleteMessage({ channelId: ref.channelId, id });
+        } catch (err) {
+          console.warn(
+            `[deal-alert-transport] Could not delete message ${id} in channel ${ref.channelId}:`,
+            describeError(err)
+          );
+        }
       }
     },
 

@@ -9,9 +9,12 @@ import {
   Plus,
   Pencil,
 } from "lucide-react";
+import type { SupportedLocale } from "@ga/contracts";
+import { useTranslator } from "../hooks/useTranslator";
 import type { DeckSummary } from "../types";
 import { DeckImportForm } from "./DeckImportForm";
 import { DeckEditForm } from "./DeckEditForm";
+import { InfoTermBadge, type NomenclatureTerm } from "./InfoTermBadge";
 
 export interface DecksDashboardCardProps {
   isLinked: boolean;
@@ -24,6 +27,8 @@ export interface DecksDashboardCardProps {
     deckId: string,
     data: { name?: string; url?: string; text?: string }
   ) => Promise<{ success: boolean; error?: string }>;
+  locale?: SupportedLocale;
+  onNavigateTerm?: (term: NomenclatureTerm) => void;
 }
 
 export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
@@ -32,7 +37,10 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
   loading = false,
   onImportDeck,
   onUpdateDeck,
+  locale,
+  onNavigateTerm,
 }) => {
+  const t = useTranslator(locale);
   const [expandedDeckIds, setExpandedDeckIds] = useState<Set<string>>(new Set());
   const [showImport, setShowImport] = useState(false);
   const [editingDeckId, setEditingDeckId] = useState<string | null>(null);
@@ -76,11 +84,21 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
           </div>
           <div>
             <h2 className="text-base font-semibold text-slate-100">
-              Constructed Decks & Shortages
+              {t("rootApp.decksDashboard.title")}
             </h2>
             <p className="text-xs text-slate-400">
-              Live inventory tracking across your active decks
+              {t("rootApp.decksDashboard.subtitle")}
             </p>
+            <div className="flex items-center gap-1.5 pt-1 text-[11px] text-slate-400">
+              <span>{t("rootApp.decksDashboard.legendShortages")}</span>
+              <InfoTermBadge term="shortages" locale={locale} onNavigate={onNavigateTerm} />
+              <span className="text-slate-600">•</span>
+              <span>{t("rootApp.decksDashboard.legendHard")}</span>
+              <InfoTermBadge term="hardShortages" locale={locale} onNavigate={onNavigateTerm} />
+              <span className="text-slate-600">•</span>
+              <span>{t("rootApp.decksDashboard.legendShared")}</span>
+              <InfoTermBadge term="sharedShortages" locale={locale} onNavigate={onNavigateTerm} />
+            </div>
           </div>
         </div>
 
@@ -93,11 +111,14 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
                 className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/30 text-indigo-300 text-xs font-medium cursor-pointer transition"
               >
                 <Plus className="w-3.5 h-3.5" />
-                Import Deck
+                {t("rootApp.decksDashboard.importDeckButton")}
               </button>
             )}
             <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-white/[0.04] text-slate-300 border border-white/[0.08]">
-              {decks.length} {decks.length === 1 ? "Deck" : "Decks"}
+              {decks.length}{" "}
+              {decks.length === 1
+                ? t("rootApp.decksDashboard.deckCountSingle")
+                : t("rootApp.decksDashboard.deckCountPlural")}
             </span>
           </div>
         )}
@@ -107,21 +128,23 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
         <DeckImportForm
           onImport={handleImport}
           onClose={() => setShowImport(false)}
+          locale={locale}
+          onNavigateTerm={onNavigateTerm}
         />
       )}
 
       <div className="pt-4">
         {!isLinked ? (
           <div className="text-center py-8 text-slate-400 text-sm">
-            Link your GA Binder account above to view your decks and track card shortages.
+            {t("rootApp.decksDashboard.unlinkedEmpty")}
           </div>
         ) : loading ? (
           <div className="text-center py-8 text-slate-400 text-sm animate-pulse">
-            Loading decks and shortages...
+            {t("rootApp.decksDashboard.loadingDecks")}
           </div>
         ) : decks.length === 0 ? (
           <div className="text-center py-8 text-slate-400 text-sm">
-            No constructed decks found in your GA Binder account. Create or import a deck to start tracking shortages.
+            {t("rootApp.decksDashboard.noDecksEmpty")}
           </div>
         ) : (
           <div className="space-y-3">
@@ -148,11 +171,11 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
                         </span>
                       </div>
                       <p className="text-xs text-slate-400">
-                        Champion:{" "}
+                        {t("rootApp.decksDashboard.championLabel")}{" "}
                         <strong className="text-slate-300">
-                          {deck.champion || "None"}
+                          {deck.champion || t("rootApp.decksDashboard.noneChampion")}
                         </strong>{" "}
-                        • Total: {deck.totalCards} cards
+                        • {t("rootApp.decksDashboard.totalCards", { count: deck.totalCards })}
                       </p>
                     </div>
 
@@ -160,20 +183,20 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
                       {isComplete ? (
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                           <CheckCircle2 className="w-3.5 h-3.5" />
-                          100% Complete
+                          {t("rootApp.decksDashboard.completeBadge")}
                         </span>
                       ) : (
                         <div className="flex items-center gap-2 text-xs">
                           {deck.hardShortagesCount > 0 && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 font-medium">
                               <AlertCircle className="w-3 h-3" />
-                              {deck.hardShortagesCount} Hard
+                              {t("rootApp.decksDashboard.hardBadge", { count: deck.hardShortagesCount })}
                             </span>
                           )}
                           {deck.sharedShortagesCount > 0 && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">
                               <ShieldAlert className="w-3 h-3" />
-                              {deck.sharedShortagesCount} Shared
+                              {t("rootApp.decksDashboard.sharedBadge", { count: deck.sharedShortagesCount })}
                             </span>
                           )}
                         </div>
@@ -189,7 +212,7 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
                             );
                           }}
                           className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-300 hover:bg-white/[0.06] transition cursor-pointer"
-                          aria-label={`Edit ${deck.name}`}
+                          aria-label={t("rootApp.decksDashboard.editDeckAria", { name: deck.name })}
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
@@ -210,6 +233,8 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
                       deck={deck}
                       onSave={handleUpdate}
                       onCancel={() => setEditingDeckId(null)}
+                      locale={locale}
+                      onNavigateTerm={onNavigateTerm}
                     />
                   )}
 
@@ -217,8 +242,9 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
                     <div className="px-4 pb-4 pt-2 border-t border-white/[0.04] bg-black/10 space-y-3">
                       {deck.hardShortages && deck.hardShortages.length > 0 && (
                         <div>
-                          <p className="text-xs font-semibold text-rose-400 uppercase tracking-wider mb-1.5">
-                            Hard Shortages (Compra Necessária)
+                          <p className="text-xs font-semibold text-rose-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                            <span>{t("rootApp.decksDashboard.hardShortagesHeading")}</span>
+                            <InfoTermBadge term="hardShortages" locale={locale} onNavigate={onNavigateTerm} />
                           </p>
                           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-slate-300">
                             {deck.hardShortages.map((item, idx) => (
@@ -238,8 +264,9 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
 
                       {deck.sharedShortages && deck.sharedShortages.length > 0 && (
                         <div>
-                          <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-1.5">
-                            Shared Shortages (Revezamento entre Decks)
+                          <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                            <span>{t("rootApp.decksDashboard.sharedShortagesHeading")}</span>
+                            <InfoTermBadge term="sharedShortages" locale={locale} onNavigate={onNavigateTerm} />
                           </p>
                           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-slate-300">
                             {deck.sharedShortages.map((item, idx) => (
@@ -259,7 +286,7 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
 
                       {isComplete && (
                         <p className="text-xs text-emerald-400">
-                          All cards in this deck are owned with dedicated copies. Ready to play!
+                          {t("rootApp.decksDashboard.completeMessage")}
                         </p>
                       )}
                     </div>

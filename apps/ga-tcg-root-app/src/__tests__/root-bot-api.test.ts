@@ -27,6 +27,24 @@ describe("RootBotApi", () => {
     expect(headers.get("x-root-community-id")).toBe("comm-1");
   });
 
+  it("passes locale query parameter on getMarketNotifications", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ chunks: [] }));
+    const api = new RootBotApi({
+      communityId: "comm-1",
+      baseUrl: "https://api.example",
+      token: "tok-1",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    await api.getMarketNotifications("pt-BR");
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    const [url] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      "https://api.example/api/root-bot/market-notifications?locale=pt-BR"
+    );
+  });
+
   it("throws a typed error on a non-ok response", async () => {
     const fetchImpl = vi
       .fn()

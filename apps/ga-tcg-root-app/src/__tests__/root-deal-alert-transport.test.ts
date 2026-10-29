@@ -13,10 +13,16 @@ import {
   type RootDealAlertApi,
 } from "../root-deal-alert-transport";
 
-function createFakeApi(preExisting: string[] = []) {
-  const channels: Array<Record<string, unknown> & { id: string }> = [];
+function createFakeApi(
+  preExisting: string[] = [],
+  initialGroupChannels: Array<{ id: string; name: string }> = []
+) {
+  const channels: Array<Record<string, unknown> & { id: string; name: string }> = [
+    ...initialGroupChannels,
+  ];
   const messages: Array<Record<string, unknown> & { id: string }> = [];
   const deleted: Array<{ channelId: string; id: string }> = [];
+  const deletedChannels: string[] = [];
   const notifications: Array<Record<string, unknown>> = [];
   let nextChannel = 0;
   let nextMessage = 0;
@@ -27,7 +33,7 @@ function createFakeApi(preExisting: string[] = []) {
     async createChannel(request) {
       nextChannel += 1;
       const id = `chan-${nextChannel}`;
-      channels.push({ ...request, id });
+      channels.push({ ...request, id, name: request.name });
       return { id };
     },
     async createChannelGroup() {
@@ -51,18 +57,25 @@ function createFakeApi(preExisting: string[] = []) {
       }
       return { id };
     },
+    async listChannels() {
+      return channels.map((c) => ({ id: c.id, name: c.name }));
+    },
     async deleteMessage(request) {
       deleted.push(request);
     },
-    async deleteChannel() {
-      // no-op for the transport suite
+    async deleteChannel(id) {
+      deletedChannels.push(id);
+      const idx = channels.findIndex((c) => c.id === id);
+      if (idx >= 0) {
+        channels.splice(idx, 1);
+      }
     },
     async sendNotification(request) {
       notifications.push(request);
     },
   };
 
-  return { api, channels, messages, deleted, notifications };
+  return { api, channels, messages, deleted, deletedChannels, notifications };
 }
 
 describe("Root deal-alert transport", () => {
@@ -114,8 +127,13 @@ describe("Root deal-alert transport", () => {
     expect(ref?.channelId).toBe("chan-existing");
   });
 
-  it("creates a new channel when the previous channel is gone", async () => {
-    const fake = createFakeApi();
+  it("creates a new channel when the previous channel is gone and cleans up orphaned duplicates", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fake = createFakeApi([], [
+      { id: "orphan-1", name: "Alice-Wantlist" },
+      { id: "orphan-2", name: "Alice-Wantlist" },
+      { id: "other-chan", name: "market" },
+    ]);
     const transport = createRootDealAlertTransport({
       channelGroupId: "section_1",
       api: fake.api,
@@ -123,10 +141,27 @@ describe("Root deal-alert transport", () => {
 
     const ref = await transport.send("root_user_1", "the list", "chan-dead");
 
-    expect(fake.channels).toHaveLength(1);
-    expect(fake.channels[0].name).toBe("Alice-Wantlist");
+    expect(fake.deletedChannels).toEqual(["orphan-1", "orphan-2"]);
+    expect(fake.channels.map((c) => c.id)).toEqual(["other-chan", "chan-1"]);
     expect(fake.messages[0].channelId).toBe("chan-1");
     expect(ref?.channelId).toBe("chan-1");
+    warnSpy.mockRestore();
+  });
+
+  it("reuses verified channel on subsequent chunks without re-querying getChannel", async () => {
+    const fake = createFakeApi();
+    const getChannelSpy = vi.spyOn(fake.api, "getChannel");
+    const transport = createRootDealAlertTransport({
+      channelGroupId: "section_1",
+      api: fake.api,
+    });
+
+    const ref1 = await transport.send("root_user_1", "chunk 1");
+    const ref2 = await transport.send("root_user_1", "chunk 2", ref1?.channelId);
+
+    expect(fake.channels).toHaveLength(1);
+    expect(getChannelSpy).not.toHaveBeenCalled();
+    expect(ref2).toEqual({ channelId: "chan-1", messageId: "msg-2" });
   });
 
   it("deletes every message id in a comma-separated reference", async () => {
@@ -142,6 +177,31 @@ describe("Root deal-alert transport", () => {
       { channelId: "chan-1", id: "msg-1" },
       { channelId: "chan-1", id: "msg-2" },
     ]);
+  });
+
+  it("swallows and logs deleteMessage errors so stale messages never abort delivery", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fake = createFakeApi();
+    fake.api.deleteMessage = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("NoPermissionToDelete(1004)"))
+      .mockResolvedValueOnce(undefined);
+
+    const transport = createRootDealAlertTransport({
+      channelGroupId: "section_1",
+      api: fake.api,
+    });
+
+    await expect(
+      transport.delete({ channelId: "chan-dead", messageId: "msg-1,msg-2" })
+    ).resolves.toBeUndefined();
+
+    expect(fake.api.deleteMessage).toHaveBeenCalledTimes(2);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Could not delete message msg-1 in channel chan-dead"),
+      expect.stringContaining("NoPermissionToDelete(1004)")
+    );
+    warnSpy.mockRestore();
   });
 
   it("sends a summary notification to the recipient", async () => {

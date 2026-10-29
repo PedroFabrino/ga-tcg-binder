@@ -18,21 +18,33 @@ function fakeStore(initial: Record<string, unknown> = {}) {
 }
 
 describe("Root community config", () => {
-  it("round-trips broadcast channel, alert section, and assistant channel ids", async () => {
+  it("round-trips broadcast channel, alert section, assistant channel ids, and broadcast locale", async () => {
     const { store } = fakeStore();
     const config = createCommunityConfig(store);
 
     expect(await config.getBroadcastChannelId()).toBeUndefined();
     expect(await config.getAlertSectionId()).toBeUndefined();
     expect(await config.getAssistantChannelId()).toBeUndefined();
+    expect(await config.getBroadcastLocale()).toBe("en");
 
     await config.setBroadcastChannelId("chan-1");
     await config.setAlertSectionId("grp-1");
     await config.setAssistantChannelId("app-chan-1");
+    await config.setBroadcastLocale("pt-BR");
 
     expect(await config.getBroadcastChannelId()).toBe("chan-1");
     expect(await config.getAlertSectionId()).toBe("grp-1");
     expect(await config.getAssistantChannelId()).toBe("app-chan-1");
+    expect(await config.getBroadcastLocale()).toBe("pt-BR");
+  });
+
+  it("falls back to en when stored broadcast locale is invalid or missing", async () => {
+    const { store, data } = fakeStore();
+    const config = createCommunityConfig(store);
+
+    expect(await config.getBroadcastLocale()).toBe("en");
+    data.set("market.broadcastLocale", "invalid-locale");
+    expect(await config.getBroadcastLocale()).toBe("en");
   });
 
   it("returns undefined for missing values without throwing", async () => {

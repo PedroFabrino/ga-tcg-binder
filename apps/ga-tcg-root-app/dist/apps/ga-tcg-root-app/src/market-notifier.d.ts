@@ -3,7 +3,7 @@ import { type RootCommunityConfig } from "./community-config";
 import { RootBotApi } from "./root-bot-api";
 export interface MarketNotificationPollDeps {
     api: Pick<RootBotApi, "getMarketNotifications" | "markMarketNotificationsDelivered">;
-    config: Pick<RootCommunityConfig, "getBroadcastChannelId">;
+    config: Pick<RootCommunityConfig, "getBroadcastChannelId"> & Partial<Pick<RootCommunityConfig, "getBroadcastLocale">>;
     postMessage: (channelId: string, content: string) => Promise<string | null>;
     warn?: (message: string) => void;
 }

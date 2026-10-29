@@ -1,5 +1,8 @@
 import React, { useState } from "react";
 import { Loader2, Plus, FileText, Link as LinkIcon, X } from "lucide-react";
+import type { SupportedLocale } from "@ga/contracts";
+import { useTranslator } from "../hooks/useTranslator";
+import { InfoTermBadge, type NomenclatureTerm } from "./InfoTermBadge";
 
 const OMNIDEX_PLACEHOLDER = `# Material Deck
 1 Spirit of Fire
@@ -17,12 +20,17 @@ export interface DeckImportFormProps {
     data: { url?: string; text?: string }
   ) => Promise<{ success: boolean; error?: string }>;
   onClose: () => void;
+  locale?: SupportedLocale;
+  onNavigateTerm?: (term: NomenclatureTerm) => void;
 }
 
 export const DeckImportForm: React.FC<DeckImportFormProps> = ({
   onImport,
   onClose,
+  locale,
+  onNavigateTerm,
 }) => {
+  const t = useTranslator(locale);
   const [mode, setMode] = useState<"url" | "text">("url");
   const [url, setUrl] = useState("");
   const [text, setText] = useState("");
@@ -48,10 +56,10 @@ export const DeckImportForm: React.FC<DeckImportFormProps> = ({
         setText("");
         onClose();
       } else {
-        setError(res.error || "Failed to import deck");
+        setError(res.error || t("rootApp.deckForms.errFailedToImport"));
       }
     } catch {
-      setError("Import failed");
+      setError(t("rootApp.deckForms.errImportFailed"));
     } finally {
       setImporting(false);
     }
@@ -78,7 +86,7 @@ export const DeckImportForm: React.FC<DeckImportFormProps> = ({
             }`}
           >
             <LinkIcon className="w-3.5 h-3.5" />
-            Deck URL
+            {t("rootApp.deckForms.tabUrl")}
           </button>
           <button
             type="button"
@@ -90,14 +98,14 @@ export const DeckImportForm: React.FC<DeckImportFormProps> = ({
             }`}
           >
             <FileText className="w-3.5 h-3.5" />
-            Paste Decklist Text
+            {t("rootApp.deckForms.tabText")}
           </button>
         </div>
         <button
           type="button"
           onClick={onClose}
           className="text-slate-400 hover:text-slate-200 cursor-pointer p-1"
-          aria-label="Close import"
+          aria-label={t("rootApp.deckForms.closeImportAria")}
         >
           <X className="w-4 h-4" />
         </button>
@@ -105,21 +113,23 @@ export const DeckImportForm: React.FC<DeckImportFormProps> = ({
 
       {mode === "url" ? (
         <div>
-          <label className="text-[10px] uppercase font-semibold text-slate-400 block mb-1">
-            Omnidex.gg or Silvie.gg Deck URL
+          <label className="text-[10px] uppercase font-semibold text-slate-400 mb-1 flex items-center gap-1.5">
+            <span>{t("rootApp.deckForms.urlLabel")}</span>
+            <InfoTermBadge term="omnidexFormat" locale={locale} onNavigate={onNavigateTerm} />
           </label>
           <input
             type="text"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://omnidex.gg/deck/..."
+            placeholder={t("rootApp.deckForms.urlPlaceholder")}
             className="w-full px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.1] text-xs text-slate-200 focus:outline-none focus:border-indigo-500/50"
           />
         </div>
       ) : (
         <div>
-          <label className="text-[10px] uppercase font-semibold text-slate-400 block mb-1">
-            Decklist (Material Deck, Main Deck, Sideboard)
+          <label className="text-[10px] uppercase font-semibold text-slate-400 mb-1 flex items-center gap-1.5">
+            <span>{t("rootApp.deckForms.textLabel")}</span>
+            <InfoTermBadge term="omnidexFormat" locale={locale} onNavigate={onNavigateTerm} />
           </label>
           <textarea
             value={text}
@@ -144,7 +154,7 @@ export const DeckImportForm: React.FC<DeckImportFormProps> = ({
           ) : (
             <Plus className="w-3.5 h-3.5" />
           )}
-          Import
+          {t("rootApp.deckForms.importButton")}
         </button>
       </div>
     </form>

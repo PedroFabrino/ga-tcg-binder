@@ -11,7 +11,10 @@ function fakeTransport() {
     transport: {
       async send(recipient: string, content: string, channelId?: string) {
         next += 1;
-        const ref = { channelId: channelId ?? `chan-${recipient}`, messageId: `msg-${next}` };
+        const ref = {
+          channelId: channelId ?? `chan-${recipient}`,
+          messageId: `msg-${next}`,
+        };
         sent.push({ recipient, content });
         return ref;
       },
@@ -35,8 +38,8 @@ describe("runDealAlertPoll", () => {
         plans: [
           {
             recipientId: "u1",
-            channelId: null,
-            previousMessageIds: [],
+            channelId: "chan-u1",
+            previousMessageIds: ["prev-1"],
             chunks: ["c1"],
             summary: { title: "t", description: "d" },
             lastListingKeys: ["k1"],
@@ -66,10 +69,103 @@ describe("runDealAlertPoll", () => {
       lastListingKeys: ["k1"],
     });
     expect(fake.deleted).toContainEqual({
+      channelId: "chan-u1",
+      messageId: "prev-1",
+    });
+    expect(fake.deleted).toContainEqual({
       channelId: "chan-u2",
       messageId: "old-1",
     });
     expect(api.recordDealAlertCleanup).toHaveBeenCalledWith("u2");
+  });
+
+  it("skips deleting previous messages when a stale channel was replaced with a new channel", async () => {
+    const api = {
+      getDealAlerts: vi.fn().mockResolvedValue({
+        plans: [
+          {
+            recipientId: "u1",
+            channelId: "chan-stale-deleted",
+            previousMessageIds: ["msg-stale-1", "msg-stale-2"],
+            chunks: ["c1", "c2"],
+            summary: { title: "t", description: "d" },
+            lastListingKeys: ["k1"],
+          },
+        ],
+        cleanup: [],
+      }),
+      recordDealAlertDelivery: vi.fn().mockResolvedValue(undefined),
+      recordDealAlertCleanup: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const transport = {
+      send: vi
+        .fn()
+        .mockResolvedValueOnce({ channelId: "chan-fresh", messageId: "m1" })
+        .mockResolvedValueOnce({ channelId: "chan-fresh", messageId: "m2" }),
+      delete: vi.fn(),
+      notify: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await runDealAlertPoll({
+      api,
+      ensureSection: async () => "sec-1",
+      createTransport: () => transport,
+    });
+
+    expect(transport.delete).not.toHaveBeenCalled();
+    expect(api.recordDealAlertDelivery).toHaveBeenCalledWith({
+      recipientId: "u1",
+      channelId: "chan-fresh",
+      messageIds: ["m1", "m2"],
+      lastListingKeys: ["k1"],
+    });
+  });
+
+  it("records delivery even when deleting previous messages or notifying fails", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const api = {
+      getDealAlerts: vi.fn().mockResolvedValue({
+        plans: [
+          {
+            recipientId: "u1",
+            channelId: "chan-u1",
+            previousMessageIds: ["old-msg"],
+            chunks: ["c1"],
+            summary: { title: "t", description: "d" },
+            lastListingKeys: ["k1"],
+          },
+        ],
+        cleanup: [
+          { recipientId: "u2", channelId: "chan-u2", messageIds: ["cleanup-msg"] },
+        ],
+      }),
+      recordDealAlertDelivery: vi.fn().mockResolvedValue(undefined),
+      recordDealAlertCleanup: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const transport = {
+      send: vi
+        .fn()
+        .mockResolvedValue({ channelId: "chan-u1", messageId: "new-msg" }),
+      delete: vi.fn().mockRejectedValue(new Error("NoPermissionToDelete(1004)")),
+      notify: vi.fn().mockRejectedValue(new Error("Notify unavailable")),
+    };
+
+    await runDealAlertPoll({
+      api,
+      ensureSection: async () => "sec-1",
+      createTransport: () => transport,
+    });
+
+    expect(api.recordDealAlertCleanup).toHaveBeenCalledWith("u2");
+    expect(api.recordDealAlertDelivery).toHaveBeenCalledWith({
+      recipientId: "u1",
+      channelId: "chan-u1",
+      messageIds: ["new-msg"],
+      lastListingKeys: ["k1"],
+    });
+    warnSpy.mockRestore();
   });
 
   it("does not report a plan when a chunk fails", async () => {

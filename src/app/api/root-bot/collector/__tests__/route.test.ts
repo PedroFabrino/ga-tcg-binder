@@ -42,6 +42,7 @@ describe("GET /api/root-bot/collector", () => {
     await expect(response.json()).resolves.toEqual({
       collectorId: "collector-1",
       collectorName: "Ash",
+      locale: "en",
     });
   });
 

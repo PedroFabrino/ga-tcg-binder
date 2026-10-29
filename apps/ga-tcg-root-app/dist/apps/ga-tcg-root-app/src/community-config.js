@@ -12,6 +12,7 @@ exports.createCommunityConfig = createCommunityConfig;
 const BROADCAST_CHANNEL_KEY = "market.broadcastChannelId";
 const ALERT_SECTION_KEY = "dealAlert.sectionId.v2";
 const ASSISTANT_CHANNEL_KEY = "assistant.channelId.v1";
+const BROADCAST_LOCALE_KEY = "market.broadcastLocale";
 function createCommunityConfig(store) {
     return {
         async getBroadcastChannelId() {
@@ -31,6 +32,14 @@ function createCommunityConfig(store) {
         },
         async setAssistantChannelId(channelId) {
             await store.set({ key: ASSISTANT_CHANNEL_KEY, value: channelId });
+        },
+        async getBroadcastLocale() {
+            const stored = await store.get(BROADCAST_LOCALE_KEY);
+            return stored === "pt-BR" ? "pt-BR" : "en";
+        },
+        async setBroadcastLocale(locale) {
+            const normalized = locale === "pt-BR" ? "pt-BR" : "en";
+            await store.set({ key: BROADCAST_LOCALE_KEY, value: normalized });
         },
     };
 }

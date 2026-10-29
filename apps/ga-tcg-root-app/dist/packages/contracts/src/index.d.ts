@@ -186,6 +186,7 @@ export declare const DEFAULT_FEATURE_FLAGS: FeatureFlags;
  */
 export declare function parseFeatureFlag(val: unknown, defaultValue?: boolean): boolean;
 export * from "./i18n";
+export * from "./i18n-root-app";
 export * from "./fulfillment";
 export * from "./assistant";
 export * from "./sets";

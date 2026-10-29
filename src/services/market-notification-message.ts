@@ -1,4 +1,5 @@
 import type { MarketNotification } from "../db/repositories/marketplace-repository";
+import type { SupportedLocale } from "@ga/contracts";
 import { MESSAGE_MAX_LENGTH } from "../lib/market-vocabulary";
 
 export const BRAZIL_TIMEZONE = "America/Sao_Paulo";
@@ -260,7 +261,8 @@ export function formatMarketNotificationChunks(
  lastSyncDate?: Date | string | null,
  maxBytes: number = MESSAGE_MAX_LENGTH,
  storeUrl?: string | null,
- rootMode = false
+ rootMode = false,
+ locale: SupportedLocale = "en"
 ): MarketNotificationChunk[] {
  if (notifications.length === 0) {
   return [];
@@ -274,7 +276,10 @@ export function formatMarketNotificationChunks(
    : `**[${storeName}](<${escapeLinkUrl(storeUrl)}>)**`
   : `**${storeName}**`;
 
- const header = `${storeTitle} updated their stock!\nNew cards since ${dateStr}:`;
+ const header =
+  locale === "pt-BR"
+   ? `${storeTitle} atualizou o estoque!\nNovas cartas desde ${dateStr}:`
+   : `${storeTitle} updated their stock!\nNew cards since ${dateStr}:`;
 
  const chunks: MarketNotificationChunk[] = [];
  let currentContent = header;
@@ -315,7 +320,8 @@ export function formatMarketNotificationMessage(
  notifications: MarketNotification[],
  storeName: string,
  lastSyncDate?: Date | string | null,
- storeUrl?: string | null
+ storeUrl?: string | null,
+ locale: SupportedLocale = "en"
 ): string {
  if (notifications.length === 0) {
   return "";
@@ -326,10 +332,10 @@ export function formatMarketNotificationMessage(
   ? `**[${storeName}](<${escapeLinkUrl(storeUrl)}>)**`
   : `**${storeName}**`;
 
- const lines: string[] = [
-  `${storeTitle} updated their stock!`,
-  `New cards since ${dateStr}:`,
- ];
+ const lines: string[] =
+  locale === "pt-BR"
+   ? [`${storeTitle} atualizou o estoque!`, `Novas cartas desde ${dateStr}:`]
+   : [`${storeTitle} updated their stock!`, `New cards since ${dateStr}:`];
 
  for (const n of sortMarketNotificationsByDetectedAt(notifications)) {
   lines.push(formatMarketNotificationCardLine(n));

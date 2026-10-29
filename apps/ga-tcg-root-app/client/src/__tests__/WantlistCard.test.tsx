@@ -36,4 +36,21 @@ describe("WantlistCard", () => {
     expect(html).toContain("Import Omnidex Shortage Gap");
     expect(html).toContain("Prefer Foil");
   });
+
+  it("renders Portuguese translations when locale is pt-BR", () => {
+    const mockClient = {
+      getPersonalWants: vi.fn().mockResolvedValue({
+        wants: [],
+      }),
+    } as unknown as IAssistantRpcClient;
+
+    const html = ReactDOMServer.renderToStaticMarkup(
+      <WantlistCard isLinked={true} client={mockClient} locale="pt-BR" />
+    );
+
+    expect(html).toContain("Lista de Desejos Pessoal");
+    expect(html).toContain("Adicionar Carta à Lista de Desejos (com Autocomplete)");
+    expect(html).toContain("Importar Faltantes do Omnidex");
+    expect(html).toContain("Preferir Foil");
+  });
 });

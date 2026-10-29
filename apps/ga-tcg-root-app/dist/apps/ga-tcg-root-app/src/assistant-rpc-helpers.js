@@ -44,22 +44,30 @@ async function buildDeckSummariesWithShortages(api, userId, rawDecks) {
         };
     }));
 }
-async function updateDealAlertPreferencesHelper(api, userId, communityId, notificationsEnabled, mode, overrides) {
+async function updateDealAlertPreferencesHelper(api, userId, communityId, notificationsEnabled, mode, overrides, locale) {
     if (overrides?.setNotificationPreference) {
-        await overrides.setNotificationPreference(userId, notificationsEnabled, mode);
+        if (locale !== undefined) {
+            await overrides.setNotificationPreference(userId, notificationsEnabled, mode, locale);
+        }
+        else {
+            await overrides.setNotificationPreference(userId, notificationsEnabled, mode);
+        }
     }
     else {
         await api.setNotifyPreference({
             providerUserId: userId,
             enabled: notificationsEnabled,
             mode,
+            locale,
         });
     }
     let alertChannelId = "";
     if (notificationsEnabled) {
         const channelUrl = overrides?.ensureRecipientChannel
-            ? await overrides.ensureRecipientChannel(userId, communityId)
-            : await (0, deal_alert_notifier_1.ensureRootRecipientChannel)(userId, { communityId, api });
+            ? (locale !== undefined
+                ? await overrides.ensureRecipientChannel(userId, communityId, locale)
+                : await overrides.ensureRecipientChannel(userId, communityId))
+            : await (0, deal_alert_notifier_1.ensureRootRecipientChannel)(userId, { communityId, api, locale });
         alertChannelId = channelUrl ? channelUrl.replace(/^root:\/\/channel\//, "") : "";
     }
     else {
@@ -92,7 +100,7 @@ function mapPersonalWant(w) {
         foil: Boolean(w.foil),
     };
 }
-function createUnlinkedStatus(isAdmin = false) {
+function createUnlinkedStatus(isAdmin = false, locale = "") {
     return {
         isLinked: false,
         collectorId: "",
@@ -102,6 +110,7 @@ function createUnlinkedStatus(isAdmin = false) {
         dealAlertMode: "all",
         alertChannelId: "",
         isAdmin,
+        locale,
     };
 }
 function mapSuggestion(s) {

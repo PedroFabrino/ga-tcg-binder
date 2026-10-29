@@ -3,6 +3,8 @@ import type { DirectMessageSink } from "./deal-alert-sink";
 import { type RootCommunityConfig } from "./community-config";
 import { RootBotApi } from "./root-bot-api";
 import { type RootDealAlertApi } from "./root-deal-alert-transport";
+export declare function getWelcomeMessage(locale?: string): string;
+export declare const WELCOME_MESSAGE: string;
 export interface DealAlertPollDeps {
     api: Pick<RootBotApi, "getDealAlerts" | "recordDealAlertDelivery" | "recordDealAlertCleanup">;
     ensureSection: () => Promise<string | undefined>;
@@ -29,6 +31,7 @@ export interface RecipientChannelOptions {
     api?: RootBotApi;
     config?: RootCommunityConfig;
     rootApi?: RootDealAlertApi;
+    locale?: string;
 }
 /**
  * Runs one deal-alert delivery immediately (used after opt-in so the list is

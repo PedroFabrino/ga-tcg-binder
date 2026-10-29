@@ -65,6 +65,27 @@ describe("GET /api/root-bot/market-notifications", () => {
       notificationIds: ["n1"],
     });
     expect(body.chunks[0].content).toContain("MyP");
+    expect(body.chunks[0].content).toContain("updated their stock!");
+  });
+
+  it("formats chunks in pt-BR when locale=pt-BR query param is passed", async () => {
+    authMocks.authenticateRootBot.mockResolvedValue({
+      appId: "app",
+      communityId: "comm-1",
+    });
+    deliveryMocks.getUndeliveredNotifications.mockResolvedValue([notification]);
+    storeMocks.getMarketStoreById.mockResolvedValue({
+      name: "MyP",
+      lastFullScanAt: null,
+      baseUrl: null,
+    });
+
+    const response = await GET(new Request("http://localhost?locale=pt-BR"));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.chunks).toHaveLength(1);
+    expect(body.chunks[0].content).toContain("atualizou o estoque!");
   });
 
   it("returns no chunks when nothing is pending", async () => {

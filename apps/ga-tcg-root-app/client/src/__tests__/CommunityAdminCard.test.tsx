@@ -78,6 +78,35 @@ describe("CommunityAdminCard", () => {
     expect(html).toContain("#market (GA Market)");
     expect(html).toContain("Save Channel");
     expect(html).toContain("Provision Default Channels");
+    expect(html).toContain("Broadcast Language");
+    expect(html).toContain("English");
+    expect(html).toContain("Português (Brasil)");
+  });
+
+  it("renders localized broadcast language options when locale is pt-BR", () => {
+    const mockClient = createMockRpcClient();
+    const settings: AdminSettingsResponse = {
+      isAdmin: true,
+      broadcastChannelId: "ch-market-1",
+      broadcastChannelName: "market",
+      broadcastLocale: "pt-BR",
+      textChannels: [
+        { id: "ch-market-1", name: "market", groupName: "GA Market" },
+      ],
+    };
+
+    const html = renderToStaticMarkup(
+      <CommunityAdminCard
+        isAdmin={true}
+        client={mockClient}
+        initialSettings={settings}
+        locale="pt-BR"
+      />
+    );
+
+    expect(html).toContain("Idioma de Transmissão");
+    expect(html).toContain("Inglês");
+    expect(html).toContain("Português (Brasil)");
   });
 
   it("renders unconfigured warning when broadcastChannelId is empty", () => {

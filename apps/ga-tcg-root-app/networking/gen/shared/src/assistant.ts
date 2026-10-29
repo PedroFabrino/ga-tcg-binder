@@ -46,6 +46,10 @@ export interface StatusResponse {
      * @generated from protobuf field: bool is_admin = 8
      */
     isAdmin: boolean;
+    /**
+     * @generated from protobuf field: string locale = 9
+     */
+    locale: string;
 }
 /**
  * @generated from protobuf message LinkRequest
@@ -106,6 +110,10 @@ export interface PreferencesRequest {
      * @generated from protobuf field: string deal_alert_mode = 2
      */
     dealAlertMode: string;
+    /**
+     * @generated from protobuf field: string locale = 3
+     */
+    locale: string;
 }
 /**
  * @generated from protobuf message PreferencesResponse
@@ -131,6 +139,10 @@ export interface PreferencesResponse {
      * @generated from protobuf field: string error = 5
      */
     error: string;
+    /**
+     * @generated from protobuf field: string locale = 6
+     */
+    locale: string;
 }
 /**
  * @generated from protobuf message DeckShortageCard
@@ -489,6 +501,10 @@ export interface AdminSettingsResponse {
      * @generated from protobuf field: repeated CommunityChannelOption text_channels = 4
      */
     textChannels: CommunityChannelOption[];
+    /**
+     * @generated from protobuf field: string broadcast_locale = 5
+     */
+    broadcastLocale: string;
 }
 /**
  * @generated from protobuf message SetBroadcastChannelRequest
@@ -498,6 +514,10 @@ export interface SetBroadcastChannelRequest {
      * @generated from protobuf field: string channel_id = 1
      */
     channelId: string;
+    /**
+     * @generated from protobuf field: string broadcast_locale = 2
+     */
+    broadcastLocale: string;
 }
 /**
  * @generated from protobuf message SetBroadcastChannelResponse
@@ -519,6 +539,10 @@ export interface SetBroadcastChannelResponse {
      * @generated from protobuf field: string error = 4
      */
     error: string;
+    /**
+     * @generated from protobuf field: string broadcast_locale = 5
+     */
+    broadcastLocale: string;
 }
 /**
  * @generated from protobuf message ProvisionMarketChannelsResponse
@@ -556,7 +580,8 @@ class StatusResponse$Type extends MessageType<StatusResponse> {
             { no: 5, name: "notifications_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 6, name: "deal_alert_mode", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 7, name: "alert_channel_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 8, name: "is_admin", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 8, name: "is_admin", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 9, name: "locale", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<StatusResponse>): StatusResponse {
@@ -569,6 +594,7 @@ class StatusResponse$Type extends MessageType<StatusResponse> {
         message.dealAlertMode = "";
         message.alertChannelId = "";
         message.isAdmin = false;
+        message.locale = "";
         if (value !== undefined)
             reflectionMergePartial<StatusResponse>(this, message, value);
         return message;
@@ -601,6 +627,9 @@ class StatusResponse$Type extends MessageType<StatusResponse> {
                     break;
                 case /* bool is_admin */ 8:
                     message.isAdmin = reader.bool();
+                    break;
+                case /* string locale */ 9:
+                    message.locale = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -638,6 +667,9 @@ class StatusResponse$Type extends MessageType<StatusResponse> {
         /* bool is_admin = 8; */
         if (message.isAdmin !== false)
             writer.tag(8, WireType.Varint).bool(message.isAdmin);
+        /* string locale = 9; */
+        if (message.locale !== "")
+            writer.tag(9, WireType.LengthDelimited).string(message.locale);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -834,13 +866,15 @@ class PreferencesRequest$Type extends MessageType<PreferencesRequest> {
     constructor() {
         super("PreferencesRequest", [
             { no: 1, name: "notifications_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 2, name: "deal_alert_mode", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 2, name: "deal_alert_mode", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "locale", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<PreferencesRequest>): PreferencesRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.notificationsEnabled = false;
         message.dealAlertMode = "";
+        message.locale = "";
         if (value !== undefined)
             reflectionMergePartial<PreferencesRequest>(this, message, value);
         return message;
@@ -855,6 +889,9 @@ class PreferencesRequest$Type extends MessageType<PreferencesRequest> {
                     break;
                 case /* string deal_alert_mode */ 2:
                     message.dealAlertMode = reader.string();
+                    break;
+                case /* string locale */ 3:
+                    message.locale = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -874,6 +911,9 @@ class PreferencesRequest$Type extends MessageType<PreferencesRequest> {
         /* string deal_alert_mode = 2; */
         if (message.dealAlertMode !== "")
             writer.tag(2, WireType.LengthDelimited).string(message.dealAlertMode);
+        /* string locale = 3; */
+        if (message.locale !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.locale);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -892,7 +932,8 @@ class PreferencesResponse$Type extends MessageType<PreferencesResponse> {
             { no: 2, name: "notifications_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 3, name: "deal_alert_mode", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "alert_channel_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 5, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "locale", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<PreferencesResponse>): PreferencesResponse {
@@ -902,6 +943,7 @@ class PreferencesResponse$Type extends MessageType<PreferencesResponse> {
         message.dealAlertMode = "";
         message.alertChannelId = "";
         message.error = "";
+        message.locale = "";
         if (value !== undefined)
             reflectionMergePartial<PreferencesResponse>(this, message, value);
         return message;
@@ -925,6 +967,9 @@ class PreferencesResponse$Type extends MessageType<PreferencesResponse> {
                     break;
                 case /* string error */ 5:
                     message.error = reader.string();
+                    break;
+                case /* string locale */ 6:
+                    message.locale = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -953,6 +998,9 @@ class PreferencesResponse$Type extends MessageType<PreferencesResponse> {
         /* string error = 5; */
         if (message.error !== "")
             writer.tag(5, WireType.LengthDelimited).string(message.error);
+        /* string locale = 6; */
+        if (message.locale !== "")
+            writer.tag(6, WireType.LengthDelimited).string(message.locale);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -2137,7 +2185,8 @@ class AdminSettingsResponse$Type extends MessageType<AdminSettingsResponse> {
             { no: 1, name: "is_admin", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 2, name: "broadcast_channel_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "broadcast_channel_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "text_channels", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => CommunityChannelOption }
+            { no: 4, name: "text_channels", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => CommunityChannelOption },
+            { no: 5, name: "broadcast_locale", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<AdminSettingsResponse>): AdminSettingsResponse {
@@ -2146,6 +2195,7 @@ class AdminSettingsResponse$Type extends MessageType<AdminSettingsResponse> {
         message.broadcastChannelId = "";
         message.broadcastChannelName = "";
         message.textChannels = [];
+        message.broadcastLocale = "";
         if (value !== undefined)
             reflectionMergePartial<AdminSettingsResponse>(this, message, value);
         return message;
@@ -2166,6 +2216,9 @@ class AdminSettingsResponse$Type extends MessageType<AdminSettingsResponse> {
                     break;
                 case /* repeated CommunityChannelOption text_channels */ 4:
                     message.textChannels.push(CommunityChannelOption.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string broadcast_locale */ 5:
+                    message.broadcastLocale = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -2191,6 +2244,9 @@ class AdminSettingsResponse$Type extends MessageType<AdminSettingsResponse> {
         /* repeated CommunityChannelOption text_channels = 4; */
         for (let i = 0; i < message.textChannels.length; i++)
             CommunityChannelOption.internalBinaryWrite(message.textChannels[i], writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        /* string broadcast_locale = 5; */
+        if (message.broadcastLocale !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.broadcastLocale);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -2205,12 +2261,14 @@ export const AdminSettingsResponse = new AdminSettingsResponse$Type();
 class SetBroadcastChannelRequest$Type extends MessageType<SetBroadcastChannelRequest> {
     constructor() {
         super("SetBroadcastChannelRequest", [
-            { no: 1, name: "channel_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 1, name: "channel_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "broadcast_locale", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<SetBroadcastChannelRequest>): SetBroadcastChannelRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.channelId = "";
+        message.broadcastLocale = "";
         if (value !== undefined)
             reflectionMergePartial<SetBroadcastChannelRequest>(this, message, value);
         return message;
@@ -2222,6 +2280,9 @@ class SetBroadcastChannelRequest$Type extends MessageType<SetBroadcastChannelReq
             switch (fieldNo) {
                 case /* string channel_id */ 1:
                     message.channelId = reader.string();
+                    break;
+                case /* string broadcast_locale */ 2:
+                    message.broadcastLocale = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -2238,6 +2299,9 @@ class SetBroadcastChannelRequest$Type extends MessageType<SetBroadcastChannelReq
         /* string channel_id = 1; */
         if (message.channelId !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.channelId);
+        /* string broadcast_locale = 2; */
+        if (message.broadcastLocale !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.broadcastLocale);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -2255,7 +2319,8 @@ class SetBroadcastChannelResponse$Type extends MessageType<SetBroadcastChannelRe
             { no: 1, name: "success", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 2, name: "broadcast_channel_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "broadcast_channel_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 4, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "broadcast_locale", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<SetBroadcastChannelResponse>): SetBroadcastChannelResponse {
@@ -2264,6 +2329,7 @@ class SetBroadcastChannelResponse$Type extends MessageType<SetBroadcastChannelRe
         message.broadcastChannelId = "";
         message.broadcastChannelName = "";
         message.error = "";
+        message.broadcastLocale = "";
         if (value !== undefined)
             reflectionMergePartial<SetBroadcastChannelResponse>(this, message, value);
         return message;
@@ -2284,6 +2350,9 @@ class SetBroadcastChannelResponse$Type extends MessageType<SetBroadcastChannelRe
                     break;
                 case /* string error */ 4:
                     message.error = reader.string();
+                    break;
+                case /* string broadcast_locale */ 5:
+                    message.broadcastLocale = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -2309,6 +2378,9 @@ class SetBroadcastChannelResponse$Type extends MessageType<SetBroadcastChannelRe
         /* string error = 4; */
         if (message.error !== "")
             writer.tag(4, WireType.LengthDelimited).string(message.error);
+        /* string broadcast_locale = 5; */
+        if (message.broadcastLocale !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.broadcastLocale);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

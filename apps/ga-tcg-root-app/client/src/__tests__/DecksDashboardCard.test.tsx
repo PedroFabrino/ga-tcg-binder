@@ -91,4 +91,32 @@ describe("DecksDashboardCard", () => {
 
     expect(html).toContain('aria-label="Edit Silvie Control"');
   });
+
+  it("renders Portuguese translations when locale is pt-BR", () => {
+    const sampleDecks = [
+      {
+        id: "deck-1",
+        name: "Fire Rai Turbo",
+        champion: "Rai",
+        format: "Standard",
+        totalCards: 60,
+        hardShortagesCount: 4,
+        sharedShortagesCount: 2,
+        hardShortages: [
+          { cardSlug: "fire-ball", cardName: "Fire Ball", quantity: 4 },
+        ],
+        sharedShortages: [
+          { cardSlug: "grand-crush", cardName: "Grand Crush", quantity: 2 },
+        ],
+      },
+    ];
+
+    const html = renderToStaticMarkup(
+      <DecksDashboardCard isLinked={true} decks={sampleDecks} locale="pt-BR" />
+    );
+
+    expect(html).toContain("Decks Construídos &amp; Cartas Faltantes");
+    expect(html).toContain("4 Compra");
+    expect(html).toContain("2 Revezamento");
+  });
 });

@@ -31,6 +31,21 @@ describe("runMarketNotificationPoll", () => {
     });
   });
 
+  it("passes configured broadcastLocale to getMarketNotifications", async () => {
+    const api = {
+      getMarketNotifications: vi.fn().mockResolvedValue({ chunks: [] }),
+      markMarketNotificationsDelivered: vi.fn(),
+    };
+    const config = {
+      getBroadcastChannelId: vi.fn().mockResolvedValue("chan-1"),
+      getBroadcastLocale: vi.fn().mockResolvedValue("pt-BR"),
+    };
+
+    await runMarketNotificationPoll({ api, config, postMessage: vi.fn() });
+
+    expect(api.getMarketNotifications).toHaveBeenCalledWith("pt-BR");
+  });
+
   it("does nothing when no broadcast channel is configured", async () => {
     const api = {
       getMarketNotifications: vi.fn(),

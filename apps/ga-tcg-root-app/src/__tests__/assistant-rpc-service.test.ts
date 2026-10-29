@@ -41,6 +41,7 @@ describe("AssistantRpcService", () => {
           friendCode: "AST-123",
           notificationsEnabled: true,
           dealAlertMode: "hard",
+          locale: "pt-BR",
         }),
         getDealAlertChannel: vi.fn().mockResolvedValue({
           channelId: "chan-789",
@@ -62,6 +63,7 @@ describe("AssistantRpcService", () => {
       expect(status.dealAlertMode).toBe("hard");
       expect(status.alertChannelId).toBe("chan-789");
       expect(status.isAdmin).toBe(true);
+      expect(status.locale).toBe("pt-BR");
     });
 
     it("handles API rejection gracefully", async () => {
@@ -150,16 +152,17 @@ describe("AssistantRpcService", () => {
       });
 
       const response = await service.setPreferences(
-        { notificationsEnabled: true, dealAlertMode: "hard" },
+        { notificationsEnabled: true, dealAlertMode: "hard", locale: "pt-BR" },
         createMockClient("user-123", "comm-456")
       );
 
-      expect(setNotifyPref).toHaveBeenCalledWith("user-123", true, "hard");
-      expect(ensureChannel).toHaveBeenCalledWith("user-123", "comm-456");
+      expect(setNotifyPref).toHaveBeenCalledWith("user-123", true, "hard", "pt-BR");
+      expect(ensureChannel).toHaveBeenCalledWith("user-123", "comm-456", "pt-BR");
       expect(response.success).toBe(true);
       expect(response.notificationsEnabled).toBe(true);
       expect(response.dealAlertMode).toBe("hard");
       expect(response.alertChannelId).toBe("alert-chan-42");
+      expect(response.locale).toBe("pt-BR");
     });
 
     it("disables deal alerts and cleans up channel", async () => {
@@ -488,15 +491,18 @@ describe("AssistantRpcService", () => {
       expect(res.isAdmin).toBe(false);
       expect(res.broadcastChannelId).toBe("");
       expect(res.textChannels).toEqual([]);
+      expect(res.broadcastLocale).toBe("en");
     });
 
-    it("getAdminSettings returns text channels across groups for admins", async () => {
+    it("getAdminSettings returns text channels across groups and broadcastLocale for admins", async () => {
       let storedBroadcastId = "ch-market";
       const mockConfig = {
         getBroadcastChannelId: vi.fn().mockImplementation(async () => storedBroadcastId),
         setBroadcastChannelId: vi.fn().mockImplementation(async (id: string) => {
           storedBroadcastId = id;
         }),
+        getBroadcastLocale: vi.fn().mockResolvedValue("pt-BR"),
+        setBroadcastLocale: vi.fn(),
       } as any;
 
       const service = new AssistantRpcService("comm-123", {
@@ -510,6 +516,7 @@ describe("AssistantRpcService", () => {
       expect(res.isAdmin).toBe(true);
       expect(res.broadcastChannelId).toBe("ch-market");
       expect(res.broadcastChannelName).toBe("market");
+      expect(res.broadcastLocale).toBe("pt-BR");
       expect(res.textChannels).toEqual([
         { id: "ch-gen", name: "general", groupName: "General Category" },
         { id: "ch-market", name: "market", groupName: "GA Market" },
@@ -576,18 +583,48 @@ describe("AssistantRpcService", () => {
         config: {
           getBroadcastChannelId: vi.fn().mockResolvedValue(undefined),
           setBroadcastChannelId,
+          getBroadcastLocale: vi.fn().mockResolvedValue("en"),
         } as any,
       });
 
       const res = await service.setBroadcastChannel(
-        { channelId: "ch-gen" },
+        { channelId: "ch-gen", broadcastLocale: "" },
         createMockClient("admin-user")
       );
       expect(res.success).toBe(true);
       expect(res.broadcastChannelId).toBe("ch-gen");
       expect(res.broadcastChannelName).toBe("general");
+      expect(res.broadcastLocale).toBe("en");
       expect(res.error).toBe("");
       expect(setBroadcastChannelId).toHaveBeenCalledWith("ch-gen");
+    });
+
+    it("setBroadcastChannel updates broadcastLocale without changing channel when channelId is empty", async () => {
+      const setBroadcastLocale = vi.fn().mockResolvedValue(undefined);
+      let currentLocale = "en";
+      const service = new AssistantRpcService("comm-123", {
+        isCommunityAdmin: vi.fn().mockResolvedValue(true),
+        listChannelGroups: vi.fn().mockResolvedValue(mockChannelGroups),
+        listChannels: vi.fn().mockImplementation(mockChannelsByGroup),
+        config: {
+          getBroadcastChannelId: vi.fn().mockResolvedValue("ch-market"),
+          setBroadcastChannelId: vi.fn(),
+          getBroadcastLocale: vi.fn().mockImplementation(async () => currentLocale),
+          setBroadcastLocale: vi.fn().mockImplementation(async (loc: string) => {
+            currentLocale = loc;
+          }),
+        } as any,
+      });
+
+      const res = await service.setBroadcastChannel(
+        { channelId: "", broadcastLocale: "pt-BR" },
+        createMockClient("admin-user")
+      );
+      expect(res.success).toBe(true);
+      expect(res.broadcastChannelId).toBe("ch-market");
+      expect(res.broadcastChannelName).toBe("market");
+      expect(res.broadcastLocale).toBe("pt-BR");
+      expect(res.error).toBe("");
     });
 
     it("provisionMarketChannels rejects non-admins with FORBIDDEN", async () => {
