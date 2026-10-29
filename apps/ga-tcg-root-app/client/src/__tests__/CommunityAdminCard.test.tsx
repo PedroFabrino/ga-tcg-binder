@@ -235,4 +235,24 @@ describe("CommunityAdminCard", () => {
     expect(html).toContain("Salvar Configurações");
     expect(html).toContain("Provisionar Canais Padrão");
   });
+
+  it("renders inline refresh button in header", () => {
+    const mockClient = createMockRpcClient();
+    const settings: AdminSettingsResponse = {
+      isAdmin: true,
+      broadcastChannelId: "ch-market-1",
+      broadcastChannelName: "market",
+      textChannels: [{ id: "ch-market-1", name: "market" }],
+    };
+
+    const html = renderToStaticMarkup(
+      <CommunityAdminCard
+        isAdmin={true}
+        client={mockClient}
+        initialSettings={settings}
+      />
+    );
+
+    expect(html).toContain('aria-label="Refresh"');
+  });
 });

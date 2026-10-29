@@ -50,6 +50,7 @@ export const App: React.FC<AppProps> = ({ client, locale, initialStatus }) => {
   const [decks, setDecks] = useState<DeckSummary[]>([]);
   const [loading, setLoading] = useState(!initialStatus);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
   const [highlightedTerm, setHighlightedTerm] = useState<NomenclatureTerm | null>(null);
 
@@ -124,6 +125,7 @@ export const App: React.FC<AppProps> = ({ client, locale, initialStatus }) => {
 
   const handleRefresh = async () => {
     setRefreshing(true);
+    setRefreshTrigger((k) => k + 1);
     await fetchStatusAndDecks();
   };
 
@@ -291,6 +293,7 @@ export const App: React.FC<AppProps> = ({ client, locale, initialStatus }) => {
               isAdmin={status?.isAdmin ?? false}
               client={client}
               locale={currentLocale}
+              refreshTrigger={refreshTrigger}
             />
 
             <AccountLinkCard

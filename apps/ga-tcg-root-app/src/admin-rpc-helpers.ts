@@ -107,7 +107,10 @@ export async function fetchCommunityTextChannels(
         channelGroupId: group.id as unknown as ChannelGroupGuid,
       })) || [];
       for (const ch of groupChannels) {
-        if (ch.channelType === ChannelType.Text) {
+        const isNonText =
+          ch.channelType === ChannelType.Voice ||
+          ch.channelType === ChannelType.App;
+        if (!isNonText) {
           const idStr = String(ch.id);
           if (!seenIds.has(idStr)) {
             seenIds.add(idStr);
@@ -134,8 +137,8 @@ export async function fetchCommunityTextChannels(
         });
         if (
           directCh &&
-          (directCh.channelType === undefined ||
-            directCh.channelType === ChannelType.Text)
+          directCh.channelType !== ChannelType.Voice &&
+          directCh.channelType !== ChannelType.App
         ) {
           textChannels.push({
             id: String(directCh.id),

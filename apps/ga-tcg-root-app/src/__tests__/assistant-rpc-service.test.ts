@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { AssistantRpcService } from "../assistant-rpc-service";
 import { RootBotApiError, type RootBotApi } from "../root-bot-api";
-import { type Client } from "@rootsdk/server-app";
+import { type Client, ChannelType } from "@rootsdk/server-app";
 
 function createMockClient(userId = "user-123", communityId = "comm-456"): Client {
   return {
@@ -473,12 +473,12 @@ describe("AssistantRpcService", () => {
       if (params.channelGroupId === "group-1") {
         return Promise.resolve([
           { id: "ch-gen", name: "general", channelType: 1 }, // text
-          { id: "ch-voice", name: "lounge", channelType: 2 }, // voice
+          { id: "ch-voice", name: "lounge", channelType: ChannelType.Voice },
         ]);
       }
       return Promise.resolve([
         { id: "ch-market", name: "market", channelType: 1 },
-        { id: "ch-app", name: "assistant", channelType: 3 }, // app
+        { id: "ch-app", name: "assistant", channelType: ChannelType.App },
       ]);
     };
 

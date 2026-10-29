@@ -63,7 +63,9 @@ async function fetchCommunityTextChannels(deps = {}) {
                 channelGroupId: group.id,
             })) || [];
             for (const ch of groupChannels) {
-                if (ch.channelType === server_app_1.ChannelType.Text) {
+                const isNonText = ch.channelType === server_app_1.ChannelType.Voice ||
+                    ch.channelType === server_app_1.ChannelType.App;
+                if (!isNonText) {
                     const idStr = String(ch.id);
                     if (!seenIds.has(idStr)) {
                         seenIds.add(idStr);
@@ -89,8 +91,8 @@ async function fetchCommunityTextChannels(deps = {}) {
                     id: storedBroadcastId,
                 });
                 if (directCh &&
-                    (directCh.channelType === undefined ||
-                        directCh.channelType === server_app_1.ChannelType.Text)) {
+                    directCh.channelType !== server_app_1.ChannelType.Voice &&
+                    directCh.channelType !== server_app_1.ChannelType.App) {
                     textChannels.push({
                         id: String(directCh.id),
                         name: directCh.name,

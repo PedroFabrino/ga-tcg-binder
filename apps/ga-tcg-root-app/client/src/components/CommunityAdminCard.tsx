@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   AlertCircle,
   ShieldCheck,
+  RefreshCw,
 } from "lucide-react";
 import { type SupportedLocale } from "@ga/contracts";
 import { useTranslator } from "../hooks/useTranslator";
@@ -29,6 +30,7 @@ export interface CommunityAdminCardProps {
   isAdmin: boolean;
   client: IAssistantRpcClient;
   locale?: SupportedLocale;
+  refreshTrigger?: number;
   /** Seeds settings state for SSR tests and instant first paint */
   initialSettings?: AdminSettingsResponse;
   /** Seeds feedback state for SSR tests */
@@ -39,6 +41,7 @@ export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
   isAdmin,
   client,
   locale,
+  refreshTrigger,
   initialSettings,
   initialFeedback,
 }) => {
@@ -46,40 +49,23 @@ export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
   const [loading, setLoading] = useState(!initialSettings);
   const [saving, setSaving] = useState(false);
   const [provisioning, setProvisioning] = useState(false);
-  const [broadcastChannelId, setBroadcastChannelId] = useState(
-    initialSettings?.broadcastChannelId ?? ""
-  );
-  const [broadcastChannelName, setBroadcastChannelName] = useState(
-    initialSettings?.broadcastChannelName ?? ""
-  );
-  const [alertSectionId, setAlertSectionId] = useState(
-    initialSettings?.alertSectionId ?? ""
-  );
-  const [alertSectionName, setAlertSectionName] = useState(
-    initialSettings?.alertSectionName ?? ""
-  );
-  const [textChannels, setTextChannels] = useState<CommunityChannelOption[]>(
-    initialSettings?.textChannels ?? []
-  );
-  const [channelGroups, setChannelGroups] = useState<
-    CommunityChannelGroupOption[]
-  >(initialSettings?.channelGroups ?? []);
-  const [selectedChannelId, setSelectedChannelId] = useState(
-    pickInitialChannelId(initialSettings)
-  );
-  const [selectedGroupId, setSelectedGroupId] = useState(
-    pickInitialGroupId(initialSettings)
-  );
+  const [broadcastChannelId, setBroadcastChannelId] = useState(initialSettings?.broadcastChannelId ?? "");
+  const [broadcastChannelName, setBroadcastChannelName] = useState(initialSettings?.broadcastChannelName ?? "");
+  const [alertSectionId, setAlertSectionId] = useState(initialSettings?.alertSectionId ?? "");
+  const [alertSectionName, setAlertSectionName] = useState(initialSettings?.alertSectionName ?? "");
+  const [textChannels, setTextChannels] = useState<CommunityChannelOption[]>(initialSettings?.textChannels ?? []);
+  const [channelGroups, setChannelGroups] = useState<CommunityChannelGroupOption[]>(initialSettings?.channelGroups ?? []);
+  const [selectedChannelId, setSelectedChannelId] = useState(pickInitialChannelId(initialSettings));
+  const [selectedGroupId, setSelectedGroupId] = useState(pickInitialGroupId(initialSettings));
   const [broadcastLocale, setBroadcastLocale] = useState<SupportedLocale>(
     initialSettings?.broadcastLocale === "pt-BR" ? "pt-BR" : "en"
   );
   const [savingLocale, setSavingLocale] = useState(false);
-  const [feedback, setFeedback] = useState<AdminFeedback | null>(
-    initialFeedback ?? null
-  );
+  const [feedback, setFeedback] = useState<AdminFeedback | null>(initialFeedback ?? null);
 
   const loadSettings = useCallback(async () => {
     try {
+      setLoading(true);
       const res = await client.getAdminSettings();
       if (res.isAdmin) {
         setBroadcastChannelId(res.broadcastChannelId);
@@ -105,7 +91,7 @@ export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
     if (isAdmin) {
       loadSettings();
     }
-  }, [isAdmin, loadSettings]);
+  }, [isAdmin, loadSettings, refreshTrigger]);
 
   if (!isAdmin) {
     return null;
@@ -127,10 +113,16 @@ export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
           setAlertSectionId(res.alertSectionId);
           setAlertSectionName(res.alertSectionName);
         }
+        const chName =
+          res.broadcastChannelName ||
+          textChannels.find((c) => c.id === selectedChannelId)?.name ||
+          selectedChannelId ||
+          "";
         setFeedback({
           type: "success",
-          text: t("communityAdmin.saveSuccess"),
+          text: t("communityAdmin.saveSuccess", { channel: chName }),
         });
+        await loadSettings();
       } else {
         setFeedback({
           type: "error",
@@ -172,11 +164,7 @@ export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
       } else {
         setFeedback({
           type: "error",
-          text: resolveAdminErrorMessage(
-            res.error,
-            t,
-            "communityAdmin.provisionError"
-          ),
+          text: resolveAdminErrorMessage(res.error, t, "communityAdmin.provisionError"),
         });
       }
     } catch (err) {
@@ -231,7 +219,7 @@ export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
       className="rounded-xl border border-amber-500/20 bg-amber-500/[0.02] p-6 backdrop-blur-sm shadow-xl"
     >
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/[0.08]">
+      <div className="flex items-center justify-between gap-3 pb-4 border-b border-white/[0.08]">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
             <Radio className="w-5 h-5" />
@@ -251,9 +239,20 @@ export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
             </p>
           </div>
         </div>
+
+        <button
+          type="button"
+          aria-label={t("common.refresh")}
+          title={t("common.refresh")}
+          onClick={() => loadSettings()}
+          disabled={loading || saving || provisioning}
+          className="p-1.5 rounded-lg border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.06] text-slate-300 hover:text-amber-400 transition cursor-pointer disabled:opacity-50"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-amber-400" : ""}`} />
+        </button>
       </div>
 
-      {loading ? (
+      {loading && !initialSettings ? (
         <div className="pt-4 flex items-center justify-center py-6 text-slate-400 text-xs">
           <Loader2 className="w-4 h-4 animate-spin mr-2 text-amber-400" />
           {t("communityAdmin.loadingSettings")}
