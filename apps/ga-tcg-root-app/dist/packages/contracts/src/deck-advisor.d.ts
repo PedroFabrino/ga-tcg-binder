@@ -1,4 +1,5 @@
 export type DeckZone = "material" | "main" | "side";
+export type DeckAdvisorAcquisitionTier = "binder_available" | "store_pullback" | "unowned_upgrade";
 export interface DeckAdvisorSwapCut {
     cardName: string;
     zone: DeckZone;
@@ -8,7 +9,7 @@ export interface DeckAdvisorSwapAdd {
     cardName: string;
     zone: DeckZone;
     quantity: number;
-    tier: "binder_available" | "store_pullback" | "unowned_upgrade";
+    tier: DeckAdvisorAcquisitionTier;
 }
 export interface DeckAdvisorSwapProposal {
     id: string;
@@ -36,7 +37,7 @@ export interface DeckAdvisorCandidateCard {
     costReserve: number | null;
     costMemory: number | null;
     speed: boolean | null;
-    tier: "binder_available" | "store_pullback" | "unowned_upgrade";
+    tier: DeckAdvisorAcquisitionTier;
     ownedQuantity: number;
     idleQuantity: number;
     sharedQuantity: number;
@@ -95,6 +96,7 @@ export interface DeckAdvisorContextSnapshot {
 export interface DeckAdvisorChatRequest {
     deckId: string;
     messages: DeckAdvisorMessage[];
+    locale?: "en" | "pt-BR";
 }
 export interface DeckAdvisorChatResponse {
     message: DeckAdvisorMessage;

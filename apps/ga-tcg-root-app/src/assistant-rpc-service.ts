@@ -14,6 +14,7 @@ import {
   type PersonalWantsRpcResponse,
   type PreferencesRequest,
   type PreferencesResponse,
+  type ProvisionMarketChannelsRequest,
   type ProvisionMarketChannelsResponse,
   type RegisterResponse,
   type RemoveWantRpcRequest,
@@ -379,11 +380,13 @@ export class AssistantRpcService extends AssistantServiceBase {
   }
 
   async provisionMarketChannels(
+    request: ProvisionMarketChannelsRequest,
     client: Client
   ): Promise<ProvisionMarketChannelsResponse> {
     return provisionMarketChannelsHelper(
       String(client.userId),
       this.getConfig(),
+      request,
       this.deps
     );
   }

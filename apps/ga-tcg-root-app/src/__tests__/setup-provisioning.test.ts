@@ -6,11 +6,9 @@ import { ChannelType } from "@rootsdk/server-app";
 function createMockConfig(initial: {
   sectionId?: string;
   broadcastId?: string;
-  assistantId?: string;
 } = {}): RootCommunityConfig {
   let sectionId = initial.sectionId;
   let broadcastId = initial.broadcastId;
-  let assistantId = initial.assistantId;
 
   return {
     getAlertSectionId: vi.fn().mockImplementation(async () => sectionId),
@@ -21,27 +19,27 @@ function createMockConfig(initial: {
     setBroadcastChannelId: vi.fn().mockImplementation(async (id: string) => {
       broadcastId = id;
     }),
-    getAssistantChannelId: vi.fn().mockImplementation(async () => assistantId),
-    setAssistantChannelId: vi.fn().mockImplementation(async (id: string) => {
-      assistantId = id;
-    }),
+    getAssistantChannelId: vi.fn().mockResolvedValue(undefined),
+    setAssistantChannelId: vi.fn().mockResolvedValue(undefined),
+    getBroadcastLocale: vi.fn().mockResolvedValue("en"),
+    getConfiguredBroadcastLocale: vi.fn().mockResolvedValue(undefined),
+    setBroadcastLocale: vi.fn().mockResolvedValue(undefined),
   };
 }
 
 describe("provisionCommunityChannels", () => {
-  it("provisions group, #market, and #assistant channels from scratch", async () => {
+  it("provisions group and #market channel from scratch without creating dead app channel", async () => {
     const config = createMockConfig();
     const mockRootServer = {
       appId: "app-test-id",
       community: {
         channelGroups: {
+          list: vi.fn().mockResolvedValue([]),
           create: vi.fn().mockResolvedValue({ id: "group-100" }),
         },
         channels: {
-          create: vi
-            .fn()
-            .mockResolvedValueOnce({ id: "market-chan-200" })
-            .mockResolvedValueOnce({ id: "assistant-chan-300" }),
+          list: vi.fn().mockResolvedValue([]),
+          create: vi.fn().mockResolvedValue({ id: "market-chan-200" }),
         },
       },
     };
@@ -52,7 +50,6 @@ describe("provisionCommunityChannels", () => {
     });
 
     expect(res.marketChannel).toBe("market");
-    expect(res.assistantChannel).toBe("assistant");
 
     expect(mockRootServer.community.channelGroups.create).toHaveBeenCalledWith(
       expect.objectContaining({ name: "GA Market" })
@@ -66,9 +63,9 @@ describe("provisionCommunityChannels", () => {
       })
     );
 
-    expect(mockRootServer.community.channels.create).toHaveBeenCalledWith(
+    // Verify dead ChannelType.App assistant channel is NOT created
+    expect(mockRootServer.community.channels.create).not.toHaveBeenCalledWith(
       expect.objectContaining({
-        channelGroupId: "group-100",
         name: "assistant",
         channelType: ChannelType.App,
       })
@@ -76,14 +73,78 @@ describe("provisionCommunityChannels", () => {
 
     expect(config.setAlertSectionId).toHaveBeenCalledWith("group-100");
     expect(config.setBroadcastChannelId).toHaveBeenCalledWith("market-chan-200");
-    expect(config.setAssistantChannelId).toHaveBeenCalledWith("assistant-chan-300");
+  });
+
+  it("reuses existing GA Market group from channelGroups.list instead of creating a duplicate", async () => {
+    const config = createMockConfig();
+    const mockRootServer = {
+      appId: "app-test-id",
+      community: {
+        channelGroups: {
+          list: vi.fn().mockResolvedValue([
+            { id: "existing-g1", name: "General" },
+            { id: "existing-g2", name: "GA Market" },
+          ]),
+          create: vi.fn(),
+        },
+        channels: {
+          list: vi.fn().mockResolvedValue([
+            { id: "existing-m1", name: "market", channelType: ChannelType.Text },
+          ]),
+          create: vi.fn(),
+        },
+      },
+    };
+
+    const res = await provisionCommunityChannels({
+      rootServer: mockRootServer as any,
+      config,
+    });
+
+    expect(res.marketChannel).toBe("market");
+    expect(mockRootServer.community.channelGroups.create).not.toHaveBeenCalled();
+    expect(mockRootServer.community.channels.create).not.toHaveBeenCalled();
+    expect(config.setAlertSectionId).toHaveBeenCalledWith("existing-g2");
+    expect(config.setBroadcastChannelId).toHaveBeenCalledWith("existing-m1");
+  });
+
+  it("respects targetGroupId when specified", async () => {
+    const config = createMockConfig();
+    const mockRootServer = {
+      appId: "app-test-id",
+      community: {
+        channelGroups: {
+          list: vi.fn(),
+          create: vi.fn(),
+        },
+        channels: {
+          list: vi.fn().mockResolvedValue([]),
+          create: vi.fn().mockResolvedValue({ id: "custom-market-id" }),
+        },
+      },
+    };
+
+    const res = await provisionCommunityChannels({
+      rootServer: mockRootServer as any,
+      config,
+      targetGroupId: "custom-target-group",
+    });
+
+    expect(res.marketChannel).toBe("market");
+    expect(mockRootServer.community.channelGroups.create).not.toHaveBeenCalled();
+    expect(config.setAlertSectionId).toHaveBeenCalledWith("custom-target-group");
+    expect(mockRootServer.community.channels.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channelGroupId: "custom-target-group",
+        name: "market",
+      })
+    );
   });
 
   it("is idempotent: preserves existing channels without duplicate creation", async () => {
     const config = createMockConfig({
       sectionId: "existing-group",
       broadcastId: "existing-market",
-      assistantId: "existing-assistant",
     });
     const mockRootServer = {
       appId: "app-test-id",
@@ -103,45 +164,7 @@ describe("provisionCommunityChannels", () => {
     });
 
     expect(res.marketChannel).toBe("market");
-    expect(res.assistantChannel).toBe("assistant");
     expect(mockRootServer.community.channelGroups.create).not.toHaveBeenCalled();
     expect(mockRootServer.community.channels.create).not.toHaveBeenCalled();
-  });
-
-  it("provisions only missing assistant channel when group and market exist", async () => {
-    const config = createMockConfig({
-      sectionId: "existing-group",
-      broadcastId: "existing-market",
-      assistantId: undefined,
-    });
-    const mockRootServer = {
-      appId: "app-test-id",
-      community: {
-        channelGroups: {
-          create: vi.fn(),
-        },
-        channels: {
-          create: vi.fn().mockResolvedValue({ id: "new-assistant" }),
-        },
-      },
-    };
-
-    const res = await provisionCommunityChannels({
-      rootServer: mockRootServer as any,
-      config,
-    });
-
-    expect(res.marketChannel).toBe("market");
-    expect(res.assistantChannel).toBe("assistant");
-    expect(mockRootServer.community.channelGroups.create).not.toHaveBeenCalled();
-    expect(mockRootServer.community.channels.create).toHaveBeenCalledTimes(1);
-    expect(mockRootServer.community.channels.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        channelGroupId: "existing-group",
-        name: "assistant",
-        channelType: ChannelType.App,
-      })
-    );
-    expect(config.setAssistantChannelId).toHaveBeenCalledWith("new-assistant");
   });
 });

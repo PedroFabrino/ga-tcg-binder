@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createTranslator } from "@ga/contracts";
-import { pickInitialChannelId, resolveAdminErrorMessage } from "../components/admin-card-helpers";
+import { pickInitialChannelId, pickInitialGroupId, resolveAdminErrorMessage } from "../components/admin-card-helpers";
 import type { AdminSettingsResponse } from "../types";
 
 describe("admin-card-helpers", () => {
@@ -56,6 +56,57 @@ describe("admin-card-helpers", () => {
         textChannels: [],
       };
       expect(pickInitialChannelId(settings)).toBe("");
+    });
+  });
+
+  describe("pickInitialGroupId", () => {
+    it("returns empty string when settings is undefined", () => {
+      expect(pickInitialGroupId(undefined)).toBe("");
+    });
+
+    it("returns alertSectionId when present in channelGroups", () => {
+      const settings: AdminSettingsResponse = {
+        isAdmin: true,
+        alertSectionId: "grp-market",
+        alertSectionName: "GA Market",
+        channelGroups: [
+          { id: "grp-gen", name: "General" },
+          { id: "grp-market", name: "GA Market" },
+        ],
+      };
+      expect(pickInitialGroupId(settings)).toBe("grp-market");
+    });
+
+    it("falls back to the first channel group when alertSectionId is empty", () => {
+      const settings: AdminSettingsResponse = {
+        isAdmin: true,
+        alertSectionId: "",
+        alertSectionName: "",
+        channelGroups: [
+          { id: "grp-first", name: "General" },
+          { id: "grp-second", name: "Events" },
+        ],
+      };
+      expect(pickInitialGroupId(settings)).toBe("grp-first");
+    });
+
+    it("falls back to the first channel group when configured alertSectionId does not exist", () => {
+      const settings: AdminSettingsResponse = {
+        isAdmin: true,
+        alertSectionId: "grp-deleted",
+        alertSectionName: "Deleted",
+        channelGroups: [{ id: "grp-first", name: "General" }],
+      };
+      expect(pickInitialGroupId(settings)).toBe("grp-first");
+    });
+
+    it("returns empty string when channelGroups is empty", () => {
+      const settings: AdminSettingsResponse = {
+        isAdmin: true,
+        alertSectionId: "",
+        channelGroups: [],
+      };
+      expect(pickInitialGroupId(settings)).toBe("");
     });
   });
 

@@ -266,8 +266,8 @@ class AssistantRpcService extends gen_server_1.AssistantServiceBase {
     async setBroadcastChannel(request, client) {
         return (0, admin_rpc_helpers_1.setBroadcastChannelHelper)(String(client.userId), request, this.getConfig(), this.deps);
     }
-    async provisionMarketChannels(client) {
-        return (0, admin_rpc_helpers_1.provisionMarketChannelsHelper)(String(client.userId), this.getConfig(), this.deps);
+    async provisionMarketChannels(request, client) {
+        return (0, admin_rpc_helpers_1.provisionMarketChannelsHelper)(String(client.userId), this.getConfig(), request, this.deps);
     }
 }
 exports.AssistantRpcService = AssistantRpcService;

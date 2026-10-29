@@ -16,6 +16,7 @@ import {
 	PersonalWantsRpcResponse,
 	PreferencesRequest,
 	PreferencesResponse,
+	ProvisionMarketChannelsRequest,
 	ProvisionMarketChannelsResponse,
 	RegisterResponse,
 	RemoveWantRpcRequest,
@@ -51,7 +52,7 @@ export abstract class AssistantServiceBase implements RootServerService {
 	abstract updateDeck(request: UpdateDeckRpcRequest, client: Client): Promise<UpdateDeckRpcResponse>;
 	abstract getAdminSettings(client: Client): Promise<AdminSettingsResponse>;
 	abstract setBroadcastChannel(request: SetBroadcastChannelRequest, client: Client): Promise<SetBroadcastChannelResponse>;
-	abstract provisionMarketChannels(client: Client): Promise<ProvisionMarketChannelsResponse>;
+	abstract provisionMarketChannels(request: ProvisionMarketChannelsRequest, client: Client): Promise<ProvisionMarketChannelsResponse>;
 
 	private __register(): UntypedServerMethodDefinition[] {
 		return [	{
@@ -161,9 +162,9 @@ export abstract class AssistantServiceBase implements RootServerService {
 		{
 			serviceName: 'AssistantService',
 			methodName: 'ProvisionMarketChannels',
-			funct: (e: Void, c: Client) => { return this.provisionMarketChannels(c) },
+			funct: (e: ProvisionMarketChannelsRequest, c: Client) => { return this.provisionMarketChannels(e, c) },
 			path: '/.AssistantService/ProvisionMarketChannels',
-			requestDeserialize: bytes => Void.fromBinary(bytes),
+			requestDeserialize: bytes => ProvisionMarketChannelsRequest.fromBinary(bytes),
 			responseSerialize: value => ProvisionMarketChannelsResponse.toBinary(value)
 		},
 	]}

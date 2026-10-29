@@ -160,17 +160,26 @@ message CommunityChannelOption {
   string group_name = 3;
 }
 
+message CommunityChannelGroupOption {
+  string id = 1;
+  string name = 2;
+}
+
 message AdminSettingsResponse {
   bool is_admin = 1;
   string broadcast_channel_id = 2;
   string broadcast_channel_name = 3;
   repeated CommunityChannelOption text_channels = 4;
   string broadcast_locale = 5;
+  repeated CommunityChannelGroupOption channel_groups = 6;
+  string alert_section_id = 7;
+  string alert_section_name = 8;
 }
 
 message SetBroadcastChannelRequest {
   string channel_id = 1;
   string broadcast_locale = 2;
+  string channel_group_id = 3;
 }
 
 message SetBroadcastChannelResponse {
@@ -179,6 +188,12 @@ message SetBroadcastChannelResponse {
   string broadcast_channel_name = 3;
   string error = 4;
   string broadcast_locale = 5;
+  string alert_section_id = 6;
+  string alert_section_name = 7;
+}
+
+message ProvisionMarketChannelsRequest {
+  string channel_group_id = 1;
 }
 
 message ProvisionMarketChannelsResponse {
@@ -187,6 +202,8 @@ message ProvisionMarketChannelsResponse {
   string broadcast_channel_name = 3;
   string assistant_channel_id = 4;
   string error = 5;
+  string alert_section_id = 6;
+  string alert_section_name = 7;
 }
 
 service AssistantService {
@@ -203,5 +220,5 @@ service AssistantService {
   rpc UpdateDeck(UpdateDeckRpcRequest) returns (UpdateDeckRpcResponse);
   rpc GetAdminSettings(rootsdk.Void) returns (AdminSettingsResponse);
   rpc SetBroadcastChannel(SetBroadcastChannelRequest) returns (SetBroadcastChannelResponse);
-  rpc ProvisionMarketChannels(rootsdk.Void) returns (ProvisionMarketChannelsResponse);
+  rpc ProvisionMarketChannels(ProvisionMarketChannelsRequest) returns (ProvisionMarketChannelsResponse);
 }
