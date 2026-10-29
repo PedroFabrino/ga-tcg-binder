@@ -1,6 +1,7 @@
 import {
   ChannelType,
   type ChannelGroupGuid,
+  type ChannelGuid,
   type RoleOrMemberGuid,
 } from "@rootsdk/server-app";
 import { type RootCommunityConfig } from "./community-config";
@@ -14,6 +15,7 @@ export interface ProvisioningContext {
     community: {
       channelGroups: {
         list?(): Promise<Array<{ id: string | number; name: string }>>;
+        get?(params: { id: ChannelGroupGuid }): Promise<{ id: string | number; name: string }>;
         create(params: {
           name: string;
           accessRuleCreates?: Array<{
@@ -26,6 +28,7 @@ export interface ProvisioningContext {
         list?(params: {
           channelGroupId: ChannelGroupGuid;
         }): Promise<Array<{ id: string | number; name: string; channelType?: number }>>;
+        get?(params: { id: ChannelGuid }): Promise<{ id: string | number; name: string }>;
         create(params: {
           channelGroupId: ChannelGroupGuid;
           name: string;
@@ -50,9 +53,38 @@ export async function provisionCommunityChannels(
   let sectionId = targetGroupId || (await config.getAlertSectionId());
   let broadcastId = await config.getBroadcastChannelId();
 
+  // If sectionId was loaded from config (not an explicit targetGroupId), verify it is accessible
+  if (sectionId && !targetGroupId) {
+    let isValid = false;
+    if (typeof rootServer.community.channelGroups?.get === "function") {
+      try {
+        await rootServer.community.channelGroups.get({
+          id: sectionId as unknown as ChannelGroupGuid,
+        });
+        isValid = true;
+      } catch {
+        isValid = false;
+      }
+    } else if (typeof rootServer.community.channelGroups?.list === "function") {
+      try {
+        const groups = await rootServer.community.channelGroups.list();
+        isValid = groups.length === 0 || groups.some((g) => String(g.id) === sectionId);
+      } catch {
+        isValid = true;
+      }
+    } else {
+      isValid = true;
+    }
+
+    if (!isValid) {
+      sectionId = undefined;
+      await config.setAlertSectionId("");
+    }
+  }
+
   // If sectionId is not specified or configured, search for existing GA Market group before creating a new one
   if (!sectionId) {
-    if (typeof rootServer.community.channelGroups.list === "function") {
+    if (typeof rootServer.community.channelGroups?.list === "function") {
       try {
         const groups = await rootServer.community.channelGroups.list();
         const existingGroup = groups.find(
@@ -67,7 +99,7 @@ export async function provisionCommunityChannels(
     }
   }
 
-  // If still no sectionId, create a single GA Market group
+  // If still no sectionId, create a single clean public GA Market group (no accessRuleCreates)
   if (!sectionId) {
     const group = await rootServer.community.channelGroups.create({
       name: GROUP_NAME,
@@ -76,8 +108,20 @@ export async function provisionCommunityChannels(
   }
   await config.setAlertSectionId(sectionId);
 
+  // If broadcastId was loaded from config, verify it is accessible
+  if (broadcastId && typeof rootServer.community.channels?.get === "function") {
+    try {
+      await rootServer.community.channels.get({
+        id: broadcastId as unknown as ChannelGuid,
+      });
+    } catch {
+      broadcastId = undefined;
+      await config.setBroadcastChannelId("");
+    }
+  }
+
   // Check if a market channel already exists in sectionId
-  if (!broadcastId && typeof rootServer.community.channels.list === "function") {
+  if (!broadcastId && typeof rootServer.community.channels?.list === "function") {
     try {
       const channels = await rootServer.community.channels.list({
         channelGroupId: sectionId as unknown as ChannelGroupGuid,

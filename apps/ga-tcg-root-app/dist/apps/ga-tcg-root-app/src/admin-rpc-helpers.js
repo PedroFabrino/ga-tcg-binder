@@ -14,25 +14,47 @@ async function resolveIsAdmin(userId, deps) {
 }
 async function fetchCommunityChannelGroups(deps = {}) {
     const listGroups = deps.listChannelGroups ?? (() => server_app_1.rootServer.community.channelGroups.list());
+    const getGroup = deps.getChannelGroup ??
+        (typeof server_app_1.rootServer.community.channelGroups?.get === "function"
+            ? (p) => server_app_1.rootServer.community.channelGroups.get(p)
+            : undefined);
+    let groupList = [];
     try {
         const groups = (await listGroups()) || [];
-        return groups.map((g) => ({ id: String(g.id), name: g.name }));
+        groupList = groups.map((g) => ({ id: String(g.id), name: g.name }));
     }
     catch (err) {
         console.warn("Failed to list channel groups:", err);
-        return [];
     }
+    // If config has an alertSectionId not returned in list, attempt direct resolution
+    if (deps.config?.getAlertSectionId && getGroup) {
+        try {
+            const storedSectionId = await deps.config.getAlertSectionId();
+            if (storedSectionId && !groupList.some((g) => g.id === storedSectionId)) {
+                const directGroup = await getGroup({
+                    id: storedSectionId,
+                });
+                if (directGroup?.name) {
+                    groupList.push({
+                        id: String(directGroup.id),
+                        name: directGroup.name,
+                    });
+                }
+            }
+        }
+        catch {
+            // Stale or inaccessible stored group ID
+        }
+    }
+    return groupList;
 }
 async function fetchCommunityTextChannels(deps = {}) {
-    const listGroups = deps.listChannelGroups ?? (() => server_app_1.rootServer.community.channelGroups.list());
+    const groups = await fetchCommunityChannelGroups(deps);
     const listChannels = deps.listChannels ?? ((p) => server_app_1.rootServer.community.channels.list(p));
-    let groups = [];
-    try {
-        groups = (await listGroups()) || [];
-    }
-    catch (err) {
-        console.warn("Failed to list channel groups for text channels:", err);
-    }
+    const getChannel = deps.getChannel ??
+        (typeof server_app_1.rootServer.community.channels?.get === "function"
+            ? (p) => server_app_1.rootServer.community.channels.get(p)
+            : undefined);
     const textChannels = [];
     const seenIds = new Set();
     for (const group of groups) {
@@ -58,27 +80,28 @@ async function fetchCommunityTextChannels(deps = {}) {
             console.warn(`Failed to list channels for group ${group.name}:`, err);
         }
     }
-    // Also query root-level channels (outside any group)
-    try {
-        const rootChannels = (await listChannels({
-            channelGroupId: "",
-        })) || [];
-        for (const ch of rootChannels) {
-            if (ch.channelType === server_app_1.ChannelType.Text) {
-                const idStr = String(ch.id);
-                if (!seenIds.has(idStr)) {
-                    seenIds.add(idStr);
+    // If broadcast channel is stored in config but not yet seen, attempt direct resolution
+    if (deps.config?.getBroadcastChannelId && getChannel) {
+        try {
+            const storedBroadcastId = await deps.config.getBroadcastChannelId();
+            if (storedBroadcastId && !seenIds.has(storedBroadcastId)) {
+                const directCh = await getChannel({
+                    id: storedBroadcastId,
+                });
+                if (directCh &&
+                    (directCh.channelType === undefined ||
+                        directCh.channelType === server_app_1.ChannelType.Text)) {
                     textChannels.push({
-                        id: idStr,
-                        name: ch.name,
+                        id: String(directCh.id),
+                        name: directCh.name,
                         groupName: "",
                     });
                 }
             }
         }
-    }
-    catch {
-        // Root-level channels query not supported or no root-level channels
+        catch {
+            // Stale broadcast channel
+        }
     }
     return textChannels;
 }
@@ -96,18 +119,22 @@ async function getAdminSettingsHelper(userId, config, deps = {}) {
             alertSectionName: "",
         };
     }
-    const [broadcastChannelId, alertSectionId, textChannels, channelGroups] = await Promise.all([
+    const depsWithConfig = { ...deps, config };
+    const [rawBroadcastChannelId, rawAlertSectionId, textChannels, channelGroups] = await Promise.all([
         config.getBroadcastChannelId?.() ?? Promise.resolve(undefined),
         config.getAlertSectionId?.() ?? Promise.resolve(undefined),
-        fetchCommunityTextChannels(deps),
-        fetchCommunityChannelGroups(deps),
+        fetchCommunityTextChannels(depsWithConfig),
+        fetchCommunityChannelGroups(depsWithConfig),
     ]);
-    const activeChannel = broadcastChannelId
-        ? textChannels.find((ch) => ch.id === broadcastChannelId)
+    const activeChannel = rawBroadcastChannelId
+        ? textChannels.find((ch) => ch.id === rawBroadcastChannelId)
         : undefined;
-    const activeGroup = alertSectionId
-        ? channelGroups.find((g) => g.id === alertSectionId)
+    const activeGroup = rawAlertSectionId
+        ? channelGroups.find((g) => g.id === rawAlertSectionId)
         : undefined;
+    // If stored IDs cannot be found in resolved channels/groups, clear dead config
+    const broadcastChannelId = activeChannel ? rawBroadcastChannelId : "";
+    const alertSectionId = activeGroup ? rawAlertSectionId : "";
     return {
         isAdmin: true,
         broadcastChannelId: broadcastChannelId ?? "",
@@ -147,10 +174,11 @@ async function setBroadcastChannelHelper(userId, request, config, deps = {}) {
             error: "INVALID_CHANNEL",
         };
     }
+    const depsWithConfig = { ...deps, config };
     let finalGroupId = (await config.getAlertSectionId?.()) ?? "";
     let finalGroupName = "";
     if (targetGroupId) {
-        const groups = await fetchCommunityChannelGroups(deps);
+        const groups = await fetchCommunityChannelGroups(depsWithConfig);
         const matchedGroup = groups.find((g) => g.id === targetGroupId);
         if (matchedGroup) {
             if (config.setAlertSectionId) {
@@ -161,13 +189,13 @@ async function setBroadcastChannelHelper(userId, request, config, deps = {}) {
         }
     }
     else if (finalGroupId) {
-        const groups = await fetchCommunityChannelGroups(deps);
+        const groups = await fetchCommunityChannelGroups(depsWithConfig);
         finalGroupName = groups.find((g) => g.id === finalGroupId)?.name ?? "";
     }
     let finalChannelId = await config.getBroadcastChannelId();
     let finalChannelName = "";
     if (targetChannelId) {
-        const textChannels = await fetchCommunityTextChannels(deps);
+        const textChannels = await fetchCommunityTextChannels(depsWithConfig);
         const matched = textChannels.find((ch) => ch.id === targetChannelId);
         if (!matched) {
             return {
@@ -185,7 +213,7 @@ async function setBroadcastChannelHelper(userId, request, config, deps = {}) {
         finalChannelName = matched.name;
     }
     else if (finalChannelId) {
-        const textChannels = await fetchCommunityTextChannels(deps);
+        const textChannels = await fetchCommunityTextChannels(depsWithConfig);
         finalChannelName = textChannels.find((ch) => ch.id === finalChannelId)?.name ?? "";
     }
     if (hasLocale && config.setBroadcastLocale) {
@@ -225,10 +253,11 @@ async function provisionMarketChannelsHelper(userId, config, request = { channel
             targetGroupId: targetGroupId || undefined,
         });
     }
+    const depsWithConfig = { ...deps, config };
     const [broadcastChannelId, alertSectionId, channelGroups] = await Promise.all([
         config.getBroadcastChannelId(),
         config.getAlertSectionId(),
-        fetchCommunityChannelGroups(deps),
+        fetchCommunityChannelGroups(depsWithConfig),
     ]);
     const activeGroup = alertSectionId
         ? channelGroups.find((g) => g.id === alertSectionId)

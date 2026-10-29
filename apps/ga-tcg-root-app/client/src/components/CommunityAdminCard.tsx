@@ -325,11 +325,14 @@ export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
                 {textChannels.length === 0 ? (
                   <option value="">{t("communityAdmin.noChannelsFound")}</option>
                 ) : (
-                  textChannels.map((ch) => (
-                    <option key={ch.id} value={ch.id}>
-                      #{ch.name} {ch.groupName ? `(${ch.groupName})` : ""}
-                    </option>
-                  ))
+                  <>
+                    <option value="">{t("communityAdmin.selectChannelPlaceholder")}</option>
+                    {textChannels.map((ch) => (
+                      <option key={ch.id} value={ch.id}>
+                        #{ch.name} {ch.groupName ? `(${ch.groupName})` : ""}
+                      </option>
+                    ))}
+                  </>
                 )}
               </select>
             </div>

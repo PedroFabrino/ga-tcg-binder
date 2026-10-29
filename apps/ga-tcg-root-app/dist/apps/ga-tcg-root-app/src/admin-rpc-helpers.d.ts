@@ -1,4 +1,4 @@
-import { type ChannelGroupGuid } from "@rootsdk/server-app";
+import { type ChannelGroupGuid, type ChannelGuid } from "@rootsdk/server-app";
 import { type RootCommunityConfig } from "./community-config";
 import type { AdminSettingsResponse, CommunityChannelOption, CommunityChannelGroupOption, ProvisionMarketChannelsRequest, ProvisionMarketChannelsResponse, SetBroadcastChannelRequest, SetBroadcastChannelResponse } from "@ga/gen-shared";
 export interface AdminRpcHelperDeps {
@@ -7,6 +7,12 @@ export interface AdminRpcHelperDeps {
         id: unknown;
         name: string;
     }>>;
+    getChannelGroup?: (params: {
+        id: ChannelGroupGuid;
+    }) => Promise<{
+        id: unknown;
+        name: string;
+    } | undefined>;
     listChannels?: (params: {
         channelGroupId: ChannelGroupGuid;
     }) => Promise<Array<{
@@ -14,6 +20,13 @@ export interface AdminRpcHelperDeps {
         name: string;
         channelType: number;
     }>>;
+    getChannel?: (params: {
+        id: ChannelGuid;
+    }) => Promise<{
+        id: unknown;
+        name: string;
+        channelType?: number;
+    } | undefined>;
     config?: RootCommunityConfig;
     provisionChannels?: (targetGroupId?: string) => Promise<{
         marketChannel: string;

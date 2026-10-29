@@ -29,16 +29,8 @@ function createRootServerDealAlertApi(root = server_app_1.rootServer) {
             return { id: String(channel.id) };
         },
         async createChannelGroup(name) {
-            // Grant the bot full control over the group it creates, otherwise it
-            // cannot create the per-user channels inside it (NoPermissionToCreate).
             const group = await root.community.channelGroups.create({
                 name,
-                accessRuleCreates: [
-                    {
-                        roleOrMemberId: botId,
-                        overlay: { channelFullControl: true },
-                    },
-                ],
             });
             return { id: String(group.id) };
         },

@@ -116,7 +116,3 @@ __exportStar(require("./webrtc"), exports);
 // Root bot API Contracts
 // ---------------------------------------------------------------------------
 __exportStar(require("./root-bot"), exports);
-// ---------------------------------------------------------------------------
-// Deck Advisor Contracts
-// ---------------------------------------------------------------------------
-__exportStar(require("./deck-advisor"), exports);

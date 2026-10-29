@@ -1,4 +1,4 @@
-import { type ChannelGroupGuid, type RoleOrMemberGuid } from "@rootsdk/server-app";
+import { type ChannelGroupGuid, type ChannelGuid, type RoleOrMemberGuid } from "@rootsdk/server-app";
 import { type RootCommunityConfig } from "./community-config";
 export declare const MARKET_CHANNEL_NAME = "market";
 export declare const GROUP_NAME = "GA Market";
@@ -11,6 +11,12 @@ export interface ProvisioningContext {
                     id: string | number;
                     name: string;
                 }>>;
+                get?(params: {
+                    id: ChannelGroupGuid;
+                }): Promise<{
+                    id: string | number;
+                    name: string;
+                }>;
                 create(params: {
                     name: string;
                     accessRuleCreates?: Array<{
@@ -31,6 +37,12 @@ export interface ProvisioningContext {
                     name: string;
                     channelType?: number;
                 }>>;
+                get?(params: {
+                    id: ChannelGuid;
+                }): Promise<{
+                    id: string | number;
+                    name: string;
+                }>;
                 create(params: {
                     channelGroupId: ChannelGroupGuid;
                     name: string;

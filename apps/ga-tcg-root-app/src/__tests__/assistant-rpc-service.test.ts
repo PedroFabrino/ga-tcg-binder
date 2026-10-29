@@ -644,6 +644,7 @@ describe("AssistantRpcService", () => {
       });
       const service = new AssistantRpcService("comm-123", {
         isCommunityAdmin: vi.fn().mockResolvedValue(true),
+        listChannelGroups: vi.fn().mockResolvedValue([{ id: "ch-new-group", name: "GA Market" }]),
         provisionChannels,
         config: {
           getBroadcastChannelId: vi.fn().mockResolvedValue("ch-new-market"),

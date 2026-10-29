@@ -9,9 +9,40 @@ async function provisionCommunityChannels(ctx) {
     const { rootServer, config, targetGroupId } = ctx;
     let sectionId = targetGroupId || (await config.getAlertSectionId());
     let broadcastId = await config.getBroadcastChannelId();
+    // If sectionId was loaded from config (not an explicit targetGroupId), verify it is accessible
+    if (sectionId && !targetGroupId) {
+        let isValid = false;
+        if (typeof rootServer.community.channelGroups?.get === "function") {
+            try {
+                await rootServer.community.channelGroups.get({
+                    id: sectionId,
+                });
+                isValid = true;
+            }
+            catch {
+                isValid = false;
+            }
+        }
+        else if (typeof rootServer.community.channelGroups?.list === "function") {
+            try {
+                const groups = await rootServer.community.channelGroups.list();
+                isValid = groups.length === 0 || groups.some((g) => String(g.id) === sectionId);
+            }
+            catch {
+                isValid = true;
+            }
+        }
+        else {
+            isValid = true;
+        }
+        if (!isValid) {
+            sectionId = undefined;
+            await config.setAlertSectionId("");
+        }
+    }
     // If sectionId is not specified or configured, search for existing GA Market group before creating a new one
     if (!sectionId) {
-        if (typeof rootServer.community.channelGroups.list === "function") {
+        if (typeof rootServer.community.channelGroups?.list === "function") {
             try {
                 const groups = await rootServer.community.channelGroups.list();
                 const existingGroup = groups.find((g) => g.name.trim().toLowerCase() === exports.GROUP_NAME.toLowerCase());
@@ -24,7 +55,7 @@ async function provisionCommunityChannels(ctx) {
             }
         }
     }
-    // If still no sectionId, create a single GA Market group
+    // If still no sectionId, create a single clean public GA Market group (no accessRuleCreates)
     if (!sectionId) {
         const group = await rootServer.community.channelGroups.create({
             name: exports.GROUP_NAME,
@@ -32,8 +63,20 @@ async function provisionCommunityChannels(ctx) {
         sectionId = String(group.id);
     }
     await config.setAlertSectionId(sectionId);
+    // If broadcastId was loaded from config, verify it is accessible
+    if (broadcastId && typeof rootServer.community.channels?.get === "function") {
+        try {
+            await rootServer.community.channels.get({
+                id: broadcastId,
+            });
+        }
+        catch {
+            broadcastId = undefined;
+            await config.setBroadcastChannelId("");
+        }
+    }
     // Check if a market channel already exists in sectionId
-    if (!broadcastId && typeof rootServer.community.channels.list === "function") {
+    if (!broadcastId && typeof rootServer.community.channels?.list === "function") {
         try {
             const channels = await rootServer.community.channels.list({
                 channelGroupId: sectionId,
