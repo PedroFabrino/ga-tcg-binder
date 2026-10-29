@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { runDeckAdvisorChat } from "@/services/deck-advisor";
 import { isUserAdvisorAllowlisted } from "@/services/deck-advisor-context";
+import { findUserByEmail } from "@/db/repositories/auth-repository";
 import type { DeckAdvisorChatRequest, DeckAdvisorMessage } from "@ga/contracts";
 
 function parseAdvisorChatRequestBody(raw: unknown): DeckAdvisorChatRequest | null {
@@ -44,7 +45,9 @@ export async function GET(
   const userId = session?.user?.id;
   const userEmail = session?.user?.email;
 
-  const allowed = Boolean(userId && isUserAdvisorAllowlisted({ id: userId, email: userEmail }));
+  const allowed = Boolean(
+    (userId || userEmail) && isUserAdvisorAllowlisted({ id: userId, email: userEmail })
+  );
 
   return NextResponse.json({
     enabled: true,
@@ -57,10 +60,24 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   const session = await auth();
-  const userId = session?.user?.id;
+  const rawUserId = session?.user?.id;
   const userEmail = session?.user?.email;
 
-  if (!userId || !isUserAdvisorAllowlisted({ id: userId, email: userEmail })) {
+  if (!isUserAdvisorAllowlisted({ id: rawUserId, email: userEmail })) {
+    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+  }
+
+  let effectiveUserId = rawUserId;
+  if (!effectiveUserId && userEmail) {
+    const dbUser = await findUserByEmail(userEmail);
+    if (dbUser?.id) {
+      effectiveUserId = dbUser.id;
+    } else {
+      effectiveUserId = `user_${userEmail.replace(/[^a-z0-9]/gi, "_").toLowerCase()}`;
+    }
+  }
+
+  if (!effectiveUserId) {
     return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   }
 
@@ -78,7 +95,7 @@ export async function POST(
     }
 
     const response = await runDeckAdvisorChat(
-      userId,
+      effectiveUserId,
       userEmail,
       deckId,
       parsedBody.messages,

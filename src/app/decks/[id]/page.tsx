@@ -27,7 +27,7 @@ export default function DeckDetailPage() {
   const { t } = useTranslation();
   const params = useParams();
   const deckId = params?.id as string;
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const { showToast } = useToast();
 
   const [deck, setDeck] = useState<any>(null);
@@ -84,11 +84,11 @@ export default function DeckDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [deckId, session?.user?.id, showToast, t]);
+  }, [deckId, session?.user?.id, session?.user?.email, showToast, t]);
 
   useEffect(() => {
-    if (deckId) load();
-  }, [deckId, load]);
+    if (deckId && status !== "loading") load();
+  }, [deckId, status, load]);
 
   const copyOmnidex = async () => {
     try {
