@@ -1,7 +1,33 @@
+export type DeckZone = "material" | "main" | "side";
+
+export interface DeckAdvisorSwapCut {
+  cardName: string;
+  zone: DeckZone;
+  quantity: number;
+}
+
+export interface DeckAdvisorSwapAdd {
+  cardName: string;
+  zone: DeckZone;
+  quantity: number;
+  tier: "binder_available" | "store_pullback" | "unowned_upgrade";
+}
+
+export interface DeckAdvisorSwapProposal {
+  id: string;
+  title: string;
+  rationale: string;
+  cuts: DeckAdvisorSwapCut[];
+  adds: DeckAdvisorSwapAdd[];
+  updatedOmnidexText?: string;
+  netImpact?: "immediate" | "store_pullback" | "hard_shortage";
+}
+
 export interface DeckAdvisorMessage {
   role: "user" | "assistant" | "system";
   content: string;
   toolsUsed?: string[];
+  swapProposals?: DeckAdvisorSwapProposal[];
 }
 
 export interface DeckAdvisorCandidateCard {
@@ -29,7 +55,7 @@ export interface DeckAdvisorDeckCardSnapshot {
   id: string;
   cardSlug: string;
   cardName: string;
-  zone: "material" | "main" | "side";
+  zone: DeckZone;
   quantity: number;
   element: string;
   class: string;

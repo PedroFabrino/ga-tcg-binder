@@ -4,14 +4,16 @@ import { useState, useEffect, useRef } from "react";
 import { Sparkles, Send, Trash2, AlertCircle, Bot, User, BookOpen, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/lib/i18n";
+import { DeckAdvisorSwapCard } from "./DeckAdvisorSwapCard";
 import type { DeckAdvisorMessage, DeckAdvisorChatResponse } from "@ga/contracts";
 
 interface DeckAdvisorPanelProps {
   deckId: string;
   deckName: string;
+  onDeckUpdated?: () => void;
 }
 
-export default function DeckAdvisorPanel({ deckId, deckName }: DeckAdvisorPanelProps) {
+export default function DeckAdvisorPanel({ deckId, deckName, onDeckUpdated }: DeckAdvisorPanelProps) {
   const { t } = useTranslation();
   const [messages, setMessages] = useState<DeckAdvisorMessage[]>([]);
   const [input, setInput] = useState("");
@@ -170,6 +172,18 @@ export default function DeckAdvisorPanel({ deckId, deckName }: DeckAdvisorPanelP
                 }`}
               >
                 {m.content}
+                {m.role === "assistant" && m.swapProposals && m.swapProposals.length > 0 && (
+                  <div className="space-y-3 mt-3">
+                    {m.swapProposals.map((proposal) => (
+                      <DeckAdvisorSwapCard
+                        key={proposal.id}
+                        proposal={proposal}
+                        deckId={deckId}
+                        onDeckUpdated={onDeckUpdated}
+                      />
+                    ))}
+                  </div>
+                )}
                 {m.role === "assistant" && m.toolsUsed && m.toolsUsed.length > 0 && (
                   <div className="mt-2.5 pt-2 border-t border-white/[0.08] flex flex-wrap gap-1.5">
                     {m.toolsUsed.includes("query_official_rules") && (

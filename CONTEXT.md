@@ -359,4 +359,13 @@ _Avoid_: Store highlighter, page scanner, wishlist badge
 A per-store credential payload combining a Collector's Cloudflare clearance cookie and browser User-Agent, exported from an authenticated browser session to authorize automated storefront crawls.
 _Avoid_: Cookie dump, Cloudflare token, scraper secret
 
+**Deck Advisor**:
+The conversational AI referee and deck-building partner embedded in the Deck view that analyzes a selected Deck against the Collector's Candidate Pool, Meta Archetypes, and the official Grand Archive Comprehensive Rules to discuss strategies, synergies, and card swaps.
+_Avoid_: Ruleset helper, AI coach, LLM chatbot, Collector Assistant
+
+**Candidate Pool**:
+The tiered set of cards considered by the Deck Advisor for swapping into a selected Deck, filtered by the Deck's legal Champion lineage and unlocked Elements and partitioned by acquisition friction: immediately sleeveable Owned Copies (Idle and Shared Copies not Dedicated to other Decks), personal Store Listings eligible for Shortage Offset pull-back, and unowned Card Catalog or Meta Staple upgrades.
+_Avoid_: Available cards, spare pool, legal collection
+
+
 

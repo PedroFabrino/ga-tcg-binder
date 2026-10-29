@@ -11,6 +11,7 @@ import {
   DECK_ADVISOR_TOOLS_DECLARATIONS,
   dispatchDeckAdvisorTool,
 } from "./deck-advisor-tools";
+import { parseSwapProposalsFromLlm } from "./deck-advisor-swaps";
 import type {
   DeckAdvisorContextSnapshot,
   DeckAdvisorMessage,
@@ -98,6 +99,30 @@ export function buildDeckAdvisorSystemPrompt(context: DeckAdvisorContextSnapshot
     "3. You have tools:",
     "   - query_official_rules: Check timing windows, phase structures, or keyword rulings in the official rules.",
     "   - search_candidate_pool: Search the Collector's full 1,000+ card collection or global catalog for off-element splashes, specific subtypes, or unowned upgrades.",
+    "4. When recommending card swaps (cuts and additions), always output a structured JSON block formatted as:",
+    "```json:swap",
+    JSON.stringify(
+      {
+        swaps: [
+          {
+            title: "Swap Title",
+            rationale: "Strategic explanation",
+            cuts: [{ cardName: "Card A", zone: "main", quantity: 1 }],
+            adds: [
+              {
+                cardName: "Card B",
+                zone: "main",
+                quantity: 1,
+                tier: "binder_available",
+              },
+            ],
+          },
+        ],
+      },
+      null,
+      2
+    ),
+    "```",
   ].join("\n");
 }
 
@@ -290,11 +315,18 @@ export async function runDeckAdvisorChat(
         toolContext
       );
 
+      const { cleanReply, proposals } = parseSwapProposalsFromLlm(
+        outcome.reply,
+        context.deckCards,
+        context.candidatePool
+      );
+
       return {
         message: {
           role: "assistant",
-          content: outcome.reply,
+          content: cleanReply || outcome.reply,
           toolsUsed: outcome.toolsConsulted,
+          swapProposals: proposals.length > 0 ? proposals : undefined,
         },
         fallbackActivated: false,
         providerUsed: "gemini",
@@ -325,11 +357,18 @@ export async function runDeckAdvisorChat(
     toolContext
   );
 
+  const { cleanReply, proposals } = parseSwapProposalsFromLlm(
+    outcome.reply,
+    context.deckCards,
+    context.candidatePool
+  );
+
   return {
     message: {
       role: "assistant",
-      content: outcome.reply,
+      content: cleanReply || outcome.reply,
       toolsUsed: outcome.toolsConsulted,
+      swapProposals: proposals.length > 0 ? proposals : undefined,
     },
     fallbackActivated: true,
     providerUsed: "omniroute",
