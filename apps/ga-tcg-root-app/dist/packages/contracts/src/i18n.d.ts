@@ -947,6 +947,7 @@ export declare const enCatalog: {
             legendShortages: string;
             legendHard: string;
             legendShared: string;
+            errNotSupported: string;
         };
         deckForms: {
             tabUrl: string;
@@ -1005,6 +1006,7 @@ export declare const enCatalog: {
             guideTitle: string;
             guideSubtitle: string;
             viewGuide: string;
+            infoBadgeAria: string;
             terms: {
                 shortages: {
                     title: string;
@@ -1044,6 +1046,20 @@ export declare const enCatalog: {
                 };
             };
         };
+        notifications: {
+            marketStockUpdated: string;
+            marketNewCardsSince: string;
+            dealAlertWelcome: string;
+            wantlistGroupTitle: string;
+            lastUpdatePrefix: string;
+            summaryTitleSingle: string;
+            summaryTitlePlural: string;
+            summaryHardSingle: string;
+            summaryHardPlural: string;
+            summaryConjunction: string;
+            summaryMoreSuffix: string;
+            summaryWantlistOnly: string;
+        };
     };
 };
 export type TranslationCatalog = typeof enCatalog;
@@ -1055,3 +1071,4 @@ export type TranslationKey = NestedKeyOf<TranslationCatalog>;
 export declare function resolveLocale(input?: string | null): SupportedLocale;
 export declare function formatLocaleNumber(value: number, locale?: SupportedLocale): string;
 export declare function createTranslator(locale?: SupportedLocale): (key: TranslationKey, vars?: Record<string, string | number>) => string;
+export declare function getDictionary(locale?: SupportedLocale): TranslationCatalog;

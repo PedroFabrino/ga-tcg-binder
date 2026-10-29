@@ -215,7 +215,7 @@ describe("App shell", () => {
 
     expect(html).toContain("Conta do Fichário Conectada");
     expect(html).toContain("Alertas de Ofertas de Mercado");
-    expect(html).toContain("Decks Construídos &amp; Cartas Faltantes");
+    expect(html).toContain("Decks Construídos &amp; Cartas Necessárias");
     expect(html).toContain("Lista de Desejos Pessoal");
     expect(html).not.toContain("Connected Binder Account");
     expect(html).not.toContain("Market Deal Alerts");
@@ -241,15 +241,89 @@ describe("App shell", () => {
 
     const enHtml = renderToStaticMarkup(<App client={mockClient} locale="en" />);
     expect(enHtml).toContain("Grand Archive Domain Nomenclature");
-    expect(enHtml).toContain('id="nomenclature-shortages"');
-    expect(enHtml).toContain('id="nomenclature-hardShortages"');
-    expect(enHtml).toContain('id="nomenclature-sharedShortages"');
-    expect(enHtml).toContain('id="nomenclature-alertScope"');
-    expect(enHtml).toContain('id="nomenclature-wantlist"');
-    expect(enHtml).toContain('id="nomenclature-omnidexFormat"');
+    expect(enHtml).toContain('id="nomenclature-term-shortages"');
+    expect(enHtml).toContain('id="nomenclature-term-hardShortages"');
+    expect(enHtml).toContain('id="nomenclature-term-sharedShortages"');
+    expect(enHtml).toContain('id="nomenclature-term-alertScope"');
+    expect(enHtml).toContain('id="nomenclature-term-wantlist"');
+    expect(enHtml).toContain('id="nomenclature-term-omnidexFormat"');
 
     const ptHtml = renderToStaticMarkup(<App client={mockClient} locale="pt-BR" />);
     expect(ptHtml).toContain("Nomenclatura do Domínio Grand Archive");
-    expect(ptHtml).toContain('id="nomenclature-shortages"');
+    expect(ptHtml).toContain('id="nomenclature-term-shortages"');
+  });
+
+  it("renders deal alert mode cards without invalid nested button HTML", () => {
+    const linkedStatus: StatusResponse = {
+      isLinked: true,
+      collectorId: "col-1",
+      collectorName: "Astraea",
+      friendCode: "AST-123",
+      notificationsEnabled: true,
+      dealAlertMode: "all",
+      alertChannelId: "chan-1",
+      isAdmin: false,
+      locale: "en",
+    };
+
+    const mockClient: IAssistantRpcClient = {
+      getStatus: vi.fn().mockResolvedValue(linkedStatus),
+      linkAccount: vi.fn(),
+      setPreferences: vi.fn(),
+      getDecks: vi.fn().mockResolvedValue({ decks: [] }),
+      registerAccount: vi.fn(),
+      autocomplete: vi.fn(),
+      getPersonalWants: vi.fn().mockResolvedValue({ wants: [] }),
+      addWant: vi.fn(),
+      removeWant: vi.fn(),
+      importDeck: vi.fn(),
+      updateDeck: vi.fn(),
+      getAdminSettings: vi.fn(),
+      setBroadcastChannel: vi.fn(),
+      provisionMarketChannels: vi.fn(),
+    };
+
+    const html = renderToStaticMarkup(
+      <App client={mockClient} locale="en" initialStatus={linkedStatus} />
+    );
+    expect(html).not.toMatch(/<button[^>]*>[^<]*<button/);
+  });
+
+  it("retains browser pt-BR locale when unlinked and community broadcast locale is unconfigured", () => {
+    const unlinkedStatus: StatusResponse = {
+      isLinked: false,
+      collectorId: "",
+      collectorName: "",
+      friendCode: "",
+      notificationsEnabled: false,
+      dealAlertMode: "none",
+      alertChannelId: null,
+      isAdmin: false,
+      locale: "",
+    };
+
+    const mockClient: IAssistantRpcClient = {
+      getStatus: vi.fn().mockResolvedValue(unlinkedStatus),
+      linkAccount: vi.fn(),
+      setPreferences: vi.fn(),
+      getDecks: vi.fn().mockResolvedValue({ decks: [] }),
+      registerAccount: vi.fn(),
+      autocomplete: vi.fn(),
+      getPersonalWants: vi.fn().mockResolvedValue({ wants: [] }),
+      addWant: vi.fn(),
+      removeWant: vi.fn(),
+      importDeck: vi.fn(),
+      updateDeck: vi.fn(),
+      getAdminSettings: vi.fn(),
+      setBroadcastChannel: vi.fn(),
+      provisionMarketChannels: vi.fn(),
+    };
+
+    const html = renderToStaticMarkup(
+      <App client={mockClient} locale="pt-BR" initialStatus={unlinkedStatus} />
+    );
+
+    expect(html).toContain("Assistente de Colecionador Grand Archive");
+    expect(html).toContain("Nomenclatura do Domínio Grand Archive");
   });
 });

@@ -6,7 +6,7 @@ import type { NomenclatureTerm } from "./InfoTermBadge";
 
 export interface NomenclatureGuideCardProps {
   locale?: SupportedLocale;
-  highlightedTerm?: string | null;
+  highlightedTerm?: NomenclatureTerm | null;
 }
 
 const ORDERED_TERMS: readonly NomenclatureTerm[] = [
@@ -49,14 +49,14 @@ export const NomenclatureGuideCard: React.FC<NomenclatureGuideCardProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {ORDERED_TERMS.map((term) => {
           const isHighlighted = highlightedTerm === term;
-          const title = t(`rootApp.nomenclature.terms.${term}.title` as any);
-          const desc = t(`rootApp.nomenclature.terms.${term}.desc` as any);
-          const example = t(`rootApp.nomenclature.terms.${term}.example` as any);
+          const title = t(`rootApp.nomenclature.terms.${term}.title`);
+          const desc = t(`rootApp.nomenclature.terms.${term}.desc`);
+          const example = t(`rootApp.nomenclature.terms.${term}.example`);
 
           return (
             <article
               key={term}
-              id={`nomenclature-${term}`}
+              id={`nomenclature-term-${term}`}
               tabIndex={-1}
               className={`p-4 rounded-lg border transition-all duration-300 space-y-2.5 ${
                 isHighlighted

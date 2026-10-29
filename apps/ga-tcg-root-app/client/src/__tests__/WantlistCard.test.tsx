@@ -50,7 +50,7 @@ describe("WantlistCard", () => {
 
     expect(html).toContain("Lista de Desejos Pessoal");
     expect(html).toContain("Adicionar Carta à Lista de Desejos (com Autocomplete)");
-    expect(html).toContain("Importar Faltantes do Omnidex");
+    expect(html).toContain("Importar Cartas Necessárias via Omnidex");
     expect(html).toContain("Preferir Foil");
   });
 });

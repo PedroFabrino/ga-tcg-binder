@@ -70,6 +70,7 @@ export declare const rootAppEnCatalog: {
         legendShortages: string;
         legendHard: string;
         legendShared: string;
+        errNotSupported: string;
     };
     deckForms: {
         tabUrl: string;
@@ -128,6 +129,7 @@ export declare const rootAppEnCatalog: {
         guideTitle: string;
         guideSubtitle: string;
         viewGuide: string;
+        infoBadgeAria: string;
         terms: {
             shortages: {
                 title: string;
@@ -166,6 +168,20 @@ export declare const rootAppEnCatalog: {
                 example: string;
             };
         };
+    };
+    notifications: {
+        marketStockUpdated: string;
+        marketNewCardsSince: string;
+        dealAlertWelcome: string;
+        wantlistGroupTitle: string;
+        lastUpdatePrefix: string;
+        summaryTitleSingle: string;
+        summaryTitlePlural: string;
+        summaryHardSingle: string;
+        summaryHardPlural: string;
+        summaryConjunction: string;
+        summaryMoreSuffix: string;
+        summaryWantlistOnly: string;
     };
 };
 export declare const rootAppPtCatalog: typeof rootAppEnCatalog;

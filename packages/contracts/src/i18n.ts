@@ -1814,3 +1814,7 @@ export function createTranslator(locale: SupportedLocale = DEFAULT_LOCALE) {
     return current;
   };
 }
+
+export function getDictionary(locale: SupportedLocale = DEFAULT_LOCALE): TranslationCatalog {
+  return locale === "pt-BR" ? ptBRCatalog : enCatalog;
+}

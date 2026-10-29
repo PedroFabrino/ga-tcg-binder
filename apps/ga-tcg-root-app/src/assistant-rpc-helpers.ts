@@ -6,6 +6,7 @@ import type {
   LinkResponse,
   RegisterResponse,
 } from "@ga/gen-shared";
+import type { SupportedLocale } from "@ga/contracts";
 import { RootBotApi, RootBotApiError } from "./root-bot-api";
 import {
   ensureRootRecipientChannel,
@@ -82,19 +83,19 @@ export async function updateDealAlertPreferencesHelper(
       userId: string,
       enabled: boolean,
       mode?: "all" | "hard",
-      locale?: string
+      locale?: SupportedLocale
     ) => Promise<void>;
     ensureRecipientChannel?: (
       userId: string,
       communityId?: string,
-      locale?: string
+      locale?: SupportedLocale
     ) => Promise<string | null>;
     removeDealAlertChannel?: (
       userId: string,
       communityId?: string
     ) => Promise<void>;
   },
-  locale?: string
+  locale?: SupportedLocale
 ): Promise<{ alertChannelId: string }> {
   if (overrides?.setNotificationPreference) {
     if (locale !== undefined) {

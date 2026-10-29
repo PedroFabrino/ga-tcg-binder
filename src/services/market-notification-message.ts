@@ -1,5 +1,5 @@
 import type { MarketNotification } from "../db/repositories/marketplace-repository";
-import type { SupportedLocale } from "@ga/contracts";
+import { type SupportedLocale, getDictionary } from "@ga/contracts";
 import { MESSAGE_MAX_LENGTH } from "../lib/market-vocabulary";
 
 export const BRAZIL_TIMEZONE = "America/Sao_Paulo";
@@ -25,20 +25,10 @@ export function formatDateTimeInBrazil(date: Date): string {
 export function formatMarketNotificationDate(
  lastSyncDate?: Date | string | null
 ): string {
- if (!lastSyncDate) {
-  return formatDateTimeInBrazil(new Date());
- }
-
- if (lastSyncDate instanceof Date) {
-  return formatDateTimeInBrazil(lastSyncDate);
- }
-
+ if (!lastSyncDate) return formatDateTimeInBrazil(new Date());
+ if (lastSyncDate instanceof Date) return formatDateTimeInBrazil(lastSyncDate);
  const parsed = new Date(lastSyncDate);
- if (!Number.isNaN(parsed.getTime())) {
-  return formatDateTimeInBrazil(parsed);
- }
-
- return String(lastSyncDate);
+ return !Number.isNaN(parsed.getTime()) ? formatDateTimeInBrazil(parsed) : String(lastSyncDate);
 }
 
 /**
@@ -92,9 +82,7 @@ export function formatMarketNotificationCardDetails(
  * Checks whether a given string is a valid https URL.
  */
 export function isHttpsUrl(value: string | null | undefined): value is string {
- if (!value) {
-  return false;
- }
+ if (!value) return false;
  try {
   return new URL(value).protocol === "https:";
  } catch {
@@ -106,10 +94,7 @@ export function isHttpsUrl(value: string | null | undefined): value is string {
  * Escapes characters in URLs to prevent breaking Markdown links.
  */
 export function escapeLinkUrl(value: string): string {
- return value
-  .replace(/\\/g, "\\\\")
-  .replace(/\(/g, "\\(")
-  .replace(/\)/g, "\\)");
+ return value.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
 }
 
 /**
@@ -255,6 +240,26 @@ export function splitMessageContentByBytes(
  * can be marked incrementally per sent message, preventing duplicate re-sends
  * on partial failures.
  */
+export function buildMarketNotificationHeaderLines(
+ storeName: string,
+ lastSyncDate?: Date | string | null,
+ storeUrl?: string | null,
+ rootMode = false,
+ locale: SupportedLocale = "en"
+): [string, string] {
+ const dict = getDictionary(locale).rootApp.notifications;
+ const dateStr = formatMarketNotificationDate(lastSyncDate);
+ const storeTitle = isHttpsUrl(storeUrl)
+  ? rootMode
+   ? `**[${storeName}](${escapeLinkUrl(storeUrl)})**`
+   : `**[${storeName}](<${escapeLinkUrl(storeUrl)}>)**`
+  : `**${storeName}**`;
+ return [
+  dict.marketStockUpdated.replace("{storeTitle}", storeTitle),
+  dict.marketNewCardsSince.replace("{date}", dateStr),
+ ];
+}
+
 export function formatMarketNotificationChunks(
  notifications: MarketNotification[],
  storeName: string,
@@ -269,17 +274,14 @@ export function formatMarketNotificationChunks(
  }
 
  const sorted = sortMarketNotificationsByDetectedAt(notifications);
- const dateStr = formatMarketNotificationDate(lastSyncDate);
- const storeTitle = isHttpsUrl(storeUrl)
-  ? rootMode
-   ? `**[${storeName}](${escapeLinkUrl(storeUrl)})**`
-   : `**[${storeName}](<${escapeLinkUrl(storeUrl)}>)**`
-  : `**${storeName}**`;
-
- const header =
-  locale === "pt-BR"
-   ? `${storeTitle} atualizou o estoque!\nNovas cartas desde ${dateStr}:`
-   : `${storeTitle} updated their stock!\nNew cards since ${dateStr}:`;
+ const [titleLine, sinceLine] = buildMarketNotificationHeaderLines(
+  storeName,
+  lastSyncDate,
+  storeUrl,
+  rootMode,
+  locale
+ );
+ const header = `${titleLine}\n${sinceLine}`;
 
  const chunks: MarketNotificationChunk[] = [];
  let currentContent = header;
@@ -327,15 +329,9 @@ export function formatMarketNotificationMessage(
   return "";
  }
 
- const dateStr = formatMarketNotificationDate(lastSyncDate);
- const storeTitle = isHttpsUrl(storeUrl)
-  ? `**[${storeName}](<${escapeLinkUrl(storeUrl)}>)**`
-  : `**${storeName}**`;
-
- const lines: string[] =
-  locale === "pt-BR"
-   ? [`${storeTitle} atualizou o estoque!`, `Novas cartas desde ${dateStr}:`]
-   : [`${storeTitle} updated their stock!`, `New cards since ${dateStr}:`];
+ const lines: string[] = [
+  ...buildMarketNotificationHeaderLines(storeName, lastSyncDate, storeUrl, false, locale),
+ ];
 
  for (const n of sortMarketNotificationsByDetectedAt(notifications)) {
   lines.push(formatMarketNotificationCardLine(n));

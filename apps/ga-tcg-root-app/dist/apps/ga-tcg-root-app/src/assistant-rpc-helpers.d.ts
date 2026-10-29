@@ -1,4 +1,5 @@
 import type { DeckSummary, AutocompleteChoiceItem, PersonalWantRpcItem, StatusResponse, LinkResponse, RegisterResponse } from "@ga/gen-shared";
+import type { SupportedLocale } from "@ga/contracts";
 import { RootBotApi } from "./root-bot-api";
 export declare function buildDeckSummariesWithShortages(api: RootBotApi, userId: string, rawDecks: Array<{
     id: string;
@@ -11,10 +12,10 @@ export declare function buildDeckSummariesWithShortages(api: RootBotApi, userId:
     decklistText?: string;
 }>): Promise<DeckSummary[]>;
 export declare function updateDealAlertPreferencesHelper(api: RootBotApi, userId: string, communityId: string, notificationsEnabled: boolean, mode: "all" | "hard", overrides?: {
-    setNotificationPreference?: (userId: string, enabled: boolean, mode?: "all" | "hard", locale?: string) => Promise<void>;
-    ensureRecipientChannel?: (userId: string, communityId?: string, locale?: string) => Promise<string | null>;
+    setNotificationPreference?: (userId: string, enabled: boolean, mode?: "all" | "hard", locale?: SupportedLocale) => Promise<void>;
+    ensureRecipientChannel?: (userId: string, communityId?: string, locale?: SupportedLocale) => Promise<string | null>;
     removeDealAlertChannel?: (userId: string, communityId?: string) => Promise<void>;
-}, locale?: string): Promise<{
+}, locale?: SupportedLocale): Promise<{
     alertChannelId: string;
 }>;
 export declare function mapAutocompleteChoice(r: {

@@ -33,9 +33,13 @@ function createCommunityConfig(store) {
         async setAssistantChannelId(channelId) {
             await store.set({ key: ASSISTANT_CHANNEL_KEY, value: channelId });
         },
-        async getBroadcastLocale() {
+        async getConfiguredBroadcastLocale() {
             const stored = await store.get(BROADCAST_LOCALE_KEY);
-            return stored === "pt-BR" ? "pt-BR" : "en";
+            return stored === "pt-BR" || stored === "en" ? stored : undefined;
+        },
+        async getBroadcastLocale() {
+            const stored = await this.getConfiguredBroadcastLocale();
+            return stored ?? "en";
         },
         async setBroadcastLocale(locale) {
             const normalized = locale === "pt-BR" ? "pt-BR" : "en";

@@ -9,6 +9,7 @@ import { WantlistCard } from "./components/WantlistCard";
 import { CommunityAdminCard } from "./components/CommunityAdminCard";
 import { NomenclatureGuideCard } from "./components/NomenclatureGuideCard";
 import type { NomenclatureTerm } from "./components/InfoTermBadge";
+import { RootAppLocaleProvider } from "./context/RootAppLocaleContext";
 import type { IAssistantRpcClient, StatusResponse, DeckSummary } from "./types";
 import {
   getStoredUserLocale,
@@ -54,7 +55,7 @@ export const App: React.FC<AppProps> = ({ client, locale, initialStatus }) => {
 
   const handleNavigateTerm = useCallback((term: NomenclatureTerm) => {
     setHighlightedTerm(term);
-    const el = document.getElementById(`nomenclature-${term}`);
+    const el = document.getElementById(`nomenclature-term-${term}`);
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
     setTimeout(() => {
       setHighlightedTerm((prev) => (prev === term ? null : prev));
@@ -73,8 +74,14 @@ export const App: React.FC<AppProps> = ({ client, locale, initialStatus }) => {
       if (res.isLinked && (res.locale === "en" || res.locale === "pt-BR")) {
         setCurrentLocale(res.locale as SupportedLocale);
         setStoredUserLocale(res.locale as SupportedLocale);
-      } else if (!getStoredUserLocale() && (res.locale === "en" || res.locale === "pt-BR")) {
-        setCurrentLocale(res.locale as SupportedLocale);
+      } else if (!getStoredUserLocale()) {
+        setCurrentLocale(
+          resolveEffectiveLocale({
+            storedLocale: null,
+            communityLocale: res.locale || null,
+            browserLocale: locale,
+          })
+        );
       }
       if (res.isLinked) {
         try {
@@ -204,7 +211,8 @@ export const App: React.FC<AppProps> = ({ client, locale, initialStatus }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0f18] text-slate-200 p-4 sm:p-6 lg:p-8">
+    <RootAppLocaleProvider value={{ locale: currentLocale, onNavigateTerm: handleNavigateTerm }}>
+      <div className="min-h-screen bg-[#0a0f18] text-slate-200 p-4 sm:p-6 lg:p-8">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* App Header */}
         <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/[0.08]">
@@ -333,6 +341,7 @@ export const App: React.FC<AppProps> = ({ client, locale, initialStatus }) => {
         </footer>
       </div>
     </div>
+    </RootAppLocaleProvider>
   );
 };
 

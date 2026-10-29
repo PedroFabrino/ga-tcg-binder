@@ -23,6 +23,7 @@ export interface RootCommunityConfig {
     getAssistantChannelId(): Promise<string | undefined>;
     setAssistantChannelId(channelId: string): Promise<void>;
     getBroadcastLocale(): Promise<SupportedLocale>;
+    getConfiguredBroadcastLocale(): Promise<SupportedLocale | undefined>;
     setBroadcastLocale(locale: SupportedLocale): Promise<void>;
 }
 export declare function createCommunityConfig(store: CommunityConfigStore): RootCommunityConfig;

@@ -44,14 +44,14 @@ Introduce a **Two-Tier Language Configuration (`en` | `pt-BR`)** across the Root
 - **Two-Tier Locale Resolution Hierarchy**:
   - **Personal GUI Locale**: Resolved on the client in priority order:
     1. Explicit user selection (synced from the linked Collector's persisted `locale` returned in the status payload, or stored in `localStorage` under a dedicated key when unlinked).
-    2. The community's configured `broadcastLocale` returned in `CommunityConfigView`.
+    2. The community's configured `broadcastLocale` returned in `AdminSettingsResponse` (via `getAdminSettings`).
     3. Client browser locale detection (`navigator.language` matching `pt*` -> `pt-BR`, else `en`).
   - **Personal Deal-Alert Channel Locale**: Resolved per recipient from the linked Collector's `locale` column (`"en" | "pt-BR"`) in the database, defaulting to `"en"` when unspecified.
   - **Community Broadcast Channel Locale**: Resolved from the community configuration store (`RootCommunityConfig.market.broadcastLocale`, `"en" | "pt-BR"`, defaulting to `"en"`).
 - **Non-Retroactive Channel Message Switching**:
   - Toggling either the Personal Collector Locale or the Community Broadcast Locale immediately updates the Root App GUI and governs newly provisioned `#deal-alerts-<user>` welcome messages plus all subsequent scheduled/triggered `#deal-alerts-<user>` and `#market` dispatches. Existing historical messages in chat channels are not retroactively rewritten on toggle.
-- **Protobuf & RPC Contract Extensions**:
-  - Extend `CommunityConfigView` and `SetCommunityConfigRequest` in the Root App protobuf contract with `broadcastLocale` (`string`, validated to `"en" | "pt-BR"`).
+- **RPC & Setting Contract Extensions**:
+  - Extend `AdminSettingsResponse` and community admin settings in the Root App contract with `broadcastLocale` (`string`, validated to `"en" | "pt-BR"`).
   - Extend `StatusResponse` with the linked Collector's `locale` (`string`, `"en" | "pt-BR"`).
   - Extend `SetPreferencesRequest` with an optional `locale` field so toggling the personal language when linked persists via the existing preferences RPC flow (or allow `setPreferences` to update `locale` independently of alert subscription flags).
 - **Backend API & Service Contracts**:
@@ -90,9 +90,9 @@ Introduce a **Two-Tier Language Configuration (`en` | `pt-BR`)** across the Root
 - Adding locales beyond English (`en`) and Brazilian Portuguese (`pt-BR`).
 - Translating official Grand Archive **Game Nomenclature** (Card names, Set names/codes, Elements, Rarities, Deck zones, or Finishes).
 - Retroactively editing historical messages already posted in `#market` or `#deal-alerts-<user>` prior to a language toggle (existing `#deal-alerts-<user>` status messages will naturally update to the new language on the next alert dispatch).
-- Adding text-chat slash commands (`!lang`, `/lang`); all configuration remains strictly GUI-driven per ADR 0027.
+- Adding text-chat slash commands (`!lang`, `/lang`); all configuration remains strictly GUI-driven per ADR 0020.
 
 ## Further Notes
 
-- Follows ADR 0011 (*Compile-Time Typed i18n Catalog*), ADR 0012 (*Layered Architecture and Code Limits*), and ADR 0027 (*GUI-Only Root App Collector Assistant*).
+- Follows ADR 0011 (*Compile-Time Typed i18n Catalog*), ADR 0012 (*Layered Architecture and Code Limits*), and ADR 0020 (*Personal Wants and Collector Assistant Interaction Model*).
 - Domain terms **Collector** (synced `locale`), **Community Broadcast Locale**, and **Omnidex Format** are recorded in `CONTEXT.md`.

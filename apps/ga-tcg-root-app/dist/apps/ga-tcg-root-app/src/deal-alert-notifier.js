@@ -8,6 +8,7 @@ exports.provisionRootDealAlerts = provisionRootDealAlerts;
 exports.ensureRootRecipientChannel = ensureRootRecipientChannel;
 exports.removeRootDealAlertChannel = removeRootDealAlertChannel;
 const server_app_1 = require("@rootsdk/server-app");
+const contracts_1 = require("@ga/contracts");
 const community_config_1 = require("./community-config");
 const root_bot_api_1 = require("./root-bot-api");
 const root_bot_scheduler_1 = require("./root-bot-scheduler");
@@ -15,10 +16,8 @@ const root_deal_alert_section_1 = require("./root-deal-alert-section");
 const root_deal_alert_transport_1 = require("./root-deal-alert-transport");
 const diagnostics_1 = require("./diagnostics");
 function getWelcomeMessage(locale = "en") {
-    if (locale === "pt-BR") {
-        return "🔔 **Alertas de ofertas ativados.** Vou manter este canal atualizado com cartas da sua lista de desejos e cartas necessárias para seus decks que estiverem à venda.";
-    }
-    return "🔔 **Deal alerts are on.** I'll keep this channel updated with cards from your wantlist and deck shortages that are for sale.";
+    const normalized = locale === "pt-BR" ? "pt-BR" : "en";
+    return (0, contracts_1.getDictionary)(normalized).rootApp.notifications.dealAlertWelcome;
 }
 exports.WELCOME_MESSAGE = getWelcomeMessage("en");
 /**
@@ -189,8 +188,8 @@ async function ensureRootRecipientChannel(recipientId, options = {}) {
                 locale = collector.locale;
             }
         }
-        catch {
-            // Ignore collector lookup failure, fallback to "en"
+        catch (err) {
+            console.warn(`[deal-alert] Failed to resolve collector locale for ${recipientId}, falling back to "en":`, err);
         }
     }
     const welcomeText = getWelcomeMessage(locale);

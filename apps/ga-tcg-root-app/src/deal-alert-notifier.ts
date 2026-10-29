@@ -3,6 +3,7 @@ import {
   CommunityAppLogType,
   type JobScheduler,
 } from "@rootsdk/server-app";
+import { type SupportedLocale, getDictionary } from "@ga/contracts";
 import type { DirectMessageRef, DirectMessageSink } from "./deal-alert-sink";
 import {
   createCommunityConfig,
@@ -19,10 +20,8 @@ import {
 import { reportDiagnostic } from "./diagnostics";
 
 export function getWelcomeMessage(locale: string = "en"): string {
-  if (locale === "pt-BR") {
-    return "🔔 **Alertas de ofertas ativados.** Vou manter este canal atualizado com cartas da sua lista de desejos e cartas necessárias para seus decks que estiverem à venda.";
-  }
-  return "🔔 **Deal alerts are on.** I'll keep this channel updated with cards from your wantlist and deck shortages that are for sale.";
+  const normalized: SupportedLocale = locale === "pt-BR" ? "pt-BR" : "en";
+  return getDictionary(normalized).rootApp.notifications.dealAlertWelcome;
 }
 
 export const WELCOME_MESSAGE = getWelcomeMessage("en");
@@ -264,8 +263,8 @@ export async function ensureRootRecipientChannel(
       if (collector?.locale) {
         locale = collector.locale;
       }
-    } catch {
-      // Ignore collector lookup failure, fallback to "en"
+    } catch (err) {
+      console.warn(`[deal-alert] Failed to resolve collector locale for ${recipientId}, falling back to "en":`, err);
     }
   }
 

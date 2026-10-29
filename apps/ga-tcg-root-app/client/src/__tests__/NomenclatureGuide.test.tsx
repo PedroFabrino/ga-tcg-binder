@@ -10,7 +10,7 @@ describe("InfoTermBadge", () => {
       <InfoTermBadge term="shortages" locale="en" />
     );
 
-    expect(html).toContain('aria-label="Info: Shortages (Cartas Necessárias)"');
+    expect(html).toContain('aria-label="Info: Shortages"');
     expect(html).toContain('role="tooltip"');
     expect(html).toContain(
       "Cards missing from your inventory to complete one or more constructed decks."
@@ -23,8 +23,9 @@ describe("InfoTermBadge", () => {
       <InfoTermBadge term="hardShortages" locale="pt-BR" />
     );
 
+    expect(html).toContain('aria-label="Informações: Compra Necessária"');
     expect(html).toContain(
-      "Cartas que você não possui em quantidade suficiente no acervo"
+      "Cartas das quais você não possui cópias suficientes no fichário nem para montar um único deck."
     );
     expect(html).toContain("Saiba mais no Guia de Nomenclatura abaixo");
   });
@@ -37,19 +38,19 @@ describe("NomenclatureGuideCard", () => {
     );
 
     expect(html).toContain("Grand Archive Domain Nomenclature");
-    expect(html).toContain("id=\"nomenclature-shortages\"");
-    expect(html).toContain("id=\"nomenclature-hardShortages\"");
-    expect(html).toContain("id=\"nomenclature-sharedShortages\"");
-    expect(html).toContain("id=\"nomenclature-alertScope\"");
-    expect(html).toContain("id=\"nomenclature-wantlist\"");
-    expect(html).toContain("id=\"nomenclature-omnidexFormat\"");
+    expect(html).toContain('id="nomenclature-term-shortages"');
+    expect(html).toContain('id="nomenclature-term-hardShortages"');
+    expect(html).toContain('id="nomenclature-term-sharedShortages"');
+    expect(html).toContain('id="nomenclature-term-alertScope"');
+    expect(html).toContain('id="nomenclature-term-wantlist"');
+    expect(html).toContain('id="nomenclature-term-omnidexFormat"');
 
-    expect(html).toContain("Shortages (Cartas Necessárias)");
-    expect(html).toContain("Hard Shortages (Compra Necessária)");
-    expect(html).toContain("Shared Shortages (Revezamento entre Decks)");
-    expect(html).toContain("Alert Scope (Escopo de Alertas)");
-    expect(html).toContain("Personal Wantlist (Lista de Desejos)");
-    expect(html).toContain("Omnidex Format (Formato Omnidex)");
+    expect(html).toContain("Shortages");
+    expect(html).toContain("Hard Shortages");
+    expect(html).toContain("Shared Shortages");
+    expect(html).toContain("Alert Scope");
+    expect(html).toContain("Personal Wantlist");
+    expect(html).toContain("Omnidex Format");
   });
 
   it("renders all 6 terms in Portuguese", () => {
@@ -59,8 +60,13 @@ describe("NomenclatureGuideCard", () => {
 
     expect(html).toContain("Nomenclatura do Domínio Grand Archive");
     expect(html).toContain("Glossário de referência para inventário");
-    expect(html).toContain("Exemplo: Se você precisa de 4 cópias");
-    expect(html).toContain("Exemplo: 2 decks precisam de 4x &#x27;Fireball&#x27;");
+    expect(html).toContain("Cartas Necessárias");
+    expect(html).toContain("Compra Necessária");
+    expect(html).toContain("Revezamento entre Decks");
+    expect(html).toContain("Escopo de Alertas");
+    expect(html).toContain("Lista de Desejos Pessoal");
+    expect(html).toContain("Formato Omnidex");
+    expect(html).toContain("Exemplo: Um deck precisa de 4x &#x27;Fireball&#x27;");
   });
 
   it("applies highlight styling to the active term", () => {
@@ -68,7 +74,7 @@ describe("NomenclatureGuideCard", () => {
       <NomenclatureGuideCard locale="en" highlightedTerm="hardShortages" />
     );
 
-    expect(html).toContain('id="nomenclature-hardShortages"');
+    expect(html).toContain('id="nomenclature-term-hardShortages"');
     expect(html).toContain("border-indigo-400 bg-indigo-500/10 ring-2 ring-indigo-500/40");
   });
 });

@@ -107,9 +107,9 @@ describe("WantlistOmnidexGapForm", () => {
       />
     );
 
-    expect(html).toContain("Importar Faltantes do Omnidex");
+    expect(html).toContain("Importar Cartas Necessárias via Omnidex");
     expect(html).toContain("URL do Deck");
     expect(html).toContain("Colar Lista de Deck");
-    expect(html).toContain("Importar Faltantes");
+    expect(html).toContain("Importar Cartas Necessárias");
   });
 });

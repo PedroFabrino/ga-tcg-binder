@@ -2,6 +2,7 @@ import React from "react";
 import { Info } from "lucide-react";
 import type { SupportedLocale } from "@ga/contracts";
 import { useTranslator } from "../hooks/useTranslator";
+import { useRootAppLocale } from "../context/RootAppLocaleContext";
 
 export type NomenclatureTerm =
   | "shortages"
@@ -20,20 +21,23 @@ export interface InfoTermBadgeProps {
 
 export const InfoTermBadge: React.FC<InfoTermBadgeProps> = ({
   term,
-  locale,
-  onNavigate,
+  locale: propLocale,
+  onNavigate: propOnNavigate,
   className = "",
 }) => {
-  const t = useTranslator(locale);
-  const tooltipText = t(`rootApp.nomenclature.terms.${term}.tooltip` as any);
-  const termTitle = t(`rootApp.nomenclature.terms.${term}.title` as any);
+  const rootCtx = useRootAppLocale();
+  const effectiveLocale = propLocale ?? rootCtx.locale;
+  const effectiveOnNavigate = propOnNavigate ?? rootCtx.onNavigateTerm;
+  const t = useTranslator(effectiveLocale);
+  const tooltipText = t(`rootApp.nomenclature.terms.${term}.tooltip`);
+  const termTitle = t(`rootApp.nomenclature.terms.${term}.title`);
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (onNavigate) {
-      onNavigate(term);
+    if (effectiveOnNavigate) {
+      effectiveOnNavigate(term);
     } else {
-      const el = document.getElementById(`nomenclature-${term}`);
+      const el = document.getElementById(`nomenclature-term-${term}`);
       el?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   };
@@ -44,7 +48,7 @@ export const InfoTermBadge: React.FC<InfoTermBadgeProps> = ({
         type="button"
         onClick={handleClick}
         className="inline-flex items-center justify-center p-0.5 rounded-full text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/10 focus:outline-none focus:ring-1 focus:ring-indigo-400 cursor-pointer transition"
-        aria-label={`Info: ${termTitle}`}
+        aria-label={t("rootApp.nomenclature.infoBadgeAria", { term: termTitle })}
         title={tooltipText}
       >
         <Info className="w-3.5 h-3.5" />

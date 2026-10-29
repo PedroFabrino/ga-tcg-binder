@@ -28,6 +28,7 @@ export interface RootCommunityConfig {
   getAssistantChannelId(): Promise<string | undefined>;
   setAssistantChannelId(channelId: string): Promise<void>;
   getBroadcastLocale(): Promise<SupportedLocale>;
+  getConfiguredBroadcastLocale(): Promise<SupportedLocale | undefined>;
   setBroadcastLocale(locale: SupportedLocale): Promise<void>;
 }
 
@@ -53,9 +54,13 @@ export function createCommunityConfig(
     async setAssistantChannelId(channelId) {
       await store.set({ key: ASSISTANT_CHANNEL_KEY, value: channelId });
     },
-    async getBroadcastLocale() {
+    async getConfiguredBroadcastLocale() {
       const stored = await store.get<string>(BROADCAST_LOCALE_KEY);
-      return stored === "pt-BR" ? "pt-BR" : "en";
+      return stored === "pt-BR" || stored === "en" ? stored : undefined;
+    },
+    async getBroadcastLocale() {
+      const stored = await this.getConfiguredBroadcastLocale();
+      return stored ?? "en";
     },
     async setBroadcastLocale(locale) {
       const normalized: SupportedLocale = locale === "pt-BR" ? "pt-BR" : "en";

@@ -52,7 +52,7 @@ export interface RootBotCollector {
   friendCode?: string | null;
   notificationsEnabled?: boolean;
   dealAlertMode?: "all" | "hard";
-  locale?: string;
+  locale?: SupportedLocale;
 }
 
 /** Pending marketplace notifications, grouped by store and formatted. */
@@ -183,7 +183,7 @@ export async function resolveCommunityCollector(
   const result: RootBotCollector = {
     collectorId: resolved.collector.id,
     collectorName: resolved.collector.name,
-    locale: resolved.collector.locale || "en",
+    locale: resolved.collector.locale === "pt-BR" ? "pt-BR" : "en",
   };
   if (resolved.collector.friendCode) {
     result.friendCode = resolved.collector.friendCode;
@@ -203,7 +203,7 @@ export async function setCommunityNotifyPreference(
   providerUserId: string,
   enabled: boolean,
   mode?: "all" | "hard",
-  locale?: string
+  locale?: SupportedLocale
 ): Promise<boolean> {
   const resolved = await findCollectorByIdentity("root", providerUserId);
   if (!resolved) {

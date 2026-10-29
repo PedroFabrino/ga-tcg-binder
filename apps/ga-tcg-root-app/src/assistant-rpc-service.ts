@@ -108,11 +108,19 @@ export class AssistantRpcService extends AssistantServiceBase {
     try {
       const [collector, channel] = await Promise.all([
         api.getCollector(userId),
-        api.getDealAlertChannel(userId).catch(() => null),
+        api.getDealAlertChannel(userId).catch((err) => {
+          console.warn("[assistant-rpc] Failed to load deal-alert channel, falling back to null:", err);
+          return null;
+        }),
       ]);
 
       if (!collector) {
-        const broadcastLocale = (await this.getConfig().getBroadcastLocale().catch(() => "en")) || "en";
+        let broadcastLocale = "";
+        try {
+          broadcastLocale = (await this.getConfig().getConfiguredBroadcastLocale?.()) ?? "";
+        } catch (err) {
+          console.warn("[assistant-rpc] Failed to read configured broadcast locale:", err);
+        }
         return createUnlinkedStatus(isAdmin, broadcastLocale);
       }
 
@@ -127,8 +135,14 @@ export class AssistantRpcService extends AssistantServiceBase {
         isAdmin,
         locale: collector.locale || "en",
       };
-    } catch {
-      const broadcastLocale = (await this.getConfig().getBroadcastLocale().catch(() => "en")) || "en";
+    } catch (err) {
+      console.warn("[assistant-rpc] Failed to get collector status, returning unlinked status:", err);
+      let broadcastLocale = "";
+      try {
+        broadcastLocale = (await this.getConfig().getConfiguredBroadcastLocale?.()) ?? "";
+      } catch (configErr) {
+        console.warn("[assistant-rpc] Failed to read configured broadcast locale on fallback:", configErr);
+      }
       return createUnlinkedStatus(isAdmin, broadcastLocale);
     }
   }

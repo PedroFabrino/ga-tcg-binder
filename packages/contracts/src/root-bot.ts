@@ -1,3 +1,5 @@
+import type { SupportedLocale } from "./i18n";
+
 /**
  * Root bot API contracts — the HTTP boundary between the cloud-hosted Root bot
  * (a thin Root delivery agent) and the Next.js app (which owns the data plane).
@@ -37,7 +39,7 @@ export interface RootBotDealAlertPlan {
   chunks: string[];
   summary: { title: string; description: string };
   lastListingKeys: string[];
-  locale?: string;
+  locale?: SupportedLocale;
 }
 
 export interface RootBotDealAlertsResponse {
@@ -66,7 +68,7 @@ export interface RootBotCollectorResponse {
   friendCode?: string | null;
   notificationsEnabled?: boolean;
   dealAlertMode?: "all" | "hard";
-  locale?: string;
+  locale?: SupportedLocale;
 }
 
 export interface RootBotNotifyRequest {
@@ -74,5 +76,5 @@ export interface RootBotNotifyRequest {
   enabled: boolean;
   /** Deal-alert scope: "all" or "hard". Optional. */
   mode?: "all" | "hard";
-  locale?: string;
+  locale?: SupportedLocale;
 }

@@ -94,10 +94,7 @@ export const DealAlertCard: React.FC<DealAlertCardProps> = ({
             <InfoTermBadge term="alertScope" locale={locale} onNavigate={onNavigateTerm} />
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <button
-              type="button"
-              disabled={!isLinked || loading}
-              onClick={() => handleModeChange("all")}
+            <div
               className={`p-3 rounded-lg border text-left transition ${
                 dealAlertMode !== "hard"
                   ? "border-indigo-500/50 bg-indigo-500/10 text-slate-100 shadow-sm shadow-indigo-500/10"
@@ -105,21 +102,28 @@ export const DealAlertCard: React.FC<DealAlertCardProps> = ({
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold flex items-center gap-1.5">
-                  {t("rootApp.dealAlerts.allShortagesTitle")}
+                <button
+                  type="button"
+                  disabled={!isLinked || loading}
+                  onClick={() => handleModeChange("all")}
+                  className="text-sm font-semibold flex items-center gap-1.5 text-left disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed flex-1"
+                >
+                  <span>{t("rootApp.dealAlerts.allShortagesTitle")}</span>
+                </button>
+                <div className="flex items-center gap-1.5 ml-1">
                   <InfoTermBadge term="shortages" locale={locale} onNavigate={onNavigateTerm} />
-                </span>
-                {dealAlertMode !== "hard" && <span className="w-2 h-2 rounded-full bg-indigo-400" />}
+                  {dealAlertMode !== "hard" && <span className="w-2 h-2 rounded-full bg-indigo-400" />}
+                </div>
               </div>
-              <p className="text-xs text-slate-400 mt-1">
+              <p
+                onClick={() => (!isLinked || loading ? undefined : handleModeChange("all"))}
+                className="text-xs text-slate-400 mt-1 cursor-pointer"
+              >
                 {t("rootApp.dealAlerts.allShortagesDesc")}
               </p>
-            </button>
+            </div>
 
-            <button
-              type="button"
-              disabled={!isLinked || loading}
-              onClick={() => handleModeChange("hard")}
+            <div
               className={`p-3 rounded-lg border text-left transition ${
                 dealAlertMode === "hard"
                   ? "border-indigo-500/50 bg-indigo-500/10 text-slate-100 shadow-sm shadow-indigo-500/10"
@@ -127,16 +131,26 @@ export const DealAlertCard: React.FC<DealAlertCardProps> = ({
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold flex items-center gap-1.5">
-                  {t("rootApp.dealAlerts.hardOnlyTitle")}
+                <button
+                  type="button"
+                  disabled={!isLinked || loading}
+                  onClick={() => handleModeChange("hard")}
+                  className="text-sm font-semibold flex items-center gap-1.5 text-left disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed flex-1"
+                >
+                  <span>{t("rootApp.dealAlerts.hardOnlyTitle")}</span>
+                </button>
+                <div className="flex items-center gap-1.5 ml-1">
                   <InfoTermBadge term="hardShortages" locale={locale} onNavigate={onNavigateTerm} />
-                </span>
-                {dealAlertMode === "hard" && <span className="w-2 h-2 rounded-full bg-indigo-400" />}
+                  {dealAlertMode === "hard" && <span className="w-2 h-2 rounded-full bg-indigo-400" />}
+                </div>
               </div>
-              <p className="text-xs text-slate-400 mt-1">
+              <p
+                onClick={() => (!isLinked || loading ? undefined : handleModeChange("hard"))}
+                className="text-xs text-slate-400 mt-1 cursor-pointer"
+              >
                 {t("rootApp.dealAlerts.hardOnlyDesc")}
               </p>
-            </button>
+            </div>
           </div>
         </div>
 

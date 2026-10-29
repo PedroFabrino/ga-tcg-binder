@@ -8,6 +8,7 @@ exports.ptBRCatalog = exports.enCatalog = exports.DEFAULT_LOCALE = exports.SUPPO
 exports.resolveLocale = resolveLocale;
 exports.formatLocaleNumber = formatLocaleNumber;
 exports.createTranslator = createTranslator;
+exports.getDictionary = getDictionary;
 const i18n_root_app_1 = require("./i18n-root-app");
 exports.SUPPORTED_LOCALES = ["en", "pt-BR"];
 exports.DEFAULT_LOCALE = "en";
@@ -1799,4 +1800,7 @@ function createTranslator(locale = exports.DEFAULT_LOCALE) {
         }
         return current;
     };
+}
+function getDictionary(locale = exports.DEFAULT_LOCALE) {
+    return locale === "pt-BR" ? exports.ptBRCatalog : exports.enCatalog;
 }

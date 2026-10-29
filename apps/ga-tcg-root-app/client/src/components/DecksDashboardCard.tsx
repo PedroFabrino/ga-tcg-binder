@@ -55,7 +55,7 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
   };
 
   const handleImport = async (data: { url?: string; text?: string }) => {
-    if (!onImportDeck) return { success: false, error: "Not supported" };
+    if (!onImportDeck) return { success: false, error: t("rootApp.decksDashboard.errNotSupported") };
     return onImportDeck(data);
   };
 
@@ -63,7 +63,7 @@ export const DecksDashboardCard: React.FC<DecksDashboardCardProps> = ({
     deckId: string,
     data: { name?: string; url?: string; text?: string }
   ) => {
-    if (!onUpdateDeck) return { success: false, error: "Not supported" };
+    if (!onUpdateDeck) return { success: false, error: t("rootApp.decksDashboard.errNotSupported") };
     const res = await onUpdateDeck(deckId, data);
     if (res.success) {
       setEditingDeckId(null);

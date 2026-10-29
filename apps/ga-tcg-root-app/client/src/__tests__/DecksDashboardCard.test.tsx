@@ -115,7 +115,7 @@ describe("DecksDashboardCard", () => {
       <DecksDashboardCard isLinked={true} decks={sampleDecks} locale="pt-BR" />
     );
 
-    expect(html).toContain("Decks Construídos &amp; Cartas Faltantes");
+    expect(html).toContain("Decks Construídos &amp; Cartas Necessárias");
     expect(html).toContain("4 Compra");
     expect(html).toContain("2 Revezamento");
   });
