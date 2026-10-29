@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { ArrowLeft, Copy, Trash2, Crown, BookOpen, Check, LayoutGrid, List, Pencil } from "lucide-react";
+import { ArrowLeft, Copy, Trash2, Crown, BookOpen, Check, LayoutGrid, List, Pencil, Sparkles } from "lucide-react";
 import { ConfirmModal } from "@/components/common";
 import { SkeletonRow, EmptyState } from "@/components/Skeletons";
 import { useToast } from "@/components/ToastProvider";
@@ -11,6 +11,7 @@ import DeckFormModal from "@/components/decks/DeckFormModal";
 import ShortageTable, { FeasibilityBanner, type ShortageReport, type ShortageItem } from "@/components/decks/ShortageTable";
 import DeckList, { type DeckCard } from "@/components/decks/DeckList";
 import DeckCardGrid from "@/components/decks/DeckCardGrid";
+import DeckAdvisorPanel from "@/components/decks/DeckAdvisorPanel";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { buildCollectionUpdateRequest } from "@/lib/collection-stepper";
@@ -46,14 +47,17 @@ export default function DeckDetailPage() {
   const [onlyMissing, setOnlyMissing] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [editing, setEditing] = useState(false);
+  const [advisorAllowed, setAdvisorAllowed] = useState(false);
+  const [showAdvisor, setShowAdvisor] = useState(false);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
       const userIdQuery = session?.user?.id ? `?userId=${encodeURIComponent(session.user.id)}` : "";
-      const [deckRes, shortageRes] = await Promise.all([
+      const [deckRes, shortageRes, advisorRes] = await Promise.all([
         fetch(`/api/decks/${deckId}`),
         fetch(`/api/decks/${deckId}/shortage${userIdQuery}`),
+        fetch(`/api/decks/${deckId}/advisor`),
       ]);
       if (deckRes.status === 404) {
         setNotFound(true);
@@ -61,6 +65,10 @@ export default function DeckDetailPage() {
       }
       const deckData = await deckRes.json();
       const shortageData = shortageRes.ok ? await shortageRes.json() : null;
+      if (advisorRes.ok) {
+        const advData = await advisorRes.json();
+        setAdvisorAllowed(Boolean(advData.allowed));
+      }
       if (deckData.deck) {
         setDeck(deckData.deck);
         setCards({
@@ -203,6 +211,20 @@ export default function DeckDetailPage() {
           </div>
         </div>
         <div className="flex gap-2">
+          {advisorAllowed && (
+            <Button
+              onClick={() => setShowAdvisor(!showAdvisor)}
+              disabled={!deck}
+              variant="outline"
+              className={
+                showAdvisor
+                  ? "border-amber-400/50 bg-amber-500/20 text-amber-200 shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]"
+                  : "hover:border-amber-400/30 hover:bg-amber-500/10 hover:text-amber-300"
+              }
+            >
+              <Sparkles className="h-4 w-4 mr-1 text-amber-300" /> {t("advisor.tabAdvisor")}
+            </Button>
+          )}
           <Button
             onClick={() => setEditing(true)}
             disabled={!deck}
@@ -239,6 +261,12 @@ export default function DeckDetailPage() {
       ) : (
         <>
           {shortage && <FeasibilityBanner report={shortage} />}
+
+          {showAdvisor && deck && (
+            <div className="mb-6">
+              <DeckAdvisorPanel deckId={deck.id} deckName={deck.name} />
+            </div>
+          )}
 
           {/* View Toggle & Filter Bar */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-white/[0.06] pb-3">
