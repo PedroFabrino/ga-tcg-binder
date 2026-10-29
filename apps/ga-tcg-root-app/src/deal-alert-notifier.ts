@@ -3,7 +3,10 @@ import {
   CommunityAppLogType,
   type JobScheduler,
 } from "@rootsdk/server-app";
-import { type SupportedLocale, getDictionary } from "@ga/contracts";
+import {
+  type SupportedLocale,
+  getDictionary,
+} from "../../../packages/contracts/src/i18n";
 import type { DirectMessageRef, DirectMessageSink } from "./deal-alert-sink";
 import {
   createCommunityConfig,
