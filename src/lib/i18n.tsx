@@ -21,8 +21,14 @@ const I18nContext = createContext<I18nContextValue>({
   t: createTranslator(DEFAULT_LOCALE),
 });
 
-export function I18nProvider({ children }: { children: React.ReactNode }) {
-  const [locale, setLocaleState] = useState<SupportedLocale>(DEFAULT_LOCALE);
+export function I18nProvider({
+  children,
+  initialLocale,
+}: {
+  children: React.ReactNode;
+  initialLocale?: SupportedLocale;
+}) {
+  const [locale, setLocaleState] = useState<SupportedLocale>(initialLocale || DEFAULT_LOCALE);
 
   useEffect(() => {
     // Check localStorage first, then navigator.language

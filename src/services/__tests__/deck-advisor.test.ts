@@ -568,4 +568,71 @@ describe("Deck Advisor Service (Ticket 1)", () => {
       expect(res.message.content).toContain("Priority resolves in turn order");
       expect(mockFetch).toHaveBeenCalledTimes(3);
     });
+
+    it("parses and attaches structured swapProposals when LLM recommends swaps", async () => {
+      process.env.ADVISOR_ALLOWED_EMAILS = "alex_tools@ga.com";
+
+      const swapBlock = [
+        "I suggest replacing Fire Slash with Palvor Sword.",
+        "",
+        "```json:swap",
+        JSON.stringify({
+          swaps: [
+            {
+              id: "swap_1",
+              title: "Swap Fire Slash for Palvor Sword",
+              rationale: "Synergy with The Looking Glass",
+              cuts: [{ cardName: "Fire Slash", zone: "main", quantity: 2 }],
+              adds: [
+                {
+                  cardName: "Palvor Sword",
+                  zone: "main",
+                  quantity: 2,
+                  tier: "binder_available",
+                },
+              ],
+            },
+          ],
+        }),
+        "```",
+        "",
+        "Let me know if you need any other swaps!",
+      ].join("\n");
+
+      const mockFetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                role: "assistant",
+                content: swapBlock,
+              },
+            },
+          ],
+        }),
+      });
+
+      const res = await runDeckAdvisorChat(
+        "user_alex_tools",
+        "alex_tools@ga.com",
+        "deck_tools_1",
+        [{ role: "user", content: "Suggest swaps" }],
+        testDb,
+        {
+          geminiApiKey: "fake-key",
+          customFetch: mockFetch as any,
+        }
+      );
+
+      expect(res.message.swapProposals).toBeDefined();
+      expect(res.message.swapProposals).toHaveLength(1);
+      const swap = res.message.swapProposals![0];
+      expect(swap.title).toBe("Swap Fire Slash for Palvor Sword");
+      expect(swap.netImpact).toBe("immediate");
+      expect(swap.updatedOmnidexText).toContain("2 Palvor Sword");
+      expect(res.message.content).toContain("I suggest replacing Fire Slash with Palvor Sword.");
+      expect(res.message.content).not.toContain("```json:swap");
+    });
   });

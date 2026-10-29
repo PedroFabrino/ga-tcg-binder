@@ -264,7 +264,11 @@ export default function DeckDetailPage() {
 
           {showAdvisor && deck && (
             <div className="mb-6">
-              <DeckAdvisorPanel deckId={deck.id} deckName={deck.name} />
+              <DeckAdvisorPanel
+                deckId={deck.id}
+                deckName={deck.name}
+                onDeckUpdated={() => load(true)}
+              />
             </div>
           )}
 
