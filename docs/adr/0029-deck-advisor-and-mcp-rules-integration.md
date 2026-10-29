@@ -44,7 +44,7 @@ To guarantee the **Deck Advisor** only uses real card effects and accurately ref
 
 2. **Agent Tools for Cross-Element Pivots, Full Catalog Lookups & Live Rules**:
    - `search_candidate_pool({ element?, subtype?, cardType?, keyword?, includeUnownedCatalog? })`: Queries across the Collector's entire 1,000+ card Binder, Store Listings, and the global Card Catalog when the Collector asks about splashing a new Element, pivoting their Champion lineage, or exploring unowned tech cards.
-   - `query_official_rules({ query })`: Connects via `@modelcontextprotocol/sdk` (`StreamableHTTPClientTransport`) to `https://rules.gatcg.com/~gitbook/mcp` to verify timing windows (`Fast`, `Slow`), phase rules (`Recollection Step`, `Materialize Phase`), and keyword interactions live against the official Grand Archive Comprehensive Rules.
+   - `query_official_rules({ query })`: Connects via lightweight Streamable HTTP JSON-RPC client (`Accept: application/json, text/event-stream`) to `https://rules.gatcg.com/~gitbook/mcp` to verify timing windows (`Fast`, `Slow`), phase rules (`Recollection Step`, `Materialize Phase`), and keyword interactions live against the official Grand Archive Comprehensive Rules without extra runtime dependencies.
 
 ### 3. Gemini Flash Primary Engine with OmniRoute Fallback
 

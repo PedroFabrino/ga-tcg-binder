@@ -12,6 +12,18 @@ export interface McpToolCallResult {
   isError?: boolean;
 }
 
+export interface JsonRpcMcpResponse {
+  jsonrpc?: string;
+  id?: number | string;
+  result?: {
+    content?: McpContentItem[];
+  };
+  error?: {
+    code?: number;
+    message?: string;
+  };
+}
+
 export const DEFAULT_GA_RULES_MCP_URL = "https://rules.gatcg.com/~gitbook/mcp";
 
 /**
@@ -50,23 +62,23 @@ export async function queryOfficialRulesMcp(
 
     const raw = await res.text();
     // Parse SSE or JSON
-    let parsedJson: any = null;
+    let parsedJson: JsonRpcMcpResponse | null = null;
     if (raw.includes("data:")) {
       const line = raw.split("\n").find((l) => l.startsWith("data:"));
       if (line) {
         try {
-          parsedJson = JSON.parse(line.replace(/^data:\s*/, "").trim());
-        } catch {
-          // ignore
+          parsedJson = JSON.parse(line.replace(/^data:\s*/, "").trim()) as JsonRpcMcpResponse;
+        } catch (e: unknown) {
+          console.warn("[DeckAdvisor MCP] Failed to parse SSE line data:", e);
         }
       }
     }
 
     if (!parsedJson) {
       try {
-        parsedJson = JSON.parse(raw);
-      } catch {
-        // ignore
+        parsedJson = JSON.parse(raw) as JsonRpcMcpResponse;
+      } catch (e: unknown) {
+        console.warn("[DeckAdvisor MCP] Failed to parse raw JSON-RPC response:", e);
       }
     }
 
@@ -88,11 +100,12 @@ export async function queryOfficialRulesMcp(
       success: true,
       text: extracted || "No matching official rules excerpt found.",
     };
-  } catch (e: any) {
-    console.warn(`[DeckAdvisor MCP] Failed to connect to GitBook MCP at ${mcpUrl}: ${e.message}`);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.warn(`[DeckAdvisor MCP] Failed to connect to GitBook MCP at ${mcpUrl}: ${message}`);
     return {
       success: false,
-      text: `Rules MCP unavailable: ${e.message}`,
+      text: `Rules MCP unavailable: ${message}`,
     };
   }
 }

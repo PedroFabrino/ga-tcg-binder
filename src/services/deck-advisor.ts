@@ -2,15 +2,17 @@ import {
   getDeckAdvisorDeckData,
   getDeckAdvisorUserData,
   getDeckAdvisorMetaBenchmarks,
+  type DeckAdvisorDatabase,
 } from "../db/repositories/deck-advisor-repository";
 import {
   assembleDeckAdvisorContext,
   isUserAdvisorAllowlisted,
 } from "./deck-advisor-context";
 import {
-  DECK_ADVISOR_TOOLS_DECLARATIONS,
-  dispatchDeckAdvisorTool,
-} from "./deck-advisor-tools";
+  executeLlmWithToolLoop,
+  LlmHttpError,
+  type LlmChatMessage,
+} from "./deck-advisor-llm";
 import { parseSwapProposalsFromLlm } from "./deck-advisor-swaps";
 import type {
   DeckAdvisorContextSnapshot,
@@ -32,7 +34,10 @@ export interface DeckAdvisorLlmOptions {
 /**
  * Builds the system prompt grounding the model in the selected Deck & Candidate Pool.
  */
-export function buildDeckAdvisorSystemPrompt(context: DeckAdvisorContextSnapshot): string {
+export function buildDeckAdvisorSystemPrompt(
+  context: DeckAdvisorContextSnapshot,
+  locale: "en" | "pt-BR" = "en"
+): string {
   const cardsJson = JSON.stringify(
     context.deckCards.map((c) => ({
       name: c.cardName,
@@ -46,6 +51,7 @@ export function buildDeckAdvisorSystemPrompt(context: DeckAdvisorContextSnapshot
       subtypes: c.subtypes,
       effect: c.effect,
       hardShortage: c.hardShortage,
+      sharedShortage: c.sharedShortage,
     })),
     null,
     2
@@ -73,9 +79,15 @@ export function buildDeckAdvisorSystemPrompt(context: DeckAdvisorContextSnapshot
     2
   );
 
+  const localeInstruction =
+    locale === "pt-BR"
+      ? "Respond in Portuguese (pt-BR), while keeping official Grand Archive Game Nomenclature (Card names, Elements, Rarities, Deck zones Main Deck / Material Deck / Sideboard, and Finishes Foil / Normal) in canonical English."
+      : "Respond in English.";
+
   return [
     "You are the expert Grand Archive TCG Deck Advisor and referee.",
     "Rules and card effects are absolute. Never hallucinate card text, costs, or inventory quantities.",
+    localeInstruction,
     `Selected Deck: "${context.deckName}" (Champion: ${context.champion || "Unknown"}, Format: ${context.format}).`,
     `Unlocked Elements: ${context.unlockedElements.join(", ")}.`,
     context.bypassedSubtypes.length > 0
@@ -127,180 +139,101 @@ export function buildDeckAdvisorSystemPrompt(context: DeckAdvisorContextSnapshot
 }
 
 /**
- * Runs conversation with multi-step tool call loop.
+ * Formats LLM outcome into a unified DeckAdvisorChatResponse.
  */
-async function executeLlmWithToolLoop(
-  endpoint: string,
-  headers: Record<string, string>,
-  bodyParams: { model: string; temperature: number },
-  initialMessages: any[],
-  toolContext: {
-    userData: any;
-    rulesMcpUrl?: string;
-    customFetch: typeof fetch;
-    database?: any;
-    maxToolSteps: number;
-  }
-): Promise<{ reply: string; toolsConsulted: string[] }> {
-  const messages = [...initialMessages];
-  const toolsConsulted: string[] = [];
-  const maxSteps = toolContext.maxToolSteps;
+function formatAdvisorResponse(
+  outcome: { reply: string; toolsConsulted: string[] },
+  context: DeckAdvisorContextSnapshot,
+  fallbackActivated: boolean,
+  providerUsed: "gemini" | "omniroute",
+  modelUsed: string
+): DeckAdvisorChatResponse {
+  const { cleanReply, proposals } = parseSwapProposalsFromLlm(
+    outcome.reply,
+    context.deckCards,
+    context.candidatePool
+  );
 
-  for (let step = 0; step < maxSteps; step++) {
-    const res = await toolContext.customFetch(endpoint, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        ...bodyParams,
-        messages,
-        tools: DECK_ADVISOR_TOOLS_DECLARATIONS,
-        tool_choice: "auto",
-      }),
-    });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      const err = new Error(`LLM call failed with status ${res.status}: ${errText}`);
-      (err as any).status = res.status;
-      throw err;
-    }
-
-    const json = await res.json();
-    const choice = json.choices?.[0];
-    const message = choice?.message;
-
-    if (!message) {
-      throw new Error("No message choice returned from LLM");
-    }
-
-    // Check if model called tools
-    const toolCalls = message.tool_calls;
-    if (!toolCalls || toolCalls.length === 0) {
-      return {
-        reply: message.content || "",
-        toolsConsulted: Array.from(new Set(toolsConsulted)),
-      };
-    }
-
-    // Append assistant's tool-call request to messages
-    messages.push(message);
-
-    // Execute tool calls
-    for (const toolCall of toolCalls) {
-      const name = toolCall.function?.name;
-      let args = {};
-      try {
-        args = JSON.parse(toolCall.function?.arguments || "{}");
-      } catch {
-        args = {};
-      }
-
-      toolsConsulted.push(name);
-      const execution = await dispatchDeckAdvisorTool(name, args, {
-        userData: toolContext.userData,
-        rulesMcpUrl: toolContext.rulesMcpUrl,
-        customFetch: toolContext.customFetch,
-        database: toolContext.database,
-      });
-
-      messages.push({
-        role: "tool",
-        tool_call_id: toolCall.id,
-        content:
-          typeof execution.result === "string"
-            ? execution.result
-            : JSON.stringify(execution.result),
-      });
-    }
-  }
-
-  // Final fallback call without tools if max steps reached
-  const finalRes = await toolContext.customFetch(endpoint, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      ...bodyParams,
-      messages,
-    }),
-  });
-
-  if (!finalRes.ok) {
-    throw new Error(`Final LLM call failed with status ${finalRes.status}`);
-  }
-
-  const finalJson = await finalRes.json();
-  const reply = finalJson.choices?.[0]?.message?.content || "";
   return {
-    reply,
-    toolsConsulted: Array.from(new Set(toolsConsulted)),
+    message: {
+      role: "assistant",
+      content: cleanReply || outcome.reply,
+      toolsUsed: outcome.toolsConsulted,
+      swapProposals: proposals.length > 0 ? proposals : undefined,
+    },
+    fallbackActivated,
+    providerUsed,
+    modelUsed,
+    toolsConsulted: outcome.toolsConsulted,
   };
 }
 
 /**
- * Executes a turn of Deck Advisor chat with tool-calling loop and OmniRoute fallback.
+ * Main chat turn orchestrator for the Deck Advisor.
  */
 export async function runDeckAdvisorChat(
   userId: string,
-  userEmail: string | null | undefined,
+  userEmail: string | undefined | null,
   deckId: string,
-  messages: DeckAdvisorMessage[],
-  database?: any,
-  options: DeckAdvisorLlmOptions = {}
+  userMessages: DeckAdvisorMessage[],
+  database?: DeckAdvisorDatabase,
+  options?: DeckAdvisorLlmOptions,
+  locale: "en" | "pt-BR" = "en"
 ): Promise<DeckAdvisorChatResponse> {
-  const customFetch = options.customFetch || fetch;
-  const maxToolSteps = options.maxToolSteps || 4;
-
-  // 1. Gating
+  // 1. Check Allowlist Gate
   if (!isUserAdvisorAllowlisted({ id: userId, email: userEmail })) {
-    throw new Error("UNAUTHORIZED_ADVISOR_ACCESS");
+    throw new Error("UNAUTHORIZED_ADVISOR_ACCESS: User is not allowlisted for the Deck Advisor.");
   }
 
-  // 2. Fetch data
-  const [deckData, userData, metaBenchmarks] = await Promise.all([
-    getDeckAdvisorDeckData(deckId, database),
-    getDeckAdvisorUserData(userId, database),
-    getDeckAdvisorMetaBenchmarks(database),
-  ]);
-
+  // 2. Load Deck & Metadata
+  const deckData = await getDeckAdvisorDeckData(deckId, database);
   if (!deckData) {
-    throw new Error(`DECK_NOT_FOUND: ${deckId}`);
+    throw new Error(`DECK_NOT_FOUND: Deck with id "${deckId}" was not found.`);
   }
 
+  // 3. Load User Inventory, Store Listings, & Other Deck Usages
+  const userData = await getDeckAdvisorUserData(userId, database);
+
+  // 4. Load Meta Benchmarks
+  const metaBenchmarks = await getDeckAdvisorMetaBenchmarks(database);
+
+  // 5. Assemble Context
   const context = assembleDeckAdvisorContext({
     deckData,
     userData,
     metaBenchmarks,
   });
 
-  const systemPrompt = buildDeckAdvisorSystemPrompt(context);
-  const conversation = [
+  // 6. Build Conversation History
+  const systemPrompt = buildDeckAdvisorSystemPrompt(context, locale);
+  const conversation: LlmChatMessage[] = [
     { role: "system", content: systemPrompt },
-    ...messages.map((m) => ({ role: m.role, content: m.content })),
+    ...userMessages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    })),
   ];
 
-  const geminiApiKey = options.geminiApiKey || process.env.GEMINI_API_KEY || "";
-  const geminiModel = options.geminiModel || process.env.GEMINI_MODEL || "gemini-3.8-flash";
+  // 7. Execute LLM with Fallback
+  const geminiApiKey = options?.geminiApiKey ?? process.env.GEMINI_API_KEY;
+  const geminiModel = options?.geminiModel ?? process.env.GEMINI_MODEL ?? "gemini-3.8-flash";
   const geminiBaseUrl =
-    options.geminiBaseUrl ||
-    process.env.GEMINI_BASE_URL ||
+    options?.geminiBaseUrl ??
+    process.env.GEMINI_BASE_URL ??
     "https://generativelanguage.googleapis.com/v1beta/openai";
 
-  const omnirouteUrl = options.omnirouteUrl || process.env.OMNIROUTE_URL || "http://localhost:20128/v1";
-  const omnirouteModel = options.omnirouteModel || "combo/auto-fallback";
-  const rulesMcpUrl = options.rulesMcpUrl || process.env.GA_RULES_MCP_URL;
+  const omnirouteUrl =
+    options?.omnirouteUrl ?? process.env.OMNIROUTE_URL ?? "http://localhost:20128/v1";
+  const omnirouteModel =
+    options?.omnirouteModel ?? process.env.OMNIROUTE_MODEL ?? "combo/auto-fallback";
 
   const toolContext = {
     userData,
-    rulesMcpUrl,
-    customFetch,
+    rulesMcpUrl: options?.rulesMcpUrl ?? process.env.GA_RULES_MCP_URL,
+    customFetch: options?.customFetch ?? fetch,
     database,
-    maxToolSteps,
+    maxToolSteps: options?.maxToolSteps ?? 3,
   };
-
-  // Try Primary (Gemini)
-  let fallbackActivated = false;
-  let providerUsed: "gemini" | "omniroute" = "gemini";
-  let modelUsed = geminiModel;
 
   if (geminiApiKey) {
     try {
@@ -315,40 +248,19 @@ export async function runDeckAdvisorChat(
         toolContext
       );
 
-      const { cleanReply, proposals } = parseSwapProposalsFromLlm(
-        outcome.reply,
-        context.deckCards,
-        context.candidatePool
-      );
-
-      return {
-        message: {
-          role: "assistant",
-          content: cleanReply || outcome.reply,
-          toolsUsed: outcome.toolsConsulted,
-          swapProposals: proposals.length > 0 ? proposals : undefined,
-        },
-        fallbackActivated: false,
-        providerUsed: "gemini",
-        modelUsed: geminiModel,
-        toolsConsulted: outcome.toolsConsulted,
-      };
-    } catch (e: any) {
-      if (e.status === 429) {
+      return formatAdvisorResponse(outcome, context, false, "gemini", geminiModel);
+    } catch (e: unknown) {
+      const isRateLimit = e instanceof LlmHttpError && e.status === 429;
+      const message = e instanceof Error ? e.message : String(e);
+      if (isRateLimit) {
         console.warn("[DeckAdvisor] Gemini API HTTP 429 encountered. Activating OmniRoute fallback.");
       } else {
-        console.warn(`[DeckAdvisor] Gemini API failed: ${e.message}. Falling back.`);
+        console.warn(`[DeckAdvisor] Gemini API failed: ${message}. Falling back.`);
       }
-      fallbackActivated = true;
     }
-  } else {
-    fallbackActivated = true;
   }
 
   // Fallback to OmniRoute
-  providerUsed = "omniroute";
-  modelUsed = omnirouteModel;
-
   const outcome = await executeLlmWithToolLoop(
     `${omnirouteUrl}/chat/completions`,
     { "Content-Type": "application/json" },
@@ -357,22 +269,5 @@ export async function runDeckAdvisorChat(
     toolContext
   );
 
-  const { cleanReply, proposals } = parseSwapProposalsFromLlm(
-    outcome.reply,
-    context.deckCards,
-    context.candidatePool
-  );
-
-  return {
-    message: {
-      role: "assistant",
-      content: cleanReply || outcome.reply,
-      toolsUsed: outcome.toolsConsulted,
-      swapProposals: proposals.length > 0 ? proposals : undefined,
-    },
-    fallbackActivated: true,
-    providerUsed: "omniroute",
-    modelUsed: omnirouteModel,
-    toolsConsulted: outcome.toolsConsulted,
-  };
+  return formatAdvisorResponse(outcome, context, true, "omniroute", omnirouteModel);
 }

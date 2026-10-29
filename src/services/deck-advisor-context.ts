@@ -3,11 +3,17 @@ import type {
   DeckAdvisorDeckCardSnapshot,
   DeckAdvisorMetaComparison,
   DeckAdvisorContextSnapshot,
+  DeckAdvisorAcquisitionTier,
 } from "@ga/contracts";
 import type {
   DeckAdvisorRawDeckData,
   DeckAdvisorRawUserData,
 } from "../db/repositories/deck-advisor-repository";
+import {
+  aggregateUserHoldingsBySlug,
+  parseCardSubtypes,
+} from "./deck-advisor-inventory";
+import { parseOmnidexText } from "./omnidex";
 
 /**
  * Checks if user is allowlisted via environment variables.
@@ -90,17 +96,30 @@ export function assembleDeckAdvisorContext(params: {
       cardName: string;
       recommendedCopies: number;
     }>;
+    catalogCards?: Array<{
+      slug: string;
+      name: string;
+      element: string;
+      class: string;
+      type: string;
+      subtypes: string;
+      effect: string | null;
+      costReserve: number | null;
+      costMemory: number | null;
+      speed: boolean | null;
+    }>;
   };
 }): DeckAdvisorContextSnapshot {
   const { deck, deckCards } = params.deckData;
-  const { inventory, storeListings, otherDeckCardUsages } = params.userData;
 
-  // 1. Unlocked Elements from Deck
+  // 1. Unlocked Elements from Deck (Only Material and Main decks unlock elements)
   const unlockedElementsSet = new Set<string>(["NORM"]);
   const activeChampionClassesSet = new Set<string>();
 
   for (const c of deckCards) {
-    if (c.element) unlockedElementsSet.add(c.element.toUpperCase());
+    if ((c.zone === "material" || c.zone === "main") && c.element) {
+      unlockedElementsSet.add(c.element.toUpperCase());
+    }
     if (c.zone === "material" && c.type?.toUpperCase() === "CHAMPION" && c.class) {
       activeChampionClassesSet.add(c.class.toUpperCase());
     }
@@ -110,95 +129,18 @@ export function assembleDeckAdvisorContext(params: {
   const bypassedSubtypes = detectSubtypeLegalityBypasses(deckCards);
   const bypassedSubtypesSet = new Set(bypassedSubtypes.map((b) => b.subtype.toUpperCase()));
 
-  // 3. User Dedicated & Usage mapping
-  const dedicatedToOtherDecks = new Set<string>();
-  for (const inv of inventory) {
-    if (inv.isDedicated) {
-      // Check if used in other deck
-      const usedInOther = otherDeckCardUsages.some(
-        (u) => u.cardSlug === inv.cardSlug && u.deckId !== deck.id
-      );
-      if (usedInOther) dedicatedToOtherDecks.add(inv.cardSlug);
-    }
-  }
+  // 3. User Holdings aggregation
+  const holdings = aggregateUserHoldingsBySlug(params.userData, deck.id);
 
-  // 4. Inventory aggregation by slug
-  const inventoryBySlug = new Map<
-    string,
-    {
-      cardSlug: string;
-      name: string;
-      element: string;
-      class: string;
-      type: string;
-      subtypes: string[];
-      effect: string;
-      costReserve: number | null;
-      costMemory: number | null;
-      speed: boolean | null;
-      ownedQuantity: number;
-      idleQuantity: number;
-      sharedQuantity: number;
-    }
-  >();
-
-  for (const inv of inventory) {
-    let entry = inventoryBySlug.get(inv.cardSlug);
-    if (!entry) {
-      let parsedSubtypes: string[] = [];
-      try {
-        parsedSubtypes = JSON.parse(inv.subtypes);
-      } catch {
-        parsedSubtypes = [];
-      }
-      entry = {
-        cardSlug: inv.cardSlug,
-        name: inv.name,
-        element: inv.element,
-        class: inv.class,
-        type: inv.type,
-        subtypes: parsedSubtypes,
-        effect: inv.effect || "",
-        costReserve: inv.costReserve,
-        costMemory: inv.costMemory,
-        speed: inv.speed,
-        ownedQuantity: 0,
-        idleQuantity: 0,
-        sharedQuantity: 0,
-      };
-      inventoryBySlug.set(inv.cardSlug, entry);
-    }
-    entry.ownedQuantity += inv.quantity;
-    if (inv.isDedicated) {
-      // Dedicated copy
-    } else {
-      entry.sharedQuantity += inv.quantity;
-      const otherDemand = otherDeckCardUsages
-        .filter((u) => u.cardSlug === inv.cardSlug && u.deckId !== deck.id)
-        .reduce((sum, u) => sum + u.quantity, 0);
-      entry.idleQuantity = Math.max(0, entry.ownedQuantity - otherDemand);
-    }
-  }
-
-  // Store listings by slug
-  const storeBySlug = new Map<string, number>();
-  for (const s of storeListings) {
-    if (s.cardSlug) {
-      storeBySlug.set(s.cardSlug, (storeBySlug.get(s.cardSlug) || 0) + s.quantity);
-    }
-  }
-
-  // 5. Deck Card Snapshots
+  // 4. Deck Card Snapshots with accurate Hard & Shared Shortages
   const deckCardSnapshots: DeckAdvisorDeckCardSnapshot[] = deckCards.map((c) => {
-    let parsedSubtypes: string[] = [];
-    try {
-      parsedSubtypes = JSON.parse(c.subtypes || "[]");
-    } catch {
-      parsedSubtypes = [];
-    }
+    const parsedSubtypes = parseCardSubtypes(c.subtypes, c.name || c.cardSlug);
+    const holding = holdings.get(c.cardSlug);
+    const availableOwned = holding?.ownedQuantity || 0;
+    const idleQuantity = holding?.idleQuantity || 0;
 
-    const owned = inventoryBySlug.get(c.cardSlug)?.ownedQuantity || 0;
-    const missing = Math.max(0, c.quantity - owned);
+    const hardShortage = Math.max(0, c.quantity - availableOwned);
+    const sharedShortage = Math.max(0, Math.min(c.quantity, availableOwned) - idleQuantity);
 
     return {
       id: c.id,
@@ -214,17 +156,23 @@ export function assembleDeckAdvisorContext(params: {
       costReserve: c.costReserve,
       costMemory: c.costMemory,
       speed: c.speed,
-      hardShortage: missing,
-      sharedShortage: 0,
+      hardShortage,
+      sharedShortage,
     };
   });
 
-  // 6. Build Candidate Pool
+  // 5. Build Candidate Pool (Tier 1 Binder & Tier 2 Store Pullback)
   const candidatePool: DeckAdvisorCandidateCard[] = [];
+  const candidateSlugs = new Set<string>();
 
-  for (const inv of Array.from(inventoryBySlug.values())) {
-    const isElementLegal = unlockedElementsSet.has(inv.element.toUpperCase());
-    const isBypassed = inv.subtypes.some((st) => bypassedSubtypesSet.has(st.toUpperCase()));
+  for (const entry of Array.from(holdings.values())) {
+    // Skip if user owns 0 available copies and 0 store copies (e.g. all copies dedicated to other decks)
+    if (entry.ownedQuantity === 0 && entry.storeQuantity === 0) {
+      continue;
+    }
+
+    const isElementLegal = unlockedElementsSet.has(entry.element.toUpperCase());
+    const isBypassed = entry.subtypes.some((st) => bypassedSubtypesSet.has(st.toUpperCase()));
 
     if (!isElementLegal && !isBypassed) {
       continue;
@@ -232,51 +180,47 @@ export function assembleDeckAdvisorContext(params: {
 
     const isClassMatching =
       activeChampionClassesSet.size === 0 ||
-      inv.class.toUpperCase() === "ALL" ||
-      inv.class.toUpperCase() === "GENERIC" ||
-      activeChampionClassesSet.has(inv.class.toUpperCase());
+      entry.class.toUpperCase() === "ALL" ||
+      entry.class.toUpperCase() === "GENERIC" ||
+      activeChampionClassesSet.has(entry.class.toUpperCase());
 
     let unlockReason: string | undefined = undefined;
     if (!isElementLegal && isBypassed) {
       const match = bypassedSubtypes.find((b) =>
-        inv.subtypes.some((st) => st.toUpperCase() === b.subtype.toUpperCase())
+        entry.subtypes.some((st) => st.toUpperCase() === b.subtype.toUpperCase())
       );
       if (match) {
         unlockReason = match.unlockedByCard;
       }
     }
 
-    const isDedicatedToOther = dedicatedToOtherDecks.has(inv.cardSlug);
-    const storeQty = storeBySlug.get(inv.cardSlug) || 0;
-
-    let tier: "binder_available" | "store_pullback" | "unowned_upgrade" = "binder_available";
-    if (inv.ownedQuantity === 0 && storeQty > 0) {
-      tier = "store_pullback";
-    }
+    const tier: DeckAdvisorAcquisitionTier =
+      entry.ownedQuantity > 0 ? "binder_available" : "store_pullback";
 
     candidatePool.push({
-      cardSlug: inv.cardSlug,
-      cardName: inv.name,
-      element: inv.element,
-      class: inv.class,
-      type: inv.type,
-      subtypes: inv.subtypes,
-      effect: inv.effect,
-      costReserve: inv.costReserve,
-      costMemory: inv.costMemory,
-      speed: inv.speed,
+      cardSlug: entry.cardSlug,
+      cardName: entry.name,
+      element: entry.element,
+      class: entry.class,
+      type: entry.type,
+      subtypes: entry.subtypes,
+      effect: entry.effect,
+      costReserve: entry.costReserve,
+      costMemory: entry.costMemory,
+      speed: entry.speed,
       tier,
-      ownedQuantity: inv.ownedQuantity,
-      idleQuantity: inv.idleQuantity,
-      sharedQuantity: inv.sharedQuantity,
-      storeQuantity: storeQty,
-      isDedicatedToOtherDeck: isDedicatedToOther,
+      ownedQuantity: entry.ownedQuantity,
+      idleQuantity: entry.idleQuantity,
+      sharedQuantity: entry.sharedQuantity,
+      storeQuantity: entry.storeQuantity,
+      isDedicatedToOtherDeck: entry.isDedicatedToOtherDeck,
       unlockedViaReason: unlockReason,
       classBonusActive: isClassMatching,
     });
+    candidateSlugs.add(entry.cardSlug);
   }
 
-  // 7. Meta Benchmarking
+  // 6. Meta Benchmarking & Tier 3 (unowned_upgrade) Candidate Ingestion
   let metaComparison: DeckAdvisorMetaComparison | null = null;
   const deckChampion = deck.champion || "";
 
@@ -289,16 +233,107 @@ export function assembleDeckAdvisorContext(params: {
 
   if (matchingArchetype) {
     const missingStaples: DeckAdvisorMetaComparison["missingStaples"] = [];
+    const catalogCardsMap = new Map<string, NonNullable<typeof params.metaBenchmarks.catalogCards>[0]>();
+    for (const c of params.metaBenchmarks.catalogCards || []) {
+      catalogCardsMap.set(c.slug, c);
+    }
+
+    // A. Evaluate format staples
     for (const staple of params.metaBenchmarks.staples) {
-      const owned = inventoryBySlug.get(staple.cardSlug)?.ownedQuantity || 0;
-      if (owned < staple.recommendedCopies) {
+      const held = holdings.get(staple.cardSlug);
+      const totalOwned = (held?.ownedQuantity || 0) + (held?.storeQuantity || 0);
+      if (totalOwned < staple.recommendedCopies) {
         missingStaples.push({
           cardSlug: staple.cardSlug,
           cardName: staple.cardName,
           recommendedCopies: staple.recommendedCopies,
-          ownedCopies: owned,
-          deficit: staple.recommendedCopies - owned,
+          ownedCopies: totalOwned,
+          deficit: staple.recommendedCopies - totalOwned,
         });
+
+        // Add to candidate pool as Tier 3 unowned upgrade if completely unowned
+        if (!candidateSlugs.has(staple.cardSlug) && catalogCardsMap.has(staple.cardSlug)) {
+          const cat = catalogCardsMap.get(staple.cardSlug)!;
+          const isElementLegal = unlockedElementsSet.has(cat.element.toUpperCase());
+          const catSubtypes = parseCardSubtypes(cat.subtypes, cat.name);
+          const isBypassed = catSubtypes.some((st) => bypassedSubtypesSet.has(st.toUpperCase()));
+
+          if (isElementLegal || isBypassed) {
+            candidatePool.push({
+              cardSlug: cat.slug,
+              cardName: cat.name,
+              element: cat.element,
+              class: cat.class,
+              type: cat.type,
+              subtypes: catSubtypes,
+              effect: cat.effect || "",
+              costReserve: cat.costReserve,
+              costMemory: cat.costMemory,
+              speed: cat.speed,
+              tier: "unowned_upgrade",
+              ownedQuantity: 0,
+              idleQuantity: 0,
+              sharedQuantity: 0,
+              storeQuantity: 0,
+              classBonusActive:
+                activeChampionClassesSet.size === 0 ||
+                cat.class.toUpperCase() === "ALL" ||
+                cat.class.toUpperCase() === "GENERIC" ||
+                activeChampionClassesSet.has(cat.class.toUpperCase()),
+            });
+            candidateSlugs.add(cat.slug);
+          }
+        }
+      }
+    }
+
+    // B. Evaluate Canonical Decklist of the matching archetype
+    if (matchingArchetype.decklist) {
+      try {
+        const parsedDecklist = parseOmnidexText(matchingArchetype.decklist);
+        const archetypeCards = [
+          ...parsedDecklist.material,
+          ...parsedDecklist.main,
+          ...parsedDecklist.side,
+        ];
+
+        for (const ac of archetypeCards) {
+          const slug = ac.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+          if (!candidateSlugs.has(slug) && catalogCardsMap.has(slug)) {
+            const cat = catalogCardsMap.get(slug)!;
+            const isElementLegal = unlockedElementsSet.has(cat.element.toUpperCase());
+            const catSubtypes = parseCardSubtypes(cat.subtypes, cat.name);
+            const isBypassed = catSubtypes.some((st) => bypassedSubtypesSet.has(st.toUpperCase()));
+
+            if (isElementLegal || isBypassed) {
+              candidatePool.push({
+                cardSlug: cat.slug,
+                cardName: cat.name,
+                element: cat.element,
+                class: cat.class,
+                type: cat.type,
+                subtypes: catSubtypes,
+                effect: cat.effect || "",
+                costReserve: cat.costReserve,
+                costMemory: cat.costMemory,
+                speed: cat.speed,
+                tier: "unowned_upgrade",
+                ownedQuantity: 0,
+                idleQuantity: 0,
+                sharedQuantity: 0,
+                storeQuantity: 0,
+                classBonusActive:
+                  activeChampionClassesSet.size === 0 ||
+                  cat.class.toUpperCase() === "ALL" ||
+                  cat.class.toUpperCase() === "GENERIC" ||
+                  activeChampionClassesSet.has(cat.class.toUpperCase()),
+              });
+              candidateSlugs.add(cat.slug);
+            }
+          }
+        }
+      } catch (e: unknown) {
+        console.warn(`[DeckAdvisor] Failed to parse archetype decklist for ${matchingArchetype.name}:`, e);
       }
     }
 
