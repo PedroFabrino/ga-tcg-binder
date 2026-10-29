@@ -1,5 +1,14 @@
-import { searchCatalogCards, type DeckAdvisorRawUserData } from "../db/repositories/deck-advisor-repository";
+import {
+  searchCatalogCards,
+  type DeckAdvisorRawUserData,
+  type DeckAdvisorDatabase,
+} from "../db/repositories/deck-advisor-repository";
 import { queryOfficialRulesMcp } from "./deck-advisor-mcp";
+import {
+  aggregateUserHoldingsBySlug,
+  parseCardSubtypes,
+} from "./deck-advisor-inventory";
+import type { DeckAdvisorAcquisitionTier } from "@ga/contracts";
 
 export interface SearchCandidatePoolArgs {
   element?: string;
@@ -22,7 +31,7 @@ export interface SearchCandidatePoolResultItem {
   costReserve: number | null;
   costMemory: number | null;
   speed: string;
-  tier: "binder_available" | "store_pullback" | "unowned_upgrade";
+  tier: DeckAdvisorAcquisitionTier;
   ownedQuantity: number;
   idleQuantity: number;
   sharedQuantity: number;
@@ -92,56 +101,32 @@ export const DECK_ADVISOR_TOOLS_DECLARATIONS = [
 ];
 
 /**
- * Executes search_candidate_pool tool.
+ * Executes search_candidate_pool tool across both Binder copies and Store Listings.
  */
 export async function executeSearchCandidatePoolTool(
   args: SearchCandidatePoolArgs,
   userData: DeckAdvisorRawUserData,
-  database?: any
+  database?: DeckAdvisorDatabase
 ): Promise<SearchCandidatePoolResultItem[]> {
   const limit = Math.min(args.limit || 10, 25);
   const results: SearchCandidatePoolResultItem[] = [];
 
-  // 1. Group owned cards by slug
-  const inventoryBySlug = new Map<string, typeof userData.inventory[0] & { totalQty: number }>();
-  for (const inv of userData.inventory) {
-    const existing = inventoryBySlug.get(inv.cardSlug);
-    if (existing) {
-      existing.totalQty += inv.quantity;
-    } else {
-      inventoryBySlug.set(inv.cardSlug, { ...inv, totalQty: inv.quantity });
-    }
-  }
+  // Group user holdings across collection items and personal store listings
+  const holdings = aggregateUserHoldingsBySlug(userData);
 
-  // 2. Store listings by slug
-  const storeBySlug = new Map<string, number>();
-  for (const s of userData.storeListings) {
-    if (s.cardSlug) {
-      storeBySlug.set(s.cardSlug, (storeBySlug.get(s.cardSlug) || 0) + s.quantity);
-    }
-  }
-
-  // 3. Search owned items
-  for (const inv of Array.from(inventoryBySlug.values())) {
-    if (args.element && inv.element.toUpperCase() !== args.element.toUpperCase()) {
+  for (const item of Array.from(holdings.values())) {
+    if (args.element && item.element.toUpperCase() !== args.element.toUpperCase()) {
       continue;
     }
-    if (args.cardClass && inv.class.toUpperCase() !== args.cardClass.toUpperCase()) {
+    if (args.cardClass && item.class.toUpperCase() !== args.cardClass.toUpperCase()) {
       continue;
     }
-    if (args.cardType && inv.type.toUpperCase() !== args.cardType.toUpperCase()) {
+    if (args.cardType && item.type.toUpperCase() !== args.cardType.toUpperCase()) {
       continue;
-    }
-
-    let parsedSubtypes: string[] = [];
-    try {
-      parsedSubtypes = JSON.parse(inv.subtypes || "[]");
-    } catch {
-      parsedSubtypes = [];
     }
 
     if (args.subtype) {
-      const matchSubtype = parsedSubtypes.some(
+      const matchSubtype = item.subtypes.some(
         (st) => st.toUpperCase() === args.subtype?.toUpperCase()
       );
       if (!matchSubtype) continue;
@@ -149,36 +134,36 @@ export async function executeSearchCandidatePoolTool(
 
     if (args.keyword) {
       const q = args.keyword.toLowerCase();
-      const matchName = inv.name.toLowerCase().includes(q);
-      const matchEffect = (inv.effect || "").toLowerCase().includes(q);
+      const matchName = item.name.toLowerCase().includes(q);
+      const matchEffect = (item.effect || "").toLowerCase().includes(q);
       if (!matchName && !matchEffect) continue;
     }
 
-    const storeQty = storeBySlug.get(inv.cardSlug) || 0;
-    const tier = inv.totalQty > 0 ? "binder_available" : "store_pullback";
+    const tier: DeckAdvisorAcquisitionTier =
+      item.ownedQuantity > 0 ? "binder_available" : "store_pullback";
 
     results.push({
-      cardSlug: inv.cardSlug,
-      cardName: inv.name,
-      element: inv.element,
-      class: inv.class,
-      type: inv.type,
-      subtypes: parsedSubtypes,
-      effect: inv.effect || "",
-      costReserve: inv.costReserve,
-      costMemory: inv.costMemory,
-      speed: inv.speed ? "Fast" : "Slow",
+      cardSlug: item.cardSlug,
+      cardName: item.name,
+      element: item.element,
+      class: item.class,
+      type: item.type,
+      subtypes: item.subtypes,
+      effect: item.effect || "",
+      costReserve: item.costReserve,
+      costMemory: item.costMemory,
+      speed: item.speed ? "Fast" : "Slow",
       tier,
-      ownedQuantity: inv.totalQty,
-      idleQuantity: inv.totalQty,
-      sharedQuantity: inv.totalQty,
-      storeQuantity: storeQty,
+      ownedQuantity: item.ownedQuantity,
+      idleQuantity: item.idleQuantity,
+      sharedQuantity: item.sharedQuantity,
+      storeQuantity: item.storeQuantity,
     });
 
     if (results.length >= limit) return results;
   }
 
-  // 4. If includeUnownedCatalog is true and under limit, query global catalog
+  // If includeUnownedCatalog is true and under limit, query global catalog
   if (args.includeUnownedCatalog && results.length < limit) {
     const catalogCards = await searchCatalogCards(
       {
@@ -194,22 +179,13 @@ export async function executeSearchCandidatePoolTool(
     for (const cat of catalogCards) {
       if (results.some((r) => r.cardSlug === cat.slug)) continue;
 
-      let parsedSubtypes: string[] = [];
-      try {
-        parsedSubtypes = JSON.parse(cat.subtypes || "[]");
-      } catch {
-        parsedSubtypes = [];
-      }
-
+      const parsedSubtypes = parseCardSubtypes(cat.subtypes, cat.name);
       if (args.subtype) {
         const matchSubtype = parsedSubtypes.some(
           (st) => st.toUpperCase() === args.subtype?.toUpperCase()
         );
         if (!matchSubtype) continue;
       }
-
-      const storeQty = storeBySlug.get(cat.slug) || 0;
-      const tier = storeQty > 0 ? "store_pullback" : "unowned_upgrade";
 
       results.push({
         cardSlug: cat.slug,
@@ -222,11 +198,11 @@ export async function executeSearchCandidatePoolTool(
         costReserve: cat.costReserve,
         costMemory: cat.costMemory,
         speed: cat.speed ? "Fast" : "Slow",
-        tier,
+        tier: "unowned_upgrade",
         ownedQuantity: 0,
         idleQuantity: 0,
         sharedQuantity: 0,
-        storeQuantity: storeQty,
+        storeQuantity: 0,
       });
 
       if (results.length >= limit) break;
@@ -236,35 +212,41 @@ export async function executeSearchCandidatePoolTool(
   return results;
 }
 
+export type DeckAdvisorToolResult =
+  | { toolName: "query_official_rules"; result: string }
+  | { toolName: "search_candidate_pool"; result: SearchCandidatePoolResultItem[] }
+  | { toolName: string; result: string };
+
 /**
  * Dispatches a tool call by name.
  */
 export async function dispatchDeckAdvisorTool(
   name: string,
-  args: any,
+  args: Record<string, unknown>,
   context: {
     userData: DeckAdvisorRawUserData;
     rulesMcpUrl?: string;
     customFetch?: typeof fetch;
-    database?: any;
+    database?: DeckAdvisorDatabase;
   }
-): Promise<{ toolName: string; result: any }> {
+): Promise<DeckAdvisorToolResult> {
   if (name === "query_official_rules") {
+    const query = typeof args.query === "string" ? args.query : "";
     const rulesRes = await queryOfficialRulesMcp(
-      args.query || "",
+      query,
       context.rulesMcpUrl,
       context.customFetch
     );
-    return { toolName: name, result: rulesRes.text };
+    return { toolName: "query_official_rules", result: rulesRes.text };
   }
 
   if (name === "search_candidate_pool") {
     const poolRes = await executeSearchCandidatePoolTool(
-      args,
+      args as SearchCandidatePoolArgs,
       context.userData,
       context.database
     );
-    return { toolName: name, result: poolRes };
+    return { toolName: "search_candidate_pool", result: poolRes };
   }
 
   return { toolName: name, result: `Unknown tool: ${name}` };

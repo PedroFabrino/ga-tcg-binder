@@ -73,7 +73,7 @@ describe("DeckAdvisorSwapCard UI Component (Ticket 3 - #188)", () => {
       </I18nProvider>
     );
 
-    expect(html).toContain("Gera Falta Real (Compra necessária)");
+    expect(html).toContain("Gera Compra Necessária (Sem Cópia Suficiente)");
     expect(html).toContain("Upgrade Não Possuído");
     expect(html).toContain("Remover");
     expect(html).toContain("Adicionar");

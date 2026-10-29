@@ -9,7 +9,9 @@ import {
   metaArchetypes,
   metaStaples,
 } from "../schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
+
+export type DeckAdvisorDatabase = typeof db;
 
 export interface DeckAdvisorRawDeckData {
   deck: typeof decks.$inferSelect;
@@ -55,6 +57,15 @@ export interface DeckAdvisorRawUserData {
     cardSlug: string | null;
     cardName: string;
     quantity: number;
+    name?: string | null;
+    element?: string | null;
+    class?: string | null;
+    type?: string | null;
+    subtypes?: string | null;
+    effect?: string | null;
+    costReserve?: number | null;
+    costMemory?: number | null;
+    speed?: boolean | null;
   }>;
   otherDeckCardUsages: Array<{
     deckId: string;
@@ -68,7 +79,7 @@ export interface DeckAdvisorRawUserData {
  */
 export async function getDeckAdvisorDeckData(
   deckId: string,
-  database = db
+  database: DeckAdvisorDatabase = db
 ): Promise<DeckAdvisorRawDeckData | null> {
   const [deck] = await database
     .select()
@@ -108,7 +119,7 @@ export async function getDeckAdvisorDeckData(
  */
 export async function getDeckAdvisorUserData(
   userId: string,
-  database = db
+  database: DeckAdvisorDatabase = db
 ): Promise<DeckAdvisorRawUserData> {
   const [inventory, storeListings, otherDeckCardUsages] = await Promise.all([
     database
@@ -139,8 +150,18 @@ export async function getDeckAdvisorUserData(
         cardSlug: mypCards.cardSlug,
         cardName: mypCards.cardName,
         quantity: mypCards.quantity,
+        name: cards.name,
+        element: cards.element,
+        class: cards.class,
+        type: cards.type,
+        subtypes: cards.subtypes,
+        effect: cards.effect,
+        costReserve: cards.costReserve,
+        costMemory: cards.costMemory,
+        speed: cards.speed,
       })
       .from(mypCards)
+      .leftJoin(cards, eq(mypCards.cardSlug, cards.slug))
       .where(eq(mypCards.userId, userId)),
     database
       .select({
@@ -157,15 +178,16 @@ export async function getDeckAdvisorUserData(
 }
 
 /**
- * Loads all Meta Archetypes and Meta Staples for benchmarking.
+ * Loads all Meta Archetypes, Meta Staples, and global catalog cards for benchmarking.
  */
-export async function getDeckAdvisorMetaBenchmarks(database = db) {
-  const [archetypes, staples] = await Promise.all([
+export async function getDeckAdvisorMetaBenchmarks(database: DeckAdvisorDatabase = db) {
+  const [archetypes, staples, catalogCards] = await Promise.all([
     database.select().from(metaArchetypes),
     database.select().from(metaStaples),
+    database.select().from(cards),
   ]);
 
-  return { archetypes, staples };
+  return { archetypes, staples, catalogCards };
 }
 
 /**
@@ -179,7 +201,7 @@ export async function searchCatalogCards(
     keyword?: string;
     limit?: number;
   },
-  database = db
+  database: DeckAdvisorDatabase = db
 ) {
   const rows = await database.select().from(cards);
 

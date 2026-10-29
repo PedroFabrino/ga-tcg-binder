@@ -209,9 +209,279 @@ describe("Deck Advisor Service (Ticket 1)", () => {
       const flame = ctx.candidatePool.find((c) => c.cardSlug === "flame-burst");
       expect(flame).toBeDefined();
       expect(flame?.classBonusActive).toBe(true); // MAGE in MAGE deck
-
       const frost = ctx.candidatePool.find((c) => c.cardSlug === "frost-nova");
       expect(frost).toBeUndefined(); // Water not unlocked
+    });
+
+    it("does not unlock elements from cards in the Sideboard", () => {
+      const deckData = {
+        deck: {
+          id: "deck_side",
+          name: "Fire Deck",
+          champion: "Merlin",
+          format: "standard",
+          userId: "user_alex",
+          isPublic: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        deckCards: [
+          {
+            id: "dc_1",
+            deckId: "deck_side",
+            cardSlug: "merlin",
+            zone: "material",
+            quantity: 1,
+            assignedEditionId: null,
+            name: "Merlin",
+            element: "FIRE",
+            class: "MAGE",
+            type: "CHAMPION",
+            subtypes: '["MAGE"]',
+            effect: "",
+            costReserve: null,
+            costMemory: 0,
+            speed: false,
+          },
+          {
+            id: "dc_2",
+            deckId: "deck_side",
+            cardSlug: "water-barrier",
+            zone: "side",
+            quantity: 2,
+            assignedEditionId: null,
+            name: "Water Barrier",
+            element: "WATER",
+            class: "MAGE",
+            type: "SPELL",
+            subtypes: "[]",
+            effect: "",
+            costReserve: 2,
+            costMemory: null,
+            speed: true,
+          },
+        ],
+      };
+
+      const ctx = assembleDeckAdvisorContext({
+        deckData,
+        userData: { inventory: [], storeListings: [], otherDeckCardUsages: [] },
+        metaBenchmarks: { archetypes: [], staples: [] },
+      });
+
+      expect(ctx.unlockedElements).toContain("FIRE");
+      expect(ctx.unlockedElements).toContain("NORM");
+      expect(ctx.unlockedElements).not.toContain("WATER");
+    });
+
+    it("excludes cards dedicated to other decks and computes hard and shared shortages", () => {
+      const deckData = {
+        deck: {
+          id: "deck_current",
+          name: "Current Deck",
+          champion: "Merlin",
+          format: "standard",
+          userId: "user_alex",
+          isPublic: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        deckCards: [
+          {
+            id: "dc_fire_slash",
+            deckId: "deck_current",
+            cardSlug: "fire-slash",
+            zone: "main",
+            quantity: 4,
+            assignedEditionId: null,
+            name: "Fire Slash",
+            element: "FIRE",
+            class: "MAGE",
+            type: "ACTION",
+            subtypes: "[]",
+            effect: "",
+            costReserve: 2,
+            costMemory: null,
+            speed: true,
+          },
+        ],
+      };
+
+      const userData = {
+        inventory: [
+          {
+            id: "ci_1",
+            cardSlug: "fire-slash",
+            editionId: "ed_1",
+            foil: false,
+            quantity: 2,
+            isDedicated: true,
+            name: "Fire Slash",
+            element: "FIRE",
+            class: "MAGE",
+            type: "ACTION",
+            subtypes: "[]",
+            effect: "",
+            costReserve: 2,
+            costMemory: null,
+            speed: true,
+          },
+          {
+            id: "ci_2",
+            cardSlug: "fire-slash",
+            editionId: "ed_2",
+            foil: false,
+            quantity: 2,
+            isDedicated: false,
+            name: "Fire Slash",
+            element: "FIRE",
+            class: "MAGE",
+            type: "ACTION",
+            subtypes: "[]",
+            effect: "",
+            costReserve: 2,
+            costMemory: null,
+            speed: true,
+          },
+        ],
+        storeListings: [],
+        otherDeckCardUsages: [
+          { deckId: "deck_other", cardSlug: "fire-slash", quantity: 3 },
+        ],
+      };
+
+      const ctx = assembleDeckAdvisorContext({
+        deckData,
+        userData,
+        metaBenchmarks: { archetypes: [], staples: [] },
+      });
+
+      const snapshot = ctx.deckCards[0];
+      expect(snapshot.hardShortage).toBe(2);
+      expect(snapshot.sharedShortage).toBe(2);
+    });
+
+    it("partitions Candidate Pool into Tier 2 (store_pullback) and Tier 3 (unowned_upgrade)", () => {
+      const deckData = {
+        deck: {
+          id: "deck_fire",
+          name: "Fire Deck",
+          champion: "Merlin",
+          format: "standard",
+          userId: "user_alex",
+          isPublic: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        deckCards: [
+          {
+            id: "dc_merlin",
+            deckId: "deck_fire",
+            cardSlug: "merlin",
+            zone: "material",
+            quantity: 1,
+            assignedEditionId: null,
+            name: "Merlin",
+            element: "FIRE",
+            class: "MAGE",
+            type: "CHAMPION",
+            subtypes: '["MAGE"]',
+            effect: "",
+            costReserve: null,
+            costMemory: 0,
+            speed: false,
+          },
+        ],
+      };
+
+      const userData = {
+        inventory: [],
+        storeListings: [
+          {
+            id: "myp_1",
+            cardSlug: "ignite",
+            cardName: "Ignite",
+            quantity: 2,
+            name: "Ignite",
+            element: "FIRE",
+            class: "MAGE",
+            type: "SPELL",
+            subtypes: "[]",
+            effect: "Deal 2 damage.",
+            costReserve: 1,
+            costMemory: null,
+            speed: true,
+          },
+        ],
+        otherDeckCardUsages: [],
+      };
+
+      const metaBenchmarks = {
+        archetypes: [
+          {
+            id: "meta_1",
+            name: "Merlin Burn",
+            tier: "Tier 1",
+            champion: "Merlin",
+            element: "FIRE",
+            shareRate: "15%",
+            winRate: "55%",
+            decklist: "# Main Deck\n4 Fireball",
+          },
+        ],
+        staples: [
+          {
+            cardSlug: "dispel",
+            cardName: "Dispel",
+            recommendedCopies: 2,
+          },
+        ],
+        catalogCards: [
+          {
+            slug: "fireball",
+            name: "Fireball",
+            element: "FIRE",
+            class: "MAGE",
+            type: "SPELL",
+            subtypes: "[]",
+            effect: "Deal 5 damage.",
+            costReserve: 3,
+            costMemory: null,
+            speed: false,
+          },
+          {
+            slug: "dispel",
+            name: "Dispel",
+            element: "NORM",
+            class: "ALL",
+            type: "ACTION",
+            subtypes: "[]",
+            effect: "Negate target spell.",
+            costReserve: 2,
+            costMemory: null,
+            speed: true,
+          },
+        ],
+      };
+
+      const ctx = assembleDeckAdvisorContext({
+        deckData,
+        userData,
+        metaBenchmarks,
+      });
+
+      const ignite = ctx.candidatePool.find((c) => c.cardSlug === "ignite");
+      expect(ignite).toBeDefined();
+      expect(ignite?.tier).toBe("store_pullback");
+      expect(ignite?.storeQuantity).toBe(2);
+
+      const fireball = ctx.candidatePool.find((c) => c.cardSlug === "fireball");
+      expect(fireball).toBeDefined();
+      expect(fireball?.tier).toBe("unowned_upgrade");
+
+      const dispel = ctx.candidatePool.find((c) => c.cardSlug === "dispel");
+      expect(dispel).toBeDefined();
+      expect(dispel?.tier).toBe("unowned_upgrade");
     });
   });
 
@@ -634,5 +904,35 @@ describe("Deck Advisor Service (Ticket 1)", () => {
       expect(swap.updatedOmnidexText).toContain("2 Palvor Sword");
       expect(res.message.content).toContain("I suggest replacing Fire Slash with Palvor Sword.");
       expect(res.message.content).not.toContain("```json:swap");
+    });
+
+    it("instructs model to respond in pt-BR while keeping Game Nomenclature in English", async () => {
+      process.env.ADVISOR_ALLOWED_EMAILS = "alex_tools@ga.com";
+
+      let capturedSystemPrompt = "";
+      const mockFetch = vi.fn().mockImplementation(async (_url, init) => {
+        const body = JSON.parse(init.body);
+        capturedSystemPrompt = body.messages[0].content;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            choices: [{ message: { content: "Olá! Posso ajudar a tunar o seu deck." } }],
+          }),
+        };
+      });
+
+      await runDeckAdvisorChat(
+        "user_alex_tools",
+        "alex_tools@ga.com",
+        "deck_tools_1",
+        [{ role: "user", content: "Como melhorar o deck?" }],
+        testDb,
+        { geminiApiKey: "fake-key", customFetch: mockFetch as any },
+        "pt-BR"
+      );
+
+      expect(capturedSystemPrompt).toContain("Respond in Portuguese (pt-BR)");
+      expect(capturedSystemPrompt).toContain("Game Nomenclature");
     });
   });

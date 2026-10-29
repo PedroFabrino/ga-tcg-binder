@@ -6,7 +6,31 @@ import type {
   DeckAdvisorDeckCardSnapshot,
   DeckAdvisorCandidateCard,
   DeckZone,
+  DeckAdvisorAcquisitionTier,
 } from "@ga/contracts";
+
+interface RawSwapCut {
+  cardName?: unknown;
+  name?: unknown;
+  zone?: unknown;
+  quantity?: unknown;
+}
+
+interface RawSwapAdd {
+  cardName?: unknown;
+  name?: unknown;
+  zone?: unknown;
+  quantity?: unknown;
+  tier?: unknown;
+}
+
+interface RawSwapProposal {
+  id?: unknown;
+  title?: unknown;
+  rationale?: unknown;
+  cuts?: unknown;
+  adds?: unknown;
+}
 
 /**
  * Calculates net shortage impact based on the acquisition tiers of added cards.
@@ -104,7 +128,7 @@ export function applySwapToOmnidex(
 function inferTierFromCandidatePool(
   cardName: string,
   candidatePool?: DeckAdvisorCandidateCard[]
-): "binder_available" | "store_pullback" | "unowned_upgrade" {
+): DeckAdvisorAcquisitionTier {
   if (!candidatePool || candidatePool.length === 0) {
     return "binder_available";
   }
@@ -141,12 +165,12 @@ export function parseSwapProposalsFromLlm(
 
     try {
       const parsed = JSON.parse(blockContent);
-      const rawList = Array.isArray(parsed)
-        ? parsed
-        : Array.isArray(parsed.swaps)
-        ? parsed.swaps
-        : parsed.cuts || parsed.adds
-        ? [parsed]
+      const rawList: RawSwapProposal[] = Array.isArray(parsed)
+        ? (parsed as RawSwapProposal[])
+        : Array.isArray((parsed as { swaps?: unknown }).swaps)
+        ? ((parsed as { swaps: unknown[] }).swaps as RawSwapProposal[])
+        : (parsed as RawSwapProposal).cuts || (parsed as RawSwapProposal).adds
+        ? [parsed as RawSwapProposal]
         : [];
 
       for (let i = 0; i < rawList.length; i++) {
@@ -154,33 +178,38 @@ export function parseSwapProposalsFromLlm(
         if (!item || (!item.cuts && !item.adds)) continue;
 
         const cuts: DeckAdvisorSwapCut[] = Array.isArray(item.cuts)
-          ? item.cuts.map((c: any) => ({
+          ? (item.cuts as RawSwapCut[]).map((c) => ({
               cardName: String(c.cardName || c.name || "Unknown"),
-              zone: normalizeDeckZone(c.zone),
+              zone: normalizeDeckZone(typeof c.zone === "string" ? c.zone : undefined),
               quantity: Math.max(1, Number(c.quantity) || 1),
             }))
           : [];
 
         const adds: DeckAdvisorSwapAdd[] = Array.isArray(item.adds)
-          ? item.adds.map((a: any) => {
+          ? (item.adds as RawSwapAdd[]).map((a) => {
               const cardName = String(a.cardName || a.name || "Unknown");
-              const validTiers = ["binder_available", "store_pullback", "unowned_upgrade"];
-              const tier = validTiers.includes(a.tier)
-                ? a.tier
+              const validTiers: DeckAdvisorAcquisitionTier[] = [
+                "binder_available",
+                "store_pullback",
+                "unowned_upgrade",
+              ];
+              const rawTier = typeof a.tier === "string" ? a.tier : "";
+              const tier = validTiers.includes(rawTier as DeckAdvisorAcquisitionTier)
+                ? (rawTier as DeckAdvisorAcquisitionTier)
                 : inferTierFromCandidatePool(cardName, candidatePool);
 
               return {
                 cardName,
-                zone: normalizeDeckZone(a.zone),
+                zone: normalizeDeckZone(typeof a.zone === "string" ? a.zone : undefined),
                 quantity: Math.max(1, Number(a.quantity) || 1),
                 tier,
               };
             })
           : [];
 
-        const proposalId = item.id || `swap-${Date.now()}-${i + 1}`;
-        const title = item.title || `Swap Proposal #${i + 1}`;
-        const rationale = item.rationale || "";
+        const proposalId = typeof item.id === "string" ? item.id : `swap-${Date.now()}-${i + 1}`;
+        const title = typeof item.title === "string" ? item.title : `Swap Proposal #${i + 1}`;
+        const rationale = typeof item.rationale === "string" ? item.rationale : "";
         const netImpact = computeNetShortageImpact(adds);
         const updatedOmnidexText = applySwapToOmnidex(currentDeckCards, { cuts, adds });
 

@@ -14,7 +14,7 @@ interface DeckAdvisorPanelProps {
 }
 
 export default function DeckAdvisorPanel({ deckId, deckName, onDeckUpdated }: DeckAdvisorPanelProps) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const [messages, setMessages] = useState<DeckAdvisorMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -30,8 +30,8 @@ export default function DeckAdvisorPanel({ deckId, deckName, onDeckUpdated }: De
       if (saved) {
         setMessages(JSON.parse(saved));
       }
-    } catch {
-      // Ignore
+    } catch (e: unknown) {
+      console.warn("[DeckAdvisorPanel] Failed to restore history from localStorage:", e);
     }
   }, [storageKey]);
 
@@ -39,8 +39,8 @@ export default function DeckAdvisorPanel({ deckId, deckName, onDeckUpdated }: De
     if (messages.length > 0) {
       try {
         localStorage.setItem(storageKey, JSON.stringify(messages));
-      } catch {
-        // Ignore
+      } catch (e: unknown) {
+        console.warn("[DeckAdvisorPanel] Failed to save history to localStorage:", e);
       }
     }
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -48,7 +48,11 @@ export default function DeckAdvisorPanel({ deckId, deckName, onDeckUpdated }: De
 
   const handleClear = () => {
     setMessages([]);
-    localStorage.removeItem(storageKey);
+    try {
+      localStorage.removeItem(storageKey);
+    } catch (e: unknown) {
+      console.warn("[DeckAdvisorPanel] Failed to clear history from localStorage:", e);
+    }
     setFallbackActive(false);
     setError(null);
   };
@@ -67,7 +71,7 @@ export default function DeckAdvisorPanel({ deckId, deckName, onDeckUpdated }: De
       const res = await fetch(`/api/decks/${deckId}/advisor`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deckId, messages: newMessages }),
+        body: JSON.stringify({ deckId, messages: newMessages, locale }),
       });
 
       if (!res.ok) {
@@ -79,8 +83,9 @@ export default function DeckAdvisorPanel({ deckId, deckName, onDeckUpdated }: De
         setFallbackActive(true);
       }
       setMessages([...newMessages, data.message]);
-    } catch (e: any) {
-      setError(e.message || t("advisor.errorOccurred"));
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : t("advisor.errorOccurred");
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -125,31 +130,8 @@ export default function DeckAdvisorPanel({ deckId, deckName, onDeckUpdated }: De
               <Bot className="h-6 w-6" />
             </div>
             <h3 className="text-sm font-semibold text-slate-200 mb-1">{t("advisor.emptyChatTitle")}</h3>
-            <p className="text-xs text-slate-400 max-w-sm mb-6">{t("advisor.emptyChatSubtitle")}</p>
-
-            <div className="flex flex-col gap-2 w-full max-w-md">
-              <button
-                type="button"
-                onClick={() => handleSend(t("advisor.promptPreset1"))}
-                className="text-left text-xs rounded-xl border border-white/[0.06] bg-slate-800/40 p-3 text-slate-300 hover:border-cyan-500/30 hover:bg-cyan-500/5 hover:text-cyan-200 transition-colors"
-              >
-                💡 {t("advisor.promptPreset1")}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSend(t("advisor.promptPreset2"))}
-                className="text-left text-xs rounded-xl border border-white/[0.06] bg-slate-800/40 p-3 text-slate-300 hover:border-cyan-500/30 hover:bg-cyan-500/5 hover:text-cyan-200 transition-colors"
-              >
-                🏆 {t("advisor.promptPreset2")}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSend(t("advisor.promptPreset3"))}
-                className="text-left text-xs rounded-xl border border-white/[0.06] bg-slate-800/40 p-3 text-slate-300 hover:border-cyan-500/30 hover:bg-cyan-500/5 hover:text-cyan-200 transition-colors"
-              >
-                📜 {t("advisor.promptPreset3")}
-              </button>
-            </div>
+            <p className="text-xs text-slate-400 max-w-sm mb-2">{t("advisor.emptyChatSubtitle")}</p>
+            <p className="text-[11px] text-slate-500 max-w-xs">{t("advisor.disclaimer")}</p>
           </div>
         ) : (
           messages.map((m, idx) => (
