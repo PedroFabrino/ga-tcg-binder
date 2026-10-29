@@ -62,6 +62,12 @@ describe("CommunityAdminCard", () => {
         { id: "ch-gen", name: "general", groupName: "General" },
         { id: "ch-market-1", name: "market", groupName: "GA Market" },
       ],
+      channelGroups: [
+        { id: "grp-1", name: "General" },
+        { id: "grp-2", name: "GA Market" },
+      ],
+      alertSectionId: "grp-2",
+      alertSectionName: "GA Market",
     };
 
     const html = renderToStaticMarkup(
@@ -74,9 +80,11 @@ describe("CommunityAdminCard", () => {
 
     expect(html).toContain("Active Broadcast Channel");
     expect(html).toContain("market");
+    expect(html).toContain("Deal Alerts Channel Group");
+    expect(html).toContain("GA Market");
     expect(html).toContain("#general (General)");
     expect(html).toContain("#market (GA Market)");
-    expect(html).toContain("Save Channel");
+    expect(html).toContain("Save Settings");
     expect(html).toContain("Provision Default Channels");
     expect(html).toContain("Broadcast Language");
     expect(html).toContain("English");
@@ -224,7 +232,7 @@ describe("CommunityAdminCard", () => {
     expect(html).toContain("Canal de Mercado da Comunidade");
     expect(html).toContain("Apenas Administradores");
     expect(html).toContain("Canal de Transmissão Ativo");
-    expect(html).toContain("Salvar Canal");
+    expect(html).toContain("Salvar Configurações");
     expect(html).toContain("Provisionar Canais Padrão");
   });
 });

@@ -632,7 +632,7 @@ describe("AssistantRpcService", () => {
         isCommunityAdmin: vi.fn().mockResolvedValue(false),
       });
 
-      const res = await service.provisionMarketChannels(createMockClient("non-admin"));
+      const res = await service.provisionMarketChannels({ channelGroupId: "" }, createMockClient("non-admin"));
       expect(res.success).toBe(false);
       expect(res.error).toBe("FORBIDDEN");
     });
@@ -640,22 +640,23 @@ describe("AssistantRpcService", () => {
     it("provisionMarketChannels calls provisionChannels and returns provisioned IDs", async () => {
       const provisionChannels = vi.fn().mockResolvedValue({
         marketChannel: "market",
-        assistantChannel: "assistant",
+        assistantChannel: "",
       });
       const service = new AssistantRpcService("comm-123", {
         isCommunityAdmin: vi.fn().mockResolvedValue(true),
         provisionChannels,
         config: {
           getBroadcastChannelId: vi.fn().mockResolvedValue("ch-new-market"),
-          getAssistantChannelId: vi.fn().mockResolvedValue("ch-new-assistant"),
+          getAlertSectionId: vi.fn().mockResolvedValue("ch-new-group"),
+          getAssistantChannelId: vi.fn().mockResolvedValue(""),
         } as any,
       });
 
-      const res = await service.provisionMarketChannels(createMockClient("admin-user"));
+      const res = await service.provisionMarketChannels({ channelGroupId: "" }, createMockClient("admin-user"));
       expect(res.success).toBe(true);
       expect(res.broadcastChannelId).toBe("ch-new-market");
       expect(res.broadcastChannelName).toBe("market");
-      expect(res.assistantChannelId).toBe("ch-new-assistant");
+      expect(res.alertSectionId).toBe("ch-new-group");
       expect(res.error).toBe("");
       expect(provisionChannels).toHaveBeenCalled();
     });

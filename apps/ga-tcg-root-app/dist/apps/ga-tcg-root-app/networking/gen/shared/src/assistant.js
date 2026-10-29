@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ProvisionMarketChannelsResponse = exports.SetBroadcastChannelResponse = exports.SetBroadcastChannelRequest = exports.AdminSettingsResponse = exports.CommunityChannelOption = exports.UpdateDeckRpcResponse = exports.UpdateDeckRpcRequest = exports.ImportDeckRpcResponse = exports.ImportDeckRpcRequest = exports.RemoveWantRpcResponse = exports.RemoveWantRpcRequest = exports.AddWantRpcResponse = exports.AddWantRpcRequest = exports.PersonalWantsRpcResponse = exports.PersonalWantRpcItem = exports.AutocompleteRpcResponse = exports.AutocompleteRpcRequest = exports.AutocompleteChoiceItem = exports.DecksResponse = exports.DeckSummary = exports.DeckShortageCard = exports.PreferencesResponse = exports.PreferencesRequest = exports.RegisterResponse = exports.LinkResponse = exports.LinkRequest = exports.StatusResponse = void 0;
+exports.ProvisionMarketChannelsResponse = exports.ProvisionMarketChannelsRequest = exports.SetBroadcastChannelResponse = exports.SetBroadcastChannelRequest = exports.AdminSettingsResponse = exports.CommunityChannelGroupOption = exports.CommunityChannelOption = exports.UpdateDeckRpcResponse = exports.UpdateDeckRpcRequest = exports.ImportDeckRpcResponse = exports.ImportDeckRpcRequest = exports.RemoveWantRpcResponse = exports.RemoveWantRpcRequest = exports.AddWantRpcResponse = exports.AddWantRpcRequest = exports.PersonalWantsRpcResponse = exports.PersonalWantRpcItem = exports.AutocompleteRpcResponse = exports.AutocompleteRpcRequest = exports.AutocompleteChoiceItem = exports.DecksResponse = exports.DeckSummary = exports.DeckShortageCard = exports.PreferencesResponse = exports.PreferencesRequest = exports.RegisterResponse = exports.LinkResponse = exports.LinkRequest = exports.StatusResponse = void 0;
 const runtime_1 = require("@protobuf-ts/runtime");
 const runtime_2 = require("@protobuf-ts/runtime");
 const runtime_3 = require("@protobuf-ts/runtime");
@@ -1615,6 +1615,61 @@ class CommunityChannelOption$Type extends runtime_4.MessageType {
  */
 exports.CommunityChannelOption = new CommunityChannelOption$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class CommunityChannelGroupOption$Type extends runtime_4.MessageType {
+    constructor() {
+        super("CommunityChannelGroupOption", [
+            { no: 1, name: "id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value) {
+        const message = globalThis.Object.create((this.messagePrototype));
+        message.id = "";
+        message.name = "";
+        if (value !== undefined)
+            (0, runtime_3.reflectionMergePartial)(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader, length, options, target) {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string id */ 1:
+                    message.id = reader.string();
+                    break;
+                case /* string name */ 2:
+                    message.name = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? runtime_2.UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message, writer, options) {
+        /* string id = 1; */
+        if (message.id !== "")
+            writer.tag(1, runtime_1.WireType.LengthDelimited).string(message.id);
+        /* string name = 2; */
+        if (message.name !== "")
+            writer.tag(2, runtime_1.WireType.LengthDelimited).string(message.name);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? runtime_2.UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message CommunityChannelGroupOption
+ */
+exports.CommunityChannelGroupOption = new CommunityChannelGroupOption$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class AdminSettingsResponse$Type extends runtime_4.MessageType {
     constructor() {
         super("AdminSettingsResponse", [
@@ -1622,7 +1677,10 @@ class AdminSettingsResponse$Type extends runtime_4.MessageType {
             { no: 2, name: "broadcast_channel_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "broadcast_channel_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "text_channels", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => exports.CommunityChannelOption },
-            { no: 5, name: "broadcast_locale", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 5, name: "broadcast_locale", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "channel_groups", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => exports.CommunityChannelGroupOption },
+            { no: 7, name: "alert_section_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 8, name: "alert_section_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value) {
@@ -1632,6 +1690,9 @@ class AdminSettingsResponse$Type extends runtime_4.MessageType {
         message.broadcastChannelName = "";
         message.textChannels = [];
         message.broadcastLocale = "";
+        message.channelGroups = [];
+        message.alertSectionId = "";
+        message.alertSectionName = "";
         if (value !== undefined)
             (0, runtime_3.reflectionMergePartial)(this, message, value);
         return message;
@@ -1655,6 +1716,15 @@ class AdminSettingsResponse$Type extends runtime_4.MessageType {
                     break;
                 case /* string broadcast_locale */ 5:
                     message.broadcastLocale = reader.string();
+                    break;
+                case /* repeated CommunityChannelGroupOption channel_groups */ 6:
+                    message.channelGroups.push(exports.CommunityChannelGroupOption.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string alert_section_id */ 7:
+                    message.alertSectionId = reader.string();
+                    break;
+                case /* string alert_section_name */ 8:
+                    message.alertSectionName = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1683,6 +1753,15 @@ class AdminSettingsResponse$Type extends runtime_4.MessageType {
         /* string broadcast_locale = 5; */
         if (message.broadcastLocale !== "")
             writer.tag(5, runtime_1.WireType.LengthDelimited).string(message.broadcastLocale);
+        /* repeated CommunityChannelGroupOption channel_groups = 6; */
+        for (let i = 0; i < message.channelGroups.length; i++)
+            exports.CommunityChannelGroupOption.internalBinaryWrite(message.channelGroups[i], writer.tag(6, runtime_1.WireType.LengthDelimited).fork(), options).join();
+        /* string alert_section_id = 7; */
+        if (message.alertSectionId !== "")
+            writer.tag(7, runtime_1.WireType.LengthDelimited).string(message.alertSectionId);
+        /* string alert_section_name = 8; */
+        if (message.alertSectionName !== "")
+            writer.tag(8, runtime_1.WireType.LengthDelimited).string(message.alertSectionName);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? runtime_2.UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1698,13 +1777,15 @@ class SetBroadcastChannelRequest$Type extends runtime_4.MessageType {
     constructor() {
         super("SetBroadcastChannelRequest", [
             { no: 1, name: "channel_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "broadcast_locale", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 2, name: "broadcast_locale", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "channel_group_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value) {
         const message = globalThis.Object.create((this.messagePrototype));
         message.channelId = "";
         message.broadcastLocale = "";
+        message.channelGroupId = "";
         if (value !== undefined)
             (0, runtime_3.reflectionMergePartial)(this, message, value);
         return message;
@@ -1719,6 +1800,9 @@ class SetBroadcastChannelRequest$Type extends runtime_4.MessageType {
                     break;
                 case /* string broadcast_locale */ 2:
                     message.broadcastLocale = reader.string();
+                    break;
+                case /* string channel_group_id */ 3:
+                    message.channelGroupId = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1738,6 +1822,9 @@ class SetBroadcastChannelRequest$Type extends runtime_4.MessageType {
         /* string broadcast_locale = 2; */
         if (message.broadcastLocale !== "")
             writer.tag(2, runtime_1.WireType.LengthDelimited).string(message.broadcastLocale);
+        /* string channel_group_id = 3; */
+        if (message.channelGroupId !== "")
+            writer.tag(3, runtime_1.WireType.LengthDelimited).string(message.channelGroupId);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? runtime_2.UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1756,7 +1843,9 @@ class SetBroadcastChannelResponse$Type extends runtime_4.MessageType {
             { no: 2, name: "broadcast_channel_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "broadcast_channel_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "broadcast_locale", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 5, name: "broadcast_locale", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "alert_section_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 7, name: "alert_section_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value) {
@@ -1766,6 +1855,8 @@ class SetBroadcastChannelResponse$Type extends runtime_4.MessageType {
         message.broadcastChannelName = "";
         message.error = "";
         message.broadcastLocale = "";
+        message.alertSectionId = "";
+        message.alertSectionName = "";
         if (value !== undefined)
             (0, runtime_3.reflectionMergePartial)(this, message, value);
         return message;
@@ -1789,6 +1880,12 @@ class SetBroadcastChannelResponse$Type extends runtime_4.MessageType {
                     break;
                 case /* string broadcast_locale */ 5:
                     message.broadcastLocale = reader.string();
+                    break;
+                case /* string alert_section_id */ 6:
+                    message.alertSectionId = reader.string();
+                    break;
+                case /* string alert_section_name */ 7:
+                    message.alertSectionName = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1817,6 +1914,12 @@ class SetBroadcastChannelResponse$Type extends runtime_4.MessageType {
         /* string broadcast_locale = 5; */
         if (message.broadcastLocale !== "")
             writer.tag(5, runtime_1.WireType.LengthDelimited).string(message.broadcastLocale);
+        /* string alert_section_id = 6; */
+        if (message.alertSectionId !== "")
+            writer.tag(6, runtime_1.WireType.LengthDelimited).string(message.alertSectionId);
+        /* string alert_section_name = 7; */
+        if (message.alertSectionName !== "")
+            writer.tag(7, runtime_1.WireType.LengthDelimited).string(message.alertSectionName);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? runtime_2.UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1828,6 +1931,53 @@ class SetBroadcastChannelResponse$Type extends runtime_4.MessageType {
  */
 exports.SetBroadcastChannelResponse = new SetBroadcastChannelResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class ProvisionMarketChannelsRequest$Type extends runtime_4.MessageType {
+    constructor() {
+        super("ProvisionMarketChannelsRequest", [
+            { no: 1, name: "channel_group_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value) {
+        const message = globalThis.Object.create((this.messagePrototype));
+        message.channelGroupId = "";
+        if (value !== undefined)
+            (0, runtime_3.reflectionMergePartial)(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader, length, options, target) {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string channel_group_id */ 1:
+                    message.channelGroupId = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? runtime_2.UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message, writer, options) {
+        /* string channel_group_id = 1; */
+        if (message.channelGroupId !== "")
+            writer.tag(1, runtime_1.WireType.LengthDelimited).string(message.channelGroupId);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? runtime_2.UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message ProvisionMarketChannelsRequest
+ */
+exports.ProvisionMarketChannelsRequest = new ProvisionMarketChannelsRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class ProvisionMarketChannelsResponse$Type extends runtime_4.MessageType {
     constructor() {
         super("ProvisionMarketChannelsResponse", [
@@ -1835,7 +1985,9 @@ class ProvisionMarketChannelsResponse$Type extends runtime_4.MessageType {
             { no: 2, name: "broadcast_channel_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "broadcast_channel_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "assistant_channel_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 5, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "alert_section_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 7, name: "alert_section_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value) {
@@ -1845,6 +1997,8 @@ class ProvisionMarketChannelsResponse$Type extends runtime_4.MessageType {
         message.broadcastChannelName = "";
         message.assistantChannelId = "";
         message.error = "";
+        message.alertSectionId = "";
+        message.alertSectionName = "";
         if (value !== undefined)
             (0, runtime_3.reflectionMergePartial)(this, message, value);
         return message;
@@ -1868,6 +2022,12 @@ class ProvisionMarketChannelsResponse$Type extends runtime_4.MessageType {
                     break;
                 case /* string error */ 5:
                     message.error = reader.string();
+                    break;
+                case /* string alert_section_id */ 6:
+                    message.alertSectionId = reader.string();
+                    break;
+                case /* string alert_section_name */ 7:
+                    message.alertSectionName = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1896,6 +2056,12 @@ class ProvisionMarketChannelsResponse$Type extends runtime_4.MessageType {
         /* string error = 5; */
         if (message.error !== "")
             writer.tag(5, runtime_1.WireType.LengthDelimited).string(message.error);
+        /* string alert_section_id = 6; */
+        if (message.alertSectionId !== "")
+            writer.tag(6, runtime_1.WireType.LengthDelimited).string(message.alertSectionId);
+        /* string alert_section_name = 7; */
+        if (message.alertSectionName !== "")
+            writer.tag(7, runtime_1.WireType.LengthDelimited).string(message.alertSectionName);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? runtime_2.UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

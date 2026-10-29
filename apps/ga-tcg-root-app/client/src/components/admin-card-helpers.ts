@@ -11,6 +11,16 @@ export function pickInitialChannelId(settings?: AdminSettingsResponse): string {
   return channels[0]?.id ?? "";
 }
 
+export function pickInitialGroupId(settings?: AdminSettingsResponse): string {
+  if (!settings) return "";
+  const groups = settings.channelGroups ?? [];
+  const configuredStillExists =
+    Boolean(settings.alertSectionId) &&
+    groups.some((g) => g.id === settings.alertSectionId);
+  if (configuredStillExists) return settings.alertSectionId;
+  return groups[0]?.id ?? "";
+}
+
 export type AdminFallbackKey =
   | "communityAdmin.saveError"
   | "communityAdmin.provisionError";

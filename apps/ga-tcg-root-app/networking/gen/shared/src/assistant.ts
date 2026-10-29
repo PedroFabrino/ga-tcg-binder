@@ -482,6 +482,19 @@ export interface CommunityChannelOption {
     groupName: string;
 }
 /**
+ * @generated from protobuf message CommunityChannelGroupOption
+ */
+export interface CommunityChannelGroupOption {
+    /**
+     * @generated from protobuf field: string id = 1
+     */
+    id: string;
+    /**
+     * @generated from protobuf field: string name = 2
+     */
+    name: string;
+}
+/**
  * @generated from protobuf message AdminSettingsResponse
  */
 export interface AdminSettingsResponse {
@@ -505,6 +518,18 @@ export interface AdminSettingsResponse {
      * @generated from protobuf field: string broadcast_locale = 5
      */
     broadcastLocale: string;
+    /**
+     * @generated from protobuf field: repeated CommunityChannelGroupOption channel_groups = 6
+     */
+    channelGroups: CommunityChannelGroupOption[];
+    /**
+     * @generated from protobuf field: string alert_section_id = 7
+     */
+    alertSectionId: string;
+    /**
+     * @generated from protobuf field: string alert_section_name = 8
+     */
+    alertSectionName: string;
 }
 /**
  * @generated from protobuf message SetBroadcastChannelRequest
@@ -518,6 +543,10 @@ export interface SetBroadcastChannelRequest {
      * @generated from protobuf field: string broadcast_locale = 2
      */
     broadcastLocale: string;
+    /**
+     * @generated from protobuf field: string channel_group_id = 3
+     */
+    channelGroupId: string;
 }
 /**
  * @generated from protobuf message SetBroadcastChannelResponse
@@ -543,6 +572,23 @@ export interface SetBroadcastChannelResponse {
      * @generated from protobuf field: string broadcast_locale = 5
      */
     broadcastLocale: string;
+    /**
+     * @generated from protobuf field: string alert_section_id = 6
+     */
+    alertSectionId: string;
+    /**
+     * @generated from protobuf field: string alert_section_name = 7
+     */
+    alertSectionName: string;
+}
+/**
+ * @generated from protobuf message ProvisionMarketChannelsRequest
+ */
+export interface ProvisionMarketChannelsRequest {
+    /**
+     * @generated from protobuf field: string channel_group_id = 1
+     */
+    channelGroupId: string;
 }
 /**
  * @generated from protobuf message ProvisionMarketChannelsResponse
@@ -568,6 +614,14 @@ export interface ProvisionMarketChannelsResponse {
      * @generated from protobuf field: string error = 5
      */
     error: string;
+    /**
+     * @generated from protobuf field: string alert_section_id = 6
+     */
+    alertSectionId: string;
+    /**
+     * @generated from protobuf field: string alert_section_name = 7
+     */
+    alertSectionName: string;
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class StatusResponse$Type extends MessageType<StatusResponse> {
@@ -2179,6 +2233,61 @@ class CommunityChannelOption$Type extends MessageType<CommunityChannelOption> {
  */
 export const CommunityChannelOption = new CommunityChannelOption$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class CommunityChannelGroupOption$Type extends MessageType<CommunityChannelGroupOption> {
+    constructor() {
+        super("CommunityChannelGroupOption", [
+            { no: 1, name: "id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<CommunityChannelGroupOption>): CommunityChannelGroupOption {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.id = "";
+        message.name = "";
+        if (value !== undefined)
+            reflectionMergePartial<CommunityChannelGroupOption>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CommunityChannelGroupOption): CommunityChannelGroupOption {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string id */ 1:
+                    message.id = reader.string();
+                    break;
+                case /* string name */ 2:
+                    message.name = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: CommunityChannelGroupOption, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string id = 1; */
+        if (message.id !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.id);
+        /* string name = 2; */
+        if (message.name !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.name);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message CommunityChannelGroupOption
+ */
+export const CommunityChannelGroupOption = new CommunityChannelGroupOption$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class AdminSettingsResponse$Type extends MessageType<AdminSettingsResponse> {
     constructor() {
         super("AdminSettingsResponse", [
@@ -2186,7 +2295,10 @@ class AdminSettingsResponse$Type extends MessageType<AdminSettingsResponse> {
             { no: 2, name: "broadcast_channel_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "broadcast_channel_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "text_channels", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => CommunityChannelOption },
-            { no: 5, name: "broadcast_locale", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 5, name: "broadcast_locale", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "channel_groups", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => CommunityChannelGroupOption },
+            { no: 7, name: "alert_section_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 8, name: "alert_section_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<AdminSettingsResponse>): AdminSettingsResponse {
@@ -2196,6 +2308,9 @@ class AdminSettingsResponse$Type extends MessageType<AdminSettingsResponse> {
         message.broadcastChannelName = "";
         message.textChannels = [];
         message.broadcastLocale = "";
+        message.channelGroups = [];
+        message.alertSectionId = "";
+        message.alertSectionName = "";
         if (value !== undefined)
             reflectionMergePartial<AdminSettingsResponse>(this, message, value);
         return message;
@@ -2219,6 +2334,15 @@ class AdminSettingsResponse$Type extends MessageType<AdminSettingsResponse> {
                     break;
                 case /* string broadcast_locale */ 5:
                     message.broadcastLocale = reader.string();
+                    break;
+                case /* repeated CommunityChannelGroupOption channel_groups */ 6:
+                    message.channelGroups.push(CommunityChannelGroupOption.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string alert_section_id */ 7:
+                    message.alertSectionId = reader.string();
+                    break;
+                case /* string alert_section_name */ 8:
+                    message.alertSectionName = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -2247,6 +2371,15 @@ class AdminSettingsResponse$Type extends MessageType<AdminSettingsResponse> {
         /* string broadcast_locale = 5; */
         if (message.broadcastLocale !== "")
             writer.tag(5, WireType.LengthDelimited).string(message.broadcastLocale);
+        /* repeated CommunityChannelGroupOption channel_groups = 6; */
+        for (let i = 0; i < message.channelGroups.length; i++)
+            CommunityChannelGroupOption.internalBinaryWrite(message.channelGroups[i], writer.tag(6, WireType.LengthDelimited).fork(), options).join();
+        /* string alert_section_id = 7; */
+        if (message.alertSectionId !== "")
+            writer.tag(7, WireType.LengthDelimited).string(message.alertSectionId);
+        /* string alert_section_name = 8; */
+        if (message.alertSectionName !== "")
+            writer.tag(8, WireType.LengthDelimited).string(message.alertSectionName);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -2262,13 +2395,15 @@ class SetBroadcastChannelRequest$Type extends MessageType<SetBroadcastChannelReq
     constructor() {
         super("SetBroadcastChannelRequest", [
             { no: 1, name: "channel_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "broadcast_locale", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 2, name: "broadcast_locale", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "channel_group_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<SetBroadcastChannelRequest>): SetBroadcastChannelRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.channelId = "";
         message.broadcastLocale = "";
+        message.channelGroupId = "";
         if (value !== undefined)
             reflectionMergePartial<SetBroadcastChannelRequest>(this, message, value);
         return message;
@@ -2283,6 +2418,9 @@ class SetBroadcastChannelRequest$Type extends MessageType<SetBroadcastChannelReq
                     break;
                 case /* string broadcast_locale */ 2:
                     message.broadcastLocale = reader.string();
+                    break;
+                case /* string channel_group_id */ 3:
+                    message.channelGroupId = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -2302,6 +2440,9 @@ class SetBroadcastChannelRequest$Type extends MessageType<SetBroadcastChannelReq
         /* string broadcast_locale = 2; */
         if (message.broadcastLocale !== "")
             writer.tag(2, WireType.LengthDelimited).string(message.broadcastLocale);
+        /* string channel_group_id = 3; */
+        if (message.channelGroupId !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.channelGroupId);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -2320,7 +2461,9 @@ class SetBroadcastChannelResponse$Type extends MessageType<SetBroadcastChannelRe
             { no: 2, name: "broadcast_channel_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "broadcast_channel_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "broadcast_locale", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 5, name: "broadcast_locale", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "alert_section_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 7, name: "alert_section_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<SetBroadcastChannelResponse>): SetBroadcastChannelResponse {
@@ -2330,6 +2473,8 @@ class SetBroadcastChannelResponse$Type extends MessageType<SetBroadcastChannelRe
         message.broadcastChannelName = "";
         message.error = "";
         message.broadcastLocale = "";
+        message.alertSectionId = "";
+        message.alertSectionName = "";
         if (value !== undefined)
             reflectionMergePartial<SetBroadcastChannelResponse>(this, message, value);
         return message;
@@ -2353,6 +2498,12 @@ class SetBroadcastChannelResponse$Type extends MessageType<SetBroadcastChannelRe
                     break;
                 case /* string broadcast_locale */ 5:
                     message.broadcastLocale = reader.string();
+                    break;
+                case /* string alert_section_id */ 6:
+                    message.alertSectionId = reader.string();
+                    break;
+                case /* string alert_section_name */ 7:
+                    message.alertSectionName = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -2381,6 +2532,12 @@ class SetBroadcastChannelResponse$Type extends MessageType<SetBroadcastChannelRe
         /* string broadcast_locale = 5; */
         if (message.broadcastLocale !== "")
             writer.tag(5, WireType.LengthDelimited).string(message.broadcastLocale);
+        /* string alert_section_id = 6; */
+        if (message.alertSectionId !== "")
+            writer.tag(6, WireType.LengthDelimited).string(message.alertSectionId);
+        /* string alert_section_name = 7; */
+        if (message.alertSectionName !== "")
+            writer.tag(7, WireType.LengthDelimited).string(message.alertSectionName);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -2392,6 +2549,53 @@ class SetBroadcastChannelResponse$Type extends MessageType<SetBroadcastChannelRe
  */
 export const SetBroadcastChannelResponse = new SetBroadcastChannelResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class ProvisionMarketChannelsRequest$Type extends MessageType<ProvisionMarketChannelsRequest> {
+    constructor() {
+        super("ProvisionMarketChannelsRequest", [
+            { no: 1, name: "channel_group_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ProvisionMarketChannelsRequest>): ProvisionMarketChannelsRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.channelGroupId = "";
+        if (value !== undefined)
+            reflectionMergePartial<ProvisionMarketChannelsRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ProvisionMarketChannelsRequest): ProvisionMarketChannelsRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string channel_group_id */ 1:
+                    message.channelGroupId = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ProvisionMarketChannelsRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string channel_group_id = 1; */
+        if (message.channelGroupId !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.channelGroupId);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message ProvisionMarketChannelsRequest
+ */
+export const ProvisionMarketChannelsRequest = new ProvisionMarketChannelsRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class ProvisionMarketChannelsResponse$Type extends MessageType<ProvisionMarketChannelsResponse> {
     constructor() {
         super("ProvisionMarketChannelsResponse", [
@@ -2399,7 +2603,9 @@ class ProvisionMarketChannelsResponse$Type extends MessageType<ProvisionMarketCh
             { no: 2, name: "broadcast_channel_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "broadcast_channel_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "assistant_channel_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 5, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "alert_section_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 7, name: "alert_section_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<ProvisionMarketChannelsResponse>): ProvisionMarketChannelsResponse {
@@ -2409,6 +2615,8 @@ class ProvisionMarketChannelsResponse$Type extends MessageType<ProvisionMarketCh
         message.broadcastChannelName = "";
         message.assistantChannelId = "";
         message.error = "";
+        message.alertSectionId = "";
+        message.alertSectionName = "";
         if (value !== undefined)
             reflectionMergePartial<ProvisionMarketChannelsResponse>(this, message, value);
         return message;
@@ -2432,6 +2640,12 @@ class ProvisionMarketChannelsResponse$Type extends MessageType<ProvisionMarketCh
                     break;
                 case /* string error */ 5:
                     message.error = reader.string();
+                    break;
+                case /* string alert_section_id */ 6:
+                    message.alertSectionId = reader.string();
+                    break;
+                case /* string alert_section_name */ 7:
+                    message.alertSectionName = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -2460,6 +2674,12 @@ class ProvisionMarketChannelsResponse$Type extends MessageType<ProvisionMarketCh
         /* string error = 5; */
         if (message.error !== "")
             writer.tag(5, WireType.LengthDelimited).string(message.error);
+        /* string alert_section_id = 6; */
+        if (message.alertSectionId !== "")
+            writer.tag(6, WireType.LengthDelimited).string(message.alertSectionId);
+        /* string alert_section_name = 7; */
+        if (message.alertSectionName !== "")
+            writer.tag(7, WireType.LengthDelimited).string(message.alertSectionName);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

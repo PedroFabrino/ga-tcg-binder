@@ -1,6 +1,6 @@
 import { AssistantServiceBase } from "@ga/gen-server";
 import { type Client } from "@rootsdk/server-app";
-import { type AddWantRpcRequest, type AddWantRpcResponse, type AdminSettingsResponse, type AutocompleteRpcRequest, type AutocompleteRpcResponse, type DecksResponse, type ImportDeckRpcRequest, type ImportDeckRpcResponse, type LinkRequest, type LinkResponse, type PersonalWantsRpcResponse, type PreferencesRequest, type PreferencesResponse, type ProvisionMarketChannelsResponse, type RegisterResponse, type RemoveWantRpcRequest, type RemoveWantRpcResponse, type SetBroadcastChannelRequest, type SetBroadcastChannelResponse, type StatusResponse, type UpdateDeckRpcRequest, type UpdateDeckRpcResponse } from "@ga/gen-shared";
+import { type AddWantRpcRequest, type AddWantRpcResponse, type AdminSettingsResponse, type AutocompleteRpcRequest, type AutocompleteRpcResponse, type DecksResponse, type ImportDeckRpcRequest, type ImportDeckRpcResponse, type LinkRequest, type LinkResponse, type PersonalWantsRpcResponse, type PreferencesRequest, type PreferencesResponse, type ProvisionMarketChannelsRequest, type ProvisionMarketChannelsResponse, type RegisterResponse, type RemoveWantRpcRequest, type RemoveWantRpcResponse, type SetBroadcastChannelRequest, type SetBroadcastChannelResponse, type StatusResponse, type UpdateDeckRpcRequest, type UpdateDeckRpcResponse } from "@ga/gen-shared";
 import { RootBotApi } from "./root-bot-api";
 import { type AdminRpcHelperDeps } from "./admin-rpc-helpers";
 export interface AssistantRpcServiceDeps extends AdminRpcHelperDeps {
@@ -29,5 +29,5 @@ export declare class AssistantRpcService extends AssistantServiceBase {
     updateDeck(request: UpdateDeckRpcRequest, client: Client): Promise<UpdateDeckRpcResponse>;
     getAdminSettings(client: Client): Promise<AdminSettingsResponse>;
     setBroadcastChannel(request: SetBroadcastChannelRequest, client: Client): Promise<SetBroadcastChannelResponse>;
-    provisionMarketChannels(client: Client): Promise<ProvisionMarketChannelsResponse>;
+    provisionMarketChannels(request: ProvisionMarketChannelsRequest, client: Client): Promise<ProvisionMarketChannelsResponse>;
 }

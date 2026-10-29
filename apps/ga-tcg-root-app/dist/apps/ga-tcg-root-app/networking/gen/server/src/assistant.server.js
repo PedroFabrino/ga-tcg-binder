@@ -114,9 +114,9 @@ class AssistantServiceBase {
             {
                 serviceName: 'AssistantService',
                 methodName: 'ProvisionMarketChannels',
-                funct: (e, c) => { return this.provisionMarketChannels(c); },
+                funct: (e, c) => { return this.provisionMarketChannels(e, c); },
                 path: '/.AssistantService/ProvisionMarketChannels',
-                requestDeserialize: bytes => gen_shared_1.Void.fromBinary(bytes),
+                requestDeserialize: bytes => gen_shared_1.ProvisionMarketChannelsRequest.fromBinary(bytes),
                 responseSerialize: value => gen_shared_1.ProvisionMarketChannelsResponse.toBinary(value)
             },
         ];

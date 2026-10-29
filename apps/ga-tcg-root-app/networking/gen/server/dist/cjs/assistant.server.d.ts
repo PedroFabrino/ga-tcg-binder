@@ -1,4 +1,4 @@
-import { AddWantRpcRequest, AddWantRpcResponse, AdminSettingsResponse, AutocompleteRpcRequest, AutocompleteRpcResponse, DecksResponse, ImportDeckRpcRequest, ImportDeckRpcResponse, LinkRequest, LinkResponse, PersonalWantsRpcResponse, PreferencesRequest, PreferencesResponse, ProvisionMarketChannelsResponse, RegisterResponse, RemoveWantRpcRequest, RemoveWantRpcResponse, SetBroadcastChannelRequest, SetBroadcastChannelResponse, StatusResponse, UpdateDeckRpcRequest, UpdateDeckRpcResponse } from "@ga/gen-shared";
+import { AddWantRpcRequest, AddWantRpcResponse, AdminSettingsResponse, AutocompleteRpcRequest, AutocompleteRpcResponse, DecksResponse, ImportDeckRpcRequest, ImportDeckRpcResponse, LinkRequest, LinkResponse, PersonalWantsRpcResponse, PreferencesRequest, PreferencesResponse, ProvisionMarketChannelsRequest, ProvisionMarketChannelsResponse, RegisterResponse, RemoveWantRpcRequest, RemoveWantRpcResponse, SetBroadcastChannelRequest, SetBroadcastChannelResponse, StatusResponse, UpdateDeckRpcRequest, UpdateDeckRpcResponse } from "@ga/gen-shared";
 import { Client, RootServerService } from "@rootsdk/server-app";
 export declare abstract class AssistantServiceBase implements RootServerService {
     abstract getStatus(client: Client): Promise<StatusResponse>;
@@ -14,7 +14,7 @@ export declare abstract class AssistantServiceBase implements RootServerService 
     abstract updateDeck(request: UpdateDeckRpcRequest, client: Client): Promise<UpdateDeckRpcResponse>;
     abstract getAdminSettings(client: Client): Promise<AdminSettingsResponse>;
     abstract setBroadcastChannel(request: SetBroadcastChannelRequest, client: Client): Promise<SetBroadcastChannelResponse>;
-    abstract provisionMarketChannels(client: Client): Promise<ProvisionMarketChannelsResponse>;
+    abstract provisionMarketChannels(request: ProvisionMarketChannelsRequest, client: Client): Promise<ProvisionMarketChannelsResponse>;
     private __register;
     get ServerServiceName(): string;
 }

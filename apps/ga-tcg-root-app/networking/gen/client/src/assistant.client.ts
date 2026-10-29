@@ -16,6 +16,7 @@ import {
 	PersonalWantsRpcResponse,
 	PreferencesRequest,
 	PreferencesResponse,
+	ProvisionMarketChannelsRequest,
 	ProvisionMarketChannelsResponse,
 	RegisterResponse,
 	RemoveWantRpcRequest,
@@ -81,8 +82,8 @@ export class AssistantServiceClient  {
 	setBroadcastChannel(request: SetBroadcastChannelRequest):Promise<SetBroadcastChannelResponse> {
 		return (<any>rootClient).sendWithResponse('/.AssistantService/SetBroadcastChannel',request, this.setBroadcastChannel);
 	}
-	provisionMarketChannels():Promise<ProvisionMarketChannelsResponse> {
-		return (<any>rootClient).sendWithResponse('/.AssistantService/ProvisionMarketChannels',{}, this.provisionMarketChannels);
+	provisionMarketChannels(request: ProvisionMarketChannelsRequest):Promise<ProvisionMarketChannelsResponse> {
+		return (<any>rootClient).sendWithResponse('/.AssistantService/ProvisionMarketChannels',request, this.provisionMarketChannels);
 	}private __register(): UntypedClientMethodDefinition[] {
 		return [	{
       serviceName: 'AssistantServiceClient',
@@ -179,7 +180,7 @@ export class AssistantServiceClient  {
       serviceName: 'AssistantServiceClient',
 			methodName: 'ProvisionMarketChannels',
 			path: '/.AssistantService/ProvisionMarketChannels',
-			requestSerialize: () => Void.toBinary({}),
+			requestSerialize: value => ProvisionMarketChannelsRequest.toBinary(value),
 			responseDeserialize: bytes => ProvisionMarketChannelsResponse.fromBinary(bytes)
     },
 	]}

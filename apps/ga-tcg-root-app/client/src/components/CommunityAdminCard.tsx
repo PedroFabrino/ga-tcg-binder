@@ -6,19 +6,21 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
-  Hash,
   ShieldCheck,
-  Languages,
 } from "lucide-react";
 import { type SupportedLocale } from "@ga/contracts";
 import { useTranslator } from "../hooks/useTranslator";
 import {
   pickInitialChannelId,
+  pickInitialGroupId,
   resolveAdminErrorMessage,
 } from "./admin-card-helpers";
+import { AdminStatusBadges } from "./AdminStatusBadges";
+import { AdminBroadcastLanguageSelector } from "./AdminBroadcastLanguageSelector";
 import type {
   IAssistantRpcClient,
   CommunityChannelOption,
+  CommunityChannelGroupOption,
   AdminSettingsResponse,
   AdminFeedback,
 } from "../types";
@@ -50,11 +52,23 @@ export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
   const [broadcastChannelName, setBroadcastChannelName] = useState(
     initialSettings?.broadcastChannelName ?? ""
   );
+  const [alertSectionId, setAlertSectionId] = useState(
+    initialSettings?.alertSectionId ?? ""
+  );
+  const [alertSectionName, setAlertSectionName] = useState(
+    initialSettings?.alertSectionName ?? ""
+  );
   const [textChannels, setTextChannels] = useState<CommunityChannelOption[]>(
     initialSettings?.textChannels ?? []
   );
+  const [channelGroups, setChannelGroups] = useState<
+    CommunityChannelGroupOption[]
+  >(initialSettings?.channelGroups ?? []);
   const [selectedChannelId, setSelectedChannelId] = useState(
     pickInitialChannelId(initialSettings)
+  );
+  const [selectedGroupId, setSelectedGroupId] = useState(
+    pickInitialGroupId(initialSettings)
   );
   const [broadcastLocale, setBroadcastLocale] = useState<SupportedLocale>(
     initialSettings?.broadcastLocale === "pt-BR" ? "pt-BR" : "en"
@@ -70,8 +84,12 @@ export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
       if (res.isAdmin) {
         setBroadcastChannelId(res.broadcastChannelId);
         setBroadcastChannelName(res.broadcastChannelName);
+        setAlertSectionId(res.alertSectionId || "");
+        setAlertSectionName(res.alertSectionName || "");
         setTextChannels(res.textChannels || []);
+        setChannelGroups(res.channelGroups || []);
         setSelectedChannelId(pickInitialChannelId(res));
+        setSelectedGroupId(pickInitialGroupId(res));
         if (res.broadcastLocale) {
           setBroadcastLocale(res.broadcastLocale === "pt-BR" ? "pt-BR" : "en");
         }
@@ -93,20 +111,25 @@ export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
     return null;
   }
 
-  const handleSaveChannel = async () => {
-    if (!selectedChannelId || saving) return;
+  const handleSaveSettings = async () => {
+    if ((!selectedChannelId && !selectedGroupId) || saving) return;
     setSaving(true);
     setFeedback(null);
     try {
-      const res = await client.setBroadcastChannel({ channelId: selectedChannelId });
+      const res = await client.setBroadcastChannel({
+        channelId: selectedChannelId,
+        channelGroupId: selectedGroupId,
+      });
       if (res.success) {
         setBroadcastChannelId(res.broadcastChannelId);
         setBroadcastChannelName(res.broadcastChannelName);
+        if (res.alertSectionId) {
+          setAlertSectionId(res.alertSectionId);
+          setAlertSectionName(res.alertSectionName);
+        }
         setFeedback({
           type: "success",
-          text: t("communityAdmin.saveSuccess", {
-            channel: res.broadcastChannelName || res.broadcastChannelId,
-          }),
+          text: t("communityAdmin.saveSuccess"),
         });
       } else {
         setFeedback({
@@ -129,10 +152,16 @@ export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
     setProvisioning(true);
     setFeedback(null);
     try {
-      const res = await client.provisionMarketChannels();
+      const res = await client.provisionMarketChannels({
+        channelGroupId: selectedGroupId,
+      });
       if (res.success) {
         setBroadcastChannelId(res.broadcastChannelId);
         setBroadcastChannelName(res.broadcastChannelName);
+        if (res.alertSectionId) {
+          setAlertSectionId(res.alertSectionId);
+          setAlertSectionName(res.alertSectionName);
+        }
         setFeedback({
           type: "success",
           text: t("communityAdmin.provisionSuccess", {
@@ -231,23 +260,13 @@ export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
         </div>
       ) : (
         <div className="pt-4 space-y-4">
-          {/* Active Broadcast Channel Status */}
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-slate-400 font-medium">
-              {t("communityAdmin.activeChannelLabel")}:
-            </span>
-            {broadcastChannelId ? (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 font-mono text-xs">
-                <Hash className="w-3 h-3 text-emerald-400" />
-                {broadcastChannelName || broadcastChannelId}
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs">
-                <AlertCircle className="w-3 h-3" />
-                {t("communityAdmin.noChannelConfigured")}
-              </span>
-            )}
-          </div>
+          <AdminStatusBadges
+            t={t}
+            broadcastChannelId={broadcastChannelId}
+            broadcastChannelName={broadcastChannelName}
+            alertSectionId={alertSectionId}
+            alertSectionName={alertSectionName}
+          />
 
           {/* Feedback banner */}
           {feedback && (
@@ -268,11 +287,36 @@ export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
             </div>
           )}
 
-          {/* Channel selector & actions */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
-            <div className="relative flex-1">
+          {/* Configuration Selectors */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            {/* Channel Group Selector */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-slate-300">
+                {t("communityAdmin.channelGroupLabel")}
+              </label>
               <select
-                aria-label={t("communityAdmin.selectChannelPlaceholder")}
+                aria-label={t("communityAdmin.channelGroupLabel")}
+                value={selectedGroupId}
+                onChange={(e) => setSelectedGroupId(e.target.value)}
+                disabled={saving || provisioning}
+                className="w-full appearance-none rounded-lg border border-white/[0.12] bg-black/40 px-3.5 py-2 text-xs text-slate-200 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50 disabled:opacity-50"
+              >
+                <option value="">{t("communityAdmin.selectGroupPlaceholder")}</option>
+                {channelGroups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Broadcast Channel Selector */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-slate-300">
+                {t("communityAdmin.broadcastChannelLabel")}
+              </label>
+              <select
+                aria-label={t("communityAdmin.broadcastChannelLabel")}
                 value={selectedChannelId}
                 onChange={(e) => setSelectedChannelId(e.target.value)}
                 disabled={saving || provisioning || textChannels.length === 0}
@@ -289,11 +333,14 @@ export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
                 )}
               </select>
             </div>
+          </div>
 
+          {/* Action Buttons */}
+          <div className="flex flex-wrap items-center gap-3 pt-1">
             <button
               type="button"
-              onClick={handleSaveChannel}
-              disabled={saving || provisioning || !selectedChannelId}
+              onClick={handleSaveSettings}
+              disabled={saving || provisioning || (!selectedChannelId && !selectedGroupId)}
               className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-black font-semibold text-xs transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-amber-500/20"
             >
               {saving ? (
@@ -302,8 +349,8 @@ export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
                 <Save className="w-3.5 h-3.5" />
               )}
               {saving
-                ? t("communityAdmin.savingChannel")
-                : t("communityAdmin.saveChannelButton")}
+                ? t("communityAdmin.savingSettings")
+                : t("communityAdmin.saveSettingsButton")}
             </button>
 
             <button
@@ -323,27 +370,12 @@ export const CommunityAdminCard: React.FC<CommunityAdminCardProps> = ({
             </button>
           </div>
 
-          {/* Broadcast Language Selector */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-3 border-t border-white/[0.06] text-xs">
-            <div className="flex items-center gap-2 text-slate-300 font-medium">
-              <Languages className="w-4 h-4 text-amber-400" />
-              <span>{t("communityAdmin.broadcastLocaleLabel")}:</span>
-            </div>
-            <div className="relative w-full sm:w-auto min-w-[200px]">
-              <select
-                aria-label={t("communityAdmin.broadcastLocaleLabel")}
-                value={broadcastLocale}
-                onChange={(e) =>
-                  handleSaveLocale(e.target.value === "pt-BR" ? "pt-BR" : "en")
-                }
-                disabled={savingLocale || saving || provisioning}
-                className="w-full appearance-none rounded-lg border border-white/[0.12] bg-black/40 px-3.5 py-2 text-xs text-slate-200 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50 disabled:opacity-50"
-              >
-                <option value="en">{t("communityAdmin.broadcastLocaleEn")}</option>
-                <option value="pt-BR">{t("communityAdmin.broadcastLocalePtBr")}</option>
-              </select>
-            </div>
-          </div>
+          <AdminBroadcastLanguageSelector
+            t={t}
+            broadcastLocale={broadcastLocale}
+            disabled={savingLocale || saving || provisioning}
+            onSaveLocale={handleSaveLocale}
+          />
         </div>
       )}
     </div>

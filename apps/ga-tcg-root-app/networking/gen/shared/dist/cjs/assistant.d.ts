@@ -476,6 +476,19 @@ export interface CommunityChannelOption {
     groupName: string;
 }
 /**
+ * @generated from protobuf message CommunityChannelGroupOption
+ */
+export interface CommunityChannelGroupOption {
+    /**
+     * @generated from protobuf field: string id = 1
+     */
+    id: string;
+    /**
+     * @generated from protobuf field: string name = 2
+     */
+    name: string;
+}
+/**
  * @generated from protobuf message AdminSettingsResponse
  */
 export interface AdminSettingsResponse {
@@ -499,6 +512,18 @@ export interface AdminSettingsResponse {
      * @generated from protobuf field: string broadcast_locale = 5
      */
     broadcastLocale: string;
+    /**
+     * @generated from protobuf field: repeated CommunityChannelGroupOption channel_groups = 6
+     */
+    channelGroups: CommunityChannelGroupOption[];
+    /**
+     * @generated from protobuf field: string alert_section_id = 7
+     */
+    alertSectionId: string;
+    /**
+     * @generated from protobuf field: string alert_section_name = 8
+     */
+    alertSectionName: string;
 }
 /**
  * @generated from protobuf message SetBroadcastChannelRequest
@@ -512,6 +537,10 @@ export interface SetBroadcastChannelRequest {
      * @generated from protobuf field: string broadcast_locale = 2
      */
     broadcastLocale: string;
+    /**
+     * @generated from protobuf field: string channel_group_id = 3
+     */
+    channelGroupId: string;
 }
 /**
  * @generated from protobuf message SetBroadcastChannelResponse
@@ -537,6 +566,23 @@ export interface SetBroadcastChannelResponse {
      * @generated from protobuf field: string broadcast_locale = 5
      */
     broadcastLocale: string;
+    /**
+     * @generated from protobuf field: string alert_section_id = 6
+     */
+    alertSectionId: string;
+    /**
+     * @generated from protobuf field: string alert_section_name = 7
+     */
+    alertSectionName: string;
+}
+/**
+ * @generated from protobuf message ProvisionMarketChannelsRequest
+ */
+export interface ProvisionMarketChannelsRequest {
+    /**
+     * @generated from protobuf field: string channel_group_id = 1
+     */
+    channelGroupId: string;
 }
 /**
  * @generated from protobuf message ProvisionMarketChannelsResponse
@@ -562,6 +608,14 @@ export interface ProvisionMarketChannelsResponse {
      * @generated from protobuf field: string error = 5
      */
     error: string;
+    /**
+     * @generated from protobuf field: string alert_section_id = 6
+     */
+    alertSectionId: string;
+    /**
+     * @generated from protobuf field: string alert_section_name = 7
+     */
+    alertSectionName: string;
 }
 declare class StatusResponse$Type extends MessageType<StatusResponse> {
     constructor();
@@ -793,6 +847,16 @@ declare class CommunityChannelOption$Type extends MessageType<CommunityChannelOp
  * @generated MessageType for protobuf message CommunityChannelOption
  */
 export declare const CommunityChannelOption: CommunityChannelOption$Type;
+declare class CommunityChannelGroupOption$Type extends MessageType<CommunityChannelGroupOption> {
+    constructor();
+    create(value?: PartialMessage<CommunityChannelGroupOption>): CommunityChannelGroupOption;
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CommunityChannelGroupOption): CommunityChannelGroupOption;
+    internalBinaryWrite(message: CommunityChannelGroupOption, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter;
+}
+/**
+ * @generated MessageType for protobuf message CommunityChannelGroupOption
+ */
+export declare const CommunityChannelGroupOption: CommunityChannelGroupOption$Type;
 declare class AdminSettingsResponse$Type extends MessageType<AdminSettingsResponse> {
     constructor();
     create(value?: PartialMessage<AdminSettingsResponse>): AdminSettingsResponse;
@@ -823,6 +887,16 @@ declare class SetBroadcastChannelResponse$Type extends MessageType<SetBroadcastC
  * @generated MessageType for protobuf message SetBroadcastChannelResponse
  */
 export declare const SetBroadcastChannelResponse: SetBroadcastChannelResponse$Type;
+declare class ProvisionMarketChannelsRequest$Type extends MessageType<ProvisionMarketChannelsRequest> {
+    constructor();
+    create(value?: PartialMessage<ProvisionMarketChannelsRequest>): ProvisionMarketChannelsRequest;
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ProvisionMarketChannelsRequest): ProvisionMarketChannelsRequest;
+    internalBinaryWrite(message: ProvisionMarketChannelsRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter;
+}
+/**
+ * @generated MessageType for protobuf message ProvisionMarketChannelsRequest
+ */
+export declare const ProvisionMarketChannelsRequest: ProvisionMarketChannelsRequest$Type;
 declare class ProvisionMarketChannelsResponse$Type extends MessageType<ProvisionMarketChannelsResponse> {
     constructor();
     create(value?: PartialMessage<ProvisionMarketChannelsResponse>): ProvisionMarketChannelsResponse;

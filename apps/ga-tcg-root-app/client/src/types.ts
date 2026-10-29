@@ -5,6 +5,7 @@ import type {
   AutocompleteChoiceItem,
   AutocompleteRpcRequest,
   AutocompleteRpcResponse,
+  CommunityChannelGroupOption,
   CommunityChannelOption,
   DeckSummary,
   DecksResponse,
@@ -16,6 +17,7 @@ import type {
   PersonalWantsRpcResponse,
   PreferencesRequest,
   PreferencesResponse,
+  ProvisionMarketChannelsRequest,
   ProvisionMarketChannelsResponse,
   RegisterResponse,
   RemoveWantRpcRequest,
@@ -34,6 +36,7 @@ export type {
   AutocompleteChoiceItem,
   AutocompleteRpcRequest,
   AutocompleteRpcResponse,
+  CommunityChannelGroupOption,
   CommunityChannelOption,
   DeckSummary,
   DecksResponse,
@@ -45,6 +48,7 @@ export type {
   PersonalWantsRpcResponse,
   PreferencesRequest,
   PreferencesResponse,
+  ProvisionMarketChannelsRequest,
   ProvisionMarketChannelsResponse,
   RegisterResponse,
   RemoveWantRpcRequest,
@@ -75,5 +79,5 @@ export interface IAssistantRpcClient {
   updateDeck(request: UpdateDeckRpcRequest): Promise<UpdateDeckRpcResponse>;
   getAdminSettings(): Promise<AdminSettingsResponse>;
   setBroadcastChannel(request: SetBroadcastChannelRequest): Promise<SetBroadcastChannelResponse>;
-  provisionMarketChannels(): Promise<ProvisionMarketChannelsResponse>;
+  provisionMarketChannels(request?: ProvisionMarketChannelsRequest): Promise<ProvisionMarketChannelsResponse>;
 }

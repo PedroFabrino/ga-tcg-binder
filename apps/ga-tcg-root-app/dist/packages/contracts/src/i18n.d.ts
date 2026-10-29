@@ -857,6 +857,13 @@ export declare const enCatalog: {
         cardDescription: string;
         activeChannelLabel: string;
         noChannelConfigured: string;
+        activeGroupLabel: string;
+        noGroupConfigured: string;
+        selectGroupPlaceholder: string;
+        channelGroupLabel: string;
+        broadcastChannelLabel: string;
+        saveSettingsButton: string;
+        savingSettings: string;
         selectChannelPlaceholder: string;
         saveChannelButton: string;
         savingChannel: string;
@@ -892,9 +899,6 @@ export declare const enCatalog: {
         thinking: string;
         emptyChatTitle: string;
         emptyChatSubtitle: string;
-        promptPreset1: string;
-        promptPreset2: string;
-        promptPreset3: string;
         fallbackActiveBadge: string;
         tierBinderAvailable: string;
         tierStorePullback: string;
