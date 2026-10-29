@@ -317,3 +317,255 @@ describe("Deck Advisor Service (Ticket 1)", () => {
     });
   });
 });
+
+
+  describe("Function-Calling Tools & Live MCP Rules (Ticket 2)", () => {
+    let testDb: any;
+
+    beforeEach(async () => {
+      const res = await createTestDb();
+      testDb = res.db;
+
+      await testDb.insert(users).values({
+        id: "user_alex_tools",
+        name: "Alex",
+        email: "alex_tools@ga.com",
+        friendCode: "GA-TOOLS1",
+        locale: "en",
+      });
+
+      await testDb.insert(decks).values({
+        id: "deck_tools_1",
+        userId: "user_alex_tools",
+        name: "Water Diana",
+        champion: "Diana",
+        format: "standard",
+      });
+
+      await testDb.insert(cards).values({
+        slug: "tidal-surge",
+        name: "Tidal Surge",
+        element: "WATER",
+        class: "MAGE",
+        type: "ATTACK",
+        subtypes: JSON.stringify(["MAGE"]),
+        effect: "Deal 4 damage and freeze target.",
+      });
+    });
+
+    it("executes query_official_rules tool and returns rule excerpt to model", async () => {
+      process.env.ADVISOR_ALLOWED_EMAILS = "alex_tools@ga.com";
+
+      const mockFetch = vi
+        .fn()
+        // 1. First model call -> decides to call query_official_rules
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            choices: [
+              {
+                message: {
+                  role: "assistant",
+                  content: null,
+                  tool_calls: [
+                    {
+                      id: "call_mcp_1",
+                      type: "function",
+                      function: {
+                        name: "query_official_rules",
+                        arguments: JSON.stringify({ query: "Fast timing" }),
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+        })
+        // 2. MCP request -> returns GitBook rulebook search
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          text: async () =>
+            `event: message\ndata: ${JSON.stringify({
+              result: {
+                content: [
+                  {
+                    type: "text",
+                    text: "Fast Activation: You may activate this card at fast speed during Opportunity windows.",
+                  },
+                ],
+              },
+            })}`,
+        })
+        // 3. Second model call with tool output -> returns final answer
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            choices: [
+              {
+                message: {
+                  role: "assistant",
+                  content: "According to the official rules, Fast cards can be activated during Opportunity.",
+                },
+              },
+            ],
+          }),
+        });
+
+      const res = await runDeckAdvisorChat(
+        "user_alex_tools",
+        "alex_tools@ga.com",
+        "deck_tools_1",
+        [{ role: "user", content: "Can I play Fast cards on opponent turn?" }],
+        testDb,
+        {
+          geminiApiKey: "fake-key",
+          customFetch: mockFetch as any,
+        }
+      );
+
+      expect(res.toolsConsulted).toContain("query_official_rules");
+      expect(res.message.toolsUsed).toContain("query_official_rules");
+      expect(res.message.content).toContain("Fast cards can be activated");
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+    });
+
+    it("executes search_candidate_pool tool to find unowned catalog cards when splashing an element", async () => {
+      process.env.ADVISOR_ALLOWED_EMAILS = "alex_tools@ga.com";
+
+      const mockFetch = vi
+        .fn()
+        // 1. Model decides to call search_candidate_pool
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            choices: [
+              {
+                message: {
+                  role: "assistant",
+                  content: null,
+                  tool_calls: [
+                    {
+                      id: "call_pool_1",
+                      type: "function",
+                      function: {
+                        name: "search_candidate_pool",
+                        arguments: JSON.stringify({
+                          element: "WATER",
+                          includeUnownedCatalog: true,
+                        }),
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+        })
+        // 2. Second model call after receiving candidate search results
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            choices: [
+              {
+                message: {
+                  role: "assistant",
+                  content: "You could splash Tidal Surge (Water Attack).",
+                },
+              },
+            ],
+          }),
+        });
+
+      const res = await runDeckAdvisorChat(
+        "user_alex_tools",
+        "alex_tools@ga.com",
+        "deck_tools_1",
+        [{ role: "user", content: "What Water cards exist for my deck?" }],
+        testDb,
+        {
+          geminiApiKey: "fake-key",
+          customFetch: mockFetch as any,
+        }
+      );
+
+      expect(res.toolsConsulted).toContain("search_candidate_pool");
+      expect(res.message.toolsUsed).toContain("search_candidate_pool");
+      expect(res.message.content).toContain("Tidal Surge");
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("handles MCP endpoint failure gracefully without crashing conversation", async () => {
+      process.env.ADVISOR_ALLOWED_EMAILS = "alex_tools@ga.com";
+
+      const mockFetch = vi
+        .fn()
+        // 1. Model calls query_official_rules
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            choices: [
+              {
+                message: {
+                  role: "assistant",
+                  content: null,
+                  tool_calls: [
+                    {
+                      id: "call_mcp_fail",
+                      type: "function",
+                      function: {
+                        name: "query_official_rules",
+                        arguments: JSON.stringify({ query: "Priority" }),
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+        })
+        // 2. MCP network failure (500)
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 500,
+          statusText: "Internal Server Error",
+        })
+        // 3. Model continues with fallback message
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            choices: [
+              {
+                message: {
+                  role: "assistant",
+                  content: "Official rules server is currently unreachable, but generally Priority resolves in turn order.",
+                },
+              },
+            ],
+          }),
+        });
+
+      const res = await runDeckAdvisorChat(
+        "user_alex_tools",
+        "alex_tools@ga.com",
+        "deck_tools_1",
+        [{ role: "user", content: "How does priority work?" }],
+        testDb,
+        {
+          geminiApiKey: "fake-key",
+          customFetch: mockFetch as any,
+        }
+      );
+
+      expect(res.toolsConsulted).toContain("query_official_rules");
+      expect(res.message.content).toContain("Priority resolves in turn order");
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+    });
+  });

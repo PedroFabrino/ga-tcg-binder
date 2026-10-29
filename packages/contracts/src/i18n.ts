@@ -909,6 +909,8 @@ export const enCatalog = {
     errorOccurred: "An error occurred while generating recommendations.",
     unauthorizedTitle: "Deck Advisor Unavailable",
     unauthorizedDesc: "Your account is not allowlisted for the Deck Advisor preview.",
+    toolRulesConsulted: "Official Rules Consulted",
+    toolCollectionSearched: "Deep Collection Searched",
   },
   rootApp: rootAppEnCatalog,
 };
@@ -1815,6 +1817,8 @@ export const ptBRCatalog: TranslationCatalog = {
     errorOccurred: "Ocorreu um erro ao gerar recomendações.",
     unauthorizedTitle: "Deck Advisor Indisponível",
     unauthorizedDesc: "Sua conta não está na lista de permissões do Deck Advisor.",
+    toolRulesConsulted: "Regras Oficiais Consultadas",
+    toolCollectionSearched: "Coleção Completa Consultada",
   },
   rootApp: rootAppPtCatalog,
 };
