@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Sparkles, Send, Trash2, AlertCircle, Bot, User, CheckCircle2 } from "lucide-react";
+import { Sparkles, Send, Trash2, AlertCircle, Bot, User, BookOpen, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/lib/i18n";
 import type { DeckAdvisorMessage, DeckAdvisorChatResponse } from "@ga/contracts";
@@ -170,6 +170,22 @@ export default function DeckAdvisorPanel({ deckId, deckName }: DeckAdvisorPanelP
                 }`}
               >
                 {m.content}
+                {m.role === "assistant" && m.toolsUsed && m.toolsUsed.length > 0 && (
+                  <div className="mt-2.5 pt-2 border-t border-white/[0.08] flex flex-wrap gap-1.5">
+                    {m.toolsUsed.includes("query_official_rules") && (
+                      <span className="inline-flex items-center gap-1 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-medium text-cyan-300">
+                        <BookOpen className="h-3 w-3" />
+                        {t("advisor.toolRulesConsulted")}
+                      </span>
+                    )}
+                    {m.toolsUsed.includes("search_candidate_pool") && (
+                      <span className="inline-flex items-center gap-1 rounded-md border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-[10px] font-medium text-indigo-300">
+                        <Search className="h-3 w-3" />
+                        {t("advisor.toolCollectionSearched")}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
               {m.role === "user" && (
                 <div className="h-7 w-7 rounded-lg bg-cyan-600/20 border border-cyan-500/30 flex items-center justify-center text-cyan-200 shrink-0 mt-0.5">

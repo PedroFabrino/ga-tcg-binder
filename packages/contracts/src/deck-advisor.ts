@@ -1,6 +1,7 @@
 export interface DeckAdvisorMessage {
   role: "user" | "assistant" | "system";
   content: string;
+  toolsUsed?: string[];
 }
 
 export interface DeckAdvisorCandidateCard {
@@ -81,6 +82,7 @@ export interface DeckAdvisorChatResponse {
   fallbackActivated: boolean;
   providerUsed: "gemini" | "omniroute";
   modelUsed: string;
+  toolsConsulted?: string[];
 }
 
 export interface DeckAdvisorAvailabilityResponse {

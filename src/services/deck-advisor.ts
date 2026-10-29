@@ -7,6 +7,10 @@ import {
   assembleDeckAdvisorContext,
   isUserAdvisorAllowlisted,
 } from "./deck-advisor-context";
+import {
+  DECK_ADVISOR_TOOLS_DECLARATIONS,
+  dispatchDeckAdvisorTool,
+} from "./deck-advisor-tools";
 import type {
   DeckAdvisorContextSnapshot,
   DeckAdvisorMessage,
@@ -19,7 +23,9 @@ export interface DeckAdvisorLlmOptions {
   geminiBaseUrl?: string;
   omnirouteUrl?: string;
   omnirouteModel?: string;
+  rulesMcpUrl?: string;
   customFetch?: typeof fetch;
+  maxToolSteps?: number;
 }
 
 /**
@@ -89,11 +95,124 @@ export function buildDeckAdvisorSystemPrompt(context: DeckAdvisorContextSnapshot
     "Instructions:",
     "1. When recommending swaps, clearly cite the card acquisition tier: Tier 1 (Binder Available: Idle or Shared), Tier 2 (Store Listing Pull-Back), or Tier 3 (Unowned upgrade creating a Hard Shortage).",
     "2. Be concise, strategic, and accurate regarding Memory vs. Reserve costs, Lineage, and Timing (Slow vs. Fast).",
+    "3. You have tools:",
+    "   - query_official_rules: Check timing windows, phase structures, or keyword rulings in the official rules.",
+    "   - search_candidate_pool: Search the Collector's full 1,000+ card collection or global catalog for off-element splashes, specific subtypes, or unowned upgrades.",
   ].join("\n");
 }
 
 /**
- * Executes a turn of Deck Advisor chat, with automatic OmniRoute fallback on HTTP 429.
+ * Runs conversation with multi-step tool call loop.
+ */
+async function executeLlmWithToolLoop(
+  endpoint: string,
+  headers: Record<string, string>,
+  bodyParams: { model: string; temperature: number },
+  initialMessages: any[],
+  toolContext: {
+    userData: any;
+    rulesMcpUrl?: string;
+    customFetch: typeof fetch;
+    database?: any;
+    maxToolSteps: number;
+  }
+): Promise<{ reply: string; toolsConsulted: string[] }> {
+  const messages = [...initialMessages];
+  const toolsConsulted: string[] = [];
+  const maxSteps = toolContext.maxToolSteps;
+
+  for (let step = 0; step < maxSteps; step++) {
+    const res = await toolContext.customFetch(endpoint, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        ...bodyParams,
+        messages,
+        tools: DECK_ADVISOR_TOOLS_DECLARATIONS,
+        tool_choice: "auto",
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      const err = new Error(`LLM call failed with status ${res.status}: ${errText}`);
+      (err as any).status = res.status;
+      throw err;
+    }
+
+    const json = await res.json();
+    const choice = json.choices?.[0];
+    const message = choice?.message;
+
+    if (!message) {
+      throw new Error("No message choice returned from LLM");
+    }
+
+    // Check if model called tools
+    const toolCalls = message.tool_calls;
+    if (!toolCalls || toolCalls.length === 0) {
+      return {
+        reply: message.content || "",
+        toolsConsulted: Array.from(new Set(toolsConsulted)),
+      };
+    }
+
+    // Append assistant's tool-call request to messages
+    messages.push(message);
+
+    // Execute tool calls
+    for (const toolCall of toolCalls) {
+      const name = toolCall.function?.name;
+      let args = {};
+      try {
+        args = JSON.parse(toolCall.function?.arguments || "{}");
+      } catch {
+        args = {};
+      }
+
+      toolsConsulted.push(name);
+      const execution = await dispatchDeckAdvisorTool(name, args, {
+        userData: toolContext.userData,
+        rulesMcpUrl: toolContext.rulesMcpUrl,
+        customFetch: toolContext.customFetch,
+        database: toolContext.database,
+      });
+
+      messages.push({
+        role: "tool",
+        tool_call_id: toolCall.id,
+        content:
+          typeof execution.result === "string"
+            ? execution.result
+            : JSON.stringify(execution.result),
+      });
+    }
+  }
+
+  // Final fallback call without tools if max steps reached
+  const finalRes = await toolContext.customFetch(endpoint, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      ...bodyParams,
+      messages,
+    }),
+  });
+
+  if (!finalRes.ok) {
+    throw new Error(`Final LLM call failed with status ${finalRes.status}`);
+  }
+
+  const finalJson = await finalRes.json();
+  const reply = finalJson.choices?.[0]?.message?.content || "";
+  return {
+    reply,
+    toolsConsulted: Array.from(new Set(toolsConsulted)),
+  };
+}
+
+/**
+ * Executes a turn of Deck Advisor chat with tool-calling loop and OmniRoute fallback.
  */
 export async function runDeckAdvisorChat(
   userId: string,
@@ -104,6 +223,7 @@ export async function runDeckAdvisorChat(
   options: DeckAdvisorLlmOptions = {}
 ): Promise<DeckAdvisorChatResponse> {
   const customFetch = options.customFetch || fetch;
+  const maxToolSteps = options.maxToolSteps || 4;
 
   // 1. Gating
   if (!isUserAdvisorAllowlisted({ id: userId, email: userEmail })) {
@@ -142,6 +262,15 @@ export async function runDeckAdvisorChat(
 
   const omnirouteUrl = options.omnirouteUrl || process.env.OMNIROUTE_URL || "http://localhost:20128/v1";
   const omnirouteModel = options.omnirouteModel || "combo/auto-fallback";
+  const rulesMcpUrl = options.rulesMcpUrl || process.env.GA_RULES_MCP_URL;
+
+  const toolContext = {
+    userData,
+    rulesMcpUrl,
+    customFetch,
+    database,
+    maxToolSteps,
+  };
 
   // Try Primary (Gemini)
   let fallbackActivated = false;
@@ -150,40 +279,34 @@ export async function runDeckAdvisorChat(
 
   if (geminiApiKey) {
     try {
-      const res = await customFetch(`${geminiBaseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
+      const outcome = await executeLlmWithToolLoop(
+        `${geminiBaseUrl}/chat/completions`,
+        {
           "Content-Type": "application/json",
           Authorization: `Bearer ${geminiApiKey}`,
         },
-        body: JSON.stringify({
-          model: geminiModel,
-          messages: conversation,
-          temperature: 0.2,
-        }),
-      });
+        { model: geminiModel, temperature: 0.2 },
+        conversation,
+        toolContext
+      );
 
-      if (res.ok) {
-        const json = await res.json();
-        const reply = json.choices?.[0]?.message?.content || "";
-        return {
-          message: { role: "assistant", content: reply },
-          fallbackActivated: false,
-          providerUsed: "gemini",
-          modelUsed: geminiModel,
-        };
-      }
-
-      if (res.status === 429) {
-        console.warn("[DeckAdvisor] Gemini API HTTP 429 encountered. Activating OmniRoute fallback.");
-        fallbackActivated = true;
-      } else {
-        const errText = await res.text();
-        console.warn(`[DeckAdvisor] Gemini API failed with status ${res.status}: ${errText}. Falling back.`);
-        fallbackActivated = true;
-      }
+      return {
+        message: {
+          role: "assistant",
+          content: outcome.reply,
+          toolsUsed: outcome.toolsConsulted,
+        },
+        fallbackActivated: false,
+        providerUsed: "gemini",
+        modelUsed: geminiModel,
+        toolsConsulted: outcome.toolsConsulted,
+      };
     } catch (e: any) {
-      console.warn(`[DeckAdvisor] Gemini request error: ${e.message}. Activating OmniRoute fallback.`);
+      if (e.status === 429) {
+        console.warn("[DeckAdvisor] Gemini API HTTP 429 encountered. Activating OmniRoute fallback.");
+      } else {
+        console.warn(`[DeckAdvisor] Gemini API failed: ${e.message}. Falling back.`);
+      }
       fallbackActivated = true;
     }
   } else {
@@ -194,29 +317,23 @@ export async function runDeckAdvisorChat(
   providerUsed = "omniroute";
   modelUsed = omnirouteModel;
 
-  const omniRes = await customFetch(`${omnirouteUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: omnirouteModel,
-      messages: conversation,
-      temperature: 0.2,
-    }),
-  });
-
-  if (!omniRes.ok) {
-    throw new Error(`Failed to generate advice: OmniRoute responded with status ${omniRes.status}`);
-  }
-
-  const omniJson = await omniRes.json();
-  const reply = omniJson.choices?.[0]?.message?.content || "";
+  const outcome = await executeLlmWithToolLoop(
+    `${omnirouteUrl}/chat/completions`,
+    { "Content-Type": "application/json" },
+    { model: omnirouteModel, temperature: 0.2 },
+    conversation,
+    toolContext
+  );
 
   return {
-    message: { role: "assistant", content: reply },
+    message: {
+      role: "assistant",
+      content: outcome.reply,
+      toolsUsed: outcome.toolsConsulted,
+    },
     fallbackActivated: true,
     providerUsed: "omniroute",
     modelUsed: omnirouteModel,
+    toolsConsulted: outcome.toolsConsulted,
   };
 }
