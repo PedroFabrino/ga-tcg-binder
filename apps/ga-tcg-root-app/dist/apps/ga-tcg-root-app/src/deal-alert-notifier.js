@@ -8,7 +8,7 @@ exports.provisionRootDealAlerts = provisionRootDealAlerts;
 exports.ensureRootRecipientChannel = ensureRootRecipientChannel;
 exports.removeRootDealAlertChannel = removeRootDealAlertChannel;
 const server_app_1 = require("@rootsdk/server-app");
-const contracts_1 = require("@ga/contracts");
+const i18n_1 = require("../../../packages/contracts/src/i18n");
 const community_config_1 = require("./community-config");
 const root_bot_api_1 = require("./root-bot-api");
 const root_bot_scheduler_1 = require("./root-bot-scheduler");
@@ -17,7 +17,7 @@ const root_deal_alert_transport_1 = require("./root-deal-alert-transport");
 const diagnostics_1 = require("./diagnostics");
 function getWelcomeMessage(locale = "en") {
     const normalized = locale === "pt-BR" ? "pt-BR" : "en";
-    return (0, contracts_1.getDictionary)(normalized).rootApp.notifications.dealAlertWelcome;
+    return (0, i18n_1.getDictionary)(normalized).rootApp.notifications.dealAlertWelcome;
 }
 exports.WELCOME_MESSAGE = getWelcomeMessage("en");
 /**

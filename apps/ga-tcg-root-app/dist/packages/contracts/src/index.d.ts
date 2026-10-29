@@ -193,3 +193,4 @@ export * from "./sets";
 export * from "./table";
 export * from "./webrtc";
 export * from "./root-bot";
+export * from "./deck-advisor";
