@@ -251,8 +251,11 @@ export async function runDeckAdvisorChat(
     process.env.GEMINI_BASE_URL ??
     "https://generativelanguage.googleapis.com/v1beta/openai";
 
-  const omnirouteUrl =
+  const rawOmnirouteUrl =
     options?.omnirouteUrl ?? process.env.OMNIROUTE_URL ?? "http://localhost:20128/v1";
+  const omnirouteUrl = rawOmnirouteUrl.replace(/\/+$/, "").endsWith("/v1")
+    ? rawOmnirouteUrl.replace(/\/+$/, "")
+    : `${rawOmnirouteUrl.replace(/\/+$/, "")}/v1`;
   const omnirouteModel =
     options?.omnirouteModel ?? process.env.OMNIROUTE_MODEL ?? "combo/auto-fallback";
   const omnirouteApiKey =
@@ -342,6 +345,7 @@ export async function runDeckAdvisorChat(
   try {
     const omnirouteHeaders: Record<string, string> = {
       "Content-Type": "application/json",
+      "ngrok-skip-browser-warning": "true",
     };
     if (omnirouteApiKey) {
       omnirouteHeaders["Authorization"] = `Bearer ${omnirouteApiKey}`;
