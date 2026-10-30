@@ -5,6 +5,7 @@ import { Sparkles, Send, Trash2, AlertCircle, Bot, User, BookOpen, Search } from
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/lib/i18n";
 import { DeckAdvisorSwapCard } from "./DeckAdvisorSwapCard";
+import { AdvisorMessageText } from "./AdvisorMessageText";
 import type { DeckAdvisorMessage, DeckAdvisorChatResponse } from "@ga/contracts";
 
 interface DeckAdvisorPanelProps {
@@ -152,13 +153,17 @@ export default function DeckAdvisorPanel({ deckId, deckName, onDeckUpdated }: De
                 </div>
               )}
               <div
-                className={`max-w-[85%] rounded-2xl px-4 py-3 whitespace-pre-wrap ${
+                className={`max-w-[85%] rounded-2xl px-4 py-3 ${
                   m.role === "user"
-                    ? "bg-cyan-600 text-white shadow-sm"
+                    ? "bg-cyan-600 text-white shadow-sm whitespace-pre-wrap"
                     : "bg-slate-800/80 border border-white/[0.06] text-slate-200 shadow-md"
                 }`}
               >
-                {m.content}
+                {m.role === "assistant" ? (
+                  <AdvisorMessageText content={m.content} />
+                ) : (
+                  m.content
+                )}
                 {m.role === "assistant" && m.swapProposals && m.swapProposals.length > 0 && (
                   <div className="space-y-3 mt-3">
                     {m.swapProposals.map((proposal) => (

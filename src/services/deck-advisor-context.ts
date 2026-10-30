@@ -112,16 +112,30 @@ export function assembleDeckAdvisorContext(params: {
 }): DeckAdvisorContextSnapshot {
   const { deck, deckCards } = params.deckData;
 
-  // 1. Unlocked Elements from Deck (Only Material and Main decks unlock elements)
+  // 1. Unlocked Elements from Deck
+  // In Grand Archive rules, ONLY Champion cards in the Material Deck unlock elements.
+  // Items, Weapons, Regalia in the Material Deck and all cards in the Main Deck DO NOT unlock elements.
   const unlockedElementsSet = new Set<string>(["NORM"]);
   const activeChampionClassesSet = new Set<string>();
 
   for (const c of deckCards) {
-    if ((c.zone === "material" || c.zone === "main") && c.element) {
-      unlockedElementsSet.add(c.element.toUpperCase());
-    }
-    if (c.zone === "material" && c.type?.toUpperCase() === "CHAMPION" && c.class) {
-      activeChampionClassesSet.add(c.class.toUpperCase());
+    const isChampion =
+      c.type?.toUpperCase() === "CHAMPION" ||
+      (Boolean(c.subtypes) && /spirit|champion/i.test(String(c.subtypes)));
+
+    if (c.zone === "material" && isChampion) {
+      if (c.element) {
+        const elems = c.element.split(/[/,]/).map((e) => e.trim().toUpperCase()).filter(Boolean);
+        for (const elem of elems) {
+          unlockedElementsSet.add(elem);
+        }
+      }
+      if (c.class) {
+        const classes = c.class.split(/[/,]/).map((cls) => cls.trim().toUpperCase()).filter(Boolean);
+        for (const cls of classes) {
+          activeChampionClassesSet.add(cls);
+        }
+      }
     }
   }
 

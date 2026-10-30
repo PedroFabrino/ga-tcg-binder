@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check, Copy, ArrowRight, Minus, Plus, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CardPreviewTrigger } from "@/components/CardHoverPreview";
 import { useTranslation } from "@/lib/i18n";
 import { useToast } from "@/components/ToastProvider";
 import type { DeckAdvisorSwapProposal, DeckZone } from "@ga/contracts";
@@ -143,8 +144,14 @@ export function DeckAdvisorSwapCard({
             <ul className="space-y-1">
               {proposal.cuts.map((c, i) => (
                 <li key={i} className="flex items-center justify-between gap-2 text-slate-300">
-                  <span className="truncate">
-                    <strong className="text-rose-400">-{c.quantity}</strong> {c.cardName}
+                  <span className="truncate flex items-center gap-1.5">
+                    <strong className="text-rose-400">-{c.quantity}</strong>
+                    <CardPreviewTrigger
+                      name={c.cardName}
+                      className="cursor-pointer hover:text-white hover:underline decoration-rose-400/50 transition-colors"
+                    >
+                      {c.cardName}
+                    </CardPreviewTrigger>
                   </span>
                   <span className="shrink-0 text-[10px] text-slate-400 px-1 py-0.5 bg-slate-800 rounded">
                     {getZoneLabel(c.zone)}
@@ -165,8 +172,14 @@ export function DeckAdvisorSwapCard({
             <ul className="space-y-1">
               {proposal.adds.map((a, i) => (
                 <li key={i} className="flex items-center justify-between gap-2 text-slate-300">
-                  <span className="truncate">
-                    <strong className="text-emerald-400">+{a.quantity}</strong> {a.cardName}
+                  <span className="truncate flex items-center gap-1.5">
+                    <strong className="text-emerald-400">+{a.quantity}</strong>
+                    <CardPreviewTrigger
+                      name={a.cardName}
+                      className="cursor-pointer hover:text-white hover:underline decoration-emerald-400/50 transition-colors"
+                    >
+                      {a.cardName}
+                    </CardPreviewTrigger>
                   </span>
                   <div className="flex items-center gap-1 shrink-0">
                     <span className="text-[10px] text-slate-400 px-1 py-0.5 bg-slate-800 rounded">

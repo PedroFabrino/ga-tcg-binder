@@ -102,6 +102,12 @@ export function buildDeckAdvisorSystemPrompt(
     "- Advanced Elements: ARCANE, ASTRA, CRUX, EXALTED, EXIA, LUXEM, NEOS, TERA, UMBRA",
     "- MANDATORY: Effects or cards checking for 'Advanced cards' or 'Advanced elements' strictly check for the 9 Advanced Elements above. FIRE, WATER, WIND, and NORM are Basic/Non-Elemental and are NEVER Advanced Elements.",
     "",
+    "--- GRAND ARCHIVE CORE RULES: DECK BUILDING & ELEMENT LEGALITY ---",
+    "- A card is legally permitted in the Main Deck or Material Deck ONLY IF its element matches one of the deck's Unlocked Elements, OR its subtype matches an active Effect-Driven Legality Bypass (e.g., Distortion cards when The Looking Glass is present).",
+    "- Elements are unlocked EXCLUSIVELY by Champion cards in the Material Deck. Cards in the Main Deck NEVER unlock elements.",
+    "- Having a 'Class Bonus' or '[Champion] Bonus' (such as 'Merlin Bonus') DOES NOT waive elemental restrictions! A Water card with 'Merlin Bonus' is completely ILLEGAL in a Fire/Crux deck unless Water is unlocked or an effect bypasses it.",
+    "- NEVER recommend or validate an off-element card unless an active bypass applies to its subtype.",
+    "",
     "--- GRAND ARCHIVE CORE RULES: SPEED & TIMING ---",
     "- Slow: Can only be played/activated during your Main Phase when the Effects Stack is empty and you have turn priority.",
     "- Fast: Can be played/activated during Opportunity windows (in response to actions, spells, attacks, or during turn phase steps).",
@@ -131,7 +137,8 @@ export function buildDeckAdvisorSystemPrompt(
     "3. You have tools:",
     "   - query_official_rules: Check timing windows, phase structures, or keyword rulings in the official rules.",
     "   - search_candidate_pool: Search the Collector's full 1,000+ card collection or global catalog for off-element splashes, specific subtypes, or unowned upgrades.",
-    "4. When recommending card swaps (cuts and additions), always output a structured JSON block formatted as:",
+    "4. Always format specific card names in asterisks like *Angelic Channeling* or *Fireball* so they render with interactive card hover art in the interface.",
+    "5. When recommending card swaps (cuts and additions), always output a structured JSON block formatted as:",
     "```json:swap",
     JSON.stringify(
       {

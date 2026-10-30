@@ -274,6 +274,132 @@ describe("Deck Advisor Service (Ticket 1)", () => {
       expect(ctx.unlockedElements).not.toContain("WATER");
     });
 
+    it("does not unlock elements from non-champion cards in Material or cards in Main deck", () => {
+      const deckData = {
+        deck: {
+          id: "deck_fire_crux",
+          name: "Fire Crux Merlin",
+          champion: "Merlin, Kingslayer",
+          format: "standard",
+          userId: "user_alex",
+          isPublic: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        deckCards: [
+          // Champion in Material unlocks FIRE and CRUX
+          {
+            id: "dc_1",
+            deckId: "deck_fire_crux",
+            cardSlug: "spirit-of-fire",
+            zone: "material",
+            quantity: 1,
+            assignedEditionId: null,
+            name: "Spirit of Fire",
+            element: "FIRE",
+            class: "MAGE",
+            type: "CHAMPION",
+            subtypes: '["SPIRIT"]',
+            effect: "",
+            costReserve: null,
+            costMemory: 0,
+            speed: false,
+          },
+          {
+            id: "dc_2",
+            deckId: "deck_fire_crux",
+            cardSlug: "merlin-kingslayer",
+            zone: "material",
+            quantity: 1,
+            assignedEditionId: null,
+            name: "Merlin, Kingslayer",
+            element: "CRUX",
+            class: "MAGE",
+            type: "CHAMPION",
+            subtypes: '["MAGE"]',
+            effect: "",
+            costReserve: null,
+            costMemory: 2,
+            speed: false,
+          },
+          // Non-champion Item in Material with element WATER (MUST NOT unlock WATER)
+          {
+            id: "dc_3",
+            deckId: "deck_fire_crux",
+            cardSlug: "crystalline-mirror",
+            zone: "material",
+            quantity: 1,
+            assignedEditionId: null,
+            name: "Crystalline Mirror",
+            element: "WATER",
+            class: "CLERIC",
+            type: "ITEM",
+            subtypes: '["CLERIC", "ITEM"]',
+            effect: "",
+            costReserve: null,
+            costMemory: 0,
+            speed: false,
+          },
+          // Card in Main Deck with element ASTRA (MUST NOT unlock ASTRA)
+          {
+            id: "dc_4",
+            deckId: "deck_fire_crux",
+            cardSlug: "astra-strike",
+            zone: "main",
+            quantity: 1,
+            assignedEditionId: null,
+            name: "Astra Strike",
+            element: "ASTRA",
+            class: "MAGE",
+            type: "SPELL",
+            subtypes: '["MAGE"]',
+            effect: "",
+            costReserve: 2,
+            costMemory: null,
+            speed: false,
+          },
+        ],
+      };
+
+      const userData = {
+        inventory: [
+          {
+            id: "ci_shattered_hope",
+            cardSlug: "shattered-hope",
+            editionId: "ed_sh",
+            foil: false,
+            quantity: 2,
+            isDedicated: false,
+            name: "Shattered Hope",
+            element: "WATER",
+            class: "MAGE",
+            type: "SPELL",
+            subtypes: JSON.stringify(["MAGE"]),
+            effect: "Merlin Bonus: Put Sheen counter.",
+            costReserve: 2,
+            costMemory: null,
+            speed: false,
+          },
+        ],
+        storeListings: [],
+        otherDeckCardUsages: [],
+      };
+
+      const ctx = assembleDeckAdvisorContext({
+        deckData,
+        userData,
+        metaBenchmarks: { archetypes: [], staples: [] },
+      });
+
+      expect(ctx.unlockedElements).toEqual(["NORM", "FIRE", "CRUX"]);
+      expect(ctx.unlockedElements).not.toContain("WATER");
+      expect(ctx.unlockedElements).not.toContain("ASTRA");
+
+      // Shattered Hope is Water without bypass, so it MUST NOT be in candidatePool
+      const candidate = ctx.candidatePool.find((c) => c.cardSlug === "shattered-hope");
+      expect(candidate).toBeUndefined();
+    });
+
     it("excludes cards dedicated to other decks and computes hard and shared shortages", () => {
       const deckData = {
         deck: {
