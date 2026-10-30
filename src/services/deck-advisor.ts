@@ -26,6 +26,7 @@ export interface DeckAdvisorLlmOptions {
   geminiBaseUrl?: string;
   omnirouteUrl?: string;
   omnirouteModel?: string;
+  omnirouteApiKey?: string;
   rulesMcpUrl?: string;
   customFetch?: typeof fetch;
   maxToolSteps?: number;
@@ -254,6 +255,8 @@ export async function runDeckAdvisorChat(
     options?.omnirouteUrl ?? process.env.OMNIROUTE_URL ?? "http://localhost:20128/v1";
   const omnirouteModel =
     options?.omnirouteModel ?? process.env.OMNIROUTE_MODEL ?? "combo/auto-fallback";
+  const omnirouteApiKey =
+    options?.omnirouteApiKey ?? process.env.OMNIROUTE_API_KEY;
 
   const toolContext = {
     userData,
@@ -337,9 +340,16 @@ export async function runDeckAdvisorChat(
 
   // Fallback to OmniRoute
   try {
+    const omnirouteHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (omnirouteApiKey) {
+      omnirouteHeaders["Authorization"] = `Bearer ${omnirouteApiKey}`;
+    }
+
     const outcome = await executeLlmWithToolLoop(
       `${omnirouteUrl}/chat/completions`,
-      { "Content-Type": "application/json" },
+      omnirouteHeaders,
       { model: omnirouteModel, temperature: 0.2 },
       conversation,
       toolContext
