@@ -29,6 +29,7 @@ export interface DeckAdvisorLlmOptions {
   rulesMcpUrl?: string;
   customFetch?: typeof fetch;
   maxToolSteps?: number;
+  requireToolOnFirstStep?: boolean;
 }
 
 /**
@@ -94,6 +95,25 @@ export function buildDeckAdvisorSystemPrompt(
       ? `Effect-Driven Legality Bypasses: ${context.bypassedSubtypes.map((b) => `${b.subtype} (via ${b.unlockedByCard})`).join(", ")}.`
       : "No subtype legality bypasses present.",
     `Active Champion Classes: ${context.activeChampionClasses.join(", ") || "None"}. Note: Off-class cards are legal for base effects if elemental requirements are met, but do not activate [Class Bonus].`,
+    "",
+    "--- GRAND ARCHIVE CORE RULES: ELEMENTS TAXONOMY ---",
+    "- Non-Elemental / Special: NORM",
+    "- Basic Elements: FIRE, WATER, WIND",
+    "- Advanced Elements: ARCANE, ASTRA, CRUX, EXALTED, EXIA, LUXEM, NEOS, TERA, UMBRA",
+    "- MANDATORY: Effects or cards checking for 'Advanced cards' or 'Advanced elements' strictly check for the 9 Advanced Elements above. FIRE, WATER, WIND, and NORM are Basic/Non-Elemental and are NEVER Advanced Elements.",
+    "",
+    "--- GRAND ARCHIVE CORE RULES: SPEED & TIMING ---",
+    "- Slow: Can only be played/activated during your Main Phase when the Effects Stack is empty and you have turn priority.",
+    "- Fast: Can be played/activated during Opportunity windows (in response to actions, spells, attacks, or during turn phase steps).",
+    "",
+    "--- GRAND ARCHIVE CORE RULES: FLOATING MEMORY & COSTS ---",
+    "- Floating Memory: A static keyword ability on cards meaning: 'While paying for a memory cost, you may banish this card from your graveyard to pay for 1 of that cost.'",
+    "- Floating Memory ONLY pays for memory costs (such as materialization costs from the Material Deck).",
+    "- Floating Memory does NOT pay for reserve costs, cannot be banished at will outside of paying a memory cost, and does NOT generate level counters or other benefits on its own.",
+    "",
+    "--- MANDATORY RULES & SYNERGY VERIFICATION PROTOCOL ---",
+    "1. Before providing gameplay analysis, card legality, or swap recommendations, you MUST verify rules and synergy definitions via tools (`query_official_rules` or `search_candidate_pool`).",
+    "2. NEVER guess, assume, or hallucinate rules definitions or keywords from other TCGs.",
     "",
     "--- CURRENT DECKLIST ---",
     cardsJson,
@@ -232,6 +252,7 @@ export async function runDeckAdvisorChat(
     customFetch: options?.customFetch ?? fetch,
     database,
     maxToolSteps: options?.maxToolSteps ?? 3,
+    requireToolOnFirstStep: options?.requireToolOnFirstStep ?? true,
   };
 
   if (geminiApiKey) {

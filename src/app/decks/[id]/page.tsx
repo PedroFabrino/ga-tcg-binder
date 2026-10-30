@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { ArrowLeft, Copy, Trash2, Crown, BookOpen, Check, LayoutGrid, List, Pencil, Sparkles } from "lucide-react";
@@ -49,6 +49,17 @@ export default function DeckDetailPage() {
   const [editing, setEditing] = useState(false);
   const [advisorAllowed, setAdvisorAllowed] = useState(false);
   const [showAdvisor, setShowAdvisor] = useState(false);
+  const advisorContainerRef = useRef<HTMLDivElement>(null);
+
+  const toggleAdvisor = () => {
+    const nextState = !showAdvisor;
+    setShowAdvisor(nextState);
+    if (nextState) {
+      setTimeout(() => {
+        advisorContainerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 50);
+    }
+  };
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -213,7 +224,7 @@ export default function DeckDetailPage() {
         <div className="flex gap-2">
           {advisorAllowed && (
             <Button
-              onClick={() => setShowAdvisor(!showAdvisor)}
+              onClick={toggleAdvisor}
               disabled={!deck}
               variant="outline"
               className={
@@ -263,7 +274,7 @@ export default function DeckDetailPage() {
           {shortage && <FeasibilityBanner report={shortage} />}
 
           {showAdvisor && deck && (
-            <div className="mb-6">
+            <div ref={advisorContainerRef} className="mb-6 scroll-mt-6">
               <DeckAdvisorPanel
                 deckId={deck.id}
                 deckName={deck.name}

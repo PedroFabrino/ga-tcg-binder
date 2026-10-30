@@ -47,6 +47,7 @@ export async function executeLlmWithToolLoop(
     customFetch: typeof fetch;
     database?: DeckAdvisorDatabase;
     maxToolSteps: number;
+    requireToolOnFirstStep?: boolean;
   }
 ): Promise<{ reply: string; toolsConsulted: string[] }> {
   const messages: LlmChatMessage[] = [...initialMessages];
@@ -54,16 +55,37 @@ export async function executeLlmWithToolLoop(
   const maxSteps = toolContext.maxToolSteps;
 
   for (let step = 0; step < maxSteps; step++) {
-    const res = await toolContext.customFetch(endpoint, {
+    const isFirstStepRequired = step === 0 && toolContext.requireToolOnFirstStep !== false;
+    let toolChoice: "auto" | "required" = isFirstStepRequired ? "required" : "auto";
+
+    let res = await toolContext.customFetch(endpoint, {
       method: "POST",
       headers,
       body: JSON.stringify({
         ...bodyParams,
         messages,
         tools: DECK_ADVISOR_TOOLS_DECLARATIONS,
-        tool_choice: "auto",
+        tool_choice: toolChoice,
       }),
     });
+
+    if (!res.ok && isFirstStepRequired && res.status === 400) {
+      const errClone = res.clone();
+      const errText = await errClone.text();
+      if (errText.toLowerCase().includes("tool_choice")) {
+        toolChoice = "auto";
+        res = await toolContext.customFetch(endpoint, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            ...bodyParams,
+            messages,
+            tools: DECK_ADVISOR_TOOLS_DECLARATIONS,
+            tool_choice: "auto",
+          }),
+        });
+      }
+    }
 
     if (!res.ok) {
       const errText = await res.text();

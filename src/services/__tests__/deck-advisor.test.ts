@@ -976,4 +976,41 @@ describe("Deck Advisor Service (Ticket 1)", () => {
       expect(capturedSystemPrompt).toContain("Respond in Portuguese (pt-BR)");
       expect(capturedSystemPrompt).toContain("Game Nomenclature");
     });
+
+    it("enforces tool_choice: required on the initial turn and grounds core rules taxonomy", async () => {
+      process.env.ADVISOR_ALLOWED_EMAILS = "alex_tools@ga.com";
+
+      let capturedToolChoice = "";
+      let capturedSystemPrompt = "";
+
+      const mockFetch = vi.fn().mockImplementation(async (_url, init) => {
+        const body = JSON.parse(init.body);
+        capturedToolChoice = body.tool_choice;
+        capturedSystemPrompt = body.messages[0].content;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            choices: [{ message: { content: "Analysis complete." } }],
+          }),
+        };
+      });
+
+      await runDeckAdvisorChat(
+        "user_alex_tools",
+        "alex_tools@ga.com",
+        "deck_tools_1",
+        [{ role: "user", content: "Is Angelic Channeling good?" }],
+        testDb,
+        { geminiApiKey: "fake-key", customFetch: mockFetch as any }
+      );
+
+      expect(capturedToolChoice).toBe("required");
+      expect(capturedSystemPrompt).toContain("GRAND ARCHIVE CORE RULES: ELEMENTS TAXONOMY");
+      expect(capturedSystemPrompt).toContain("Basic Elements: FIRE, WATER, WIND");
+      expect(capturedSystemPrompt).toContain("Advanced Elements: ARCANE, ASTRA, CRUX");
+      expect(capturedSystemPrompt).toContain("GRAND ARCHIVE CORE RULES: SPEED & TIMING");
+      expect(capturedSystemPrompt).toContain("GRAND ARCHIVE CORE RULES: FLOATING MEMORY & COSTS");
+      expect(capturedSystemPrompt).toContain("MANDATORY RULES & SYNERGY VERIFICATION PROTOCOL");
+    });
   });
