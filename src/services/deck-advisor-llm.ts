@@ -39,7 +39,7 @@ export class LlmHttpError extends Error {
 export async function executeLlmWithToolLoop(
   endpoint: string,
   headers: Record<string, string>,
-  bodyParams: { model: string; temperature: number },
+  bodyParams: { model: string; temperature: number; reasoning_effort?: "low" | "medium" | "high" },
   initialMessages: LlmChatMessage[],
   toolContext: {
     userData: DeckAdvisorRawUserData;

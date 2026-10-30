@@ -585,6 +585,47 @@ describe("Deck Advisor Service (Ticket 1)", () => {
       expect(res.message.content).toContain("OmniRoute fallback");
       expect(mockFetch).toHaveBeenCalledTimes(2);
     });
+
+    it("falls back to secondary Gemini Flash model when primary returns HTTP 503 high demand spike", async () => {
+      process.env.ADVISOR_ALLOWED_EMAILS = "alex@ga.com";
+
+      const mockFetch = vi
+        .fn()
+        // First call: primary model returns 503 high demand spike
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 503,
+          text: async () => "This model is currently experiencing high demand. Spikes in demand are usually temporary.",
+        })
+        // Second call: backup Gemini Flash model succeeds
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            choices: [{ message: { content: "Backup Gemini Flash response: Swap approved." } }],
+          }),
+        });
+
+      const res = await runDeckAdvisorChat(
+        "user_alex",
+        "alex@ga.com",
+        "deck_test_1",
+        [{ role: "user", content: "Check deck" }],
+        testDb,
+        {
+          geminiApiKey: "fake-key",
+          geminiModel: "gemini-3.8-flash",
+          omnirouteUrl: "http://localhost:20128/v1",
+          customFetch: mockFetch as any,
+        }
+      );
+
+      expect(res.fallbackActivated).toBe(false);
+      expect(res.providerUsed).toBe("gemini");
+      expect(res.modelUsed).toBe("gemini-3.5-flash");
+      expect(res.message.content).toContain("Backup Gemini Flash response");
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
   });
 });
 

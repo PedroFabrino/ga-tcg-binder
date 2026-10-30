@@ -163,8 +163,9 @@ export async function executeSearchCandidatePoolTool(
     if (results.length >= limit) return results;
   }
 
-  // If includeUnownedCatalog is true and under limit, query global catalog
-  if (args.includeUnownedCatalog && results.length < limit) {
+  // If includeUnownedCatalog is not explicitly false and under limit, query global catalog
+  const shouldIncludeCatalog = args.includeUnownedCatalog !== false;
+  if (shouldIncludeCatalog && results.length < limit) {
     const catalogCards = await searchCatalogCards(
       {
         element: args.element,

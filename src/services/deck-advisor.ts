@@ -38,46 +38,46 @@ export function buildDeckAdvisorSystemPrompt(
   context: DeckAdvisorContextSnapshot,
   locale: "en" | "pt-BR" = "en"
 ): string {
-  const cardsJson = JSON.stringify(
-    context.deckCards.map((c) => ({
-      name: c.cardName,
-      zone: c.zone,
-      qty: c.quantity,
-      costMemory: c.costMemory,
-      costReserve: c.costReserve,
-      speed: c.speed ? "Fast" : "Slow",
-      element: c.element,
-      class: c.class,
-      subtypes: c.subtypes,
-      effect: c.effect,
-      hardShortage: c.hardShortage,
-      sharedShortage: c.sharedShortage,
-    })),
-    null,
-    2
-  );
+  const cardsJson = context.deckCards
+    .map((c) =>
+      JSON.stringify({
+        name: c.cardName,
+        zone: c.zone,
+        qty: c.quantity,
+        costMemory: c.costMemory,
+        costReserve: c.costReserve,
+        speed: c.speed ? "Fast" : "Slow",
+        element: c.element,
+        class: c.class,
+        subtypes: c.subtypes,
+        effect: c.effect,
+        hardShortage: c.hardShortage,
+        sharedShortage: c.sharedShortage,
+      })
+    )
+    .join("\n");
 
-  const candidateJson = JSON.stringify(
-    context.candidatePool.map((c) => ({
-      name: c.cardName,
-      element: c.element,
-      class: c.class,
-      type: c.type,
-      subtypes: c.subtypes,
-      costMemory: c.costMemory,
-      costReserve: c.costReserve,
-      speed: c.speed ? "Fast" : "Slow",
-      tier: c.tier,
-      idleQty: c.idleQuantity,
-      sharedQty: c.sharedQuantity,
-      storeQty: c.storeQuantity,
-      unlockedVia: c.unlockedViaReason,
-      classBonusActive: c.classBonusActive,
-      effect: c.effect,
-    })),
-    null,
-    2
-  );
+  const candidateJson = context.candidatePool
+    .map((c) =>
+      JSON.stringify({
+        name: c.cardName,
+        element: c.element,
+        class: c.class,
+        type: c.type,
+        subtypes: c.subtypes,
+        costMemory: c.costMemory,
+        costReserve: c.costReserve,
+        speed: c.speed ? "Fast" : "Slow",
+        tier: c.tier,
+        idleQty: c.idleQuantity,
+        sharedQty: c.sharedQuantity,
+        storeQty: c.storeQuantity,
+        unlockedVia: c.unlockedViaReason,
+        classBonusActive: c.classBonusActive,
+        effect: c.effect,
+      })
+    )
+    .join("\n");
 
   const localeInstruction =
     locale === "pt-BR"
@@ -185,26 +185,25 @@ export async function runDeckAdvisorChat(
     throw new Error("UNAUTHORIZED_ADVISOR_ACCESS: User is not allowlisted for the Deck Advisor.");
   }
 
-  // 2. Load Deck & Metadata
-  const deckData = await getDeckAdvisorDeckData(deckId, database);
+  // 2. Load Deck, Inventory, Store Listings, & Meta Benchmarks in parallel
+  const [deckData, userData, metaBenchmarks] = await Promise.all([
+    getDeckAdvisorDeckData(deckId, database),
+    getDeckAdvisorUserData(userId, database),
+    getDeckAdvisorMetaBenchmarks(database),
+  ]);
+
   if (!deckData) {
     throw new Error(`DECK_NOT_FOUND: Deck with id "${deckId}" was not found.`);
   }
 
-  // 3. Load User Inventory, Store Listings, & Other Deck Usages
-  const userData = await getDeckAdvisorUserData(userId, database);
-
-  // 4. Load Meta Benchmarks
-  const metaBenchmarks = await getDeckAdvisorMetaBenchmarks(database);
-
-  // 5. Assemble Context
+  // 3. Assemble Context
   const context = assembleDeckAdvisorContext({
     deckData,
     userData,
     metaBenchmarks,
   });
 
-  // 6. Build Conversation History
+  // 4. Build Conversation History
   const systemPrompt = buildDeckAdvisorSystemPrompt(context, locale);
   const conversation: LlmChatMessage[] = [
     { role: "system", content: systemPrompt },
@@ -214,9 +213,9 @@ export async function runDeckAdvisorChat(
     })),
   ];
 
-  // 7. Execute LLM with Fallback
+  // 5. Execute LLM with Fallback
   const geminiApiKey = options?.geminiApiKey ?? process.env.GEMINI_API_KEY;
-  const geminiModel = options?.geminiModel ?? process.env.GEMINI_MODEL ?? "gemini-3.8-flash";
+  const configuredModel = options?.geminiModel ?? process.env.GEMINI_MODEL ?? "gemini-3-flash-preview";
   const geminiBaseUrl =
     options?.geminiBaseUrl ??
     process.env.GEMINI_BASE_URL ??
@@ -236,26 +235,34 @@ export async function runDeckAdvisorChat(
   };
 
   if (geminiApiKey) {
-    try {
-      const outcome = await executeLlmWithToolLoop(
-        `${geminiBaseUrl}/chat/completions`,
-        {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${geminiApiKey}`,
-        },
-        { model: geminiModel, temperature: 0.2 },
-        conversation,
-        toolContext
-      );
+    const candidateModels = [
+      configuredModel,
+      "gemini-3.5-flash",
+      "gemini-3.5-flash-lite",
+    ].filter((m, i, arr) => arr.indexOf(m) === i);
 
-      return formatAdvisorResponse(outcome, context, false, "gemini", geminiModel);
-    } catch (e: unknown) {
-      const isRateLimit = e instanceof LlmHttpError && e.status === 429;
-      const message = e instanceof Error ? e.message : String(e);
-      if (isRateLimit) {
-        console.warn("[DeckAdvisor] Gemini API HTTP 429 encountered. Activating OmniRoute fallback.");
-      } else {
-        console.warn(`[DeckAdvisor] Gemini API failed: ${message}. Falling back.`);
+    for (const modelToTry of candidateModels) {
+      try {
+        const outcome = await executeLlmWithToolLoop(
+          `${geminiBaseUrl}/chat/completions`,
+          {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${geminiApiKey}`,
+          },
+          { model: modelToTry, temperature: 0.2, reasoning_effort: "low" },
+          conversation,
+          toolContext
+        );
+
+        return formatAdvisorResponse(outcome, context, false, "gemini", modelToTry);
+      } catch (e: unknown) {
+        const isRateLimit = e instanceof LlmHttpError && e.status === 429;
+        const message = e instanceof Error ? e.message : String(e);
+        if (isRateLimit) {
+          console.warn("[DeckAdvisor] Gemini API HTTP 429 encountered. Activating OmniRoute fallback.");
+          break;
+        }
+        console.warn(`[DeckAdvisor] Gemini model ${modelToTry} failed: ${message}. Trying next fallback.`);
       }
     }
   }

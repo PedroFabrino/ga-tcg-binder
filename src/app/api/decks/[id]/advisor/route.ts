@@ -5,6 +5,8 @@ import { isUserAdvisorAllowlisted } from "@/services/deck-advisor-context";
 import { findUserByEmail } from "@/db/repositories/auth-repository";
 import type { DeckAdvisorChatRequest, DeckAdvisorMessage } from "@ga/contracts";
 
+export const maxDuration = 60;
+
 function parseAdvisorChatRequestBody(raw: unknown): DeckAdvisorChatRequest | null {
   if (!raw || typeof raw !== "object") return null;
   const obj = raw as Record<string, unknown>;
@@ -59,6 +61,9 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const deckId = params.id;
+  console.info(`[DeckAdvisor API] Processing chat request for deck "${deckId}"`);
+
   const session = await auth();
   const rawUserId = session?.user?.id;
   const userEmail = session?.user?.email;
@@ -81,7 +86,6 @@ export async function POST(
     return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   }
 
-  const deckId = params.id;
   if (!deckId) {
     return NextResponse.json({ error: "MISSING_DECK_ID" }, { status: 400 });
   }

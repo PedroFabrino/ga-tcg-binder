@@ -225,8 +225,11 @@ export function assembleDeckAdvisorContext(params: {
   const deckChampion = deck.champion || "";
 
   const matchingArchetype = params.metaBenchmarks.archetypes.find((a) => {
-    if (deckChampion && a.champion.toLowerCase().includes(deckChampion.toLowerCase())) {
-      return true;
+    if (deckChampion) {
+      const dc = deckChampion.toLowerCase();
+      const ac = a.champion.toLowerCase();
+      if (ac.includes(dc) || dc.includes(ac)) return true;
+      if (a.name.toLowerCase().includes(dc)) return true;
     }
     return false;
   }) || params.metaBenchmarks.archetypes[0];
