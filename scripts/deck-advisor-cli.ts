@@ -9,7 +9,7 @@ import {
 } from "../src/db/repositories/deck-advisor-repository";
 import { assembleDeckAdvisorContext } from "../src/services/deck-advisor-context";
 import { buildDeckAdvisorSystemPrompt } from "../src/services/deck-advisor";
-import { queryGrandArchiveRules } from "../src/services/deck-advisor-mcp";
+import { queryOfficialRulesMcp } from "../src/services/deck-advisor-mcp";
 
 async function main() {
   const args = process.argv.slice(2);
@@ -112,8 +112,8 @@ async function main() {
         }
 
         console.log(`\nQuerying Grand Archive Rules for "${query}"...`);
-        const result = await queryGrandArchiveRules(query);
-        console.log("\n" + result);
+        const result = await queryOfficialRulesMcp(query);
+        console.log("\n" + result.text);
         break;
       }
 
