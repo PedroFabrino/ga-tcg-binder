@@ -5,7 +5,7 @@ import {
   getDeckAdvisorDeckData,
   getDeckAdvisorUserData,
   getDeckAdvisorMetaBenchmarks,
-  searchDeckAdvisorCatalogCards,
+  searchCatalogCards,
 } from "../src/db/repositories/deck-advisor-repository";
 import { assembleDeckAdvisorContext } from "../src/services/deck-advisor-context";
 import { buildDeckAdvisorSystemPrompt } from "../src/services/deck-advisor";
@@ -125,7 +125,7 @@ async function main() {
         }
 
         console.log(`\nSearching catalog cards matching "${query}"...`);
-        const found = await searchDeckAdvisorCatalogCards(query, db);
+        const found = await searchCatalogCards({ keyword: query }, db);
         for (const c of found) {
           console.log(`* ${c.name} (${c.element} ${c.class} ${c.type}) - Cost: R:${c.costReserve} M:${c.costMemory}`);
         }
