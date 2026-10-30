@@ -712,18 +712,62 @@ describe("Deck Advisor Service (Ticket 1)", () => {
       expect(mockFetch).toHaveBeenCalledTimes(2);
     });
 
-    it("falls back to secondary Gemini Flash model when primary returns HTTP 503 high demand spike", async () => {
+    it("retries on transient fetch failed network error and recovers on the same model", async () => {
       process.env.ADVISOR_ALLOWED_EMAILS = "alex@ga.com";
 
       const mockFetch = vi
         .fn()
-        // First call: primary model returns 503 high demand spike
+        // First attempt throws network fetch failed
+        .mockRejectedValueOnce(new TypeError("fetch failed"))
+        // Second attempt on the same model succeeds
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            choices: [{ message: { content: "Recovered after fetch retry." } }],
+          }),
+        });
+
+      const res = await runDeckAdvisorChat(
+        "user_alex",
+        "alex@ga.com",
+        "deck_test_1",
+        [{ role: "user", content: "Check deck" }],
+        testDb,
+        {
+          geminiApiKey: "fake-key",
+          geminiModel: "gemini-3.8-flash",
+          omnirouteUrl: "http://localhost:20128/v1",
+          customFetch: mockFetch as any,
+          maxRetries: 2,
+        }
+      );
+
+      expect(res.fallbackActivated).toBe(false);
+      expect(res.providerUsed).toBe("gemini");
+      expect(res.modelUsed).toBe("gemini-3.8-flash");
+      expect(res.message.content).toContain("Recovered after fetch retry");
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("falls back to secondary Gemini Flash model when primary fails all retry attempts", async () => {
+      process.env.ADVISOR_ALLOWED_EMAILS = "alex@ga.com";
+
+      const mockFetch = vi
+        .fn()
+        // Primary model attempt 1: 503 high demand spike
         .mockResolvedValueOnce({
           ok: false,
           status: 503,
           text: async () => "This model is currently experiencing high demand. Spikes in demand are usually temporary.",
         })
-        // Second call: backup Gemini Flash model succeeds
+        // Primary model attempt 2: 503 high demand spike
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 503,
+          text: async () => "This model is currently experiencing high demand. Spikes in demand are usually temporary.",
+        })
+        // Secondary model attempt 1: succeeds
         .mockResolvedValueOnce({
           ok: true,
           status: 200,
@@ -743,6 +787,7 @@ describe("Deck Advisor Service (Ticket 1)", () => {
           geminiModel: "gemini-3.8-flash",
           omnirouteUrl: "http://localhost:20128/v1",
           customFetch: mockFetch as any,
+          maxRetries: 2,
         }
       );
 
@@ -750,7 +795,33 @@ describe("Deck Advisor Service (Ticket 1)", () => {
       expect(res.providerUsed).toBe("gemini");
       expect(res.modelUsed).toBe("gemini-3.5-flash");
       expect(res.message.content).toContain("Backup Gemini Flash response");
-      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+    });
+
+    it("throws descriptive error when all Gemini models fail and OmniRoute fallback is unreachable", async () => {
+      process.env.ADVISOR_ALLOWED_EMAILS = "alex@ga.com";
+
+      const mockFetch = vi
+        .fn()
+        // All calls fail with fetch failed
+        .mockRejectedValue(new TypeError("fetch failed"));
+
+      await expect(
+        runDeckAdvisorChat(
+          "user_alex",
+          "alex@ga.com",
+          "deck_test_1",
+          [{ role: "user", content: "Check deck" }],
+          testDb,
+          {
+            geminiApiKey: "fake-key",
+            geminiModel: "gemini-3.8-flash",
+            omnirouteUrl: "http://localhost:20128/v1",
+            customFetch: mockFetch as any,
+            maxRetries: 1,
+          }
+        )
+      ).rejects.toThrow("DECK_ADVISOR_UNAVAILABLE");
     });
   });
 });

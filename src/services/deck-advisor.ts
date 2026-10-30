@@ -30,6 +30,8 @@ export interface DeckAdvisorLlmOptions {
   customFetch?: typeof fetch;
   maxToolSteps?: number;
   requireToolOnFirstStep?: boolean;
+  maxRetries?: number;
+  retryDelayMs?: number;
 }
 
 /**
@@ -262,6 +264,12 @@ export async function runDeckAdvisorChat(
     requireToolOnFirstStep: options?.requireToolOnFirstStep ?? true,
   };
 
+  const maxRetries = options?.maxRetries ?? 2;
+  const defaultDelay = process.env.NODE_ENV === "test" ? 10 : 800;
+  const retryDelayMs = options?.retryDelayMs ?? defaultDelay;
+
+  let lastGeminiError = "";
+
   if (geminiApiKey) {
     const candidateModels = [
       configuredModel,
@@ -270,39 +278,79 @@ export async function runDeckAdvisorChat(
     ].filter((m, i, arr) => arr.indexOf(m) === i);
 
     for (const modelToTry of candidateModels) {
-      try {
-        const outcome = await executeLlmWithToolLoop(
-          `${geminiBaseUrl}/chat/completions`,
-          {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${geminiApiKey}`,
-          },
-          { model: modelToTry, temperature: 0.2, reasoning_effort: "low" },
-          conversation,
-          toolContext
-        );
+      let rateLimitHit = false;
 
-        return formatAdvisorResponse(outcome, context, false, "gemini", modelToTry);
-      } catch (e: unknown) {
-        const isRateLimit = e instanceof LlmHttpError && e.status === 429;
-        const message = e instanceof Error ? e.message : String(e);
-        if (isRateLimit) {
-          console.warn("[DeckAdvisor] Gemini API HTTP 429 encountered. Activating OmniRoute fallback.");
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const outcome = await executeLlmWithToolLoop(
+            `${geminiBaseUrl}/chat/completions`,
+            {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${geminiApiKey}`,
+            },
+            { model: modelToTry, temperature: 0.2, reasoning_effort: "low" },
+            conversation,
+            toolContext
+          );
+
+          return formatAdvisorResponse(outcome, context, false, "gemini", modelToTry);
+        } catch (e: unknown) {
+          const isRateLimit = e instanceof LlmHttpError && e.status === 429;
+          const message = e instanceof Error ? e.message : String(e);
+          lastGeminiError = message;
+
+          if (isRateLimit) {
+            console.warn("[DeckAdvisor] Gemini API HTTP 429 encountered. Activating OmniRoute fallback.");
+            rateLimitHit = true;
+            break;
+          }
+
+          const isTransient =
+            message.toLowerCase().includes("fetch failed") ||
+            message.toLowerCase().includes("network error") ||
+            message.toLowerCase().includes("timeout") ||
+            message.toLowerCase().includes("econnreset") ||
+            message.toLowerCase().includes("high demand") ||
+            (e instanceof LlmHttpError &&
+              (e.status === 500 || e.status === 502 || e.status === 503 || e.status === 504));
+
+          if (attempt < maxRetries && isTransient) {
+            console.warn(
+              `[DeckAdvisor] Gemini model ${modelToTry} failed (attempt ${attempt}/${maxRetries}): ${message}. Retrying in ${retryDelayMs * attempt}ms...`
+            );
+            await new Promise((r) => setTimeout(r, retryDelayMs * attempt));
+            continue;
+          }
+
+          console.warn(
+            `[DeckAdvisor] Gemini model ${modelToTry} failed after attempt ${attempt}: ${message}. Trying next fallback.`
+          );
           break;
         }
-        console.warn(`[DeckAdvisor] Gemini model ${modelToTry} failed: ${message}. Trying next fallback.`);
+      }
+
+      if (rateLimitHit) {
+        break;
       }
     }
   }
 
   // Fallback to OmniRoute
-  const outcome = await executeLlmWithToolLoop(
-    `${omnirouteUrl}/chat/completions`,
-    { "Content-Type": "application/json" },
-    { model: omnirouteModel, temperature: 0.2 },
-    conversation,
-    toolContext
-  );
+  try {
+    const outcome = await executeLlmWithToolLoop(
+      `${omnirouteUrl}/chat/completions`,
+      { "Content-Type": "application/json" },
+      { model: omnirouteModel, temperature: 0.2 },
+      conversation,
+      toolContext
+    );
 
-  return formatAdvisorResponse(outcome, context, true, "omniroute", omnirouteModel);
+    return formatAdvisorResponse(outcome, context, true, "omniroute", omnirouteModel);
+  } catch (omniErr: unknown) {
+    const omniMsg = omniErr instanceof Error ? omniErr.message : String(omniErr);
+    console.warn(`[DeckAdvisor] OmniRoute fallback also failed: ${omniMsg}`);
+    throw new Error(
+      `DECK_ADVISOR_UNAVAILABLE: Gemini models failed after retries (${lastGeminiError || "unknown error"}), and OmniRoute fallback was unreachable (${omniMsg}).`
+    );
+  }
 }

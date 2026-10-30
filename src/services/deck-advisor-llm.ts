@@ -58,32 +58,47 @@ export async function executeLlmWithToolLoop(
     const isFirstStepRequired = step === 0 && toolContext.requireToolOnFirstStep !== false;
     let toolChoice: "auto" | "required" = isFirstStepRequired ? "required" : "auto";
 
-    let res = await toolContext.customFetch(endpoint, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        ...bodyParams,
-        messages,
-        tools: DECK_ADVISOR_TOOLS_DECLARATIONS,
-        tool_choice: toolChoice,
-      }),
-    });
+    let res: Response;
+    try {
+      res = await toolContext.customFetch(endpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          ...bodyParams,
+          messages,
+          tools: DECK_ADVISOR_TOOLS_DECLARATIONS,
+          tool_choice: toolChoice,
+        }),
+      });
+    } catch (fetchErr: unknown) {
+      const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+      const cause =
+        fetchErr instanceof Error && fetchErr.cause
+          ? ` (cause: ${fetchErr.cause instanceof Error ? fetchErr.cause.message : String(fetchErr.cause)})`
+          : "";
+      throw new Error(`LLM network error on ${endpoint}: ${msg}${cause}`);
+    }
 
     if (!res.ok && isFirstStepRequired && res.status === 400) {
       const errClone = res.clone();
       const errText = await errClone.text();
       if (errText.toLowerCase().includes("tool_choice")) {
         toolChoice = "auto";
-        res = await toolContext.customFetch(endpoint, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            ...bodyParams,
-            messages,
-            tools: DECK_ADVISOR_TOOLS_DECLARATIONS,
-            tool_choice: "auto",
-          }),
-        });
+        try {
+          res = await toolContext.customFetch(endpoint, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              ...bodyParams,
+              messages,
+              tools: DECK_ADVISOR_TOOLS_DECLARATIONS,
+              tool_choice: "auto",
+            }),
+          });
+        } catch (retryFetchErr: unknown) {
+          const msg = retryFetchErr instanceof Error ? retryFetchErr.message : String(retryFetchErr);
+          throw new Error(`LLM network error on ${endpoint}: ${msg}`);
+        }
       }
     }
 
