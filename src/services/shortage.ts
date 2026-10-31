@@ -14,6 +14,8 @@ import {
   type MarketShortageAvailability,
 } from "./shortage-market";
 import type { WatchlistStatus } from "../db/schema";
+import { allocateCardDemand, type DeckCardDemand } from "./deck-allocation";
+import type { DeckSection } from "@ga/contracts";
 
 export type { MarketShortageAvailability };
 
@@ -29,6 +31,10 @@ export interface DeckRequirement {
   deckName: string;
   quantity: number;
   zone: string;
+  section?: DeckSection;
+  priority?: number;
+  hardMissing?: number;
+  sharedMissing?: number;
 }
 
 export interface CardEditionSummary {
@@ -155,13 +161,6 @@ export async function calculateAggregatedShortages(
     const rarity = editionsForSlug.length > 0 ? Math.max(...editionsForSlug.map((e) => e.rarity)) : 1;
     const imageUrl = editionsForSlug[0]?.imageUrl || null;
 
-    const deckRequirements: DeckRequirement[] = matchingDeckCards.map((c) => ({
-      deckId: c.deckId,
-      deckName: c.deckName,
-      quantity: c.quantity,
-      zone: c.zone,
-    }));
-
     const totalDemand = matchingDeckCards.reduce((sum, c) => sum + c.quantity, 0);
 
     const demandByDeck: Record<string, number> = {};
@@ -179,43 +178,40 @@ export async function calculateAggregatedShortages(
       .reduce((sum, inv) => sum + inv.quantity, 0);
     const totalOwned = dedicatedOwned + sharedOwned;
 
-    // Section-aware shortage allocation:
-    // 1. Separate decks into Competitive and 4Fun (preserving userDecks priority order)
-    const competitiveDecks = userDecks.filter((d) => d.section === "competitive");
-    const fourFunDecks = userDecks.filter((d) => d.section !== "competitive");
-
-    let remainingCopies = totalOwned;
-    let competitiveHardShortage = 0;
-
-    for (const cDeck of competitiveDecks) {
-      const demand = demandByDeck[cDeck.id] || 0;
-      if (demand > 0) {
-        const allocated = Math.min(demand, remainingCopies);
-        const gap = demand - allocated;
-        competitiveHardShortage += gap;
-        remainingCopies -= allocated;
-      }
+    // Use shared allocation engine for two-section priority allocation
+    const deckMap = new Map(userDecks.map((d) => [d.id, d]));
+    const deckDemands: DeckCardDemand[] = [];
+    for (const [deckId, demand] of Object.entries(demandByDeck)) {
+      const d = deckMap.get(deckId);
+      deckDemands.push({
+        deckId,
+        deckName: d?.name,
+        section: (d?.section as DeckSection) || "4fun",
+        priority: d?.priority ?? 0,
+        demand,
+      });
     }
 
-    const demand4FunByDeck: Record<string, number> = {};
-    for (const fDeck of fourFunDecks) {
-      if (demandByDeck[fDeck.id]) {
-        demand4FunByDeck[fDeck.id] = demandByDeck[fDeck.id];
-      }
-    }
-    const peakDemand4Fun = Object.values(demand4FunByDeck).reduce((max, q) => Math.max(max, q), 0);
-    const totalDemand4Fun = Object.values(demand4FunByDeck).reduce((sum, q) => sum + q, 0);
+    const allocation = allocateCardDemand(totalOwned, deckDemands);
+    const allocMap = new Map(allocation.deckAllocations.map((a) => [a.deckId, a]));
 
-    const fourFunHardShortage = Math.max(0, peakDemand4Fun - remainingCopies);
-    const fourFunSharedShortage = Math.max(0, totalDemand4Fun - remainingCopies - fourFunHardShortage);
+    const deckRequirements: DeckRequirement[] = matchingDeckCards.map((c) => {
+      const alloc = allocMap.get(c.deckId);
+      const deckInfo = deckMap.get(c.deckId);
+      return {
+        deckId: c.deckId,
+        deckName: c.deckName,
+        quantity: c.quantity,
+        zone: c.zone,
+        section: (deckInfo?.section as DeckSection) || "4fun",
+        priority: deckInfo?.priority ?? 0,
+        hardMissing: alloc?.hardMissing ?? 0,
+        sharedMissing: alloc?.sharedMissing ?? 0,
+      };
+    });
 
-    // If competitive decks exist, peakMissing reflects hard purchase deficit across competitive + 4fun
-    const peakMissing = competitiveDecks.length > 0
-      ? competitiveHardShortage + fourFunHardShortage
-      : Math.max(0, peakDemand - totalOwned);
-
-    // Total concurrent missing across all decks
-    const concurrentMissing = Math.max(0, totalDemand - totalOwned);
+    const peakMissing = allocation.peakMissing;
+    const concurrentMissing = allocation.concurrentMissing;
 
     const stapleCopies = stapleMap.get(slug) || 0;
     const policyQuota = computeCombinedQuota({

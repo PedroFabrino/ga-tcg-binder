@@ -139,4 +139,68 @@ describe("deck service", () => {
       { name: "Casual Deck 2", section: "4fun", priority: 1 },
     ]);
   });
+
+  describe("reorderDecksService", () => {
+    it("successfully reorders decks and moves across sections", async () => {
+      const { db } = await createTestDb();
+      await db.insert(users).values(user);
+
+      const d1 = await createDeckService(user.id, { name: "D1", section: "competitive" }, db);
+      const d2 = await createDeckService(user.id, { name: "D2", section: "competitive" }, db);
+      const d3 = await createDeckService(user.id, { name: "D3", section: "4fun" }, db);
+
+      const { reorderDecksService, getUserDecksSummary } = await import("./deck");
+
+      // Move d1 to 4fun and promote d3 to competitive
+      await reorderDecksService(user.id, [
+        { id: d3.id, section: "competitive", priority: 0 },
+        { id: d2.id, section: "competitive", priority: 1 },
+        { id: d1.id, section: "4fun", priority: 0 },
+      ], db);
+
+      const summary = await getUserDecksSummary(user.id, db);
+      expect(summary.map((d) => ({ name: d.name, section: d.section, priority: d.priority }))).toEqual([
+        { name: "D3", section: "competitive", priority: 0 },
+        { name: "D2", section: "competitive", priority: 1 },
+        { name: "D1", section: "4fun", priority: 0 },
+      ]);
+    });
+
+    it("rejects duplicates or empty updates", async () => {
+      const { db } = await createTestDb();
+      const { reorderDecksService } = await import("./deck");
+
+      await expect(reorderDecksService(user.id, [], db)).rejects.toBeInstanceOf(DeckValidationError);
+      await expect(
+        reorderDecksService(user.id, [
+          { id: "d1", section: "competitive", priority: 0 },
+          { id: "d1", section: "4fun", priority: 1 },
+        ], db)
+      ).rejects.toBeInstanceOf(DeckValidationError);
+    });
+
+    it("rejects updates if any deck belongs to another user and does not modify database", async () => {
+      const { db } = await createTestDb();
+      await db.insert(users).values([
+        user,
+        { id: "other-user", name: "Other", friendCode: "GA-OTH01" },
+      ]);
+
+      const myDeck = await createDeckService(user.id, { name: "My Deck", section: "competitive" }, db);
+      const otherDeck = await createDeckService("other-user", { name: "Other Deck", section: "competitive" }, db);
+
+      const { reorderDecksService, getUserDecksSummary } = await import("./deck");
+
+      await expect(
+        reorderDecksService(user.id, [
+          { id: myDeck.id, section: "4fun", priority: 0 },
+          { id: otherDeck.id, section: "4fun", priority: 1 },
+        ], db)
+      ).rejects.toBeInstanceOf(DeckNotFoundError);
+
+      // Verify atomic rollback: myDeck was NOT changed to 4fun
+      const summary = await getUserDecksSummary(user.id, db);
+      expect(summary[0].section).toBe("competitive");
+    });
+  });
 });

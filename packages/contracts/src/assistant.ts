@@ -3,6 +3,8 @@
  * for Grand Archive TCG Collector Assistants (Discord & Root).
  */
 
+import type { DeckSection } from "./decks";
+
 export type AssistantProvider = "discord" | "root";
 
 // 
@@ -28,7 +30,7 @@ export interface AssistantDeckSummary {
   name: string;
   format: string;
   champion: string | null;
-  section?: string;
+  section?: DeckSection;
   priority?: number;
   totalCards: number;
   uniqueCards: number;
@@ -174,7 +176,7 @@ export interface AssistantDeckWantlistGroup {
   deckId: string;
   deckName: string;
   format: string;
-  section?: string;
+  section?: DeckSection;
   priority?: number;
   hardShortages: AssistantShortageItem[];
   sharedShortages: AssistantShortageItem[];

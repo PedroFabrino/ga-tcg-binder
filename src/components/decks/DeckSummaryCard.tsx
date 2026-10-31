@@ -4,27 +4,23 @@ import React from "react";
 import Link from "next/link";
 import {
   Crown,
-  Pencil,
-  Loader2,
-  Trash2,
   CheckCircle2,
   AlertTriangle,
   ArrowRight,
-  ChevronUp,
-  ChevronDown,
-  ArrowUpDown,
   GripVertical,
   Flame,
   Smile,
 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
+import { type DeckSection } from "@ga/contracts";
+import { DeckActionsMenu } from "./DeckActionsMenu";
 
 export interface DeckSummaryItem {
   id: string;
   name: string;
   champion: string;
   format: string;
-  section: "competitive" | "4fun";
+  section: DeckSection;
   priority: number;
   mainCount: number;
   materialCount: number;
@@ -82,7 +78,7 @@ export function DeckSummaryCard({
                 e.stopPropagation();
               }}
               className="cursor-grab touch-none p-1 text-slate-500 hover:text-slate-300"
-              aria-label="Drag deck"
+              aria-label={t("decks.dragHandle")}
             >
               <GripVertical className="h-4 w-4" />
             </button>
@@ -97,63 +93,18 @@ export function DeckSummaryCard({
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1 opacity-0 transition-all group-hover:opacity-100 focus-within:opacity-100">
-          {onMoveUp && (
-            <button
-              type="button"
-              onClick={onMoveUp}
-              disabled={!canMoveUp}
-              className="rounded-lg p-1 text-slate-500 transition-all hover:bg-white/[0.08] hover:text-white disabled:opacity-20"
-              aria-label={t("decks.moveUp")}
-              title={t("decks.moveUp")}
-            >
-              <ChevronUp className="h-4 w-4" />
-            </button>
-          )}
-          {onMoveDown && (
-            <button
-              type="button"
-              onClick={onMoveDown}
-              disabled={!canMoveDown}
-              className="rounded-lg p-1 text-slate-500 transition-all hover:bg-white/[0.08] hover:text-white disabled:opacity-20"
-              aria-label={t("decks.moveDown")}
-              title={t("decks.moveDown")}
-            >
-              <ChevronDown className="h-4 w-4" />
-            </button>
-          )}
-          {onToggleSection && (
-            <button
-              type="button"
-              onClick={onToggleSection}
-              className="rounded-lg p-1 text-slate-500 transition-all hover:bg-white/[0.08] hover:text-white"
-              aria-label={isCompetitive ? t("decks.moveTo4Fun") : t("decks.moveToCompetitive")}
-              title={isCompetitive ? t("decks.moveTo4Fun") : t("decks.moveToCompetitive")}
-            >
-              <ArrowUpDown className="h-3.5 w-3.5" />
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={onEdit}
-            disabled={isEditing}
-            className="rounded-lg p-1.5 text-slate-500 transition-all hover:bg-cyan-500/10 hover:text-cyan-300 disabled:opacity-50"
-            aria-label={`${t("decks.editDeck")} ${deck.name}`}
-          >
-            {isEditing ? (
-              <Loader2 className="h-4 w-4 animate-spin text-cyan-400" />
-            ) : (
-              <Pencil className="h-4 w-4" />
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={onDelete}
-            className="rounded-lg p-1.5 text-slate-500 transition-all hover:bg-rose-500/10 hover:text-rose-300"
-            aria-label={`${t("decks.deleteDeck")} ${deck.name}`}
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+        <div className="flex items-center gap-1">
+          <DeckActionsMenu
+            deckName={deck.name}
+            isCompetitive={isCompetitive}
+            canMoveUp={canMoveUp}
+            canMoveDown={canMoveDown}
+            onMoveUp={onMoveUp}
+            onMoveDown={onMoveDown}
+            onToggleSection={onToggleSection}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
         </div>
       </div>
 

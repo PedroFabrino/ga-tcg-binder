@@ -12,6 +12,8 @@ import {
   Crown,
   Pencil,
   Loader2,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 import { RecommendedMetaDecks, type RecommendedMetaArchetype } from "@/components/decks/RecommendedMetaDecks";
 import { DeckSummaryCard } from "@/components/decks/DeckSummaryCard";
@@ -24,12 +26,15 @@ import AllShortagesView from "@/components/decks/AllShortagesView";
 import { Button } from "@/components/ui/button";
 import type { AggregatedShortageReport } from "@/services/shortage";
 import { useTranslation } from "@/lib/i18n";
+import { useDeckOrdering } from "@/hooks/use-deck-ordering";
+import { type DeckSection } from "@ga/contracts";
+
 interface DeckSummary {
   id: string;
   name: string;
   champion: string;
   format: string;
-  section: "competitive" | "4fun";
+  section: DeckSection;
   priority: number;
   mainCount: number;
   materialCount: number;
@@ -37,12 +42,13 @@ interface DeckSummary {
   totalCards: number;
 }
 type DecksViewTab = "decks" | "shortages";
+
 export default function DecksPage() {
-const { t } = useTranslation();
-const { data: session } = useSession();
-const { showToast } = useToast();
+  const { t } = useTranslation();
+  const { data: session } = useSession();
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<DecksViewTab>("decks");
-  const [decks, setDecks] = useState<DeckSummary[]>([]);
+  const [layout, setLayout] = useState<"grid" | "list">("grid");
   const [shortages, setShortages] = useState<Record<string, number | null>>({});
   const [aggregatedReport, setAggregatedReport] = useState<AggregatedShortageReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -59,69 +65,31 @@ const { showToast } = useToast();
     omnidexText: string;
   } | null>(null);
   const [loadingEditId, setLoadingEditId] = useState<string | null>(null);
-  const handleReorder = async (newDecks: DeckSummary[]) => {
-    const previousDecks = [...decks];
-    setDecks(newDecks);
+
+  const fetchShortages = useCallback(async () => {
+    setLoadingShortages(true);
     try {
-      const items = newDecks.map((d, index) => ({
-        id: d.id,
-        section: d.section,
-        priority: index,
-      }));
-      const res = await fetch("/api/decks/reorder", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: session?.user?.id,
-          items,
-        }),
-      });
+      const userIdQuery = session?.user?.id ? `?userId=${encodeURIComponent(session.user.id)}` : "";
+      const res = await fetch(`/api/decks/shortages${userIdQuery}`);
       if (!res.ok) throw new Error();
-      showToast(t("decks.reorderSuccess"), "success");
-      fetchShortages();
+      const data = await res.json();
+      setAggregatedReport(data);
     } catch {
-      setDecks(previousDecks);
-      showToast(t("decks.reorderError"), "error");
+      console.warn("[DecksPage] Failed to fetch aggregated shortages");
+    } finally {
+      setLoadingShortages(false);
     }
-  };
-  const handleMove = (deckId: string, direction: "up" | "down") => {
-    const deck = decks.find((d) => d.id === deckId);
-    if (!deck) return;
-    const sameSection = decks.filter((d) => d.section === deck.section);
-    const otherSection = decks.filter((d) => d.section !== deck.section);
-    const index = sameSection.findIndex((d) => d.id === deckId);
-    if (direction === "up" && index > 0) {
-      const reordered = [...sameSection];
-      const temp = reordered[index - 1];
-      reordered[index - 1] = reordered[index];
-      reordered[index] = temp;
-      const combined = deck.section === "competitive"
-        ? [...reordered, ...otherSection]
-        : [...otherSection, ...reordered];
-      handleReorder(combined);
-    } else if (direction === "down" && index < sameSection.length - 1) {
-      const reordered = [...sameSection];
-      const temp = reordered[index + 1];
-      reordered[index + 1] = reordered[index];
-      reordered[index] = temp;
-      const combined = deck.section === "competitive"
-        ? [...reordered, ...otherSection]
-        : [...otherSection, ...reordered];
-      handleReorder(combined);
-    }
-  };
-  const handleToggleSection = (deckId: string) => {
-    const deck = decks.find((d) => d.id === deckId);
-    if (!deck) return;
-    const nextSection: "competitive" | "4fun" = deck.section === "competitive" ? "4fun" : "competitive";
-    const updated = decks.map((d) =>
-      d.id === deckId ? { ...d, section: nextSection } : d
-    );
-    // Sort so competitive is first
-    const comp = updated.filter((d) => d.section === "competitive");
-    const fun = updated.filter((d) => d.section === "4fun");
-    handleReorder([...comp, ...fun]);
-  };
+  }, [session?.user?.id]);
+
+  const {
+    decks,
+    setDecks,
+    reorder: handleReorder,
+    moveWithinSection: handleMove,
+    moveToOtherSection: handleToggleSection,
+  } = useDeckOrdering<DeckSummary>([], () => {
+    fetchShortages();
+  });
   const handleStartEdit = async (deck: DeckSummary, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -184,20 +152,6 @@ const { showToast } = useToast();
     }
     window.history.replaceState(null, "", url.toString());
   };
-  const fetchShortages = useCallback(async () => {
-    setLoadingShortages(true);
-    try {
-      const userIdQuery = session?.user?.id ? `?userId=${encodeURIComponent(session.user.id)}` : "";
-      const res = await fetch(`/api/decks/shortages${userIdQuery}`);
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setAggregatedReport(data);
-    } catch {
-      // ignore
-    } finally {
-      setLoadingShortages(false);
-    }
-  }, [session?.user?.id]);
   const fetchDecks = useCallback(async () => {
     setLoading(true);
     try {
@@ -295,8 +249,42 @@ const { showToast } = useToast();
           </>
         }
       />
-      {/* View Switcher: My Decks vs All Shortages */}
-      <Tabs tabs={TABS} active={activeTab} onChange={handleTabChange} />
+      {/* View Switcher: My Decks vs All Shortages & Layout Toggle */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <Tabs tabs={TABS} active={activeTab} onChange={handleTabChange} />
+        {activeTab === "decks" && (
+          <div className="flex items-center self-end sm:self-auto rounded-xl border border-white/[0.08] bg-white/[0.03] p-1">
+            <button
+              type="button"
+              onClick={() => setLayout("grid")}
+              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
+                layout === "grid"
+                  ? "bg-white/[0.12] text-white shadow"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+              aria-label={t("decks.deckGrid")}
+              title={t("decks.deckGrid")}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              <span>{t("decks.deckGrid")}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setLayout("list")}
+              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
+                layout === "list"
+                  ? "bg-white/[0.12] text-white shadow"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+              aria-label={t("decks.deckList")}
+              title={t("decks.deckList")}
+            >
+              <List className="h-3.5 w-3.5" />
+              <span>{t("decks.deckList")}</span>
+            </button>
+          </div>
+        )}
+      </div>
       {activeTab === "decks" && (
         <RecommendedMetaDecks
           archetypes={recommendedMeta}
@@ -341,6 +329,7 @@ const { showToast } = useToast();
           decks={decks}
           shortages={shortages}
           loadingEditId={loadingEditId}
+          layout={layout}
           onReorder={handleReorder}
           onMove={handleMove}
           onToggleSection={handleToggleSection}

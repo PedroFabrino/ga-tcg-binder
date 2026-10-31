@@ -42,15 +42,39 @@ export async function updateDeckSectionAndPriorities(
   updates: { id: string; section: string; priority: number }[],
   database = db
 ): Promise<void> {
-  for (const item of updates) {
-    await database
+  if (updates.length === 0) return;
+
+  // 1. Verify all deck IDs belong to the user
+  const ids = updates.map((u) => u.id);
+  const existing = await database
+    .select({ id: decks.id })
+    .from(decks)
+    .where(and(eq(decks.userId, userId), inArray(decks.id, ids)));
+
+  if (existing.length !== ids.length) {
+    const foundIds = new Set(existing.map((e) => e.id));
+    const missingIds = ids.filter((id) => !foundIds.has(id));
+    throw new Error(`Deck(s) not found for user: ${missingIds.join(", ")}`);
+  }
+
+  // 2. Perform updates atomically via batch where available
+  const updateStatements = updates.map((item) =>
+    database
       .update(decks)
       .set({
         section: item.section,
         priority: item.priority,
         updatedAt: new Date(),
       })
-      .where(and(eq(decks.id, item.id), eq(decks.userId, userId)));
+      .where(and(eq(decks.id, item.id), eq(decks.userId, userId)))
+  );
+
+  if (typeof (database as any).batch === "function" && updateStatements.length > 0) {
+    await (database as any).batch(updateStatements as any);
+  } else {
+    for (const stmt of updateStatements) {
+      await stmt;
+    }
   }
 }
 

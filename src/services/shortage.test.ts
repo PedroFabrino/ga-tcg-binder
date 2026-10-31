@@ -676,6 +676,15 @@ describe("Shortage Calculation & Friend Idle Discovery Seams", () => {
     expect(aggFb).toBeDefined();
     expect(aggFb?.peakMissing).toBe(3);
     expect(aggFb?.concurrentMissing).toBe(3);
+
+    // Verify per-deck breakdown in deckRequirements
+    const reqComp1 = aggFb?.deckRequirements.find((r) => r.deckId === "deck-comp-1");
+    const reqComp2 = aggFb?.deckRequirements.find((r) => r.deckId === "deck-comp-2");
+    const reqFun1 = aggFb?.deckRequirements.find((r) => r.deckId === "deck-fun-1");
+
+    expect(reqComp1).toMatchObject({ section: "competitive", priority: 0, hardMissing: 0, sharedMissing: 0 });
+    expect(reqComp2).toMatchObject({ section: "competitive", priority: 1, hardMissing: 1, sharedMissing: 0 });
+    expect(reqFun1).toMatchObject({ section: "4fun", priority: 0, hardMissing: 2, sharedMissing: 0 });
   });
 });
 

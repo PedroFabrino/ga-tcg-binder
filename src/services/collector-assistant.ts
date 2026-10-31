@@ -22,6 +22,7 @@ import type {
   AssistantCollectionResponse,
   AssistantDeckWantlistGroup,
   AssistantWantlistResponse,
+  DeckSection,
 } from "@ga/contracts";
 import crypto from "crypto";
 
@@ -195,7 +196,7 @@ export async function getCollectorDecks(
       name: res.deckName,
       format: res.format,
       champion: res.champion,
-      section: deck.section,
+      section: (deck.section === "competitive" ? "competitive" : "4fun") as DeckSection,
       priority: deck.priority,
       totalCards: res.totalCards,
       uniqueCards: res.uniqueCards,
@@ -355,7 +356,7 @@ export async function getDeckPartitionedWantlist(
         deckId: res.deckId,
         deckName: res.deckName,
         format: res.format,
-        section: deck.section,
+        section: (deck.section === "competitive" ? "competitive" : "4fun") as DeckSection,
         priority: deck.priority,
         hardShortages: res.hardShortages,
         sharedShortages: res.sharedShortages,

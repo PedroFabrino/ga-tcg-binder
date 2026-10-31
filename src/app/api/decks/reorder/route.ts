@@ -1,56 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DEFAULT_USER_ID, ensureDefaultUserAndSeed } from "@/services/seed";
 import { auth } from "@/auth";
-import { reorderDecksService } from "@/services/deck";
-
-interface ReorderItem {
-  id: string;
-  section: "competitive" | "4fun";
-  priority: number;
-}
-
-function parseReorderPayload(body: any): { userId?: string; items: ReorderItem[] } | null {
-  if (!body || typeof body !== "object") return null;
-  if (!Array.isArray(body.items) || body.items.length === 0) return null;
-
-  const items: ReorderItem[] = [];
-  for (const it of body.items) {
-    if (!it || typeof it !== "object") return null;
-    if (typeof it.id !== "string" || !it.id) return null;
-    if (it.section !== "competitive" && it.section !== "4fun") return null;
-    if (typeof it.priority !== "number" || isNaN(it.priority)) return null;
-    items.push({
-      id: it.id,
-      section: it.section,
-      priority: Math.max(0, Math.floor(it.priority)),
-    });
-  }
-
-  const userId = typeof body.userId === "string" && body.userId.trim() ? body.userId.trim() : undefined;
-  return { userId, items };
-}
+import { DeckNotFoundError, DeckValidationError, reorderDecksService } from "@/services/deck";
+import { parseReorderRequest } from "@/lib/deck-order-validator";
 
 export async function POST(req: NextRequest) {
   try {
     await ensureDefaultUserAndSeed();
     const session = await auth();
-    const body = await req.json();
 
-    const parsed = parseReorderPayload(body);
-    if (!parsed) {
-      return NextResponse.json(
-        { error: "Invalid reorder payload" },
-        { status: 400 }
-      );
+    // Authenticate user strictly from session; fall back to DEFAULT_USER_ID in local/demo mode
+    const userId = session?.user?.id || DEFAULT_USER_ID;
+
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: "Malformed JSON payload" }, { status: 400 });
     }
 
-    const userId = parsed.userId || session?.user?.id || DEFAULT_USER_ID;
+    const validation = parseReorderRequest(body);
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
+    }
 
-    await reorderDecksService(userId, parsed.items);
+    await reorderDecksService(userId, validation.data.items.map((it) => ({
+      id: it.id,
+      section: it.section,
+      priority: it.position,
+    })));
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Internal server error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    if (error instanceof DeckValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    if (error instanceof DeckNotFoundError) {
+      return NextResponse.json({ error: error.message }, { status: 404 });
+    }
+
+    console.error("[POST /api/decks/reorder] Internal failure:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

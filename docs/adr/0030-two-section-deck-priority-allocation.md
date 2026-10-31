@@ -41,6 +41,11 @@ We introduce a two-partition deck hierarchy governed by **Deck Section** and **D
    - Existing decks are backfilled to `4fun` ordered by `created_at`.
    - New decks default to `4fun` appended to the bottom.
 
+5. **Interaction Model & Accessibility**:
+   - Reordering is driven by a single unified `@dnd-kit` context wrapping both sections and empty drop targets, allowing frictionless dragging within and across sections.
+   - For keyboard, mobile touch, and screen-reader users, a `DeckActionsMenu` provides direct actions (`Move Up`, `Move Down`, `Move to Competitive` / `Move to 4Fun`).
+   - A layout toggle switches between compact list (`DeckSummaryRow`) and grid card (`DeckSummaryCard`) views while preserving the same reordering and actions capabilities.
+
 ## Consequences
 
 - Competitive decks are guaranteed full reservation of physical cards without being contaminated by casual deck testing.

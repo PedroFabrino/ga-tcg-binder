@@ -4,6 +4,8 @@ import {
   resolveMarketAvailability,
   type MarketShortageAvailability,
 } from "./shortage-market";
+import { allocateCardDemand, type DeckCardDemand } from "./deck-allocation";
+import { type DeckSection } from "@ga/contracts";
 
 export interface FriendIdleCard {
   friendId: string;
@@ -82,26 +84,44 @@ export async function calculateDeckShortage(
       .filter((od) => od.cardSlug === slug && od.assignedEditionId)
       .reduce((sum, od) => sum + od.quantity, 0);
 
-    // If the target deck is competitive, higher-priority competitive decks reserve copies first.
-    // If the target deck is 4fun, all competitive decks reserve copies first.
-    let competitiveReservedCopies = 0;
-    if (deck.section === "competitive") {
-      competitiveReservedCopies = otherDeckCards
-        .filter(
-          (od) =>
-            od.cardSlug === slug &&
-            od.section === "competitive" &&
-            (od.priority < deck.priority ||
-              (od.priority === deck.priority && od.deckId < deck.id))
-        )
-        .reduce((sum, od) => sum + od.quantity, 0);
-    } else {
-      competitiveReservedCopies = otherDeckCards
-        .filter((od) => od.cardSlug === slug && od.section === "competitive")
-        .reduce((sum, od) => sum + od.quantity, 0);
+    // Build demands for target deck and other decks to run shared allocation engine
+    const demands: DeckCardDemand[] = [
+      {
+        deckId: deck.id,
+        deckName: deck.name,
+        section: (deck.section as DeckSection) || "4fun",
+        priority: deck.priority ?? 0,
+        createdAt: deck.createdAt,
+        demand: required,
+      },
+    ];
+
+    const otherByDeck = new Map<string, DeckCardDemand>();
+    for (const od of otherDeckCards) {
+      if (od.cardSlug === slug) {
+        const existing = otherByDeck.get(od.deckId);
+        if (existing) {
+          existing.demand += od.quantity;
+        } else {
+          otherByDeck.set(od.deckId, {
+            deckId: od.deckId,
+            deckName: od.deckName,
+            section: (od.section as DeckSection) || "4fun",
+            priority: od.priority ?? 0,
+            demand: od.quantity,
+          });
+        }
+      }
+    }
+    for (const od of otherByDeck.values()) {
+      demands.push(od);
     }
 
-    const available = Math.max(0, totalOwned - dedicatedToOtherDecks - competitiveReservedCopies);
+    const availableOwned = Math.max(0, totalOwned - dedicatedToOtherDecks);
+    const allocation = allocateCardDemand(availableOwned, demands);
+    const targetAlloc = allocation.deckAllocations.find((d) => d.deckId === deck.id);
+
+    const available = targetAlloc ? targetAlloc.allocated : 0;
     const missing = Math.max(0, required - available);
     totalCardsMissing += missing;
 

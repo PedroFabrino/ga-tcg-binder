@@ -25,6 +25,7 @@ import {
   upsertCatalogCard,
 } from "@/db/repositories/catalog-repository";
 import { parseOmnidexText, serializeOmnidexText, decodeHtmlEntities, fetchDeckFromUrl } from "@/services/omnidex";
+import { type DeckSection, DEFAULT_DECK_SECTION, isCompetitive } from "@ga/contracts";
 
 export class DeckValidationError extends Error {}
 export class DeckNotFoundError extends Error {}
@@ -124,7 +125,7 @@ export async function createDeckService(
     name: string;
     champion?: string;
     format?: string;
-    section?: string;
+    section?: DeckSection;
     priority?: number;
     omnidexText?: string;
   },
@@ -133,7 +134,7 @@ export async function createDeckService(
   let name = decodeHtmlEntities(data.name?.trim() || "");
   let champion = decodeHtmlEntities(data.champion?.trim() || "");
   const format = data.format || "standard";
-  const section = data.section === "competitive" ? "competitive" : "4fun";
+  const section: DeckSection = isCompetitive(data.section) ? "competitive" : DEFAULT_DECK_SECTION;
   let omnidexText = data.omnidexText ? decodeHtmlEntities(data.omnidexText.trim()) : undefined;
 
   if (omnidexText && (omnidexText.startsWith("http://") || omnidexText.startsWith("https://"))) {
@@ -293,10 +294,31 @@ export async function updateDeckService(
 
 export async function reorderDecksService(
   userId: string,
-  items: { id: string; section: "competitive" | "4fun"; priority: number }[],
+  items: { id: string; section: DeckSection; priority: number }[],
   database?: DeckDatabase
 ): Promise<void> {
-  await updateDeckSectionAndPriorities(userId, items, database);
+  if (!items || items.length === 0) {
+    throw new DeckValidationError("Reorder items cannot be empty");
+  }
+
+  // Check for duplicate IDs in the request
+  const ids = new Set<string>();
+  for (const item of items) {
+    if (ids.has(item.id)) {
+      throw new DeckValidationError(`Duplicate deck id in reorder list: ${item.id}`);
+    }
+    ids.add(item.id);
+  }
+
+  try {
+    await updateDeckSectionAndPriorities(userId, items, database);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("not found for user")) {
+      throw new DeckNotFoundError(msg);
+    }
+    throw err;
+  }
 }
 
 export async function deleteDeckService(

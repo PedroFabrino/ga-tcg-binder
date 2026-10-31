@@ -18,6 +18,11 @@ import {
   matchesSetChecklistFilters,
   type SetChecklistCard,
   type SetChecklistFilters,
+  DECK_SECTIONS,
+  DEFAULT_DECK_SECTION,
+  isDeckSection,
+  isCompetitive,
+  compareDecksBySectionAndPriority,
 } from "./index";
 
 describe("@ga/contracts", () => {
@@ -255,6 +260,34 @@ describe("@ga/contracts", () => {
       const filters: SetChecklistFilters = { prefix: null, status: "all", search: "test" };
       expect(matchesSetChecklistFilters(makeCard({ cardName: "Test Card" }), filters)).toBe(true);
       expect(matchesSetChecklistFilters(makeCard({ cardName: "Other Card" }), filters)).toBe(false);
+    });
+  });
+
+  describe("Deck Sections & Priority Ordering (ADR 0030/0031)", () => {
+    it("defines valid sections and defaults", () => {
+      expect(DECK_SECTIONS).toEqual(["competitive", "4fun"]);
+      expect(DEFAULT_DECK_SECTION).toBe("4fun");
+      expect(isDeckSection("competitive")).toBe(true);
+      expect(isDeckSection("4fun")).toBe(true);
+      expect(isDeckSection("casual")).toBe(false);
+      expect(isDeckSection(null)).toBe(false);
+      expect(isCompetitive("competitive")).toBe(true);
+      expect(isCompetitive("4fun")).toBe(false);
+    });
+
+    it("sorts competitive decks before 4fun decks, ordered by priority then createdAt", () => {
+      const now = new Date();
+      const earlier = new Date(now.getTime() - 10000);
+
+      const d1 = { id: "1", section: "4fun" as const, priority: 0, createdAt: earlier };
+      const d2 = { id: "2", section: "competitive" as const, priority: 1, createdAt: now };
+      const d3 = { id: "3", section: "competitive" as const, priority: 0, createdAt: earlier };
+      const d4 = { id: "4", section: "4fun" as const, priority: 1, createdAt: now };
+
+      const list = [d1, d2, d3, d4];
+      list.sort(compareDecksBySectionAndPriority);
+
+      expect(list.map((d) => d.id)).toEqual(["3", "2", "1", "4"]);
     });
   });
 });
