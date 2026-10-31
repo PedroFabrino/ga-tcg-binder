@@ -19,6 +19,8 @@ export interface CatalogSearchFilters {
   userId?: string;
   limit?: number;
   offset?: number;
+  keywords?: string[];
+  keywordsMatchMode?: "all" | "any";
 }
 
 export interface DeckUsage {
@@ -82,6 +84,8 @@ export async function searchCatalog(
       element: filters.element,
       class: filters.class,
       type: filters.type,
+      keywords: filters.keywords,
+      keywordsMatchMode: filters.keywordsMatchMode,
     },
     database
   );

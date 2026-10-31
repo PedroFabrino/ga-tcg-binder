@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/common";
 import { SkeletonGrid, EmptyState } from "@/components/Skeletons";
 import { useToast } from "@/components/ToastProvider";
 import CatalogCard, { type CatalogCardData, type Edition } from "@/components/catalog/CatalogCard";
+import CatalogKeywordFilter from "@/components/catalog/CatalogKeywordFilter";
 import { ALL_ELEMENTS, ELEMENT_LABELS, getElementColor } from "@/lib/elements";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -48,6 +49,8 @@ export default function CatalogPage() {
   const [staplesOnly, setStaplesOnly] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
+  const [keywordsMatchMode, setKeywordsMatchMode] = useState<"all" | "any">("all");
 
   const fetchCards = useCallback(async () => {
     setLoading(true);
@@ -60,6 +63,10 @@ export default function CatalogPage() {
       if (setPrefix) params.set("setPrefix", setPrefix);
       if (lowPopOnly) params.set("lowPopOnly", "true");
       if (staplesOnly) params.set("staplesOnly", "true");
+      if (selectedKeywords.length > 0) {
+        params.set("keywords", selectedKeywords.join(","));
+        params.set("keywordsMatchMode", keywordsMatchMode);
+      }
       const res = await fetch(`/api/catalog?${params}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
@@ -71,7 +78,7 @@ export default function CatalogPage() {
     } finally {
       setLoading(false);
     }
-  }, [session?.user?.id, query, element, cardClass, setPrefix, lowPopOnly, staplesOnly]);
+  }, [session?.user?.id, query, element, cardClass, setPrefix, lowPopOnly, staplesOnly, selectedKeywords, keywordsMatchMode]);
 
   useEffect(() => {
     const t = setTimeout(fetchCards, 250);
@@ -122,13 +129,16 @@ export default function CatalogPage() {
   const activeCount =
     [element, cardClass, setPrefix].filter(Boolean).length +
     (lowPopOnly ? 1 : 0) +
-    (staplesOnly ? 1 : 0);
+    (staplesOnly ? 1 : 0) +
+    selectedKeywords.length;
   const clearAll = () => {
     setElement(null);
     setCardClass(null);
     setSetPrefix(null);
     setLowPopOnly(false);
     setStaplesOnly(false);
+    setSelectedKeywords([]);
+    setKeywordsMatchMode("all");
   };
 
   const filters = (
@@ -159,6 +169,12 @@ export default function CatalogPage() {
           ))}
         </div>
       </div>
+      <CatalogKeywordFilter
+        selectedKeywords={selectedKeywords}
+        onChangeKeywords={setSelectedKeywords}
+        matchMode={keywordsMatchMode}
+        onChangeMatchMode={setKeywordsMatchMode}
+      />
       <label
         htmlFor="staples-switch"
         className={`flex w-full cursor-pointer items-center justify-between rounded-xl border px-3 py-2.5 text-xs font-semibold transition-all ${

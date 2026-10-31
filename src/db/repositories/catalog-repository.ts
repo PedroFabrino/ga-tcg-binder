@@ -179,6 +179,8 @@ export interface CatalogSearchFilterParams {
   element?: string;
   class?: string;
   type?: string;
+  keywords?: string[];
+  keywordsMatchMode?: "all" | "any";
 }
 
 export async function queryCatalogCards(
@@ -190,6 +192,28 @@ export async function queryCatalogCards(
   if (filters.query && filters.query.trim().length > 0) {
     const q = `%${filters.query.trim()}%`;
     conditions.push(or(like(cards.name, q), like(cards.slug, q)));
+  }
+
+  if (filters.keywords && filters.keywords.length > 0) {
+    const cleanedKeywords = filters.keywords
+      .map((k) => k.trim())
+      .filter((k) => k.length > 0);
+
+    if (cleanedKeywords.length > 0) {
+      const mode = filters.keywordsMatchMode || "all";
+      const kwConditions = cleanedKeywords.map((kw) => {
+        const pattern = `%${kw}%`;
+        return or(like(cards.effect, pattern), like(cards.subtypes, pattern));
+      });
+
+      if (kwConditions.length === 1) {
+        conditions.push(kwConditions[0]);
+      } else if (mode === "all") {
+        conditions.push(and(...kwConditions));
+      } else {
+        conditions.push(or(...kwConditions));
+      }
+    }
   }
 
   if (filters.element && filters.element !== "ALL") {

@@ -1,0 +1,55 @@
+/**
+ * Grand Archive TCG Canonical Keywords & Mechanics.
+ *
+ * Per Game Nomenclature directives (ADR 0011 / CONTEXT.md), official keywords,
+ * mechanics, and subtype classifications are maintained in canonical English.
+ */
+
+export const GRAND_ARCHIVE_KEYWORDS = [
+  "Agility",
+  "Ambush",
+  "Banish",
+  "Buff",
+  "Bulwark",
+  "Cardistry",
+  "Cascade",
+  "Class Bonus",
+  "Cleave",
+  "Debuff",
+  "Distant",
+  "Distortion",
+  "Divine Relic",
+  "Echo",
+  "Enlighten",
+  "Ephemeral",
+  "Equestrian",
+  "Fast",
+  "Floating Memory",
+  "Gank",
+  "Glimpse",
+  "Harmonize",
+  "Hindered",
+  "Imbued",
+  "Inherited Effect",
+  "Intercept",
+  "Lineage",
+  "Negate",
+  "Omnishroud",
+  "Phantasm",
+  "Precision",
+  "Preparation",
+  "Preserved",
+  "Recover",
+  "Resonance",
+  "Retaliate",
+  "Sheen",
+  "Spellshroud",
+  "Spellvoyance",
+  "Stealth",
+  "Taunt",
+  "Transcend",
+  "True Sight",
+  "Vigor",
+] as const;
+
+export type GrandArchiveKeyword = typeof GRAND_ARCHIVE_KEYWORDS[number];

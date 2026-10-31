@@ -17,6 +17,11 @@ export async function GET(req: NextRequest) {
     const setPrefix = url.searchParams.get("setPrefix") || undefined;
     const lowPopOnly = url.searchParams.get("lowPopOnly") === "true";
     const staplesOnly = url.searchParams.get("staplesOnly") === "true";
+    const keywordsParam = url.searchParams.get("keywords") || undefined;
+    const keywords = keywordsParam
+      ? keywordsParam.split(",").map((k) => k.trim()).filter(Boolean)
+      : undefined;
+    const keywordsMatchMode = (url.searchParams.get("keywordsMatchMode") === "any" ? "any" : "all") as "all" | "any";
     const lowPopThreshold = url.searchParams.get("threshold")
       ? parseInt(url.searchParams.get("threshold")!, 10)
       : 1000;
@@ -39,6 +44,8 @@ export async function GET(req: NextRequest) {
       userId,
       limit,
       offset,
+      keywords: keywords && keywords.length > 0 ? keywords : undefined,
+      keywordsMatchMode,
     });
 
     // If no results for a specific query, try on-demand single card sync from official API

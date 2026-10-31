@@ -182,4 +182,72 @@ describe("Catalog & Search Seam", () => {
     expect(stapleSearch.cards[0].stapleRecommendedCopies).toBe(4);
     expect(stapleSearch.cards[0].stapleCategories).toEqual(["Fire Main Deck"]);
   });
+
+  it("filters cards by keywords with additive (AND) and either (OR) match modes", async () => {
+    const { db } = await createTestDb();
+
+    await db.insert(cards).values([
+      {
+        slug: "aegis-vanguard",
+        name: "Aegis Vanguard",
+        element: "NORM",
+        class: "WARRIOR",
+        type: "ALLY",
+        subtypes: JSON.stringify(["WARRIOR", "HUMAN"]),
+        effect: "**Taunt**\n\n**Floating Memory** *(While paying memory cost, banish this from GY.)*",
+      },
+      {
+        slug: "alice-distorted-queen",
+        name: "Alice, Distorted Queen",
+        element: "NORM",
+        class: "CLERIC",
+        type: "ALLY",
+        subtypes: JSON.stringify(["CLERIC", "DISTORTION", "HUMAN"]),
+        effect: "**On Enter:** You gain the Phantasmagoria mastery.",
+      },
+      {
+        slug: "spectral-defender",
+        name: "Spectral Defender",
+        element: "WATER",
+        class: "WARRIOR",
+        type: "ALLY",
+        subtypes: JSON.stringify(["WARRIOR", "PHANTASM"]),
+        effect: "**Taunt**\n\nWhenever this unit is attacked, recover 1 life.",
+      },
+    ]);
+
+    // 1. Single keyword filter (Distortion)
+    const distortionSearch = await searchCatalog({ keywords: ["Distortion"] }, db);
+    expect(distortionSearch.total).toBe(1);
+    expect(distortionSearch.cards[0].slug).toBe("alice-distorted-queen");
+
+    // 2. Additive mode (AND): Floating Memory AND Taunt
+    const andSearch = await searchCatalog(
+      { keywords: ["Floating Memory", "Taunt"], keywordsMatchMode: "all" },
+      db
+    );
+    expect(andSearch.total).toBe(1);
+    expect(andSearch.cards[0].slug).toBe("aegis-vanguard");
+
+    // 3. Either mode (OR): Floating Memory OR Distortion
+    const orSearch = await searchCatalog(
+      { keywords: ["Floating Memory", "Distortion"], keywordsMatchMode: "any" },
+      db
+    );
+    expect(orSearch.total).toBe(2);
+    const orSlugs = orSearch.cards.map((c) => c.slug).sort();
+    expect(orSlugs).toEqual(["aegis-vanguard", "alice-distorted-queen"]);
+
+    // 4. Either mode (OR): Taunt OR Distortion -> all 3 cards match
+    const orThreeSearch = await searchCatalog(
+      { keywords: ["Taunt", "Distortion"], keywordsMatchMode: "any" },
+      db
+    );
+    expect(orThreeSearch.total).toBe(3);
+
+    // 5. Case-insensitivity check
+    const caseSearch = await searchCatalog({ keywords: ["distortion"] }, db);
+    expect(caseSearch.total).toBe(1);
+    expect(caseSearch.cards[0].slug).toBe("alice-distorted-queen");
+  });
 });
