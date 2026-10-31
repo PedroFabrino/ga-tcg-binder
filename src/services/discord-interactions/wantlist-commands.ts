@@ -302,8 +302,9 @@ export async function handleWantlistCommand(
         items.push(`🟡 ${s.cardName} x${s.sharedQuantity}`);
       }
 
+      const sectionTag = group.section === "competitive" ? "🏆 [Competitive]" : "🎮 [4Fun]";
       fields.push({
-        name: `**${group.deckName}** (${group.totalShortages} shortages)`,
+        name: `**${group.deckName}** ${sectionTag} (${group.totalShortages} shortages)`,
         value: items.join("\n").slice(0, 1024) || "No shortages",
         inline: false,
       });

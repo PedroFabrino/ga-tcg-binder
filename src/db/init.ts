@@ -73,6 +73,8 @@ CREATE TABLE IF NOT EXISTS \`decks\` (
 	\`name\` text NOT NULL,
 	\`champion\` text,
 	\`format\` text DEFAULT 'standard' NOT NULL,
+	\`section\` text DEFAULT '4fun' NOT NULL,
+	\`priority\` integer DEFAULT 0 NOT NULL,
 	\`is_public\` integer DEFAULT false NOT NULL,
 	\`created_at\` integer DEFAULT (strftime('%s', 'now')),
 	\`updated_at\` integer DEFAULT (strftime('%s', 'now')),
@@ -636,6 +638,8 @@ async function doRunMigrations(customClient: typeof client) {
     "ALTER TABLE `users` ADD COLUMN `hidden_set_uuids` text DEFAULT '[]' NOT NULL;",
     "ALTER TABLE `market_cards` ADD COLUMN `last_stocked_at` integer;",
     "UPDATE `market_cards` SET `last_stocked_at` = `first_seen_at` WHERE `quantity` > 0 AND `last_stocked_at` IS NULL;",
+    "ALTER TABLE `decks` ADD COLUMN `section` text DEFAULT '4fun' NOT NULL;",
+    "ALTER TABLE `decks` ADD COLUMN `priority` integer DEFAULT 0 NOT NULL;",
   ];
 
   for (const alterStmt of alterColumns) {

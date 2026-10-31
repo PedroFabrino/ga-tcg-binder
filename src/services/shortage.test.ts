@@ -559,5 +559,123 @@ describe("Shortage Calculation & Friend Idle Discovery Seams", () => {
     expect(aggA?.marketVendorUrl).toBe("https://mypcards.com/megavendor/grandarchive");
     expect(aggB?.marketVendorName).toBe("MegaVendor TCG");
   });
+
+  it("applies competitive section priority allocation and leaves leftovers for 4fun decks", async () => {
+    const { db } = await createTestDb();
+
+    await db.insert(users).values({
+      id: "u-sections",
+      name: "Section User",
+      email: "sections@example.com",
+      friendCode: "GA-SECT01",
+      lowPopThreshold: 1000,
+    });
+
+    await db.insert(cards).values({
+      slug: "fire-blast",
+      name: "Fire Blast",
+      element: "FIRE",
+      class: "MAGE",
+      type: "ACTION",
+      subtypes: "[]",
+    });
+
+    await db.insert(cardEditions).values({
+      id: "ed-fb-1",
+      cardSlug: "fire-blast",
+      setPrefix: "DOA",
+      setName: "Dawn of Ashes",
+      collectorNumber: "050",
+      rarity: 2,
+      imageUrl: "https://example.com/fb.jpg",
+    });
+
+    // User owns 3 copies of Fire Blast
+    await db.insert(collectionItems).values({
+      id: "inv-fb-1",
+      userId: "u-sections",
+      editionId: "ed-fb-1",
+      quantity: 3,
+      foil: false,
+      isDedicated: false,
+    });
+
+    // Competitive Deck #1 (Priority 0) needs 2 copies
+    await db.insert(decks).values({
+      id: "deck-comp-1",
+      userId: "u-sections",
+      name: "Competitive Alpha",
+      section: "competitive",
+      priority: 0,
+    });
+    await db.insert(deckCards).values({
+      id: "dc-c1",
+      deckId: "deck-comp-1",
+      cardSlug: "fire-blast",
+      zone: "main",
+      quantity: 2,
+    });
+
+    // Competitive Deck #2 (Priority 1) needs 2 copies -> Should get 1 allocated, 1 Hard Shortage
+    await db.insert(decks).values({
+      id: "deck-comp-2",
+      userId: "u-sections",
+      name: "Competitive Beta",
+      section: "competitive",
+      priority: 1,
+    });
+    await db.insert(deckCards).values({
+      id: "dc-c2",
+      deckId: "deck-comp-2",
+      cardSlug: "fire-blast",
+      zone: "main",
+      quantity: 2,
+    });
+
+    // 4Fun Deck #1 (Priority 0) needs 2 copies -> Leftovers are 0, so needs 2
+    await db.insert(decks).values({
+      id: "deck-fun-1",
+      userId: "u-sections",
+      name: "Casual Swarm",
+      section: "4fun",
+      priority: 0,
+    });
+    await db.insert(deckCards).values({
+      id: "dc-f1",
+      deckId: "deck-fun-1",
+      cardSlug: "fire-blast",
+      zone: "main",
+      quantity: 2,
+    });
+
+    // Check individual Deck shortages:
+    // Comp 1: needs 2, 3 total owned, no higher competitive decks -> 0 missing
+    const repComp1 = await calculateDeckShortage("deck-comp-1", "u-sections", db);
+    const itemComp1 = repComp1.items.find((i) => i.cardSlug === "fire-blast");
+    expect(itemComp1?.missingQuantity).toBe(0);
+
+    // Comp 2: needs 2, 3 owned - 2 reserved by Comp 1 = 1 available -> 1 missing
+    const repComp2 = await calculateDeckShortage("deck-comp-2", "u-sections", db);
+    const itemComp2 = repComp2.items.find((i) => i.cardSlug === "fire-blast");
+    expect(itemComp2?.missingQuantity).toBe(1);
+
+    // Fun 1: needs 2, 3 owned - 4 reserved by competitive decks (2+2) = 0 available -> 2 missing
+    const repFun1 = await calculateDeckShortage("deck-fun-1", "u-sections", db);
+    const itemFun1 = repFun1.items.find((i) => i.cardSlug === "fire-blast");
+    expect(itemFun1?.missingQuantity).toBe(2);
+
+    // Check aggregated shortages:
+    // Total demand = 2 + 2 + 2 = 6
+    // Total owned = 3
+    // Comp 1 gets 2, leaves 1. Comp 2 takes 1, gaps 1 (Hard Shortage). Leaves 0.
+    // 4Fun peak demand = 2, leaves 0 -> 4Fun hard shortage = 2.
+    // Total peak missing = 1 (comp) + 2 (4fun) = 3.
+    // Total concurrent missing = 6 - 3 = 3.
+    const agg = await calculateAggregatedShortages("u-sections", db);
+    const aggFb = agg.cards.find((c) => c.cardSlug === "fire-blast");
+    expect(aggFb).toBeDefined();
+    expect(aggFb?.peakMissing).toBe(3);
+    expect(aggFb?.concurrentMissing).toBe(3);
+  });
 });
 

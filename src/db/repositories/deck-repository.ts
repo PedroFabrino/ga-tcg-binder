@@ -1,6 +1,6 @@
 import { db } from "../index";
 import { decks, deckCards, cards, cardEditions } from "../schema";
-import { eq, inArray, sql } from "drizzle-orm";
+import { eq, inArray, sql, asc, and } from "drizzle-orm";
 
 export type DeckDatabase = typeof db;
 export type DeckRow = typeof decks.$inferSelect;
@@ -15,7 +15,43 @@ export async function getUserDecks(
   return database
     .select()
     .from(decks)
-    .where(eq(decks.userId, userId));
+    .where(eq(decks.userId, userId))
+    .orderBy(
+      // 'competitive' comes before '4fun'
+      sql`CASE WHEN ${decks.section} = 'competitive' THEN 0 ELSE 1 END`,
+      asc(decks.priority),
+      asc(decks.createdAt)
+    );
+}
+
+export async function getNextDeckPriority(
+  userId: string,
+  section: string = "4fun",
+  database = db
+): Promise<number> {
+  const result = await database
+    .select({ maxPriority: sql<number>`COALESCE(MAX(${decks.priority}), -1)` })
+    .from(decks)
+    .where(and(eq(decks.userId, userId), eq(decks.section, section)));
+  const max = result[0]?.maxPriority ?? -1;
+  return max + 1;
+}
+
+export async function updateDeckSectionAndPriorities(
+  userId: string,
+  updates: { id: string; section: string; priority: number }[],
+  database = db
+): Promise<void> {
+  for (const item of updates) {
+    await database
+      .update(decks)
+      .set({
+        section: item.section,
+        priority: item.priority,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(decks.id, item.id), eq(decks.userId, userId)));
+  }
 }
 
 export async function getDeckCardsCounts(

@@ -42,7 +42,12 @@ export async function loadDeckShortageData(
     .where(eq(deckCards.deckId, deckId));
 
   const otherUserDecks = await database
-    .select({ id: decks.id, name: decks.name })
+    .select({
+      id: decks.id,
+      name: decks.name,
+      section: decks.section,
+      priority: decks.priority,
+    })
     .from(decks)
     .where(eq(decks.userId, effectiveUserId));
 
@@ -51,19 +56,25 @@ export async function loadDeckShortageData(
     .map((d) => d.id);
 
   let otherDeckCards: Array<{
+    deckId: string;
     cardSlug: string;
     deckName: string;
     quantity: number;
     assignedEditionId: string | null;
+    section: string;
+    priority: number;
   }> = [];
 
   if (otherDeckIds.length > 0) {
     otherDeckCards = await database
       .select({
+        deckId: decks.id,
         cardSlug: deckCards.cardSlug,
         deckName: decks.name,
         quantity: deckCards.quantity,
         assignedEditionId: deckCards.assignedEditionId,
+        section: decks.section,
+        priority: decks.priority,
       })
       .from(deckCards)
       .innerJoin(decks, eq(deckCards.deckId, decks.id))

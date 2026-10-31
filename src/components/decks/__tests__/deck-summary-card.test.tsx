@@ -12,6 +12,8 @@ describe("DeckSummaryCard", () => {
     name: "Wind Rai",
     champion: "Rai, Mana Weaver",
     format: "standard",
+    section: "4fun" as const,
+    priority: 0,
     mainCount: 60,
     materialCount: 12,
     sideCount: 8,

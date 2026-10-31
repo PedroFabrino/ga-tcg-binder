@@ -71,6 +71,8 @@ export interface DeckAdvisorRawUserData {
     deckId: string;
     cardSlug: string;
     quantity: number;
+    section?: string;
+    priority?: number;
   }>;
 }
 
@@ -168,6 +170,8 @@ export async function getDeckAdvisorUserData(
         deckId: decks.id,
         cardSlug: deckCards.cardSlug,
         quantity: deckCards.quantity,
+        section: decks.section,
+        priority: decks.priority,
       })
       .from(deckCards)
       .innerJoin(decks, eq(deckCards.deckId, decks.id))

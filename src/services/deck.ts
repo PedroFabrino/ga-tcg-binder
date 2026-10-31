@@ -11,6 +11,8 @@ import {
   replaceDeckCards,
   getDeckCardsWithDetails,
   getEditionsForCardSlugs,
+  getNextDeckPriority,
+  updateDeckSectionAndPriorities,
   type DeckDatabase,
   type DeckCardInsert,
   type DeckInsert,
@@ -122,6 +124,8 @@ export async function createDeckService(
     name: string;
     champion?: string;
     format?: string;
+    section?: string;
+    priority?: number;
     omnidexText?: string;
   },
   database?: DeckDatabase
@@ -129,6 +133,7 @@ export async function createDeckService(
   let name = decodeHtmlEntities(data.name?.trim() || "");
   let champion = decodeHtmlEntities(data.champion?.trim() || "");
   const format = data.format || "standard";
+  const section = data.section === "competitive" ? "competitive" : "4fun";
   let omnidexText = data.omnidexText ? decodeHtmlEntities(data.omnidexText.trim()) : undefined;
 
   if (omnidexText && (omnidexText.startsWith("http://") || omnidexText.startsWith("https://"))) {
@@ -146,6 +151,10 @@ export async function createDeckService(
     throw new DeckValidationError("Deck name is required");
   }
 
+  const priority = data.priority !== undefined
+    ? data.priority
+    : await getNextDeckPriority(userId, section, database);
+
   const deckId = `deck-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
   const cardsToInsert: DeckCardInsert[] = omnidexText
     ? await buildDeckCardsFromOmnidex(deckId, omnidexText, database)
@@ -158,6 +167,8 @@ export async function createDeckService(
       name,
       champion,
       format,
+      section,
+      priority,
     },
     cardsToInsert,
     database
@@ -278,6 +289,14 @@ export async function updateDeckService(
       }
     }
   }
+}
+
+export async function reorderDecksService(
+  userId: string,
+  items: { id: string; section: "competitive" | "4fun"; priority: number }[],
+  database?: DeckDatabase
+): Promise<void> {
+  await updateDeckSectionAndPriorities(userId, items, database);
 }
 
 export async function deleteDeckService(

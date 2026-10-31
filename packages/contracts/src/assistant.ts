@@ -28,6 +28,8 @@ export interface AssistantDeckSummary {
   name: string;
   format: string;
   champion: string | null;
+  section?: string;
+  priority?: number;
   totalCards: number;
   uniqueCards: number;
   completionPercentage: number;
@@ -172,6 +174,8 @@ export interface AssistantDeckWantlistGroup {
   deckId: string;
   deckName: string;
   format: string;
+  section?: string;
+  priority?: number;
   hardShortages: AssistantShortageItem[];
   sharedShortages: AssistantShortageItem[];
   totalShortages: number;

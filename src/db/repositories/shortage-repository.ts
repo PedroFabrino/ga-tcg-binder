@@ -11,7 +11,7 @@ import {
   mypWatchlist,
   metaStaples,
 } from "../schema";
-import { eq, inArray, and, gt } from "drizzle-orm";
+import { eq, inArray, and, gt, asc, sql } from "drizzle-orm";
 
 export { loadDeckShortageData } from "./deck-shortage-repository";
 
@@ -49,9 +49,16 @@ export async function loadAggregatedShortageData(
       name: decks.name,
       champion: decks.champion,
       format: decks.format,
+      section: decks.section,
+      priority: decks.priority,
     })
     .from(decks)
-    .where(eq(decks.userId, effectiveUserId));
+    .where(eq(decks.userId, effectiveUserId))
+    .orderBy(
+      sql`CASE WHEN ${decks.section} = 'competitive' THEN 0 ELSE 1 END`,
+      asc(decks.priority),
+      asc(decks.createdAt)
+    );
 
   const deckIds = userDecks.map((d) => d.id);
   let allDeckCards: Array<{

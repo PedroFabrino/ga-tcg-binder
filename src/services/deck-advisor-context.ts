@@ -144,7 +144,12 @@ export function assembleDeckAdvisorContext(params: {
   const bypassedSubtypesSet = new Set(bypassedSubtypes.map((b) => b.subtype.toUpperCase()));
 
   // 3. User Holdings aggregation
-  const holdings = aggregateUserHoldingsBySlug(params.userData, deck.id);
+  const holdings = aggregateUserHoldingsBySlug(
+    params.userData,
+    deck.id,
+    deck.section,
+    deck.priority
+  );
 
   // 4. Deck Card Snapshots with accurate Hard & Shared Shortages
   const deckCardSnapshots: DeckAdvisorDeckCardSnapshot[] = deckCards.map((c) => {

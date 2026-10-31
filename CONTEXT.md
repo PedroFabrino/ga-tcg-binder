@@ -28,12 +28,20 @@ _Avoid_: Cloned card, virtual copy
 An Owned Copy strictly reserved for a single Deck, preventing any other Deck from satisfying its card requirements with that copy.
 _Avoid_: Locked card, exclusive card
 
+**Deck Section** (_pt-BR_: **Seção do Deck**):
+The Collector-chosen grouping of a Deck as either `Competitive` (_pt-BR_: **Competitivo**) or `4Fun` (_pt-BR_: **Diversão**). A Competitive Deck reserves its Owned Copies and never shares them; 4Fun Decks share only the copies left over after every Competitive Deck is served. Competitive demand always outranks 4Fun demand.
+_Avoid_: Deck tier, deck class, exclusive deck, deck category
+
+**Deck Priority**:
+The Collector-controlled order of Decks within a Deck Section, topmost first. Within Competitive it decides which Deck is served first when copies run out; within 4Fun it decides which Deck a Shortage is attributed to first.
+_Avoid_: Deck rank, deck position, sort order
+
 **Shortage** (_pt-BR_: **Cartas Necessárias**):
 The quantity deficit when the number of copies required by one or more Decks exceeds available Owned Copies.
 _Avoid_: Missing card, out of stock, falta
 
 **Hard Shortage** (_pt-BR_: **Compra Necessária** / **Sem Cópia Suficiente**):
-A high-priority single-deck Shortage where the Collector does not own enough copies in their Binder to sleeve even one individual Deck (`peakMissing > 0`).
+A high-priority single-deck Shortage where the Collector does not own enough copies in their Binder to sleeve even one individual Deck (`peakMissing > 0`). A Deck also incurs a Hard Shortage when copies it needs are reserved by Competitive Decks served before it.
 _Avoid_: Peak deficit, unplayable gap, falta crítica
 
 **Shared Shortage** (_pt-BR_: **Revezamento entre Decks**):
@@ -364,7 +372,7 @@ The conversational AI referee and deck-building partner embedded in the Deck vie
 _Avoid_: Ruleset helper, AI coach, LLM chatbot, Collector Assistant
 
 **Candidate Pool**:
-The tiered set of cards considered by the Deck Advisor for swapping into a selected Deck, filtered by the Deck's legal Champion lineage and unlocked Elements and partitioned by acquisition friction: immediately sleeveable Owned Copies (Idle and Shared Copies not Dedicated to other Decks), personal Store Listings eligible for Shortage Offset pull-back, and unowned Card Catalog or Meta Staple upgrades.
+The tiered set of cards considered by the Deck Advisor for swapping into a selected Deck, filtered by the Deck's legal Champion lineage and unlocked Elements and partitioned by acquisition friction: immediately sleeveable Owned Copies (Idle and Shared Copies not Dedicated to other Decks nor reserved by higher-priority Competitive Decks; for a Competitive Deck, every Owned Copy not needed by a higher-priority Competitive Deck), personal Store Listings eligible for Shortage Offset pull-back, and unowned Card Catalog or Meta Staple upgrades.
 _Avoid_: Available cards, spare pool, legal collection
 
 

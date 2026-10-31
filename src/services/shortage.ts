@@ -17,148 +17,12 @@ import type { WatchlistStatus } from "../db/schema";
 
 export type { MarketShortageAvailability };
 
-export interface FriendIdleCard {
-  friendId: string;
-  friendName: string;
-  friendCode: string;
-  idleQuantity: number;
-}
-
-export interface CardShortageDetail extends MarketShortageAvailability {
-  cardSlug: string;
-  cardName: string;
-  zone: string;
-  imageUrl?: string | null;
-  requiredQuantity: number;
-  availableQuantity: number;
-  missingQuantity: number;
-  isContended: boolean;
-  contendingDeckNames: string[];
-  dedicatedCopiesOwned: number;
-  sharedCopiesOwned: number;
-  friendsWithIdle: FriendIdleCard[];
-}
-
-export interface DeckShortageReport {
-  deckId: string;
-  deckName: string;
-  totalCardsRequired: number;
-  totalCardsMissing: number;
-  items: CardShortageDetail[];
-}
-
-export async function calculateDeckShortage(
-  deckId: string,
-  userId?: string,
-  database?: unknown
-): Promise<DeckShortageReport> {
-  const effectiveUserId = !userId || userId === DEFAULT_USER_ID ? DEFAULT_USER_ID : userId;
-
-  const {
-    deck,
-    targetDeckCards,
-    otherDeckCards,
-    userInventory,
-    friends,
-    friendsInventory,
-    friendDecks,
-    userMypListings,
-    marketListings,
-    editionsInDeck,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- repositories accept in-memory test database or singleton db
-  } = await loadDeckShortageData(deckId, effectiveUserId, database as any);
-
-  let totalCardsRequired = 0;
-  let totalCardsMissing = 0;
-  const items: CardShortageDetail[] = [];
-
-  for (const dc of targetDeckCards) {
-    const slug = dc.cardSlug;
-    const cardName = dc.cardName || slug;
-    const required = dc.quantity;
-    totalCardsRequired += required;
-
-    const assignedEdition = editionsInDeck.find((e) => e.cardSlug === slug);
-    const imageUrl = assignedEdition?.imageUrl || null;
-
-    const ownedForCard = userInventory.filter((inv) => inv.cardSlug === slug);
-    const dedicatedOwned = ownedForCard
-      .filter((inv) => inv.isDedicated)
-      .reduce((sum, inv) => sum + inv.quantity, 0);
-    const sharedOwned = ownedForCard
-      .filter((inv) => !inv.isDedicated)
-      .reduce((sum, inv) => sum + inv.quantity, 0);
-    const totalOwned = dedicatedOwned + sharedOwned;
-
-    const dedicatedToOtherDecks = otherDeckCards
-      .filter((od) => od.cardSlug === slug && od.assignedEditionId)
-      .reduce((sum, od) => sum + od.quantity, 0);
-
-    const available = Math.max(0, totalOwned - dedicatedToOtherDecks);
-    const missing = Math.max(0, required - available);
-    totalCardsMissing += missing;
-
-    const otherDemandForSlug = otherDeckCards
-      .filter((od) => od.cardSlug === slug)
-      .reduce((sum, od) => sum + od.quantity, 0);
-    const totalSystemDemand = required + otherDemandForSlug;
-    const isContended = totalSystemDemand > totalOwned && otherDemandForSlug > 0;
-
-    const contendingDeckNames = otherDeckCards
-      .filter((od) => od.cardSlug === slug && od.deckName)
-      .map((od) => od.deckName)
-      .filter((name, idx, arr) => arr.indexOf(name) === idx);
-
-    const friendsWithIdle: FriendIdleCard[] = [];
-    if (missing > 0 && friends.length > 0) {
-      for (const friend of friends) {
-        const friendOwned = friendsInventory
-          .filter((fi) => fi.userId === friend.id && fi.cardSlug === slug && !fi.isDedicated)
-          .reduce((sum, fi) => sum + fi.quantity, 0);
-
-        const friendUsedInDecks = friendDecks
-          .filter((fd) => fd.userId === friend.id && fd.cardSlug === slug)
-          .reduce((sum, fd) => Math.max(sum, fd.quantity), 0);
-
-        const friendIdle = Math.max(0, friendOwned - friendUsedInDecks);
-        if (friendIdle > 0) {
-          friendsWithIdle.push({
-            friendId: friend.id,
-            friendName: friend.name || "Friend",
-            friendCode: friend.friendCode,
-            idleQuantity: friendIdle,
-          });
-        }
-      }
-    }
-
-    const marketInfo = resolveMarketAvailability(slug, marketListings, userMypListings);
-
-    items.push({
-      cardSlug: slug,
-      cardName,
-      zone: dc.zone,
-      imageUrl,
-      requiredQuantity: required,
-      availableQuantity: available,
-      missingQuantity: missing,
-      isContended,
-      contendingDeckNames,
-      dedicatedCopiesOwned: dedicatedOwned,
-      sharedCopiesOwned: sharedOwned,
-      friendsWithIdle,
-      ...marketInfo,
-    });
-  }
-
-  return {
-    deckId,
-    deckName: deck.name,
-    totalCardsRequired,
-    totalCardsMissing,
-    items,
-  };
-}
+export {
+  calculateDeckShortage,
+  type FriendIdleCard,
+  type CardShortageDetail,
+  type DeckShortageReport,
+} from "./deck-shortage";
 
 export interface DeckRequirement {
   deckId: string;
@@ -315,7 +179,42 @@ export async function calculateAggregatedShortages(
       .reduce((sum, inv) => sum + inv.quantity, 0);
     const totalOwned = dedicatedOwned + sharedOwned;
 
-    const peakMissing = Math.max(0, peakDemand - totalOwned);
+    // Section-aware shortage allocation:
+    // 1. Separate decks into Competitive and 4Fun (preserving userDecks priority order)
+    const competitiveDecks = userDecks.filter((d) => d.section === "competitive");
+    const fourFunDecks = userDecks.filter((d) => d.section !== "competitive");
+
+    let remainingCopies = totalOwned;
+    let competitiveHardShortage = 0;
+
+    for (const cDeck of competitiveDecks) {
+      const demand = demandByDeck[cDeck.id] || 0;
+      if (demand > 0) {
+        const allocated = Math.min(demand, remainingCopies);
+        const gap = demand - allocated;
+        competitiveHardShortage += gap;
+        remainingCopies -= allocated;
+      }
+    }
+
+    const demand4FunByDeck: Record<string, number> = {};
+    for (const fDeck of fourFunDecks) {
+      if (demandByDeck[fDeck.id]) {
+        demand4FunByDeck[fDeck.id] = demandByDeck[fDeck.id];
+      }
+    }
+    const peakDemand4Fun = Object.values(demand4FunByDeck).reduce((max, q) => Math.max(max, q), 0);
+    const totalDemand4Fun = Object.values(demand4FunByDeck).reduce((sum, q) => sum + q, 0);
+
+    const fourFunHardShortage = Math.max(0, peakDemand4Fun - remainingCopies);
+    const fourFunSharedShortage = Math.max(0, totalDemand4Fun - remainingCopies - fourFunHardShortage);
+
+    // If competitive decks exist, peakMissing reflects hard purchase deficit across competitive + 4fun
+    const peakMissing = competitiveDecks.length > 0
+      ? competitiveHardShortage + fourFunHardShortage
+      : Math.max(0, peakDemand - totalOwned);
+
+    // Total concurrent missing across all decks
     const concurrentMissing = Math.max(0, totalDemand - totalOwned);
 
     const stapleCopies = stapleMap.get(slug) || 0;

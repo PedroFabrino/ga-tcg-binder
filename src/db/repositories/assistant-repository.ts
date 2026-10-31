@@ -15,7 +15,7 @@ import {
   type CollectorPairingToken,
   type InsertCollectorPairingToken,
 } from "../assistant-schema";
-import { eq, and, gt, isNull, inArray } from "drizzle-orm";
+import { eq, and, gt, isNull, inArray, asc, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export type AssistantDatabase = typeof db;
@@ -285,9 +285,16 @@ export async function loadAssistantCollectorDecksData(
       name: decks.name,
       champion: decks.champion,
       format: decks.format,
+      section: decks.section,
+      priority: decks.priority,
     })
     .from(decks)
-    .where(eq(decks.userId, collectorId));
+    .where(eq(decks.userId, collectorId))
+    .orderBy(
+      sql`CASE WHEN ${decks.section} = 'competitive' THEN 0 ELSE 1 END`,
+      asc(decks.priority),
+      asc(decks.createdAt)
+    );
 
   const deckIds = userDecks.map((d) => d.id);
   if (deckIds.length === 0) {

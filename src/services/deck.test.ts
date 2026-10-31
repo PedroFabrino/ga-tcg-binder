@@ -39,6 +39,8 @@ describe("deck service", () => {
       name: "Slime & Swarm",
       champion: "Silvie",
       format: "standard",
+      section: "4fun",
+      priority: 0,
     });
     expect(deckCardRows).toEqual(expect.arrayContaining([
       expect.objectContaining({ cardSlug: "silvie", zone: "material", quantity: 1 }),
@@ -115,5 +117,26 @@ describe("deck service", () => {
       .rejects.toBeInstanceOf(DeckNotFoundError);
     await expect(deleteDeckService("missing", db))
       .rejects.toBeInstanceOf(DeckNotFoundError);
+  });
+
+  it("assigns sequential priority per section and orders decks by section and priority", async () => {
+    const { db } = await createTestDb();
+    await db.insert(users).values(user);
+
+    await createDeckService(user.id, { name: "Casual Deck 1" }, db);
+    await createDeckService(user.id, { name: "Casual Deck 2" }, db);
+    await createDeckService(user.id, { name: "Tournament Deck 1", section: "competitive" }, db);
+    await createDeckService(user.id, { name: "Tournament Deck 2", section: "competitive" }, db);
+
+    const { getUserDecksSummary } = await import("./deck");
+    const summary = await getUserDecksSummary(user.id, db);
+
+    // competitive decks should come first, then 4fun decks, each ordered by priority
+    expect(summary.map((d) => ({ name: d.name, section: d.section, priority: d.priority }))).toEqual([
+      { name: "Tournament Deck 1", section: "competitive", priority: 0 },
+      { name: "Tournament Deck 2", section: "competitive", priority: 1 },
+      { name: "Casual Deck 1", section: "4fun", priority: 0 },
+      { name: "Casual Deck 2", section: "4fun", priority: 1 },
+    ]);
   });
 });

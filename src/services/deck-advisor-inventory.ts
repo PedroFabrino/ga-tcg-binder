@@ -42,7 +42,9 @@ export function parseCardSubtypes(
  */
 export function aggregateUserHoldingsBySlug(
   userData: DeckAdvisorRawUserData,
-  selectedDeckId?: string
+  selectedDeckId?: string,
+  selectedDeckSection?: string,
+  selectedDeckPriority?: number
 ): Map<string, UserAggregatedHolding> {
   const holdings = new Map<string, UserAggregatedHolding>();
 
@@ -83,14 +85,44 @@ export function aggregateUserHoldingsBySlug(
     }
   }
 
-  // Calculate Idle vs Shared copies after summing available owned copies
+  // Calculate Idle vs Shared copies after summing available owned copies.
+  // Respects Deck Section and Priority:
+  // - If advising a 4Fun deck, all Competitive deck usages are reserved and subtracted first.
+  // - If advising a Competitive deck, only higher-priority Competitive deck usages are subtracted.
   for (const entry of Array.from(holdings.values())) {
+    let reservedByPriorDecks = 0;
+    if (selectedDeckSection === "competitive") {
+      reservedByPriorDecks = userData.otherDeckCardUsages
+        .filter(
+          (u) =>
+            u.cardSlug === entry.cardSlug &&
+            (!selectedDeckId || u.deckId !== selectedDeckId) &&
+            u.section === "competitive" &&
+            selectedDeckPriority !== undefined &&
+            u.priority !== undefined &&
+            u.priority < selectedDeckPriority
+        )
+        .reduce((sum, u) => sum + u.quantity, 0);
+    } else {
+      reservedByPriorDecks = userData.otherDeckCardUsages
+        .filter(
+          (u) =>
+            u.cardSlug === entry.cardSlug &&
+            (!selectedDeckId || u.deckId !== selectedDeckId) &&
+            u.section === "competitive"
+        )
+        .reduce((sum, u) => sum + u.quantity, 0);
+    }
+
+    const effectiveOwned = Math.max(0, entry.ownedQuantity - reservedByPriorDecks);
+
     const otherDemand = userData.otherDeckCardUsages
       .filter((u) => u.cardSlug === entry.cardSlug && (!selectedDeckId || u.deckId !== selectedDeckId))
       .reduce((sum, u) => sum + u.quantity, 0);
 
-    entry.idleQuantity = Math.max(0, entry.ownedQuantity - otherDemand);
-    entry.sharedQuantity = Math.max(0, entry.ownedQuantity - entry.idleQuantity);
+    entry.idleQuantity = Math.max(0, effectiveOwned - otherDemand);
+    entry.sharedQuantity = Math.max(0, effectiveOwned - entry.idleQuantity);
+    entry.ownedQuantity = effectiveOwned;
   }
 
   // 2. Ingest Personal Store Listings (myp_cards)

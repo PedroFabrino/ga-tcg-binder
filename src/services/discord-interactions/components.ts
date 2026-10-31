@@ -39,7 +39,9 @@ export function buildDecksOverviewEmbed(
 
   const fields: DiscordEmbedField[] = decks.map((deck) => {
     const statusIcon = deck.completionPercentage === 100 ? "✅" : "⚠️";
+    const sectionBadge = deck.section === "competitive" ? "🏆 [Competitive]" : "🎮 [4Fun]";
     const value = [
+      `Section: ${sectionBadge}`,
       `Champion: **${deck.champion || "None"}** | Format: ${deck.format}`,
       `Cards: ${deck.totalCards} (${deck.uniqueCards} unique)`,
       `Completion: **${deck.completionPercentage}%** ${statusIcon}`,

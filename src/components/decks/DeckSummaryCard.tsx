@@ -10,14 +10,22 @@ import {
   CheckCircle2,
   AlertTriangle,
   ArrowRight,
+  ChevronUp,
+  ChevronDown,
+  ArrowUpDown,
+  GripVertical,
+  Flame,
+  Smile,
 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 
 export interface DeckSummaryItem {
   id: string;
   name: string;
-  champion?: string | null;
+  champion: string;
   format: string;
+  section: "competitive" | "4fun";
+  priority: number;
   mainCount: number;
   materialCount: number;
   sideCount: number;
@@ -31,6 +39,12 @@ export interface DeckSummaryCardProps {
   isEditing?: boolean;
   onEdit: (e: React.MouseEvent) => void;
   onDelete: (e: React.MouseEvent) => void;
+  onMoveUp?: (e: React.MouseEvent) => void;
+  onMoveDown?: (e: React.MouseEvent) => void;
+  onToggleSection?: (e: React.MouseEvent) => void;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
+  dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
 }
 
 export function DeckSummaryCard({
@@ -40,8 +54,15 @@ export function DeckSummaryCard({
   isEditing = false,
   onEdit,
   onDelete,
+  onMoveUp,
+  onMoveDown,
+  onToggleSection,
+  canMoveUp = false,
+  canMoveDown = false,
+  dragHandleProps,
 }: DeckSummaryCardProps) {
   const { t } = useTranslation();
+  const isCompetitive = deck.section === "competitive";
 
   return (
     <Link
@@ -52,6 +73,20 @@ export function DeckSummaryCard({
       <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-cyan-400/[0.06] blur-2xl transition-opacity group-hover:opacity-100" />
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
+          {dragHandleProps && (
+            <button
+              type="button"
+              {...dragHandleProps}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              className="cursor-grab touch-none p-1 text-slate-500 hover:text-slate-300"
+              aria-label="Drag deck"
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+          )}
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-amber-300/20 bg-gradient-to-br from-amber-200/10 to-transparent text-amber-200">
             <Crown className="h-5 w-5" />
           </div>
@@ -63,6 +98,41 @@ export function DeckSummaryCard({
           </div>
         </div>
         <div className="flex items-center gap-1 opacity-0 transition-all group-hover:opacity-100 focus-within:opacity-100">
+          {onMoveUp && (
+            <button
+              type="button"
+              onClick={onMoveUp}
+              disabled={!canMoveUp}
+              className="rounded-lg p-1 text-slate-500 transition-all hover:bg-white/[0.08] hover:text-white disabled:opacity-20"
+              aria-label={t("decks.moveUp")}
+              title={t("decks.moveUp")}
+            >
+              <ChevronUp className="h-4 w-4" />
+            </button>
+          )}
+          {onMoveDown && (
+            <button
+              type="button"
+              onClick={onMoveDown}
+              disabled={!canMoveDown}
+              className="rounded-lg p-1 text-slate-500 transition-all hover:bg-white/[0.08] hover:text-white disabled:opacity-20"
+              aria-label={t("decks.moveDown")}
+              title={t("decks.moveDown")}
+            >
+              <ChevronDown className="h-4 w-4" />
+            </button>
+          )}
+          {onToggleSection && (
+            <button
+              type="button"
+              onClick={onToggleSection}
+              className="rounded-lg p-1 text-slate-500 transition-all hover:bg-white/[0.08] hover:text-white"
+              aria-label={isCompetitive ? t("decks.moveTo4Fun") : t("decks.moveToCompetitive")}
+              title={isCompetitive ? t("decks.moveTo4Fun") : t("decks.moveToCompetitive")}
+            >
+              <ArrowUpDown className="h-3.5 w-3.5" />
+            </button>
+          )}
           <button
             type="button"
             onClick={onEdit}
@@ -88,6 +158,17 @@ export function DeckSummaryCard({
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
+        <span
+          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+            isCompetitive
+              ? "border-amber-400/30 bg-amber-500/10 text-amber-300"
+              : "border-sky-400/30 bg-sky-500/10 text-sky-300"
+          }`}
+          title={isCompetitive ? t("decks.sectionCompetitiveDesc") : t("decks.section4FunDesc")}
+        >
+          {isCompetitive ? <Flame className="h-3 w-3" /> : <Smile className="h-3 w-3" />}
+          {isCompetitive ? t("decks.sectionCompetitive") : t("decks.section4Fun")}
+        </span>
         <span className="rounded-full border border-white/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-300">
           {deck.format}
         </span>

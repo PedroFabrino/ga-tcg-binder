@@ -1,5 +1,4 @@
 "use client";
-
 import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import {
@@ -16,6 +15,7 @@ import {
 } from "lucide-react";
 import { RecommendedMetaDecks, type RecommendedMetaArchetype } from "@/components/decks/RecommendedMetaDecks";
 import { DeckSummaryCard } from "@/components/decks/DeckSummaryCard";
+import { DeckSectionsView } from "@/components/decks/DeckSectionsView";
 import { PageHeader, ConfirmModal, Tabs } from "@/components/common";
 import { SkeletonCard, EmptyState } from "@/components/Skeletons";
 import { useToast } from "@/components/ToastProvider";
@@ -24,20 +24,19 @@ import AllShortagesView from "@/components/decks/AllShortagesView";
 import { Button } from "@/components/ui/button";
 import type { AggregatedShortageReport } from "@/services/shortage";
 import { useTranslation } from "@/lib/i18n";
-
 interface DeckSummary {
   id: string;
   name: string;
   champion: string;
   format: string;
+  section: "competitive" | "4fun";
+  priority: number;
   mainCount: number;
   materialCount: number;
   sideCount: number;
   totalCards: number;
 }
-
 type DecksViewTab = "decks" | "shortages";
-
 export default function DecksPage() {
 const { t } = useTranslation();
 const { data: session } = useSession();
@@ -60,7 +59,69 @@ const { showToast } = useToast();
     omnidexText: string;
   } | null>(null);
   const [loadingEditId, setLoadingEditId] = useState<string | null>(null);
-
+  const handleReorder = async (newDecks: DeckSummary[]) => {
+    const previousDecks = [...decks];
+    setDecks(newDecks);
+    try {
+      const items = newDecks.map((d, index) => ({
+        id: d.id,
+        section: d.section,
+        priority: index,
+      }));
+      const res = await fetch("/api/decks/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: session?.user?.id,
+          items,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      showToast(t("decks.reorderSuccess"), "success");
+      fetchShortages();
+    } catch {
+      setDecks(previousDecks);
+      showToast(t("decks.reorderError"), "error");
+    }
+  };
+  const handleMove = (deckId: string, direction: "up" | "down") => {
+    const deck = decks.find((d) => d.id === deckId);
+    if (!deck) return;
+    const sameSection = decks.filter((d) => d.section === deck.section);
+    const otherSection = decks.filter((d) => d.section !== deck.section);
+    const index = sameSection.findIndex((d) => d.id === deckId);
+    if (direction === "up" && index > 0) {
+      const reordered = [...sameSection];
+      const temp = reordered[index - 1];
+      reordered[index - 1] = reordered[index];
+      reordered[index] = temp;
+      const combined = deck.section === "competitive"
+        ? [...reordered, ...otherSection]
+        : [...otherSection, ...reordered];
+      handleReorder(combined);
+    } else if (direction === "down" && index < sameSection.length - 1) {
+      const reordered = [...sameSection];
+      const temp = reordered[index + 1];
+      reordered[index + 1] = reordered[index];
+      reordered[index] = temp;
+      const combined = deck.section === "competitive"
+        ? [...reordered, ...otherSection]
+        : [...otherSection, ...reordered];
+      handleReorder(combined);
+    }
+  };
+  const handleToggleSection = (deckId: string) => {
+    const deck = decks.find((d) => d.id === deckId);
+    if (!deck) return;
+    const nextSection: "competitive" | "4fun" = deck.section === "competitive" ? "4fun" : "competitive";
+    const updated = decks.map((d) =>
+      d.id === deckId ? { ...d, section: nextSection } : d
+    );
+    // Sort so competitive is first
+    const comp = updated.filter((d) => d.section === "competitive");
+    const fun = updated.filter((d) => d.section === "4fun");
+    handleReorder([...comp, ...fun]);
+  };
   const handleStartEdit = async (deck: DeckSummary, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -84,7 +145,6 @@ const { showToast } = useToast();
       setLoadingEditId(null);
     }
   };
-
   const handleImportMetaDeck = async (m: RecommendedMetaArchetype) => {
     try {
       const res = await fetch("/api/decks", {
@@ -110,12 +170,10 @@ const { showToast } = useToast();
       showToast("Failed to import: " + message, "error");
     }
   };
-
   useEffect(() => {
     const v = new URLSearchParams(window.location.search).get("view") as DecksViewTab | null;
     if (v === "shortages" || v === "decks") setActiveTab(v);
   }, []);
-
   const handleTabChange = (tab: DecksViewTab) => {
     setActiveTab(tab);
     const url = new URL(window.location.href);
@@ -126,7 +184,6 @@ const { showToast } = useToast();
     }
     window.history.replaceState(null, "", url.toString());
   };
-
   const fetchShortages = useCallback(async () => {
     setLoadingShortages(true);
     try {
@@ -141,7 +198,6 @@ const { showToast } = useToast();
       setLoadingShortages(false);
     }
   }, [session?.user?.id]);
-
   const fetchDecks = useCallback(async () => {
     setLoading(true);
     try {
@@ -152,7 +208,6 @@ const { showToast } = useToast();
       const list: DeckSummary[] = Array.isArray(data.decks) ? data.decks : [];
       setDecks(list);
       setError(false);
-
       // Fetch recommended meta archetypes
       try {
         const metaRes = await fetch(`/api/meta${userIdQuery}`);
@@ -163,7 +218,6 @@ const { showToast } = useToast();
       } catch {
         // Soft error: ignore
       }
-
       list.forEach(async (d) => {
         try {
           const r = await fetch(`/api/decks/${d.id}/shortage${userIdQuery}`);
@@ -182,12 +236,10 @@ const { showToast } = useToast();
       setLoading(false);
     }
   }, [session?.user?.id]);
-
   useEffect(() => {
     fetchDecks();
     fetchShortages();
   }, [fetchDecks, fetchShortages]);
-
   const confirmDelete = async () => {
     if (!pendingDelete) return;
     setDeleting(true);
@@ -204,14 +256,11 @@ const { showToast } = useToast();
       setDeleting(false);
     }
   };
-
   const handleRefreshAll = () => {
     fetchShortages();
     fetchDecks();
   };
-
   const totalShortageCopies = aggregatedReport?.summary.totalShortageCopies || 0;
-
   const TABS = [
     { id: "decks" as const, label: `${t("decks.decksTab")} (${decks.length})`, icon: BookOpen },
     {
@@ -220,7 +269,6 @@ const { showToast } = useToast();
     icon: AlertTriangle,
     },
   ];
-
   return (
     <div className="space-y-6 pb-12">
       <PageHeader
@@ -247,17 +295,14 @@ const { showToast } = useToast();
           </>
         }
       />
-
       {/* View Switcher: My Decks vs All Shortages */}
       <Tabs tabs={TABS} active={activeTab} onChange={handleTabChange} />
-
       {activeTab === "decks" && (
         <RecommendedMetaDecks
           archetypes={recommendedMeta}
           onImport={handleImportMetaDeck}
         />
       )}
-
       {activeTab === "shortages" ? (
         <AllShortagesView
           report={aggregatedReport}
@@ -292,25 +337,17 @@ const { showToast } = useToast();
           }
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {decks.map((deck, i) => (
-            <DeckSummaryCard
-              key={deck.id}
-              deck={deck}
-              missing={shortages[deck.id]}
-              index={i}
-              isEditing={loadingEditId === deck.id}
-              onEdit={(e) => handleStartEdit(deck, e)}
-              onDelete={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setPendingDelete(deck);
-              }}
-            />
-          ))}
-        </div>
+        <DeckSectionsView
+          decks={decks}
+          shortages={shortages}
+          loadingEditId={loadingEditId}
+          onReorder={handleReorder}
+          onMove={handleMove}
+          onToggleSection={handleToggleSection}
+          onEdit={handleStartEdit}
+          onDelete={(deck) => setPendingDelete(deck)}
+        />
       )}
-
       {formMode && (
         <DeckFormModal
           mode={formMode}
@@ -322,7 +359,6 @@ const { showToast } = useToast();
           }}
         />
       )}
-
       {editingDeck && (
         <DeckFormModal
           mode="edit"
@@ -336,7 +372,6 @@ const { showToast } = useToast();
           }}
         />
       )}
-
       {pendingDelete && (
         <ConfirmModal
           title={t("decks.deleteDeckModalTitle")}

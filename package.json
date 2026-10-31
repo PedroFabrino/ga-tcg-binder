@@ -21,6 +21,9 @@
     "sync:sets": "tsx scripts/sync-sets.ts"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@ga/contracts": "workspace:*",
     "@ga/deck-import": "workspace:*",
     "@libsql/client": "^0.14.0",
