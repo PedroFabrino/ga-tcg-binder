@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { PackageOpen } from "lucide-react";
 import {
   matchesSetChecklistFilters,
@@ -17,18 +18,15 @@ import SetChecklistHeader from "@/components/sets/SetChecklistHeader";
 import SetChecklistFiltersBar from "@/components/sets/SetChecklistFilters";
 import SetChecklistCard from "@/components/sets/SetChecklistCard";
 import { buildCollectionUpdateRequest } from "@/lib/collection-stepper";
+import { useSetChecklistQuery } from "@/hooks/queries/use-sets-queries";
+import { collectionKeys } from "@/lib/query-keys";
 
 export default function SetChecklistPage() {
   const params = useParams<{ groupSlug: string }>();
   const groupSlug = params?.groupSlug ?? "";
   const { t } = useTranslation();
   const { showToast } = useToast();
-
-  // Data state
-  const [report, setReport] = useState<SetGroupChecklistReport | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-  const [notFound, setNotFound] = useState(false);
+  const queryClient = useQueryClient();
 
   // Filter state
   const [prefix, setPrefix] = useState<string | null>(null);
@@ -43,53 +41,28 @@ export default function SetChecklistPage() {
     return "all";
   });
 
+  // Query state
+  const { data, isLoading, isError, error: queryError, refetch } = useSetChecklistQuery(
+    groupSlug,
+    target
+  );
+
+  // Local report for optimistic updates
+  const [report, setReport] = useState<SetGroupChecklistReport | null>(null);
+
+  useEffect(() => {
+    if (data) {
+      setReport(data);
+    }
+  }, [data]);
+
+  const notFound = queryError instanceof Error && queryError.message === "NOT_FOUND";
+  const loading = isLoading && !report && !notFound;
+  const error = isError && !notFound && !report;
+
   // Quantity loading state per card slug (to serialize concurrent clicks)
   const loadingCardsRef = useRef<Set<string>>(new Set());
   const [loadingCards, setLoadingCards] = useState<Set<string>>(new Set());
-
-  // Fetch the checklist
-  const fetchChecklist = useCallback(async (activeTarget: string) => {
-    if (!groupSlug) return;
-    setLoading(true);
-    setError(false);
-    setNotFound(false);
-    try {
-      const url = new URL(
-        `/api/sets/${encodeURIComponent(groupSlug)}`,
-        window.location.origin,
-      );
-      if (activeTarget && activeTarget !== "all") {
-        url.searchParams.set("target", activeTarget);
-      }
-      const res = await fetch(url.toString());
-      if (res.status === 404) {
-        setNotFound(true);
-        setLoading(false);
-        return;
-      }
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? `HTTP ${res.status}`);
-      }
-      const data = await res.json();
-      setReport({
-        group: data.group,
-        stats: data.summary,
-        cards: data.checklist as SetChecklistReportCard[],
-        availableDecks: data.availableDecks,
-        hasPersonalWants: data.hasPersonalWants,
-        currentTarget: data.currentTarget,
-      });
-    } catch {
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
-  }, [groupSlug]);
-
-  useEffect(() => {
-    fetchChecklist(target);
-  }, [fetchChecklist, target]);
 
   // Stepper: POST delta then optimistically update + refetch
   const handleQuantityChange = useCallback(
@@ -131,18 +104,17 @@ export default function SetChecklistPage() {
           body: JSON.stringify(body),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        // Refetch to get accurate server state
-        await fetchChecklist(target);
+        queryClient.invalidateQueries({ queryKey: collectionKeys.all });
+        await refetch();
       } catch {
         showToast(t("common.error"), "error");
-        // Refetch to rollback
-        await fetchChecklist(target);
+        await refetch();
       } finally {
         loadingCardsRef.current.delete(slug);
         setLoadingCards(new Set(loadingCardsRef.current));
       }
     },
-    [fetchChecklist, showToast, t, target],
+    [queryClient, refetch, showToast, t],
   );
 
   // Derived: filtered cards

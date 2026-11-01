@@ -6,7 +6,6 @@
     "src/components/collection/MypStoreView.tsx",
     "src/services/meta.ts",
     "src/app/scan/dashboard/page.tsx",
-    "src/app/meta/page.tsx",
     "src/db/init.ts",
     "src/services/scanner.ts"
   ],

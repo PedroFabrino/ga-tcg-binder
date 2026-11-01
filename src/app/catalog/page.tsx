@@ -1,17 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Search, Sparkles, Gem, Flame, RefreshCw, SlidersHorizontal, X } from "lucide-react";
 import { PageHeader } from "@/components/common";
 import { SkeletonGrid, EmptyState } from "@/components/Skeletons";
 import { useToast } from "@/components/ToastProvider";
-import CatalogCard, { type CatalogCardData, type Edition } from "@/components/catalog/CatalogCard";
+import CatalogCard, { type Edition } from "@/components/catalog/CatalogCard";
 import CatalogKeywordFilter from "@/components/catalog/CatalogKeywordFilter";
 import { ALL_ELEMENTS, ELEMENT_LABELS, getElementColor } from "@/lib/elements";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "@/lib/i18n";
+import { useCatalogQuery } from "@/hooks/queries/use-catalog-queries";
+import { collectionKeys } from "@/lib/query-keys";
 
 const ELEMENTS = ALL_ELEMENTS;
 const CLASSES = ["WARRIOR", "MAGE", "TANK", "CLERIC", "ASSASSIN", "RANGER", "TAMER"];
@@ -37,11 +40,10 @@ export default function CatalogPage() {
   const { data: session } = useSession();
   const { showToast } = useToast();
   const { t } = useTranslation();
-  const [cards, setCards] = useState<CatalogCardData[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const queryClient = useQueryClient();
+
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [element, setElement] = useState<string | null>(null);
   const [cardClass, setCardClass] = useState<string | null>(null);
   const [setPrefix, setSetPrefix] = useState<string | null>(null);
@@ -52,38 +54,29 @@ export default function CatalogPage() {
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
   const [keywordsMatchMode, setKeywordsMatchMode] = useState<"all" | "any">("all");
 
-  const fetchCards = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({ limit: "48" });
-      if (session?.user?.id) params.set("userId", session.user.id);
-      if (query.trim()) params.set("query", query.trim());
-      if (element) params.set("element", element);
-      if (cardClass) params.set("class", cardClass);
-      if (setPrefix) params.set("setPrefix", setPrefix);
-      if (lowPopOnly) params.set("lowPopOnly", "true");
-      if (staplesOnly) params.set("staplesOnly", "true");
-      if (selectedKeywords.length > 0) {
-        params.set("keywords", selectedKeywords.join(","));
-        params.set("keywordsMatchMode", keywordsMatchMode);
-      }
-      const res = await fetch(`/api/catalog?${params}`);
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setCards(Array.isArray(data.cards) ? data.cards : []);
-      setTotal(data.total || 0);
-      setError(false);
-    } catch {
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
-  }, [session?.user?.id, query, element, cardClass, setPrefix, lowPopOnly, staplesOnly, selectedKeywords, keywordsMatchMode]);
-
   useEffect(() => {
-    const t = setTimeout(fetchCards, 250);
-    return () => clearTimeout(t);
-  }, [fetchCards]);
+    const handler = setTimeout(() => {
+      setDebouncedQuery(query);
+    }, 250);
+    return () => clearTimeout(handler);
+  }, [query]);
+
+  const { data, isLoading, isError, refetch, isFetching } = useCatalogQuery({
+    userId: session?.user?.id,
+    query: debouncedQuery,
+    element,
+    class: cardClass,
+    setPrefix,
+    lowPopOnly,
+    staplesOnly,
+    keywords: selectedKeywords,
+    keywordsMatchMode,
+  });
+
+  const cards = data?.cards ?? [];
+  const total = data?.total ?? 0;
+  const loading = isLoading && cards.length === 0;
+  const error = isError;
 
   const handleSync = async () => {
     setSyncing(true);
@@ -93,10 +86,10 @@ export default function CatalogPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ maxPages: 5 }),
       });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error);
-      showToast(`Catalog synced: ${data.stats?.cardsSynced ?? 0} cards updated`, "success");
-      fetchCards();
+      const resData = await res.json();
+      if (!resData.success) throw new Error(resData.error);
+      showToast(`Catalog synced: ${resData.stats?.cardsSynced ?? 0} cards updated`, "success");
+      refetch();
     } catch {
       showToast("Catalog sync failed. Try again in a moment.", "error");
     } finally {
@@ -116,8 +109,9 @@ export default function CatalogPage() {
           userId: session?.user?.id,
         }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || t("catalog.loadError"));
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(resData.error || t("catalog.loadError"));
+      queryClient.invalidateQueries({ queryKey: collectionKeys.all });
       showToast(t("shortages.quickAddSuccess", { quantity: 1, cardName: `${foil ? "Foil " : ""}${name}` }), "success");
       return true;
     } catch (e: any) {
@@ -131,6 +125,7 @@ export default function CatalogPage() {
     (lowPopOnly ? 1 : 0) +
     (staplesOnly ? 1 : 0) +
     selectedKeywords.length;
+
   const clearAll = () => {
     setElement(null);
     setCardClass(null);
@@ -202,12 +197,22 @@ export default function CatalogPage() {
   return (
     <div className="pb-12">
       <PageHeader
-      eyebrow={t("catalog.title")}
-      title={t("catalog.title")}
-      description={t("catalog.subtitle")}
+        eyebrow={t("catalog.title")}
+        title={t("catalog.title")}
+        description={t("catalog.subtitle")}
         actions={
           <>
             <span className="rounded-full border border-white/[0.08] px-3 py-1.5 font-mono text-xs text-slate-300">{total.toLocaleString()} cards</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="text-slate-400 hover:text-white"
+              aria-label={t("common.refresh")}
+            >
+              <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin text-cyan-400" : ""}`} />
+            </Button>
             <Button onClick={handleSync} disabled={syncing} variant="outline" className="relative overflow-hidden">
               <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin text-cyan-300" : ""}`}/>
               {syncing ? t("common.loading") : t("catalog.title")}
@@ -252,13 +257,13 @@ export default function CatalogPage() {
           {loading ? (
             <SkeletonGrid count={8}/>
           ) : error ? (
-            <EmptyState icon={Sparkles} title={t("catalog.loadError")} action={<Button onClick={fetchCards} variant="outline">{t("common.refresh")}</Button>} />
+            <EmptyState icon={Sparkles} title={t("catalog.loadError")} action={<Button onClick={() => refetch()} variant="outline">{t("common.refresh")}</Button>} />
           ) : cards.length === 0 ? (
             <EmptyState
               icon={Sparkles}
               title={t("catalog.noResults")}
               description="Try a different name or clear some filters. If the catalog looks empty, run a sync."
-              action={activeCount> 0 ? <Button onClick={clearAll} variant="outline">Clear filters</Button> : <Button onClick={handleSync} variant="outline">Sync Catalog</Button>}
+              action={activeCount > 0 ? <Button onClick={clearAll} variant="outline">Clear filters</Button> : <Button onClick={handleSync} variant="outline">Sync Catalog</Button>}
             />
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "../ToastProvider";
 import { useTranslation } from "@/lib/i18n";
 import type { SettingsUpdateInput } from "@/lib/validation/watchlist-schemas";
@@ -9,11 +10,16 @@ import {
   SHIPPING_PACKAGE_PRESETS,
   type ShippingPackagePreset,
 } from "@/services/superfrete-helpers";
+import { useSettingsQuery } from "@/hooks/queries/use-settings-queries";
+import { settingsKeys } from "@/lib/query-keys";
 
 export function useSettingsManager() {
   const { data: session } = useSession();
   const { showToast } = useToast();
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
+
+  const { data, isLoading } = useSettingsQuery();
 
   const [threshold, setThreshold] = useState<number>(1000);
   const [friendCode, setFriendCode] = useState<string>("");
@@ -36,41 +42,37 @@ export function useSettingsManager() {
   const [shippingCardWeight, setShippingCardWeight] = useState<number>(3);
   const [slightlyOverpriced, setSlightlyOverpriced] = useState<number>(1.2);
   const [heavilyOverpriced, setHeavilyOverpriced] = useState<number>(2.0);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [clearingCreds, setClearingCreds] = useState(false);
   const [clearingSuperfrete, setClearingSuperfrete] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    fetch("/api/settings")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.user) {
-          setThreshold(data.user.lowPopThreshold ?? 1000);
-          setFriendCode(data.user.friendCode ?? "");
-          setMypUsername(data.user.mypUsername ?? "");
-          setMypLogin(data.user.mypLogin ?? "");
-          setHasSavedMypCredentials(Boolean(data.user.hasSavedMypCredentials));
-          setHasSavedSuperfreteApiKey(Boolean(data.user.hasSavedSuperfreteApiKey));
-          setShippingPackagePreset((data.user.shippingPackagePreset as ShippingPackagePreset) ?? "standard-box");
-          setShippingPackageHeight(data.user.shippingPackageHeight ?? 2);
-          setShippingPackageWidth(data.user.shippingPackageWidth ?? 21);
-          setShippingPackageLength(data.user.shippingPackageLength ?? 30);
-          setShippingPackageBaseWeight(data.user.shippingPackageBaseWeight ?? 200);
-          setShippingPackageTapeWeight(data.user.shippingPackageTapeWeight ?? 5);
-          setShippingCardWeight(data.user.shippingCardWeight ?? 3);
-          setSlightlyOverpriced(data.user.slightlyOverpricedMultiplier ?? 1.2);
-          setHeavilyOverpriced(data.user.heavilyOverpricedMultiplier ?? 2.0);
-          setMypAutoWatchlistEnabled(Boolean(data.user.mypAutoWatchlistEnabled));
-          setSellerModeEnabled(Boolean(data.user.sellerModeEnabled));
-          setHasVendorCapability(Boolean(data.user.hasVendorCapability));
-          setHasShippingCapability(Boolean(data.user.hasShippingCapability));
-        }
-      })
-      .catch(() => showToast(t("common.error"), "error"))
-      .finally(() => setLoading(false));
-  }, [showToast, t]);
+    if (data?.user) {
+      const user = data.user;
+      setThreshold(user.lowPopThreshold ?? 1000);
+      setFriendCode(user.friendCode ?? "");
+      setMypUsername(user.mypUsername ?? "");
+      setMypLogin(user.mypLogin ?? "");
+      setHasSavedMypCredentials(Boolean(user.hasSavedMypCredentials));
+      setHasSavedSuperfreteApiKey(Boolean(user.hasSavedSuperfreteApiKey));
+      setShippingPackagePreset((user.shippingPackagePreset as ShippingPackagePreset) ?? "standard-box");
+      setShippingPackageHeight(user.shippingPackageHeight ?? 2);
+      setShippingPackageWidth(user.shippingPackageWidth ?? 21);
+      setShippingPackageLength(user.shippingPackageLength ?? 30);
+      setShippingPackageBaseWeight(user.shippingPackageBaseWeight ?? 200);
+      setShippingPackageTapeWeight(user.shippingPackageTapeWeight ?? 5);
+      setShippingCardWeight(user.shippingCardWeight ?? 3);
+      setSlightlyOverpriced(user.slightlyOverpricedMultiplier ?? 1.2);
+      setHeavilyOverpriced(user.heavilyOverpricedMultiplier ?? 2.0);
+      setMypAutoWatchlistEnabled(Boolean(user.mypAutoWatchlistEnabled));
+      setSellerModeEnabled(Boolean(user.sellerModeEnabled));
+      setHasVendorCapability(Boolean(user.hasVendorCapability));
+      setHasShippingCapability(Boolean(user.hasShippingCapability));
+    }
+  }, [data]);
+
+  const loading = isLoading && !data;
 
   const copyFriendCode = useCallback(async () => {
     if (!friendCode) return;
@@ -100,13 +102,14 @@ export function useSettingsManager() {
       setMypLogin("");
       setMypPassword("");
       setMypAutoWatchlistEnabled(false);
+      queryClient.invalidateQueries({ queryKey: settingsKeys.all });
       showToast(t("settings.clearedToast"), "success");
     } catch {
       showToast(t("common.error"), "error");
     } finally {
       setClearingCreds(false);
     }
-  }, [session?.user?.id, showToast, t]);
+  }, [queryClient, session?.user?.id, showToast, t]);
 
   const handleClearSuperfrete = useCallback(async () => {
     setClearingSuperfrete(true);
@@ -122,13 +125,14 @@ export function useSettingsManager() {
       if (!res.ok) throw new Error();
       setHasSavedSuperfreteApiKey(false);
       setSuperfreteApiKey("");
+      queryClient.invalidateQueries({ queryKey: settingsKeys.all });
       showToast(t("settings.superfreteClearedToast"), "success");
     } catch {
       showToast(t("common.error"), "error");
     } finally {
       setClearingSuperfrete(false);
     }
-  }, [session?.user?.id, showToast, t]);
+  }, [queryClient, session?.user?.id, showToast, t]);
 
   const handleSelectPackagePreset = useCallback((preset: ShippingPackagePreset) => {
     setShippingPackagePreset(preset);
@@ -195,6 +199,7 @@ export function useSettingsManager() {
         setHasVendorCapability(Boolean(json.user.hasVendorCapability));
         setHasShippingCapability(Boolean(json.user.hasShippingCapability));
       }
+      queryClient.invalidateQueries({ queryKey: settingsKeys.all });
       showToast(t("settings.savedToast"), "success");
       onSuccess?.();
     } catch {
@@ -203,6 +208,7 @@ export function useSettingsManager() {
       setSaving(false);
     }
   }, [
+    queryClient,
     threshold,
     mypUsername,
     mypAutoWatchlistEnabled,
