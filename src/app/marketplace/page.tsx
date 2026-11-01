@@ -23,6 +23,7 @@ import { useTranslation } from "@/lib/i18n";
 import MarketplaceCardRow from "@/components/marketplace/MarketplaceCardRow";
 import { ALL_ELEMENTS, ELEMENT_COLORS, ELEMENT_LABELS, normalizeElement } from "@/lib/elements";
 import { RARITIES } from "@/lib/rarities";
+import { useMarketplaceReportQuery } from "@/hooks/queries/use-marketplace-queries";
 import type {
   GlobalMarketplaceCardItem,
   GlobalMarketReport,
@@ -36,8 +37,15 @@ export default function MarketplacePage() {
   const { showToast } = useToast();
   const { t } = useTranslation();
 
+  const {
+    data: cachedReport,
+    isLoading: isMarketLoading,
+    isFetching,
+    refetch: refetchMarket,
+  } = useMarketplaceReportQuery(session?.user?.id);
+
   const [report, setReport] = useState<GlobalMarketReport | null>(null);
-  const [loading, setLoading] = useState(true);
+  const loading = isMarketLoading && !report;
   const [enrichingTcg, setEnrichingTcg] = useState(false);
   const [enrichingIds, setEnrichingIds] = useState<Set<string>>(new Set());
 
@@ -52,7 +60,7 @@ export default function MarketplacePage() {
   const userIdQuery = session?.user?.id ? `?userId=${session.user.id}` : "";
 
   const fetchMarket = useCallback(async () => {
-    setLoading(true);
+    // fetch
     try {
       const res = await fetch(`/api/marketplace/market${userIdQuery}`);
       if (!res.ok) throw new Error("Failed to load global marketplace");
@@ -69,13 +77,17 @@ export default function MarketplacePage() {
     } catch (err: any) {
       showToast(err.message || "Could not load MyP market", "error");
     } finally {
-      setLoading(false);
+      // done
     }
   }, [userIdQuery, showToast]);
 
   useEffect(() => {
-    fetchMarket();
-  }, [fetchMarket]);
+    if (cachedReport) {
+      setReport(cachedReport);
+    } else {
+      fetchMarket();
+    }
+  }, [cachedReport, fetchMarket]);
 
 
   const handleEnrichTcg = async (targetCardIds?: string[]) => {
@@ -265,6 +277,18 @@ export default function MarketplacePage() {
               </span>
             )}
 
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                fetchMarket();
+                showToast(t("common.refresh"), "info");
+              }}
+              className="gap-1.5 text-xs text-slate-400 hover:text-slate-200"
+              title="Refresh"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
+            </Button>
             <Button
               onClick={() => handleEnrichTcg()}
               disabled={enrichingTcg}
