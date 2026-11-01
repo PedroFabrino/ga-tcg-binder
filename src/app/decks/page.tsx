@@ -316,10 +316,10 @@ export default function DecksPage() {
           action={
             <div className="flex gap-2">
               <Button onClick={() => setFormMode("import")} variant="outline">
-                <Upload className="h-4 w-4" /> Import Omnidex
+                <Upload className="h-4 w-4" /> {t("decks.importOmnidexBtn")}
               </Button>
               <Button onClick={() => setFormMode("create")}>
-                <Plus className="h-4 w-4" /> New Deck
+                <Plus className="h-4 w-4" /> {t("decks.newDeckBtn")}
               </Button>
             </div>
           }

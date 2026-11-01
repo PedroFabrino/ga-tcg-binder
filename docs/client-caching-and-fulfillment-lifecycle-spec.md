@@ -51,3 +51,10 @@ Additionally, within the MyP Store Order Fulfillment interface, if there is no a
 ## Further Notes
 
 - All changes adhere to ADR 0012 max 400 lines per file and strict architectural layering rules.
+
+## Addendum: Extended Scope & Review Reconciliation
+
+- **User Settings & Capabilities Caching**: As detailed in ADR 0032, `settingsKeys` (`/api/settings`) is incorporated into TanStack Query to eliminate loading flashes when entering user settings, with `useVendorCapabilityQuery` consuming settings through a type-safe `select` transform to eliminate cache key collisions.
+- **Session Cache Purging**: To prevent sensitive user settings, tokens, or custom decks from leaking across shared browser sessions, `signOutAndClearCache` in `src/lib/auth-cache.ts` and `QueryProvider` clear the QueryClient cache immediately upon sign-out or session account switches.
+- **Catalog Filter State Persistence**: Filter selections on `/catalog` (query, element, class, set prefix, keywords, and toggles) are preserved across navigations via `useCatalogFilters` with an explicit test reset seam.
+- **Sets Refresh Controls**: Manual refresh buttons (`<RefreshCw>`) are integrated into `SetsDashboardView` and `SetChecklistHeader` to ensure on-demand cache revalidation across all set routes.

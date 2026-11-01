@@ -2,6 +2,7 @@
 
 import { ExternalLink, Loader2, Swords, BookmarkPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "@/lib/i18n";
 
 export interface MetaArchetype {
   id: string;
@@ -46,6 +47,7 @@ export function ArchetypeCard({
   onImport: () => void;
   importing: boolean;
 }) {
+  const { t } = useTranslation();
   const completion = meta.completionPct ?? 0;
 
   return (
@@ -53,7 +55,7 @@ export function ArchetypeCard({
       {/* Top Banner / Recommendation Pill */}
       {meta.isRecommended && (
         <div className="mb-2 inline-flex items-center gap-1.5 self-start rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300">
-          <span>✨ Recommended for You</span>
+          <span>{t("meta.recommendedBadge")}</span>
         </div>
       )}
 
@@ -77,10 +79,13 @@ export function ArchetypeCard({
         <div className="mb-3 rounded-xl border border-white/[0.06] bg-black/30 p-3">
           <div className="flex items-center justify-between text-xs">
             <span className="font-semibold text-white">
-              {completion}% Owned
+              {t("meta.ownedPct", { pct: completion })}
             </span>
             <span className="font-mono text-[11px] text-slate-400">
-              {meta.totalCoreOwned}/{meta.totalCoreRequired} Core Cards
+              {t("meta.coreCardsProgress", {
+                owned: meta.totalCoreOwned ?? 0,
+                required: meta.totalCoreRequired ?? 0,
+              })}
             </span>
           </div>
 
@@ -103,14 +108,18 @@ export function ArchetypeCard({
 
           <div className="mt-1.5 flex flex-wrap items-center justify-between text-[10px] text-slate-400 gap-1">
             <div className="flex items-center gap-2">
-              <span className="text-cyan-300">● {meta.binderCardsOwned || 0} Binder</span>
+              <span className="text-cyan-300">
+                {t("meta.binderCopies", { count: meta.binderCardsOwned || 0 })}
+              </span>
               {(meta.mypStoreCardsOwned || 0) > 0 && (
-                <span className="text-amber-300">● {meta.mypStoreCardsOwned} MyP Store</span>
+                <span className="text-amber-300">
+                  {t("meta.mypStoreCopies", { count: meta.mypStoreCardsOwned ?? 0 })}
+                </span>
               )}
             </div>
             {(meta.missingCardsCount || 0) > 0 && (
               <span className="font-mono text-slate-400">
-                {meta.missingCardsCount} missing
+                {t("meta.missingCount", { count: meta.missingCardsCount ?? 0 })}
               </span>
             )}
           </div>
@@ -118,18 +127,19 @@ export function ArchetypeCard({
           {/* Cost to complete on MyP */}
           {(meta.missingCardsCount || 0) > 0 && (
             <div className="mt-2 border-t border-white/[0.06] pt-1.5 text-[10px] text-slate-400 flex items-center justify-between">
-              <span>MyP Market:</span>
+              <span>{t("meta.mypMarketLabel")}</span>
               <span className="font-mono text-emerald-300 font-medium">
                 {meta.missingAvailableOnMarketCount && meta.missingAvailableOnMarketCount > 0 ? (
-                  <>
-                    {meta.missingAvailableOnMarketCount}/{meta.missingCardsCount} in stock · from R${" "}
-                    {(meta.estimatedCostToCompleteBrl || 0).toLocaleString("pt-BR", {
+                  t("meta.inStockFrom", {
+                    available: meta.missingAvailableOnMarketCount,
+                    missing: meta.missingCardsCount ?? 0,
+                    price: (meta.estimatedCostToCompleteBrl || 0).toLocaleString("pt-BR", {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
-                    })}
-                  </>
+                    }),
+                  })
                 ) : (
-                  <span className="text-slate-500">Out of stock</span>
+                  <span className="text-slate-500">{t("meta.outOfStock")}</span>
                 )}
               </span>
             </div>
@@ -162,7 +172,7 @@ export function ArchetypeCard({
           size="sm"
           className="flex-1 text-xs group-hover:border-cyan-400/30 group-hover:text-cyan-200"
         >
-          <Swords className="h-3.5 w-3.5 mr-1" /> Compare
+          <Swords className="h-3.5 w-3.5 mr-1" /> {t("meta.compareAction")}
         </Button>
         <Button
           onClick={onImport}
@@ -172,7 +182,7 @@ export function ArchetypeCard({
           className="bg-cyan-500 text-slate-950 hover:bg-cyan-400 font-semibold text-xs"
         >
           {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BookmarkPlus className="h-3.5 w-3.5 mr-1" />}
-          Import
+          {t("meta.importAction")}
         </Button>
         {meta.sourceUrl && (
           <Button asChild variant="outline" size="sm" className="px-2">
@@ -180,7 +190,7 @@ export function ArchetypeCard({
               href={meta.sourceUrl}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label={`View ${meta.name} stats`}
+              aria-label={t("meta.viewStats", { name: meta.name })}
             >
               <ExternalLink className="h-3.5 w-3.5" />
             </a>

@@ -36,7 +36,9 @@ export function useMypBridge({
             setResolvedSyncToken(data.user.watchlistSyncToken);
           }
         })
-        .catch(() => {});
+        .catch((err) => {
+          console.warn("[useMypBridge] Failed to load settings for bridge token:", err);
+        });
       return () => {
         active = false;
       };

@@ -44,7 +44,7 @@ export default function SetChecklistPage() {
   });
 
   // Query state
-  const { data, isLoading, isError, error: queryError, refetch } = useSetChecklistQuery(
+  const { data, isLoading, isError, error: queryError, refetch, isFetching } = useSetChecklistQuery(
     groupSlug,
     target,
     session?.user?.id ?? null
@@ -183,6 +183,8 @@ export default function SetChecklistPage() {
         childPrefixes={report.group.childPrefixes}
         selectedPrefix={prefix}
         onPrefixChange={setPrefix}
+        onRefresh={() => refetch()}
+        isRefreshing={isFetching}
       />
 
       <SetChecklistFiltersBar

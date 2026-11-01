@@ -5,6 +5,7 @@ import { deckKeys } from "@/lib/query-keys";
 import { invalidateDeckQueries } from "@/lib/query-invalidation";
 import type { AggregatedShortageReport } from "@/services/shortage";
 import type { ShortageReport } from "@/components/decks/ShortageTable";
+import type { DeckCard } from "@/components/decks/DeckList";
 import type { DeckSection } from "@ga/contracts";
 
 export interface DeckSummary {
@@ -45,9 +46,30 @@ export function useAggregatedShortagesQuery(userId?: string | null) {
   });
 }
 
+export interface DeckDetailData {
+  deck: {
+    id: string;
+    name: string;
+    champion?: string | null;
+    format?: string | null;
+    priority?: number | null;
+    section?: DeckSection | null;
+    userId?: string | null;
+    notes?: string | null;
+    createdAt?: string | null;
+    updatedAt?: string | null;
+  };
+  cards: {
+    material: DeckCard[];
+    main: DeckCard[];
+    side: DeckCard[];
+  };
+  omnidexText: string;
+}
+
 export interface DeckDetailPayload {
   notFound: boolean;
-  deck: any;
+  deck: DeckDetailData | null;
   shortage: ShortageReport | null;
   advisorAllowed: boolean;
 }

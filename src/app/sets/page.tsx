@@ -18,7 +18,7 @@ export default function SetsPage() {
   const [target, setTarget] = useState<string>("all");
   const userId = session?.user?.id ?? null;
 
-  const { data, isLoading, isError } = useSetsDashboardQuery(target, userId);
+  const { data, isLoading, isError, refetch, isFetching } = useSetsDashboardQuery(target, userId);
   const toggleMutation = useToggleSetHiddenMutation(target, userId);
 
   const groups = data?.groups ?? [];
@@ -54,6 +54,8 @@ export default function SetsPage() {
       onTargetChange={setTarget}
       availableDecks={availableDecks}
       hasPersonalWants={hasPersonalWants}
+      onRefresh={() => refetch()}
+      isRefreshing={isFetching}
     />
   );
 }

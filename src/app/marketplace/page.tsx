@@ -57,37 +57,19 @@ export default function MarketplacePage() {
   const [selectedElements, setSelectedElements] = useState<string[]>([]);
   const [selectedRarities, setSelectedRarities] = useState<number[]>([]);
 
-  const userIdQuery = session?.user?.id ? `?userId=${session.user.id}` : "";
 
-  const fetchMarket = useCallback(async () => {
-    // fetch
-    try {
-      const res = await fetch(`/api/marketplace/market${userIdQuery}`);
-      if (!res.ok) throw new Error("Failed to load global marketplace");
-      const data: GlobalMarketReport = await res.json();
-      setReport(data);
-
-      // Default to ALL_MARKET if there are no shortages to display
-      if (
-        data.summary.hardShortagesCount === 0 &&
-        data.summary.sharedShortagesCount === 0
-      ) {
-        setShortageFilter("ALL_MARKET");
-      }
-    } catch (err: any) {
-      showToast(err.message || "Could not load MyP market", "error");
-    } finally {
-      // done
-    }
-  }, [userIdQuery, showToast]);
 
   useEffect(() => {
     if (cachedReport) {
       setReport(cachedReport);
-    } else {
-      fetchMarket();
+      if (
+        cachedReport.summary.hardShortagesCount === 0 &&
+        cachedReport.summary.sharedShortagesCount === 0
+      ) {
+        setShortageFilter("ALL_MARKET");
+      }
     }
-  }, [cachedReport, fetchMarket]);
+  }, [cachedReport]);
 
 
   const handleEnrichTcg = async (targetCardIds?: string[]) => {
@@ -113,7 +95,7 @@ export default function MarketplacePage() {
         `Checked TCG Player prices: ${data.enrichedCount || 0} listings updated!`,
         "success"
       );
-      await fetchMarket();
+      await refetchMarket();
     } catch (err: any) {
       showToast(err.message || "Failed to check TCG prices", "error");
     } finally {
@@ -281,7 +263,7 @@ export default function MarketplacePage() {
               variant="outline"
               size="sm"
               onClick={() => {
-                fetchMarket();
+                refetchMarket();
                 showToast(t("common.refresh"), "info");
               }}
               className="gap-1.5 text-xs text-slate-400 hover:text-slate-200"

@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "@/lib/i18n";
 import { useCatalogQuery } from "@/hooks/queries/use-catalog-queries";
+import { useCatalogFilters } from "@/hooks/use-catalog-filters";
 import { invalidateCollectionQueries } from "@/lib/query-invalidation";
 
 const ELEMENTS = ALL_ELEMENTS;
@@ -42,17 +43,21 @@ export default function CatalogPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
 
-  const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [element, setElement] = useState<string | null>(null);
-  const [cardClass, setCardClass] = useState<string | null>(null);
-  const [setPrefix, setSetPrefix] = useState<string | null>(null);
-  const [lowPopOnly, setLowPopOnly] = useState(false);
-  const [staplesOnly, setStaplesOnly] = useState(false);
+  const { filters, updateFilters, resetAllFilters } = useCatalogFilters();
+  const {
+    query,
+    element,
+    cardClass,
+    setPrefix,
+    lowPopOnly,
+    staplesOnly,
+    selectedKeywords,
+    keywordsMatchMode,
+  } = filters;
+
+  const [debouncedQuery, setDebouncedQuery] = useState(query);
   const [syncing, setSyncing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
-  const [keywordsMatchMode, setKeywordsMatchMode] = useState<"all" | "any">("all");
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -126,23 +131,18 @@ export default function CatalogPage() {
     (staplesOnly ? 1 : 0) +
     selectedKeywords.length;
 
-  const clearAll = () => {
-    setElement(null);
-    setCardClass(null);
-    setSetPrefix(null);
-    setLowPopOnly(false);
-    setStaplesOnly(false);
-    setSelectedKeywords([]);
-    setKeywordsMatchMode("all");
-  };
-
-  const filters = (
+  const filtersComponent = (
     <div className="space-y-5">
       <div>
         <p className="label-caps mb-2">{t("catalog.filterElements")}</p>
         <div className="flex flex-wrap gap-1.5">
           {ELEMENTS.map((e) => (
-            <Chip key={e} active={element === e} onClick={() => setElement(element === e ? null : e)} color={getElementColor(e)}>
+            <Chip
+              key={e}
+              active={element === e}
+              onClick={() => updateFilters({ element: element === e ? null : e })}
+              color={getElementColor(e)}
+            >
               {ELEMENT_LABELS[e] || e}
             </Chip>
           ))}
@@ -152,7 +152,13 @@ export default function CatalogPage() {
         <p className="label-caps mb-2">{t("catalog.filterClasses")}</p>
         <div className="flex flex-wrap gap-1.5">
           {CLASSES.map((c) => (
-            <Chip key={c} active={cardClass === c} onClick={() => setCardClass(cardClass === c ? null : c)}>{c.charAt(0) + c.slice(1).toLowerCase()}</Chip>
+            <Chip
+              key={c}
+              active={cardClass === c}
+              onClick={() => updateFilters({ cardClass: cardClass === c ? null : c })}
+            >
+              {c.charAt(0) + c.slice(1).toLowerCase()}
+            </Chip>
           ))}
         </div>
       </div>
@@ -160,15 +166,21 @@ export default function CatalogPage() {
         <p className="label-caps mb-2">Set</p>
         <div className="flex flex-wrap gap-1.5">
           {SETS.map((s) => (
-            <Chip key={s} active={setPrefix === s} onClick={() => setSetPrefix(setPrefix === s ? null : s)}><span className="font-mono">{s}</span></Chip>
+            <Chip
+              key={s}
+              active={setPrefix === s}
+              onClick={() => updateFilters({ setPrefix: setPrefix === s ? null : s })}
+            >
+              <span className="font-mono">{s}</span>
+            </Chip>
           ))}
         </div>
       </div>
       <CatalogKeywordFilter
         selectedKeywords={selectedKeywords}
-        onChangeKeywords={setSelectedKeywords}
+        onChangeKeywords={(kws) => updateFilters({ selectedKeywords: kws })}
         matchMode={keywordsMatchMode}
-        onChangeMatchMode={setKeywordsMatchMode}
+        onChangeMatchMode={(mode) => updateFilters({ keywordsMatchMode: mode })}
       />
       <label
         htmlFor="staples-switch"
@@ -177,7 +189,12 @@ export default function CatalogPage() {
         }`}
       >
         <span className="flex items-center gap-2"><Flame className="h-3.5 w-3.5 text-amber-400" /> {t("fulfillment.staplesOnlyFilter")}</span>
-        <Switch id="staples-switch" tone="gold" checked={staplesOnly} onCheckedChange={setStaplesOnly} />
+        <Switch
+          id="staples-switch"
+          tone="gold"
+          checked={staplesOnly}
+          onCheckedChange={(checked) => updateFilters({ staplesOnly: checked })}
+        />
       </label>
       <label
         htmlFor="lowpop-switch"
@@ -186,10 +203,15 @@ export default function CatalogPage() {
         }`}
       >
         <span className="flex items-center gap-2"><Gem className="h-3.5 w-3.5" /> Low population only</span>
-        <Switch id="lowpop-switch" tone="gold" checked={lowPopOnly} onCheckedChange={setLowPopOnly} />
+        <Switch
+          id="lowpop-switch"
+          tone="gold"
+          checked={lowPopOnly}
+          onCheckedChange={(checked) => updateFilters({ lowPopOnly: checked })}
+        />
       </label>
       {activeCount > 0 && (
-        <Button variant="link" size="sm" onClick={clearAll} className="px-0 text-slate-400 hover:text-white">Clear all filters</Button>
+        <Button variant="link" size="sm" onClick={resetAllFilters} className="px-0 text-slate-400 hover:text-white">Clear all filters</Button>
       )}
     </div>
   );
@@ -228,7 +250,7 @@ export default function CatalogPage() {
 
       <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
         <aside className="hidden lg:block">
-          <div className="sticky top-24 rounded-2xl glass p-5">{filters}</div>
+          <div className="sticky top-24 rounded-2xl glass p-5">{filtersComponent}</div>
         </aside>
 
         <div className="min-w-0 space-y-5">
@@ -237,13 +259,19 @@ export default function CatalogPage() {
               <Search className="h-4 w-4 text-slate-500" />
               <input
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => updateFilters({ query: e.target.value })}
                 placeholder={t("catalog.searchPlaceholder")}
                 aria-label={t("catalog.searchPlaceholder")}
                 className="min-w-0 flex-1 bg-transparent py-2.5 text-sm text-white placeholder:text-slate-500 outline-none"
               />
               {query && (
-                <button onClick={() => setQuery("")} aria-label={t("collection.clearFilterAria")} className="text-slate-500 hover:text-white"><X className="h-4 w-4" /></button>
+                <button
+                  onClick={() => updateFilters({ query: "" })}
+                  aria-label={t("collection.clearFilterAria")}
+                  className="text-slate-500 hover:text-white"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               )}
             </div>
             <Button onClick={() => setShowFilters((v) => !v)} variant="outline" className="lg:hidden" aria-expanded={showFilters}>
@@ -252,7 +280,7 @@ export default function CatalogPage() {
             </Button>
           </div>
 
-          {showFilters && <div className="rounded-2xl glass p-5 lg:hidden animate-fade-in">{filters}</div>}
+          {showFilters && <div className="rounded-2xl glass p-5 lg:hidden animate-fade-in">{filtersComponent}</div>}
 
           {loading ? (
             <SkeletonGrid count={8}/>
@@ -263,7 +291,7 @@ export default function CatalogPage() {
               icon={Sparkles}
               title={t("catalog.noResults")}
               description="Try a different name or clear some filters. If the catalog looks empty, run a sync."
-              action={activeCount > 0 ? <Button onClick={clearAll} variant="outline">Clear filters</Button> : <Button onClick={handleSync} variant="outline">Sync Catalog</Button>}
+              action={activeCount > 0 ? <Button onClick={resetAllFilters} variant="outline">Clear filters</Button> : <Button onClick={handleSync} variant="outline">Sync Catalog</Button>}
             />
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">

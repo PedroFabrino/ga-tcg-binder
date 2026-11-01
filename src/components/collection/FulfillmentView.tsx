@@ -2,11 +2,13 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { ListChecks, Users } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { FulfillmentReport } from "@ga/contracts";
 import { useTranslation } from "@/lib/i18n";
 import { useToast } from "@/components/ToastProvider";
 import { formatFulfillmentTextReport, filterReportExcludingOrders } from "@/scripts/fulfillment-helpers";
 import { useMypBridge } from "@/hooks/use-myp-bridge";
+import { marketplaceKeys } from "@/lib/query-keys";
 import FulfillmentHeader from "./FulfillmentHeader";
 import FulfillmentPickList from "./FulfillmentPickList";
 import FulfillmentBuyerPacks from "./FulfillmentBuyerPacks";
@@ -32,8 +34,10 @@ export default function FulfillmentView({
 }: FulfillmentViewProps = {}) {
   const { t } = useTranslation();
   const { showToast } = useToast();
+  const queryClient = useQueryClient();
 
   const [report, setReport] = useState<FulfillmentReport | null>(null);
+  const [batchLoaded, setBatchLoaded] = useState(false);
   const [lifecycleTab, setLifecycleTab] = useState<"open" | "processed" | "sent">("open");
   const [activeTab, setActiveTab] = useState<"pick" | "buyer">("pick");
   const [cardNotes, setCardNotes] = useState<Record<string, string>>({});
@@ -71,6 +75,7 @@ export default function FulfillmentView({
   const applyBatch = useCallback(
     (incoming: FulfillmentReport) => {
       setReport(incoming);
+      setBatchLoaded(true);
       localStorage.setItem("ga_fulfillment_batch", JSON.stringify(incoming));
       sanitizeReportAgainstDb(incoming).then((cleaned) => {
         setReport(cleaned);
@@ -126,8 +131,10 @@ export default function FulfillmentView({
             return;
           }
         }
-      } catch {
-        // ignore offline / unauth
+      } catch (err) {
+        console.warn("[FulfillmentView] Failed to load server fulfillment report:", err);
+      } finally {
+        setBatchLoaded(true);
       }
     }
   }, [applyBatch]);
@@ -156,6 +163,7 @@ export default function FulfillmentView({
   }, [loadBatch, applyBatch]);
 
   useEffect(() => {
+    if (!batchLoaded) return;
     if (!report || !report.buyerPacks || report.buyerPacks.length === 0) {
       fetch("/api/marketplace/fulfillment/shipping?withOrders=true")
         .then((r) => (r.ok ? r.json() : []))
@@ -164,9 +172,11 @@ export default function FulfillmentView({
             setLifecycleTab((prev) => (prev === "open" ? "processed" : prev));
           }
         })
-        .catch(() => {});
+        .catch((err) => {
+          console.warn("[FulfillmentView] Failed to check processed tickets for auto-focus:", err);
+        });
     }
-  }, [report]);
+  }, [batchLoaded, report]);
 
   const handleUpdateNote = useCallback((itemKey: string, note: string) => {
     setCardNotes((prev) => {
@@ -197,6 +207,7 @@ export default function FulfillmentView({
     localStorage.removeItem("ga_fulfillment_notes");
     setCardNotes({});
     setReport(null);
+    queryClient.invalidateQueries({ queryKey: marketplaceKeys.all });
     showToast(t("fulfillment.batchClearedToast"));
   };
 

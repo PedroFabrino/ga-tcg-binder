@@ -4,11 +4,14 @@ import { describe, it, expect, vi } from "vitest";
 // Ensure React is present on globalThis in Node test environment for JSX static markup
 vi.stubGlobal("React", React);
 import { renderToStaticMarkup } from "react-dom/server";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { FulfillmentReport } from "@ga/contracts";
 import FulfillmentPickList from "../FulfillmentPickList";
 import FulfillmentBuyerPacks from "../FulfillmentBuyerPacks";
 import FulfillmentView from "../FulfillmentView";
 import FulfillmentHeader from "../FulfillmentHeader";
+import FulfillmentProcessedTab from "../FulfillmentProcessedTab";
+import FulfillmentSentTab from "../FulfillmentSentTab";
 import { I18nProvider } from "@/lib/i18n";
 import { ToastProvider } from "@/components/ToastProvider";
 
@@ -124,10 +127,13 @@ const mockReport: FulfillmentReport = {
 };
 
 function renderWithProviders(ui: React.ReactElement) {
+  const queryClient = new QueryClient();
   return renderToStaticMarkup(
-    <I18nProvider>
-      <ToastProvider>{ui}</ToastProvider>
-    </I18nProvider>
+    <QueryClientProvider client={queryClient}>
+      <I18nProvider>
+        <ToastProvider>{ui}</ToastProvider>
+      </I18nProvider>
+    </QueryClientProvider>
   );
 }
 
@@ -231,16 +237,38 @@ describe("Fulfillment UI Components", () => {
   });
 
   it("renders FulfillmentView with permanent header, lifecycle tabs and inline empty state when no batch is loaded", () => {
-    // Empty state (no localStorage)
     const html = renderWithProviders(<FulfillmentView />);
-    // Check that lifecycle tabs and header are rendered
     expect(html).toContain("Open Orders");
     expect(html).toContain("Processed");
     expect(html).toContain("Sent");
     expect(html).toContain("Open MyP Vendas");
     expect(html).toContain("Copy Userscript");
-    // Check that the inline empty batch prompt is displayed
     expect(html).toContain("No active fulfillment batch");
+  });
+
+  it("renders Processed and Sent tabs independently of open batch state", () => {
+    const processedHtml = renderWithProviders(<FulfillmentProcessedTab />);
+    expect(processedHtml).toBeDefined();
+
+    const sentHtml = renderWithProviders(<FulfillmentSentTab />);
+    expect(sentHtml).toBeDefined();
+
+    const processedHeaderHtml = renderWithProviders(
+      <FulfillmentHeader
+        report={null}
+        lifecycleTab="processed"
+        hasShippingCapability
+        isQuotingShipping={false}
+        onSelectTab={() => {}}
+        onOpenShippingModal={() => {}}
+        onCopyText={() => {}}
+        onClearBatch={() => {}}
+        onOpenVendas={() => {}}
+        onCopyUserscript={() => {}}
+      />
+    );
+    expect(processedHeaderHtml).toContain("Processed");
+    expect(processedHeaderHtml).toContain("Open MyP Vendas");
   });
 
   it("renders persistent commentary field below each card in Pick List and Buyer Packs", () => {

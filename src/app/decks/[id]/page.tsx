@@ -58,9 +58,9 @@ export default function DeckDetailPage() {
 
   const deck = payload?.deck?.deck ?? null;
   const cards = useMemo(() => ({
-    material: (payload?.deck?.cards?.material || []) as DeckCard[],
-    main: (payload?.deck?.cards?.main || []) as DeckCard[],
-    side: (payload?.deck?.cards?.side || []) as DeckCard[],
+    material: payload?.deck?.cards?.material || [],
+    main: payload?.deck?.cards?.main || [],
+    side: payload?.deck?.cards?.side || [],
   }), [payload?.deck?.cards]);
   const omnidexText = payload?.deck?.omnidexText || "";
   const shortage = payload?.shortage ?? null;

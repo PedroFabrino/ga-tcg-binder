@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { PackageSearch } from "lucide-react";
+import { PackageSearch, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/common";
+import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingState } from "@/components/Skeletons";
 import SetGroupCard from "@/components/sets/SetGroupCard";
 import SetGroupRow from "@/components/sets/SetGroupRow";
@@ -33,6 +34,8 @@ export interface SetsDashboardViewProps {
   onTargetChange?: (target: string) => void;
   availableDecks?: SetTargetDeck[];
   hasPersonalWants?: boolean;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
 export default function SetsDashboardView({
@@ -48,6 +51,8 @@ export default function SetsDashboardView({
   onTargetChange,
   availableDecks = [],
   hasPersonalWants = false,
+  onRefresh,
+  isRefreshing = false,
 }: SetsDashboardViewProps) {
   const { t } = useTranslation();
   const [query, setQuery] = useState(initialQuery);
@@ -97,42 +102,50 @@ export default function SetsDashboardView({
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-8">
-      <PageHeader eyebrow={eyebrowText} title={t("sets.title")} description={t("sets.subtitle")} />
+      <PageHeader
+        eyebrow={eyebrowText}
+        title={t("sets.title")}
+        description={t("sets.subtitle")}
+        actions={
+          onRefresh ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onRefresh}
+              disabled={isRefreshing}
+              className="text-slate-400 hover:text-white"
+              aria-label={t("common.refresh")}
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin text-cyan-400" : ""}`} />
+            </Button>
+          ) : undefined
+        }
+      />
 
+      {/* Target selection toolbar (deck / wants filter) */}
       <SetsToolbar
-        query={query}
-        onQueryChange={setQuery}
-        sortMode={sortMode}
-        onSortChange={setSortMode}
-        category={category}
-        onCategoryChange={setCategory}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
         target={target}
         onTargetChange={onTargetChange}
         availableDecks={availableDecks}
         hasPersonalWants={hasPersonalWants}
+        query={query}
+        onQueryChange={setQuery}
+        category={category}
+        onCategoryChange={setCategory}
+        sortMode={sortMode}
+        onSortChange={setSortMode}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
       />
 
-      {/* Active groups grid or list */}
+      {/* Main grid / list */}
       {active.length === 0 ? (
         <EmptyState
           icon={PackageSearch}
-          title={t("sets.emptyTitle")}
-          description={t("sets.emptyHint")}
+          title={t("sets.emptySearch")}
+          description={t("sets.emptySearchHint")}
         />
-      ) : viewMode === "list" ? (
-        <div className="flex flex-col gap-2">
-          {active.map((group) => (
-            <SetGroupRow
-              key={group.groupUuid}
-              group={group}
-              onToggleHide={onToggleHide}
-              target={target}
-            />
-          ))}
-        </div>
-      ) : (
+      ) : viewMode === "grid" ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {active.map((group) => (
             <SetGroupCard
@@ -143,15 +156,24 @@ export default function SetsDashboardView({
             />
           ))}
         </div>
+      ) : (
+        <div className="space-y-3">
+          {active.map((group) => (
+            <SetGroupRow
+              key={group.groupUuid}
+              group={group}
+              onToggleHide={onToggleHide}
+              target={target}
+            />
+          ))}
+        </div>
       )}
 
-      {/* Hidden sets accordion — count from unfiltered list */}
-      {hidden.length > 0 && (
-        <HiddenSetsAccordion
-          groups={hiddenSorted}
-          onToggleHide={onToggleHide}
-        />
-      )}
+      {/* Collapsed hidden sets section */}
+      <HiddenSetsAccordion
+        groups={hiddenSorted}
+        onToggleHide={onToggleHide}
+      />
     </div>
   );
 }
