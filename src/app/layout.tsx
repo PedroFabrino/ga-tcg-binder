@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import Navbar from "@/components/Navbar";
 import AuthProvider from "@/components/AuthProvider";
+import QueryProvider from "@/components/QueryProvider";
 import { ToastProvider } from "@/components/ToastProvider";
 import { CardHoverProvider } from "@/components/CardHoverPreview";
 import { I18nProvider } from "@/lib/i18n";
@@ -21,14 +22,16 @@ export default function RootLayout({
       <body className="bg-[#070a11] text-slate-200 min-h-screen flex flex-col grain">
         <I18nProvider>
           <AuthProvider>
-            <ToastProvider>
-              <CardHoverProvider>
-                <Navbar />
-                <main className="relative z-10 flex-1 w-full max-w-[1400px] mx-auto px-4 py-6 sm:px-6 lg:px-8">
-                  {children}
-                </main>
-              </CardHoverProvider>
-            </ToastProvider>
+            <QueryProvider>
+              <ToastProvider>
+                <CardHoverProvider>
+                  <Navbar />
+                  <main className="relative z-10 flex-1 w-full max-w-[1400px] mx-auto px-4 py-6 sm:px-6 lg:px-8">
+                    {children}
+                  </main>
+                </CardHoverProvider>
+              </ToastProvider>
+            </QueryProvider>
           </AuthProvider>
         </I18nProvider>
       </body>
