@@ -51,6 +51,7 @@ export async function loadAggregatedShortageData(
       format: decks.format,
       section: decks.section,
       priority: decks.priority,
+      createdAt: decks.createdAt,
     })
     .from(decks)
     .where(eq(decks.userId, effectiveUserId))

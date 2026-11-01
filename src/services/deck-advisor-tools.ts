@@ -134,7 +134,7 @@ export async function executeSearchCandidatePoolTool(
 
     if (args.keyword) {
       const q = args.keyword.toLowerCase();
-      const matchName = item.name.toLowerCase().includes(q);
+      const matchName = item.cardName.toLowerCase().includes(q);
       const matchEffect = (item.effect || "").toLowerCase().includes(q);
       if (!matchName && !matchEffect) continue;
     }
@@ -144,7 +144,7 @@ export async function executeSearchCandidatePoolTool(
 
     results.push({
       cardSlug: item.cardSlug,
-      cardName: item.name,
+      cardName: item.cardName,
       element: item.element,
       class: item.class,
       type: item.type,

@@ -1,3 +1,5 @@
+import type { DeckSection } from "./decks";
+
 export type DeckZone = "material" | "main" | "side";
 
 export type DeckAdvisorAcquisitionTier =
@@ -72,6 +74,7 @@ export interface DeckAdvisorDeckCardSnapshot {
   speed: boolean | null;
   hardShortage: number;
   sharedShortage: number;
+  fallbackAlternatives?: string[];
 }
 
 export interface DeckAdvisorMetaComparison {
@@ -95,6 +98,7 @@ export interface DeckAdvisorContextSnapshot {
   deckName: string;
   champion: string | null;
   format: string;
+  section?: DeckSection;
   deckCards: DeckAdvisorDeckCardSnapshot[];
   candidatePool: DeckAdvisorCandidateCard[];
   metaComparison: DeckAdvisorMetaComparison | null;

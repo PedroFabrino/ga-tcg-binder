@@ -11,41 +11,12 @@ import type {
 } from "../db/repositories/deck-advisor-repository";
 import {
   aggregateUserHoldingsBySlug,
+  compute4FunFallbackAlternatives,
   parseCardSubtypes,
 } from "./deck-advisor-inventory";
 import { parseOmnidexText } from "./omnidex";
 
-/**
- * Checks if user is allowlisted via environment variables.
- */
-export function isUserAdvisorAllowlisted(user: { id?: string | null; email?: string | null }): boolean {
-  const allowedEmailsRaw = process.env.ADVISOR_ALLOWED_EMAILS || "";
-  const allowedUserIdsRaw = process.env.ADVISOR_ALLOWED_USER_IDS || "";
-
-  const allowedEmails = allowedEmailsRaw
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-
-  const allowedUserIds = allowedUserIdsRaw
-    .split(",")
-    .map((id) => id.trim())
-    .filter(Boolean);
-
-  if (allowedEmails.length === 0 && allowedUserIds.length === 0) {
-    return false;
-  }
-
-  if (user.email && allowedEmails.includes(user.email.trim().toLowerCase())) {
-    return true;
-  }
-
-  if (user.id && allowedUserIds.includes(user.id.trim())) {
-    return true;
-  }
-
-  return false;
-}
+export { isUserAdvisorAllowlisted } from "./deck-advisor-allowlist";
 
 /**
  * Detects legality effect bypasses in card text.
@@ -218,7 +189,7 @@ export function assembleDeckAdvisorContext(params: {
 
     candidatePool.push({
       cardSlug: entry.cardSlug,
-      cardName: entry.name,
+      cardName: entry.cardName,
       element: entry.element,
       class: entry.class,
       type: entry.type,
@@ -370,11 +341,15 @@ export function assembleDeckAdvisorContext(params: {
     };
   }
 
+  // 7. Compute fallback alternatives for heavily-shared cards in 4Fun decks
+  compute4FunFallbackAlternatives(deck.section, deckCards, deckCardSnapshots, candidatePool);
+
   return {
     deckId: deck.id,
     deckName: deck.name,
     champion: deck.champion,
     format: deck.format,
+    section: deck.section === "competitive" ? "competitive" : "4fun",
     deckCards: deckCardSnapshots,
     candidatePool,
     metaComparison,

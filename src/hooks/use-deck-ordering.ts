@@ -12,6 +12,58 @@ export interface DeckItem {
   createdAt?: Date | string | null;
 }
 
+export function prepareReorderPayload<T extends DeckItem>(decks: T[]) {
+  const competitive = decks.filter((d) => d.section === "competitive");
+  const fourFun = decks.filter((d) => d.section !== "competitive");
+
+  return [
+    ...competitive.map((d, index) => ({ id: d.id, section: "competitive" as const, priority: index })),
+    ...fourFun.map((d, index) => ({ id: d.id, section: "4fun" as const, priority: index })),
+  ];
+}
+
+export function computeMoveWithinSection<T extends DeckItem>(
+  decks: T[],
+  deckId: string,
+  direction: "up" | "down"
+): T[] | null {
+  const deck = decks.find((d) => d.id === deckId);
+  if (!deck) return null;
+
+  const sameSection = decks.filter((d) => d.section === deck.section);
+  const otherSection = decks.filter((d) => d.section !== deck.section);
+  const index = sameSection.findIndex((d) => d.id === deckId);
+
+  const targetIndex = direction === "up" ? index - 1 : index + 1;
+  if (targetIndex < 0 || targetIndex >= sameSection.length) return null;
+
+  const reordered = [...sameSection];
+  const temp = reordered[targetIndex];
+  reordered[targetIndex] = reordered[index];
+  reordered[index] = temp;
+
+  return deck.section === "competitive"
+    ? [...reordered, ...otherSection]
+    : [...otherSection, ...reordered];
+}
+
+export function computeMoveToOtherSection<T extends DeckItem>(
+  decks: T[],
+  deckId: string
+): T[] | null {
+  const deck = decks.find((d) => d.id === deckId);
+  if (!deck) return null;
+
+  const nextSection: DeckSection = deck.section === "competitive" ? "4fun" : "competitive";
+  const remainingInCurrent = decks.filter((d) => d.id !== deckId && d.section === deck.section);
+  const targetSectionDecks = decks.filter((d) => d.id !== deckId && d.section === nextSection);
+
+  const updatedTarget = [...targetSectionDecks, { ...deck, section: nextSection }];
+  return nextSection === "competitive"
+    ? [...updatedTarget, ...remainingInCurrent]
+    : [...remainingInCurrent, ...updatedTarget];
+}
+
 export function useDeckOrdering<T extends DeckItem>(
   initialDecks: T[],
   onSaveSuccess?: () => void
@@ -24,14 +76,7 @@ export function useDeckOrdering<T extends DeckItem>(
     const previous = [...decks];
     setDecks(newDecks);
 
-    // Number priority sequentially within each section
-    const competitive = newDecks.filter((d) => d.section === "competitive");
-    const fourFun = newDecks.filter((d) => d.section !== "competitive");
-
-    const items = [
-      ...competitive.map((d, index) => ({ id: d.id, section: "competitive" as const, priority: index })),
-      ...fourFun.map((d, index) => ({ id: d.id, section: "4fun" as const, priority: index })),
-    ];
+    const items = prepareReorderPayload(newDecks);
 
     try {
       const res = await fetch("/api/decks/reorder", {
@@ -52,48 +97,17 @@ export function useDeckOrdering<T extends DeckItem>(
   };
 
   const moveWithinSection = (deckId: string, direction: "up" | "down") => {
-    const deck = decks.find((d) => d.id === deckId);
-    if (!deck) return;
-
-    const sameSection = decks.filter((d) => d.section === deck.section);
-    const otherSection = decks.filter((d) => d.section !== deck.section);
-    const index = sameSection.findIndex((d) => d.id === deckId);
-
-    if (direction === "up" && index > 0) {
-      const reordered = [...sameSection];
-      const temp = reordered[index - 1];
-      reordered[index - 1] = reordered[index];
-      reordered[index] = temp;
-      const combined = deck.section === "competitive"
-        ? [...reordered, ...otherSection]
-        : [...otherSection, ...reordered];
-      reorder(combined);
-    } else if (direction === "down" && index < sameSection.length - 1) {
-      const reordered = [...sameSection];
-      const temp = reordered[index + 1];
-      reordered[index + 1] = reordered[index];
-      reordered[index] = temp;
-      const combined = deck.section === "competitive"
-        ? [...reordered, ...otherSection]
-        : [...otherSection, ...reordered];
+    const combined = computeMoveWithinSection(decks, deckId, direction);
+    if (combined) {
       reorder(combined);
     }
   };
 
   const moveToOtherSection = (deckId: string) => {
-    const deck = decks.find((d) => d.id === deckId);
-    if (!deck) return;
-
-    const nextSection: DeckSection = deck.section === "competitive" ? "4fun" : "competitive";
-    const remainingInCurrent = decks.filter((d) => d.id !== deckId && d.section === deck.section);
-    const targetSectionDecks = decks.filter((d) => d.id !== deckId && d.section === nextSection);
-
-    const updatedTarget = [...targetSectionDecks, { ...deck, section: nextSection }];
-    const combined = nextSection === "competitive"
-      ? [...updatedTarget, ...remainingInCurrent]
-      : [...remainingInCurrent, ...updatedTarget];
-
-    reorder(combined);
+    const combined = computeMoveToOtherSection(decks, deckId);
+    if (combined) {
+      reorder(combined);
+    }
   };
 
   return {

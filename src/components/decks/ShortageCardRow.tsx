@@ -121,6 +121,14 @@ export default function ShortageCardRow({
                 {d.deckName} <span className="ml-1 text-cyan-300 font-mono">x{d.quantity}</span>
               </span>
             ))}
+            {card.concurrentMissing === 0 && card.deckRequirements.length > 1 && (
+              <span className="inline-flex items-center rounded-md border border-sky-400/30 bg-sky-500/10 px-2 py-0.5 text-[10px] text-sky-200 font-medium">
+                {t("shortages.pooledCopies", {
+                  copies: String(card.totalOwned),
+                  decks: String(card.deckRequirements.length),
+                })}
+              </span>
+            )}
           </div>
 
           {/* Watchlist managed printings */}

@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { createTestDb } from "../test-utils";
 import { users } from "../schema";
-import { migrateDeckSectionsAndPriorities } from "../init";
+import { migrateDeckSectionsAndPriorities } from "../deck-sections-migration";
 
 describe("migration-deck-sections", () => {
   let client: any;

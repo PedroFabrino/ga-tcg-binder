@@ -22,6 +22,8 @@ export interface CardShortageDetail extends MarketShortageAvailability {
   requiredQuantity: number;
   availableQuantity: number;
   missingQuantity: number;
+  hardMissing?: number;
+  sharedMissing?: number;
   isContended: boolean;
   contendingDeckNames: string[];
   dedicatedCopiesOwned: number;
@@ -108,6 +110,7 @@ export async function calculateDeckShortage(
             deckName: od.deckName,
             section: (od.section as DeckSection) || "4fun",
             priority: od.priority ?? 0,
+            createdAt: od.createdAt,
             demand: od.quantity,
           });
         }
@@ -121,9 +124,11 @@ export async function calculateDeckShortage(
     const allocation = allocateCardDemand(availableOwned, demands);
     const targetAlloc = allocation.deckAllocations.find((d) => d.deckId === deck.id);
 
-    const available = targetAlloc ? targetAlloc.allocated : 0;
-    const missing = Math.max(0, required - available);
-    totalCardsMissing += missing;
+    const hardMissing = targetAlloc?.hardMissing ?? 0;
+    const sharedMissing = targetAlloc?.sharedMissing ?? 0;
+    const totalMissing = hardMissing + sharedMissing;
+    const available = Math.max(0, required - totalMissing);
+    totalCardsMissing += totalMissing;
 
     const otherDemandForSlug = otherDeckCards
       .filter((od) => od.cardSlug === slug)
@@ -137,7 +142,7 @@ export async function calculateDeckShortage(
       .filter((name, idx, arr) => arr.indexOf(name) === idx);
 
     const friendsWithIdle: FriendIdleCard[] = [];
-    if (missing > 0 && friends.length > 0) {
+    if (totalMissing > 0 && friends.length > 0) {
       for (const friend of friends) {
         const friendOwned = friendsInventory
           .filter((fi) => fi.userId === friend.id && fi.cardSlug === slug && !fi.isDedicated)
@@ -168,7 +173,9 @@ export async function calculateDeckShortage(
       imageUrl,
       requiredQuantity: required,
       availableQuantity: available,
-      missingQuantity: missing,
+      missingQuantity: totalMissing,
+      hardMissing,
+      sharedMissing,
       isContended,
       contendingDeckNames,
       dedicatedCopiesOwned: dedicatedOwned,

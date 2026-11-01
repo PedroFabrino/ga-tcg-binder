@@ -63,6 +63,7 @@ export async function loadDeckShortageData(
     assignedEditionId: string | null;
     section: string;
     priority: number;
+    createdAt?: Date | string | null;
   }> = [];
 
   if (otherDeckIds.length > 0) {
@@ -75,6 +76,7 @@ export async function loadDeckShortageData(
         assignedEditionId: deckCards.assignedEditionId,
         section: decks.section,
         priority: decks.priority,
+        createdAt: decks.createdAt,
       })
       .from(deckCards)
       .innerJoin(decks, eq(deckCards.deckId, decks.id))

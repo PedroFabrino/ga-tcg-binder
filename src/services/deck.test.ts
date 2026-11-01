@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import * as catalogRepository from "@/db/repositories/catalog-repository";
 import { createTestDb } from "@/db/test-utils";
 import { cards, deckCards, decks, users } from "@/db/schema";
@@ -201,6 +201,26 @@ describe("deck service", () => {
       // Verify atomic rollback: myDeck was NOT changed to 4fun
       const summary = await getUserDecksSummary(user.id, db);
       expect(summary[0].section).toBe("competitive");
+    });
+
+    it("orders public decks by section and priority while omitting section property", async () => {
+      const { db } = await createTestDb();
+      await db.insert(users).values(user);
+
+      const comp = await createDeckService(user.id, { name: "Tournament Deck", section: "competitive" }, db);
+      const fun = await createDeckService(user.id, { name: "Kitchen Table", section: "4fun" }, db);
+      await createDeckService(user.id, { name: "Secret Deck", section: "competitive" }, db);
+
+      const { getPublicDecksByUserId } = await import("../db/repositories/deck-repository");
+      await db.update(decks).set({ isPublic: true }).where(inArray(decks.id, [comp.id, fun.id]));
+
+      const publicDecks = await getPublicDecksByUserId(user.id, db);
+
+      expect(publicDecks).toHaveLength(2);
+      expect(publicDecks[0].name).toBe("Tournament Deck");
+      expect(publicDecks[1].name).toBe("Kitchen Table");
+      expect((publicDecks[0] as any).section).toBeUndefined();
+      expect((publicDecks[1] as any).section).toBeUndefined();
     });
   });
 });

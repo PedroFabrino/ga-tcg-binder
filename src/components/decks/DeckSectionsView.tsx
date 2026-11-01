@@ -151,6 +151,46 @@ export function DeckSectionsView({
 
   const sortingStrategy = layout === "list" ? verticalListSortingStrategy : rectSortingStrategy;
 
+  const renderDeckItems = (sectionDecks: DeckSummaryItem[]) => (
+    <div
+      className={
+        layout === "list"
+          ? "space-y-2"
+          : "grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+      }
+    >
+      {sectionDecks.map((deck, idx) => (
+        <SortableDeckItem
+          key={deck.id}
+          deck={deck}
+          missing={shortages[deck.id]}
+          index={idx}
+          layout={layout}
+          isEditing={loadingEditId === deck.id}
+          canMoveUp={idx > 0}
+          canMoveDown={idx < sectionDecks.length - 1}
+          onMoveUp={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onMove(deck.id, "up");
+          }}
+          onMoveDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onMove(deck.id, "down");
+          }}
+          onToggleSection={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onToggleSection(deck.id);
+          }}
+          onEdit={onEdit}
+          onDelete={onDelete}
+        />
+      ))}
+    </div>
+  );
+
   return (
     <DndContext
       sensors={sensors}
@@ -188,43 +228,7 @@ export function DeckSectionsView({
               items={competitiveDecks.map((d) => d.id)}
               strategy={sortingStrategy}
             >
-              <div
-                className={
-                  layout === "list"
-                    ? "space-y-2"
-                    : "grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
-                }
-              >
-                {competitiveDecks.map((deck, idx) => (
-                  <SortableDeckItem
-                    key={deck.id}
-                    deck={deck}
-                    missing={shortages[deck.id]}
-                    index={idx}
-                    layout={layout}
-                    isEditing={loadingEditId === deck.id}
-                    canMoveUp={idx > 0}
-                    canMoveDown={idx < competitiveDecks.length - 1}
-                    onMoveUp={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onMove(deck.id, "up");
-                    }}
-                    onMoveDown={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onMove(deck.id, "down");
-                    }}
-                    onToggleSection={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onToggleSection(deck.id);
-                    }}
-                    onEdit={onEdit}
-                    onDelete={onDelete}
-                  />
-                ))}
-              </div>
+              {renderDeckItems(competitiveDecks)}
             </SortableContext>
           )}
         </div>
@@ -259,43 +263,7 @@ export function DeckSectionsView({
               items={fourFunDecks.map((d) => d.id)}
               strategy={sortingStrategy}
             >
-              <div
-                className={
-                  layout === "list"
-                    ? "space-y-2"
-                    : "grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
-                }
-              >
-                {fourFunDecks.map((deck, idx) => (
-                  <SortableDeckItem
-                    key={deck.id}
-                    deck={deck}
-                    missing={shortages[deck.id]}
-                    index={idx}
-                    layout={layout}
-                    isEditing={loadingEditId === deck.id}
-                    canMoveUp={idx > 0}
-                    canMoveDown={idx < fourFunDecks.length - 1}
-                    onMoveUp={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onMove(deck.id, "up");
-                    }}
-                    onMoveDown={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onMove(deck.id, "down");
-                    }}
-                    onToggleSection={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onToggleSection(deck.id);
-                    }}
-                    onEdit={onEdit}
-                    onDelete={onDelete}
-                  />
-                ))}
-              </div>
+              {renderDeckItems(fourFunDecks)}
             </SortableContext>
           )}
         </div>

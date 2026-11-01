@@ -79,7 +79,7 @@ export function DeckSummaryRow({
             <span>{deck.champion || t("decks.noChampionSet")}</span>
             <span>•</span>
             <span>
-              {deck.totalCards} cards ({deck.mainCount}M / {deck.materialCount}Mat / {deck.sideCount}S)
+              {t("decks.cardsCount", { count: String(deck.totalCards) })} ({deck.mainCount}M / {deck.materialCount}Mat / {deck.sideCount}S)
             </span>
           </div>
         </div>

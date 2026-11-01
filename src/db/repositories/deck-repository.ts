@@ -24,6 +24,33 @@ export async function getUserDecks(
     );
 }
 
+export type PublicDeckRow = Omit<DeckRow, "section">;
+
+export async function getPublicDecksByUserId(
+  userId: string,
+  database = db
+): Promise<PublicDeckRow[]> {
+  return database
+    .select({
+      id: decks.id,
+      userId: decks.userId,
+      name: decks.name,
+      champion: decks.champion,
+      format: decks.format,
+      priority: decks.priority,
+      isPublic: decks.isPublic,
+      createdAt: decks.createdAt,
+      updatedAt: decks.updatedAt,
+    })
+    .from(decks)
+    .where(and(eq(decks.userId, userId), eq(decks.isPublic, true)))
+    .orderBy(
+      sql`CASE WHEN ${decks.section} = 'competitive' THEN 0 ELSE 1 END`,
+      asc(decks.priority),
+      asc(decks.createdAt)
+    );
+}
+
 export async function getNextDeckPriority(
   userId: string,
   section: string = "4fun",
@@ -69,8 +96,10 @@ export async function updateDeckSectionAndPriorities(
       .where(and(eq(decks.id, item.id), eq(decks.userId, userId)))
   );
 
-  if (typeof (database as any).batch === "function" && updateStatements.length > 0) {
-    await (database as any).batch(updateStatements as any);
+  // LibSQL drizzle client provides atomic batch updates; fallback sequentially for in-memory mocks
+  const batchClient = database as unknown as { batch?: (stmts: unknown[]) => Promise<unknown> };
+  if (typeof batchClient.batch === "function" && updateStatements.length > 0) {
+    await batchClient.batch(updateStatements);
   } else {
     for (const stmt of updateStatements) {
       await stmt;

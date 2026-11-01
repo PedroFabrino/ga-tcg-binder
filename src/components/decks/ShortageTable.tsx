@@ -15,6 +15,8 @@ export interface ShortageItem extends MarketShortageAvailability {
   requiredQuantity: number;
   availableQuantity: number;
   missingQuantity: number;
+  hardMissing?: number;
+  sharedMissing?: number;
   isContended: boolean;
   contendingDeckNames: string[];
   dedicatedCopiesOwned: number;
@@ -222,9 +224,19 @@ export default function ShortageTable({
                     <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-300"><Check className="h-3 w-3" /> Covered</span>
                   )}
                   {item.isContended && (item.contendingDeckNames?.length ?? 0) > 0 && (
-                    <div className="mt-1.5 flex items-start gap-1 text-[10px] text-amber-300/90">
-                      <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
-                      <span>Also used in {item.contendingDeckNames.map((n) => `'${n}'`).join(", ")}</span>
+                    <div className="mt-1.5 flex flex-col gap-1 text-[10px] text-amber-300/90">
+                      <div className="flex items-start gap-1">
+                        <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
+                        <span>Also used in {item.contendingDeckNames.map((n) => `'${n}'`).join(", ")}</span>
+                      </div>
+                      {!short && (
+                        <div className="text-sky-300 font-medium">
+                          {t("shortages.pooledCopies", {
+                            copies: String(item.availableQuantity),
+                            decks: String(item.contendingDeckNames.length + 1),
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
                 </td>

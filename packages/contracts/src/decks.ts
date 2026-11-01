@@ -25,6 +25,8 @@ export function isCompetitive(section: unknown): boolean {
  */
 export function compareDecksBySectionAndPriority<
   T extends {
+    id?: string;
+    deckId?: string;
     section?: string | null;
     priority?: number | null;
     createdAt?: Date | string | null;
@@ -40,5 +42,11 @@ export function compareDecksBySectionAndPriority<
 
   const aDate = a.createdAt ? new Date(a.createdAt).getTime() : 0;
   const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-  return aDate - bDate;
+  if (aDate !== bDate) return aDate - bDate;
+
+  const aId = a.id ?? a.deckId;
+  const bId = b.id ?? b.deckId;
+  if (aId && bId) return aId.localeCompare(bId);
+
+  return 0;
 }

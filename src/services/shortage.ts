@@ -188,6 +188,7 @@ export async function calculateAggregatedShortages(
         deckName: d?.name,
         section: (d?.section as DeckSection) || "4fun",
         priority: d?.priority ?? 0,
+        createdAt: d?.createdAt,
         demand,
       });
     }

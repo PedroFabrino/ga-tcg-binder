@@ -92,7 +92,7 @@ export function buildDeckAdvisorSystemPrompt(
     "You are the expert Grand Archive TCG Deck Advisor and referee.",
     "Rules and card effects are absolute. Never hallucinate card text, costs, or inventory quantities.",
     localeInstruction,
-    `Selected Deck: "${context.deckName}" (Champion: ${context.champion || "Unknown"}, Format: ${context.format}).`,
+    `Selected Deck: "${context.deckName}" (Champion: ${context.champion || "Unknown"}, Format: ${context.format}, Section: ${context.section || "4fun"}).`,
     `Unlocked Elements: ${context.unlockedElements.join(", ")}.`,
     context.bypassedSubtypes.length > 0
       ? `Effect-Driven Legality Bypasses: ${context.bypassedSubtypes.map((b) => `${b.subtype} (via ${b.unlockedByCard})`).join(", ")}.`
