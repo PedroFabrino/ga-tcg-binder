@@ -1,8 +1,9 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { collectionKeys, settingsKeys } from "@/lib/query-keys";
+import { collectionKeys } from "@/lib/query-keys";
 import { readVendorCapability } from "@/lib/settings-capabilities";
+import { useSettingsQuery } from "./use-settings-queries";
 import type { CollectionItem } from "@/components/collection/types";
 
 export function useCollectionQuery(view: string, userId?: string | null) {
@@ -18,14 +19,9 @@ export function useCollectionQuery(view: string, userId?: string | null) {
   });
 }
 
-export function useVendorCapabilityQuery() {
-  return useQuery<boolean>({
-    queryKey: settingsKeys.current(),
-    queryFn: async () => {
-      const res = await fetch("/api/settings");
-      if (!res.ok) return false;
-      const data = await res.json();
-      return readVendorCapability(data);
-    },
+export function useVendorCapabilityQuery(userId?: string | null) {
+  return useSettingsQuery({
+    userId,
+    select: (data) => readVendorCapability(data),
   });
 }

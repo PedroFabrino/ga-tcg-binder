@@ -23,7 +23,7 @@ import ShortageTable, {
 import { Button } from "@/components/ui/button";
 import { ArchetypeCard, type MetaArchetype } from "@/components/meta/ArchetypeCard";
 import { useMetaExplorerQuery } from "@/hooks/queries/use-meta-queries";
-import { deckKeys } from "@/lib/query-keys";
+import { invalidateDeckQueries } from "@/lib/query-invalidation";
 
 const TIERS = ["Tier 1", "Tier 2", "Tier 3", "S", "A", "B", "C", "Rogue"];
 const TIER_COPY: Record<string, string> = {
@@ -106,7 +106,7 @@ export default function MetaExplorerPage() {
       });
       const resData = await res.json();
       if (resData.success && resData.id) {
-        queryClient.invalidateQueries({ queryKey: deckKeys.all });
+        await invalidateDeckQueries(queryClient);
         if ((m.mypStoreCardsOwned || 0) > 0) {
           showToast(
             t("meta.importWithMypNote", { name: m.name, count: m.mypStoreCardsOwned ?? 0 }),
@@ -142,7 +142,7 @@ export default function MetaExplorerPage() {
       });
       const resData = await res.json();
       if (resData.success && resData.id) {
-        queryClient.invalidateQueries({ queryKey: deckKeys.all });
+        await invalidateDeckQueries(queryClient);
         setSavedDeckId(resData.id);
         showToast(t("meta.saveSuccess"), "success");
       } else if (resData.error) {

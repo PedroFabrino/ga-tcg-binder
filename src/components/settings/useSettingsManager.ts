@@ -19,7 +19,9 @@ export function useSettingsManager() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useSettingsQuery();
+  const { data, isLoading } = useSettingsQuery({
+    userId: session?.user?.id ?? null,
+  });
 
   const [threshold, setThreshold] = useState<number>(1000);
   const [friendCode, setFriendCode] = useState<string>("");

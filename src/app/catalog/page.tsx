@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "@/lib/i18n";
 import { useCatalogQuery } from "@/hooks/queries/use-catalog-queries";
-import { collectionKeys } from "@/lib/query-keys";
+import { invalidateCollectionQueries } from "@/lib/query-invalidation";
 
 const ELEMENTS = ALL_ELEMENTS;
 const CLASSES = ["WARRIOR", "MAGE", "TANK", "CLERIC", "ASSASSIN", "RANGER", "TAMER"];
@@ -111,7 +111,7 @@ export default function CatalogPage() {
       });
       const resData = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(resData.error || t("catalog.loadError"));
-      queryClient.invalidateQueries({ queryKey: collectionKeys.all });
+      await invalidateCollectionQueries(queryClient);
       showToast(t("shortages.quickAddSuccess", { quantity: 1, cardName: `${foil ? "Foil " : ""}${name}` }), "success");
       return true;
     } catch (e: any) {

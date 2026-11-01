@@ -4,7 +4,8 @@ export const deckKeys = {
   list: (userId?: string | null) => [...deckKeys.lists(), { userId: userId ?? null }] as const,
   details: () => [...deckKeys.all, "detail"] as const,
   detail: (id: string) => [...deckKeys.details(), id] as const,
-  shortages: (userId?: string | null) => [...deckKeys.all, "shortages", { userId: userId ?? null }] as const,
+  shortagesPrefix: () => [...deckKeys.all, "shortages"] as const,
+  shortages: (userId?: string | null) => [...deckKeys.shortagesPrefix(), { userId: userId ?? null }] as const,
 };
 
 export const collectionKeys = {
@@ -29,16 +30,20 @@ export const metaKeys = {
 
 export const setsKeys = {
   all: ["sets"] as const,
+  dashboardPrefix: () => [...setsKeys.all, "dashboard"] as const,
+  dashboard: (target?: string | null, userId?: string | null) =>
+    [...setsKeys.dashboardPrefix(), { target: target ?? "all", userId: userId ?? null }] as const,
   lists: () => [...setsKeys.all, "list"] as const,
   list: (userId?: string | null) => [...setsKeys.lists(), { userId: userId ?? null }] as const,
   details: () => [...setsKeys.all, "detail"] as const,
-  detail: (groupSlug: string, userId?: string | null) =>
-    [...setsKeys.details(), groupSlug, { userId: userId ?? null }] as const,
+  detail: (groupSlug: string, target?: string | null, userId?: string | null) =>
+    [...setsKeys.details(), groupSlug, { target: target ?? "all", userId: userId ?? null }] as const,
 };
 
 export const settingsKeys = {
   all: ["settings"] as const,
-  current: () => [...settingsKeys.all, "current"] as const,
+  current: (userId?: string | null) =>
+    [...settingsKeys.all, "current", { userId: userId ?? null }] as const,
   identities: () => [...settingsKeys.all, "identities"] as const,
 };
 

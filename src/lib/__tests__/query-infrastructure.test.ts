@@ -35,6 +35,7 @@ describe("TanStack Query Infrastructure", () => {
   it("produces deterministic and scoped query keys for all domain models", () => {
     expect(deckKeys.all).toEqual(["decks"]);
     expect(deckKeys.list("user-123")).toEqual(["decks", "list", { userId: "user-123" }]);
+    expect(deckKeys.shortagesPrefix()).toEqual(["decks", "shortages"]);
     expect(deckKeys.shortages("user-123")).toEqual(["decks", "shortages", { userId: "user-123" }]);
     expect(deckKeys.detail("deck-abc")).toEqual(["decks", "detail", "deck-abc"]);
 
@@ -53,13 +54,23 @@ describe("TanStack Query Infrastructure", () => {
 
     expect(metaKeys.list("user-123")).toEqual(["meta", "list", { userId: "user-123" }]);
     expect(setsKeys.list("user-123")).toEqual(["sets", "list", { userId: "user-123" }]);
-    expect(setsKeys.detail("doa", "user-123")).toEqual([
+    expect(setsKeys.dashboard("all", "user-123")).toEqual([
+      "sets",
+      "dashboard",
+      { target: "all", userId: "user-123" },
+    ]);
+    expect(setsKeys.detail("doa", "all", "user-123")).toEqual([
       "sets",
       "detail",
       "doa",
+      { target: "all", userId: "user-123" },
+    ]);
+    expect(settingsKeys.current()).toEqual(["settings", "current", { userId: null }]);
+    expect(settingsKeys.current("user-123")).toEqual([
+      "settings",
+      "current",
       { userId: "user-123" },
     ]);
-    expect(settingsKeys.current()).toEqual(["settings", "current"]);
     expect(marketplaceKeys.fulfillment("open")).toEqual(["marketplace", "fulfillment", "open"]);
     expect(marketplaceKeys.shipping(true)).toEqual([
       "marketplace",
@@ -80,15 +91,23 @@ describe("TanStack Query Infrastructure", () => {
     expect(spy).toHaveBeenCalledWith({ queryKey: setsKeys.all });
   });
 
-  it("invalidates affected query keys on collection mutations", async () => {
+  it("invalidates affected query keys on collection mutations including user-scoped shortages prefix", async () => {
     const client = new QueryClient();
     const spy = vi.spyOn(client, "invalidateQueries");
+
+    // Seed active query for a specific user
+    client.setQueryData(deckKeys.shortages("user-123"), { totalMissing: 5 });
+    expect(client.getQueryState(deckKeys.shortages("user-123"))?.isInvalidated).toBeFalsy();
 
     await invalidateCollectionQueries(client);
 
     expect(spy).toHaveBeenCalledWith({ queryKey: collectionKeys.all });
-    expect(spy).toHaveBeenCalledWith({ queryKey: deckKeys.shortages() });
+    expect(spy).toHaveBeenCalledWith({ queryKey: deckKeys.shortagesPrefix() });
     expect(spy).toHaveBeenCalledWith({ queryKey: metaKeys.all });
     expect(spy).toHaveBeenCalledWith({ queryKey: setsKeys.all });
+    expect(spy).toHaveBeenCalledWith({ queryKey: catalogKeys.all });
+
+    // The user-scoped shortages query is matched by prefix and marked invalidated
+    expect(client.getQueryState(deckKeys.shortages("user-123"))?.isInvalidated).toBe(true);
   });
 });

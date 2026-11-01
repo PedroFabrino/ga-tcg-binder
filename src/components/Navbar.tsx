@@ -2,7 +2,9 @@
 
 import { usePathname } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { useQueryClient } from "@tanstack/react-query";
+import { signOutAndClearCache } from "@/lib/auth-cache";
 import {
 BookOpen, Layers, Sparkles, Trophy, Users, Store, QrCode, Settings as SettingsIcon,
 LogIn, LogOut, Menu, Search, Command, ChevronDown, Copy, Home, Globe,
@@ -35,6 +37,7 @@ export default function Navbar() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const { showToast } = useToast();
+  const queryClient = useQueryClient();
   const { t, locale, setLocale } = useTranslation();
   const [showQrModal, setShowQrModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -234,7 +237,7 @@ export default function Navbar() {
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    onSelect={() => { signOut(); showToast("Signed out", "info"); }}
+                    onSelect={() => { signOutAndClearCache(queryClient); showToast("Signed out", "info"); }}
                     className="text-xs text-rose-400 data-[highlighted]:bg-rose-500/10 data-[highlighted]:text-rose-300"
                   >
                     <LogOut />

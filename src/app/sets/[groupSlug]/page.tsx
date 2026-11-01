@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { PackageOpen } from "lucide-react";
 import {
@@ -19,13 +20,14 @@ import SetChecklistFiltersBar from "@/components/sets/SetChecklistFilters";
 import SetChecklistCard from "@/components/sets/SetChecklistCard";
 import { buildCollectionUpdateRequest } from "@/lib/collection-stepper";
 import { useSetChecklistQuery } from "@/hooks/queries/use-sets-queries";
-import { collectionKeys } from "@/lib/query-keys";
+import { invalidateCollectionQueries } from "@/lib/query-invalidation";
 
 export default function SetChecklistPage() {
   const params = useParams<{ groupSlug: string }>();
   const groupSlug = params?.groupSlug ?? "";
   const { t } = useTranslation();
   const { showToast } = useToast();
+  const { data: session } = useSession();
   const queryClient = useQueryClient();
 
   // Filter state
@@ -44,11 +46,16 @@ export default function SetChecklistPage() {
   // Query state
   const { data, isLoading, isError, error: queryError, refetch } = useSetChecklistQuery(
     groupSlug,
-    target
+    target,
+    session?.user?.id ?? null
   );
 
   // Local report for optimistic updates
   const [report, setReport] = useState<SetGroupChecklistReport | null>(null);
+
+  useEffect(() => {
+    setReport(null);
+  }, [target]);
 
   useEffect(() => {
     if (data) {
@@ -104,7 +111,7 @@ export default function SetChecklistPage() {
           body: JSON.stringify(body),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        queryClient.invalidateQueries({ queryKey: collectionKeys.all });
+        await invalidateCollectionQueries(queryClient);
         await refetch();
       } catch {
         showToast(t("common.error"), "error");

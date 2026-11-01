@@ -27,11 +27,17 @@ We adopt `@tanstack/react-query` as the single client-side query caching engine 
    - Stale-while-revalidate is guaranteed: navigating to any previously visited page renders cached data instantly (0ms UI latency, 0 skeleton flash), revalidating silently in the background if older than 30 minutes.
    - `refetchOnWindowFocus: false` is configured to prevent intrusive refetch storms during normal window switching.
 
-2. **Query Key Architecture**:
+2. **Query Key Architecture & User Scoping**:
    - Query keys are defined through centralized factory objects under `src/lib/query-keys.ts` for all primary domain entities: `deckKeys`, `collectionKeys`, `catalogKeys`, `metaKeys`, `setsKeys`, `settingsKeys`, and `marketplaceKeys`.
+   - All user-specific queries (`deckKeys.list`, `deckKeys.shortages`, `collectionKeys.view`, `settingsKeys.current`, `setsKeys.dashboard`, `setsKeys.detail`) incorporate `userId` in their key parameters.
+   - Cross-query derivations (such as `useVendorCapabilityQuery`) consume the canonical query via `select` selectors to avoid cache key collision or data shape pollution.
+   - Cache boundaries are strictly purged via `queryClient.clear()` on user sign-out and session account switches (`signOutAndClearCache` and `QueryProvider` session watcher) to eliminate cross-account leakage.
 
 3. **Mutation Invalidation Protocol**:
-   - Mutating actions (creating, updating, reordering, or deleting decks; updating collection quantities or bulk importing; clearing batches) call `queryClient.invalidateQueries` to mark affected data models and dependent shortage calculations stale immediately.
+   - Centralized invalidators under `src/lib/query-invalidation.ts` (`invalidateDeckQueries`, `invalidateCollectionQueries`) orchestrate inter-dependent caches.
+   - Shortage queries are invalidated via the prefix `deckKeys.shortagesPrefix()` so user-scoped entries are reliably invalidated.
+   - Mutating actions (card quantity stepper, catalog quick-add, deck import) call the central invalidators rather than manually crafting ad-hoc invalidations.
+   - Interactive toggles (such as set hide/unhide) execute optimistic updates directly on the cache via `useToggleSetHiddenMutation`, guaranteeing immediate feedback and zero state divergence.
 
 4. **Order Fulfillment Workspace**:
    - The Order Fulfillment lifecycle header and tabs (`open`, `processed`, `sent`) remain permanently interactive, decoupled from empty batch checks, with top bridge actions (`Open MyP Vendas` and `Copy Userscript`) always accessible.

@@ -71,7 +71,7 @@ export default function CollectionPage() {
   const [showExport, setShowExport] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
 
-  const { data: vendorCap } = useVendorCapabilityQuery();
+  const { data: vendorCap } = useVendorCapabilityQuery(session?.user?.id ?? null);
   const hasVendorCapability = Boolean(vendorCap);
 
   useEffect(() => {

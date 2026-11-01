@@ -1,76 +1,47 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
+import { useSession } from "next-auth/react";
 import { useToast } from "@/components/ToastProvider";
 import SetsDashboardView from "@/components/sets/SetsDashboardView";
-import { applyHiddenFlag } from "@/lib/sets-view";
 import { useTranslation } from "@/lib/i18n";
-import type { FeaturedSetSummary } from "@ga/contracts";
-import { useSetsDashboardQuery } from "@/hooks/queries/use-sets-queries";
+import {
+  useSetsDashboardQuery,
+  useToggleSetHiddenMutation,
+} from "@/hooks/queries/use-sets-queries";
 
 export default function SetsPage() {
   const { t } = useTranslation();
   const { showToast } = useToast();
+  const { data: session } = useSession();
 
   const [target, setTarget] = useState<string>("all");
-  const { data, isLoading, isError } = useSetsDashboardQuery(target);
+  const userId = session?.user?.id ?? null;
 
-  const [groups, setGroups] = useState<FeaturedSetSummary[]>([]);
+  const { data, isLoading, isError } = useSetsDashboardQuery(target, userId);
+  const toggleMutation = useToggleSetHiddenMutation(target, userId);
 
-  useEffect(() => {
-    if (data?.groups) {
-      setGroups(data.groups);
-    }
-  }, [data?.groups]);
-
+  const groups = data?.groups ?? [];
   const availableDecks = data?.availableDecks ?? [];
   const hasPersonalWants = data?.hasPersonalWants ?? false;
   const loading = isLoading && groups.length === 0;
   const error = isError;
 
-  // Serialize concurrent hide/unhide toggles per group
-  const pendingToggles = useRef<Map<string, Promise<void>>>(new Map());
-
   // -------------------- Hide / Unhide --------------------
   const handleToggleHide = useCallback(
     async (groupUuid: string) => {
-      const previous =
-        pendingToggles.current.get(groupUuid) ?? Promise.resolve();
+      const group = groups.find((g) => g.groupUuid === groupUuid);
+      if (!group) return;
 
-      const togglePromise = previous.then(async () => {
-        const group = groups.find((g) => g.groupUuid === groupUuid);
-        if (!group) return;
+      const newHidden = !group.isHidden;
 
-        const newHidden = !group.isHidden;
-
-        // Optimistic update using pure helper
-        setGroups((prev) => applyHiddenFlag(prev, groupUuid, newHidden));
-
-        try {
-          const res = await fetch("/api/sets/hide", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ groupUuid, isHidden: newHidden }),
-          });
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        } catch {
-          // Rollback
-          setGroups((prev) =>
-            applyHiddenFlag(prev, groupUuid, !newHidden),
-          );
-          showToast(t("common.error"), "error");
-        }
-      });
-
-      pendingToggles.current.set(groupUuid, togglePromise);
-
-      void togglePromise.finally(() => {
-        if (pendingToggles.current.get(groupUuid) === togglePromise) {
-          pendingToggles.current.delete(groupUuid);
-        }
-      });
+      try {
+        await toggleMutation.mutateAsync({ groupUuid, isHidden: newHidden });
+      } catch {
+        showToast(t("common.error"), "error");
+      }
     },
-    [groups, showToast, t],
+    [groups, toggleMutation, showToast, t],
   );
 
   return (
