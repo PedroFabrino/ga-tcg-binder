@@ -1,22 +1,18 @@
 "use client";
+
 import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   BookOpen,
   Plus,
   Upload,
-  ArrowRight,
-  CheckCircle2,
   AlertTriangle,
-  Trash2,
-  Crown,
-  Pencil,
-  Loader2,
   LayoutGrid,
   List,
+  RefreshCw,
 } from "lucide-react";
 import { RecommendedMetaDecks, type RecommendedMetaArchetype } from "@/components/decks/RecommendedMetaDecks";
-import { DeckSummaryCard } from "@/components/decks/DeckSummaryCard";
 import { DeckSectionsView } from "@/components/decks/DeckSectionsView";
 import { PageHeader, ConfirmModal, Tabs } from "@/components/common";
 import { SkeletonCard, EmptyState } from "@/components/Skeletons";
@@ -24,36 +20,26 @@ import { useToast } from "@/components/ToastProvider";
 import DeckFormModal from "@/components/decks/DeckFormModal";
 import AllShortagesView from "@/components/decks/AllShortagesView";
 import { Button } from "@/components/ui/button";
-import type { AggregatedShortageReport } from "@/services/shortage";
 import { useTranslation } from "@/lib/i18n";
 import { useDeckOrdering } from "@/hooks/use-deck-ordering";
-import { type DeckSection } from "@ga/contracts";
+import {
+  useDecksSummaryQuery,
+  useAggregatedShortagesQuery,
+  type DeckSummary,
+} from "@/hooks/queries/use-decks-queries";
+import { invalidateDeckQueries } from "@/lib/query-invalidation";
 
-interface DeckSummary {
-  id: string;
-  name: string;
-  champion: string;
-  format: string;
-  section: DeckSection;
-  priority: number;
-  mainCount: number;
-  materialCount: number;
-  sideCount: number;
-  totalCards: number;
-}
 type DecksViewTab = "decks" | "shortages";
 
 export default function DecksPage() {
   const { t } = useTranslation();
   const { data: session } = useSession();
   const { showToast } = useToast();
+  const queryClient = useQueryClient();
+
   const [activeTab, setActiveTab] = useState<DecksViewTab>("decks");
   const [layout, setLayout] = useState<"grid" | "list">("grid");
   const [shortages, setShortages] = useState<Record<string, number | null>>({});
-  const [aggregatedReport, setAggregatedReport] = useState<AggregatedShortageReport | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadingShortages, setLoadingShortages] = useState(false);
-  const [error, setError] = useState(false);
   const [formMode, setFormMode] = useState<"create" | "import" | null>(null);
   const [pendingDelete, setPendingDelete] = useState<DeckSummary | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -61,25 +47,24 @@ export default function DecksPage() {
   const [editingDeck, setEditingDeck] = useState<{
     id: string;
     name: string;
-    champion: string;
-    omnidexText: string;
+    champion?: string | null;
+    omnidexText?: string | null;
   } | null>(null);
   const [loadingEditId, setLoadingEditId] = useState<string | null>(null);
 
-  const fetchShortages = useCallback(async () => {
-    setLoadingShortages(true);
-    try {
-      const userIdQuery = session?.user?.id ? `?userId=${encodeURIComponent(session.user.id)}` : "";
-      const res = await fetch(`/api/decks/shortages${userIdQuery}`);
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setAggregatedReport(data);
-    } catch {
-      console.warn("[DecksPage] Failed to fetch aggregated shortages");
-    } finally {
-      setLoadingShortages(false);
-    }
-  }, [session?.user?.id]);
+  const {
+    data: serverDecks,
+    isLoading: isDecksLoading,
+    isError: isDecksError,
+    isFetching: isDecksFetching,
+    refetch: refetchDecks,
+  } = useDecksSummaryQuery(session?.user?.id);
+
+  const {
+    data: aggregatedReport,
+    isLoading: isShortagesLoading,
+    refetch: refetchShortages,
+  } = useAggregatedShortagesQuery(session?.user?.id);
 
   const {
     decks,
@@ -88,8 +73,40 @@ export default function DecksPage() {
     moveWithinSection: handleMove,
     moveToOtherSection: handleToggleSection,
   } = useDeckOrdering<DeckSummary>([], () => {
-    fetchShortages();
+    invalidateDeckQueries(queryClient);
   });
+
+  useEffect(() => {
+    if (serverDecks) {
+      setDecks(serverDecks);
+      const userIdQuery = session?.user?.id ? `?userId=${encodeURIComponent(session.user.id)}` : "";
+      serverDecks.forEach(async (d) => {
+        try {
+          const r = await fetch(`/api/decks/${d.id}/shortage${userIdQuery}`);
+          const s = r.ok ? await r.json() : null;
+          setShortages((prev) => ({
+            ...prev,
+            [d.id]: typeof s?.totalCardsMissing === "number" ? s.totalCardsMissing : null,
+          }));
+        } catch {
+          setShortages((prev) => ({ ...prev, [d.id]: null }));
+        }
+      });
+    }
+  }, [serverDecks, session?.user?.id, setDecks]);
+
+  useEffect(() => {
+    const userIdQuery = session?.user?.id ? `?userId=${encodeURIComponent(session.user.id)}` : "";
+    fetch(`/api/meta${userIdQuery}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((metaData) => {
+        if (metaData && Array.isArray(metaData.recommendedArchetypes)) {
+          setRecommendedMeta(metaData.recommendedArchetypes);
+        }
+      })
+      .catch(() => {});
+  }, [session?.user?.id]);
+
   const handleStartEdit = async (deck: DeckSummary, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -113,6 +130,7 @@ export default function DecksPage() {
       setLoadingEditId(null);
     }
   };
+
   const handleImportMetaDeck = async (m: RecommendedMetaArchetype) => {
     try {
       const res = await fetch("/api/decks", {
@@ -129,7 +147,7 @@ export default function DecksPage() {
       const data = await res.json();
       if (data.success) {
         showToast(`Imported "${m.name}" to your Decks!`, "success");
-        fetchDecks();
+        await invalidateDeckQueries(queryClient);
       } else {
         showToast("Failed to import deck: " + data.error, "error");
       }
@@ -138,10 +156,12 @@ export default function DecksPage() {
       showToast("Failed to import: " + message, "error");
     }
   };
+
   useEffect(() => {
     const v = new URLSearchParams(window.location.search).get("view") as DecksViewTab | null;
     if (v === "shortages" || v === "decks") setActiveTab(v);
   }, []);
+
   const handleTabChange = (tab: DecksViewTab) => {
     setActiveTab(tab);
     const url = new URL(window.location.href);
@@ -152,48 +172,7 @@ export default function DecksPage() {
     }
     window.history.replaceState(null, "", url.toString());
   };
-  const fetchDecks = useCallback(async () => {
-    setLoading(true);
-    try {
-      const userIdQuery = session?.user?.id ? `?userId=${encodeURIComponent(session.user.id)}` : "";
-      const res = await fetch(`/api/decks${userIdQuery}`);
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      const list: DeckSummary[] = Array.isArray(data.decks) ? data.decks : [];
-      setDecks(list);
-      setError(false);
-      // Fetch recommended meta archetypes
-      try {
-        const metaRes = await fetch(`/api/meta${userIdQuery}`);
-        if (metaRes.ok) {
-          const metaData = await metaRes.json();
-          setRecommendedMeta(Array.isArray(metaData.recommendedArchetypes) ? metaData.recommendedArchetypes : []);
-        }
-      } catch {
-        // Soft error: ignore
-      }
-      list.forEach(async (d) => {
-        try {
-          const r = await fetch(`/api/decks/${d.id}/shortage${userIdQuery}`);
-          const s = r.ok ? await r.json() : null;
-          setShortages((prev) => ({
-            ...prev,
-            [d.id]: typeof s?.totalCardsMissing === "number" ? s.totalCardsMissing : null,
-          }));
-        } catch {
-          setShortages((prev) => ({ ...prev, [d.id]: null }));
-        }
-      });
-    } catch {
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
-  }, [session?.user?.id]);
-  useEffect(() => {
-    fetchDecks();
-    fetchShortages();
-  }, [fetchDecks, fetchShortages]);
+
   const confirmDelete = async () => {
     if (!pendingDelete) return;
     setDeleting(true);
@@ -202,27 +181,32 @@ export default function DecksPage() {
       if (!res.ok) throw new Error();
       showToast(`Deleted "${pendingDelete.name}"`, "info");
       setPendingDelete(null);
-      fetchDecks();
-      fetchShortages();
+      await invalidateDeckQueries(queryClient);
     } catch {
       showToast("Couldn't delete deck", "error");
     } finally {
       setDeleting(false);
     }
   };
+
   const handleRefreshAll = () => {
-    fetchShortages();
-    fetchDecks();
+    refetchDecks();
+    refetchShortages();
+    showToast(t("common.refresh"), "info");
   };
+
   const totalShortageCopies = aggregatedReport?.summary.totalShortageCopies || 0;
   const TABS = [
     { id: "decks" as const, label: `${t("decks.decksTab")} (${decks.length})`, icon: BookOpen },
     {
-    id: "shortages" as const,
-    label: totalShortageCopies > 0 ? `${t("decks.shortagesTab")} (${totalShortageCopies})` : t("decks.shortagesTab"),
-    icon: AlertTriangle,
+      id: "shortages" as const,
+      label: totalShortageCopies > 0 ? `${t("decks.shortagesTab")} (${totalShortageCopies})` : t("decks.shortagesTab"),
+      icon: AlertTriangle,
     },
   ];
+
+  const showInitialLoading = isDecksLoading && decks.length === 0;
+
   return (
     <div className="space-y-6 pb-12">
       <PageHeader
@@ -231,6 +215,15 @@ export default function DecksPage() {
         description={t("decks.subtitle")}
         actions={
           <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefreshAll}
+              className="gap-1.5 text-xs text-slate-400 hover:text-slate-200"
+              title="Refresh"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isDecksFetching ? "animate-spin" : ""}`} />
+            </Button>
             {totalShortageCopies > 0 ? (
               <span className="rounded-full border border-rose-400/30 bg-rose-500/10 px-3 py-1.5 font-mono text-xs text-rose-300">
                 {totalShortageCopies} {t("common.missing")}
@@ -249,7 +242,7 @@ export default function DecksPage() {
           </>
         }
       />
-      {/* View Switcher: My Decks vs All Shortages & Layout Toggle */}
+
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <Tabs tabs={TABS} active={activeTab} onChange={handleTabChange} />
         {activeTab === "decks" && (
@@ -285,30 +278,32 @@ export default function DecksPage() {
           </div>
         )}
       </div>
+
       {activeTab === "decks" && (
         <RecommendedMetaDecks
           archetypes={recommendedMeta}
           onImport={handleImportMetaDeck}
         />
       )}
+
       {activeTab === "shortages" ? (
         <AllShortagesView
-          report={aggregatedReport}
+          report={aggregatedReport || null}
           onRefresh={handleRefreshAll}
-          loading={loadingShortages}
+          loading={isShortagesLoading}
         />
-      ) : loading ? (
+      ) : showInitialLoading ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <SkeletonCard key={i} />
           ))}
         </div>
-      ) : error ? (
+      ) : isDecksError ? (
         <EmptyState
           icon={BookOpen}
           title="We couldn't load your decks"
           action={
-            <Button onClick={fetchDecks} variant="outline">
+            <Button onClick={() => refetchDecks()} variant="outline">
               Retry
             </Button>
           }
@@ -319,24 +314,30 @@ export default function DecksPage() {
           title="No decks yet"
           description="Create an empty deck or paste an Omnidex list to see what you're missing."
           action={
-            <Button onClick={() => setFormMode("import")}>
-              <Upload className="h-4 w-4" /> Import a Decklist
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={() => setFormMode("import")} variant="outline">
+                <Upload className="h-4 w-4" /> Import Omnidex
+              </Button>
+              <Button onClick={() => setFormMode("create")}>
+                <Plus className="h-4 w-4" /> New Deck
+              </Button>
+            </div>
           }
         />
       ) : (
         <DeckSectionsView
           decks={decks}
+          layout={layout}
           shortages={shortages}
           loadingEditId={loadingEditId}
-          layout={layout}
+          onEdit={handleStartEdit}
+          onDelete={(deck: DeckSummary) => setPendingDelete(deck)}
           onReorder={handleReorder}
           onMove={handleMove}
           onToggleSection={handleToggleSection}
-          onEdit={handleStartEdit}
-          onDelete={(deck) => setPendingDelete(deck)}
         />
       )}
+
       {formMode && (
         <DeckFormModal
           mode={formMode}
@@ -344,10 +345,12 @@ export default function DecksPage() {
           onCreated={(id, name) => {
             setFormMode(null);
             showToast(`Deck "${name}" saved`, "success");
+            invalidateDeckQueries(queryClient);
             window.location.href = `/decks/${id}`;
           }}
         />
       )}
+
       {editingDeck && (
         <DeckFormModal
           mode="edit"
@@ -356,11 +359,11 @@ export default function DecksPage() {
           onSaved={() => {
             setEditingDeck(null);
             showToast(t("decks.deckUpdated"), "success");
-            fetchDecks();
-            fetchShortages();
+            invalidateDeckQueries(queryClient);
           }}
         />
       )}
+
       {pendingDelete && (
         <ConfirmModal
           title={t("decks.deleteDeckModalTitle")}

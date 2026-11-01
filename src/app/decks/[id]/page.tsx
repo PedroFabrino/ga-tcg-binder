@@ -1,14 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { ArrowLeft, Copy, Trash2, Crown, BookOpen, Check, LayoutGrid, List, Pencil, Sparkles } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Copy, Trash2, Crown, BookOpen, Check, LayoutGrid, List, Pencil, Sparkles, RefreshCw } from "lucide-react";
 import { ConfirmModal } from "@/components/common";
 import { SkeletonRow, EmptyState } from "@/components/Skeletons";
 import { useToast } from "@/components/ToastProvider";
 import DeckFormModal from "@/components/decks/DeckFormModal";
-import ShortageTable, { FeasibilityBanner, type ShortageReport, type ShortageItem } from "@/components/decks/ShortageTable";
+import ShortageTable, { FeasibilityBanner } from "@/components/decks/ShortageTable";
 import DeckList, { type DeckCard } from "@/components/decks/DeckList";
 import DeckCardGrid from "@/components/decks/DeckCardGrid";
 import DeckAdvisorPanel from "@/components/decks/DeckAdvisorPanel";
@@ -16,6 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { buildCollectionUpdateRequest } from "@/lib/collection-stepper";
 import { useTranslation } from "@/lib/i18n";
+import { useDeckWithShortageQuery } from "@/hooks/queries/use-decks-queries";
+import { invalidateDeckQueries, invalidateCollectionQueries } from "@/lib/query-invalidation";
 
 interface BinderTarget {
   cardSlug: string;
@@ -27,19 +30,12 @@ export default function DeckDetailPage() {
   const { t } = useTranslation();
   const params = useParams();
   const deckId = params?.id as string;
-  const { data: session, status } = useSession();
+  const { data: session } = useSession();
   const { showToast } = useToast();
+  const queryClient = useQueryClient();
 
-  const [deck, setDeck] = useState<any>(null);
-  const [cards, setCards] = useState<{ material: DeckCard[]; main: DeckCard[]; side: DeckCard[] }>({
-    material: [],
-    main: [],
-    side: [],
-  });
-  const [omnidexText, setOmnidexText] = useState("");
-  const [shortage, setShortage] = useState<ShortageReport | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
+  const { data: payload, isLoading, isFetching, refetch } = useDeckWithShortageQuery(deckId, session?.user?.id);
+
   const [copied, setCopied] = useState(false);
   const [addingSlug, setAddingSlug] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -47,7 +43,6 @@ export default function DeckDetailPage() {
   const [onlyMissing, setOnlyMissing] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [editing, setEditing] = useState(false);
-  const [advisorAllowed, setAdvisorAllowed] = useState(false);
   const [showAdvisor, setShowAdvisor] = useState(false);
   const advisorContainerRef = useRef<HTMLDivElement>(null);
 
@@ -61,45 +56,16 @@ export default function DeckDetailPage() {
     }
   };
 
-  const load = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    try {
-      const userIdQuery = session?.user?.id ? `?userId=${encodeURIComponent(session.user.id)}` : "";
-      const [deckRes, shortageRes, advisorRes] = await Promise.all([
-        fetch(`/api/decks/${deckId}`),
-        fetch(`/api/decks/${deckId}/shortage${userIdQuery}`),
-        fetch(`/api/decks/${deckId}/advisor`),
-      ]);
-      if (deckRes.status === 404) {
-        setNotFound(true);
-        return;
-      }
-      const deckData = await deckRes.json();
-      const shortageData = shortageRes.ok ? await shortageRes.json() : null;
-      if (advisorRes.ok) {
-        const advData = await advisorRes.json();
-        setAdvisorAllowed(Boolean(advData.allowed));
-      }
-      if (deckData.deck) {
-        setDeck(deckData.deck);
-        setCards({
-          material: deckData.cards?.material || [],
-          main: deckData.cards?.main || [],
-          side: deckData.cards?.side || [],
-        });
-        setOmnidexText(deckData.omnidexText || "");
-      }
-      if (Array.isArray(shortageData?.items)) setShortage(shortageData);
-    } catch {
-      showToast(t("decks.loadError"), "error");
-    } finally {
-      setLoading(false);
-    }
-  }, [deckId, session?.user?.id, session?.user?.email, showToast, t]);
-
-  useEffect(() => {
-    if (deckId && status !== "loading") load();
-  }, [deckId, status, load]);
+  const deck = payload?.deck?.deck ?? null;
+  const cards = useMemo(() => ({
+    material: (payload?.deck?.cards?.material || []) as DeckCard[],
+    main: (payload?.deck?.cards?.main || []) as DeckCard[],
+    side: (payload?.deck?.cards?.side || []) as DeckCard[],
+  }), [payload?.deck?.cards]);
+  const omnidexText = payload?.deck?.omnidexText || "";
+  const shortage = payload?.shortage ?? null;
+  const notFound = payload?.notFound ?? false;
+  const advisorAllowed = payload?.advisorAllowed ?? false;
 
   const copyOmnidex = async () => {
     try {
@@ -155,9 +121,11 @@ export default function DeckDetailPage() {
           : t("shortages.quickRemoveSuccess", { quantity: Math.abs(delta), cardName }),
         delta > 0 ? "success" : "info",
       );
-      await load(true);
-    } catch (e: any) {
-      showToast(e.message || t("shortages.quantityUpdateError"), "error");
+      await invalidateCollectionQueries(queryClient);
+      await refetch();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : t("shortages.quantityUpdateError");
+      showToast(msg, "error");
     } finally {
       setAddingSlug(null);
     }
@@ -169,6 +137,7 @@ export default function DeckDetailPage() {
       const res = await fetch(`/api/decks/${deckId}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
       showToast(t("decks.deleteDeckModalTitle"), "info");
+      await invalidateDeckQueries(queryClient);
       window.location.href = "/decks";
     } catch {
       showToast(t("common.error"), "error");
@@ -191,6 +160,8 @@ export default function DeckDetailPage() {
     );
   }
 
+  const showInitialLoading = isLoading && !deck;
+
   return (
     <div className="space-y-6 pb-12">
       <a href="/decks" className="inline-flex items-center gap-1.5 text-xs text-slate-400 transition-colors hover:text-white">
@@ -198,87 +169,78 @@ export default function DeckDetailPage() {
       </a>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between animate-fade-in">
-        <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-amber-300/20 bg-gradient-to-br from-amber-200/15 to-transparent text-amber-200 shadow-[0_0_30px_-10px_rgba(232,201,103,0.5)]">
-            <Crown className="h-6 w-6" />
-          </div>
-          <div className="min-w-0">
-            {deck ? (
-              <>
-                <div className="mb-1 flex items-center gap-2">
-                  <span className="rounded-full border border-white/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-300">
-                    {deck.format}
-                  </span>
-                </div>
-                <h1 className="truncate text-2xl font-semibold tracking-tight text-white sm:text-3xl">{deck.name}</h1>
-                <p className="text-sm text-slate-400">{deck.champion || t("decks.noChampionSet")}</p>
-              </>
-            ) : (
-              <div className="space-y-2">
-                <div className="skeleton h-7 w-56 rounded" />
-                <div className="skeleton h-4 w-32 rounded" />
-              </div>
-            )}
-          </div>
+        <div>
+          {deck?.champion && (
+            <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-amber-400">
+              <Crown className="h-3.5 w-3.5" /> {deck.champion}
+            </p>
+          )}
+          <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            {deck?.name || "Loading..."}
+          </h1>
+          {deck && (
+            <p className="mt-1 text-xs text-slate-400">
+              {cards.main.reduce((acc, c) => acc + c.quantity, 0)} main · {cards.material.reduce((acc, c) => acc + c.quantity, 0)} material · {cards.side.reduce((acc, c) => acc + c.quantity, 0)} sideboard
+            </p>
+          )}
         </div>
-        <div className="flex gap-2">
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            className="gap-1.5 text-xs text-slate-400 hover:text-slate-200"
+            title="Refresh"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
+          </Button>
           {advisorAllowed && (
             <Button
               onClick={toggleAdvisor}
-              disabled={!deck}
-              variant="outline"
-              className={
-                showAdvisor
-                  ? "border-amber-400/50 bg-amber-500/20 text-amber-200 shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]"
-                  : "hover:border-amber-400/30 hover:bg-amber-500/10 hover:text-amber-300"
-              }
+              size="sm"
+              variant={showAdvisor ? "default" : "outline"}
+              className={showAdvisor ? "bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold" : "border-amber-500/30 text-amber-300 hover:bg-amber-500/10"}
             >
-              <Sparkles className="h-4 w-4 mr-1 text-amber-300" /> {t("advisor.tabAdvisor")}
+              <Sparkles className="h-4 w-4 mr-1.5" />
+              {t("advisor.tabAdvisor")}
             </Button>
           )}
-          <Button
-            onClick={() => setEditing(true)}
-            disabled={!deck}
-            variant="outline"
-            className="hover:border-cyan-400/30 hover:bg-cyan-500/10 hover:text-cyan-300"
-          >
+          <Button onClick={() => setEditing(true)} size="sm" variant="outline">
             <Pencil className="h-4 w-4" /> {t("decks.editDeck")}
           </Button>
-          <Button onClick={copyOmnidex} disabled={!omnidexText} variant="outline">
-            {copied ? <Check className="h-4 w-4 text-emerald-300" /> : <Copy className="h-4 w-4" />}{" "}
-            {t("decks.exportOmnidex")}
+          <Button onClick={copyOmnidex} size="sm" variant="outline">
+            {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4 text-slate-400" />}
+            {copied ? t("decks.copied") : t("decks.copyOmnidex")}
           </Button>
-          <Button
-            onClick={() => setConfirmDelete(true)}
-            disabled={!deck}
-            variant="outline"
-            className="hover:border-rose-400/30 hover:bg-rose-500/10 hover:text-rose-300"
-            aria-label={t("decks.deleteDeck")}
-          >
+          <Button onClick={() => setConfirmDelete(true)} size="sm" variant="ghost" className="text-rose-400 hover:bg-rose-500/10 hover:text-rose-300">
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      {loading ? (
+      {showInitialLoading ? (
         <div className="space-y-4">
-          <div className="skeleton h-36 rounded-2xl" />
-          <div className="divide-y divide-white/[0.04] rounded-2xl glass">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <SkeletonRow key={i} />
-            ))}
-          </div>
+          <SkeletonRow />
+          <SkeletonRow />
         </div>
       ) : (
         <>
-          {shortage && <FeasibilityBanner report={shortage} />}
+          {shortage && (
+            <div className="animate-fade-in">
+              <FeasibilityBanner report={shortage} />
+            </div>
+          )}
 
-          {showAdvisor && deck && (
-            <div ref={advisorContainerRef} className="mb-6 scroll-mt-6">
+          {advisorAllowed && deck && (
+            <div ref={advisorContainerRef} className={showAdvisor ? "block animate-fade-in" : "hidden"}>
               <DeckAdvisorPanel
                 deckId={deck.id}
                 deckName={deck.name}
-                onDeckUpdated={() => load(true)}
+                onDeckUpdated={() => {
+                  invalidateDeckQueries(queryClient);
+                  refetch();
+                }}
               />
             </div>
           )}
@@ -389,7 +351,8 @@ export default function DeckDetailPage() {
           onSaved={() => {
             setEditing(false);
             showToast(t("decks.deckUpdated"), "success");
-            load(true);
+            invalidateDeckQueries(queryClient);
+            refetch();
           }}
         />
       )}
