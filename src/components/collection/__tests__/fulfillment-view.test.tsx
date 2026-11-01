@@ -180,6 +180,8 @@ describe("Fulfillment UI Components", () => {
         onOpenShippingModal={() => {}}
         onCopyText={() => {}}
         onClearBatch={() => {}}
+        onOpenVendas={() => {}}
+        onCopyUserscript={() => {}}
       />
     );
 
@@ -197,17 +199,48 @@ describe("Fulfillment UI Components", () => {
         onOpenShippingModal={() => {}}
         onCopyText={() => {}}
         onClearBatch={() => {}}
+        onOpenVendas={() => {}}
+        onCopyUserscript={() => {}}
       />
     );
 
     expect(html).toContain("Generate Shipping");
   });
 
-  it("renders FulfillmentView empty state when no batch is loaded", () => {
+  it("renders FulfillmentHeader with permanent bridge actions even when report is null", () => {
+    const html = renderWithProviders(
+      <FulfillmentHeader
+        report={null}
+        lifecycleTab="open"
+        hasShippingCapability
+        isQuotingShipping={false}
+        onSelectTab={() => {}}
+        onOpenShippingModal={() => {}}
+        onCopyText={() => {}}
+        onClearBatch={() => {}}
+        onOpenVendas={() => {}}
+        onCopyUserscript={() => {}}
+      />
+    );
+
+    expect(html).toContain("Open MyP Vendas");
+    expect(html).toContain("Copy Userscript");
+    expect(html).toContain("Open Orders");
+    expect(html).toContain("Processed");
+    expect(html).toContain("Sent");
+  });
+
+  it("renders FulfillmentView with permanent header, lifecycle tabs and inline empty state when no batch is loaded", () => {
     // Empty state (no localStorage)
     const html = renderWithProviders(<FulfillmentView />);
-    expect(html).toContain("No active fulfillment batch");
+    // Check that lifecycle tabs and header are rendered
+    expect(html).toContain("Open Orders");
+    expect(html).toContain("Processed");
+    expect(html).toContain("Sent");
     expect(html).toContain("Open MyP Vendas");
+    expect(html).toContain("Copy Userscript");
+    // Check that the inline empty batch prompt is displayed
+    expect(html).toContain("No active fulfillment batch");
   });
 
   it("renders persistent commentary field below each card in Pick List and Buyer Packs", () => {

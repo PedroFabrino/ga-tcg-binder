@@ -1,13 +1,13 @@
 "use client";
 
 import React from "react";
-import { Package, Copy, Trash2, Truck, Loader2 } from "lucide-react";
+import { Package, Copy, Trash2, Truck, Loader2, ExternalLink } from "lucide-react";
 import { FulfillmentReport } from "@ga/contracts";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/lib/i18n";
 
 interface FulfillmentHeaderProps {
-  report: FulfillmentReport;
+  report: FulfillmentReport | null;
   lifecycleTab: "open" | "processed" | "sent";
   onSelectTab: (tab: "open" | "processed" | "sent") => void;
   hasShippingCapability: boolean;
@@ -15,6 +15,8 @@ interface FulfillmentHeaderProps {
   onOpenShippingModal: () => void;
   onCopyText: () => void;
   onClearBatch: () => void;
+  onOpenVendas: () => void;
+  onCopyUserscript: () => void;
 }
 
 export default function FulfillmentHeader({
@@ -26,6 +28,8 @@ export default function FulfillmentHeader({
   onOpenShippingModal,
   onCopyText,
   onClearBatch,
+  onOpenVendas,
+  onCopyUserscript,
 }: FulfillmentHeaderProps) {
   const { t } = useTranslation();
 
@@ -41,16 +45,39 @@ export default function FulfillmentHeader({
           <p className="text-xs text-slate-400 mt-0.5">
             {t("fulfillment.subtitle")}
           </p>
-          <div className="mt-2 inline-flex items-center gap-2 rounded-md bg-sky-500/10 border border-sky-500/20 px-2.5 py-1 text-xs font-semibold text-sky-400">
-            {t("fulfillment.summaryHeader", {
-              orders: report.totalGrandArchiveOrders,
-              copies: report.totalGrandArchiveCopies,
-            })}
-          </div>
+          {report && report.totalGrandArchiveOrders > 0 && (
+            <div className="mt-2 inline-flex items-center gap-2 rounded-md bg-sky-500/10 border border-sky-500/20 px-2.5 py-1 text-xs font-semibold text-sky-400">
+              {t("fulfillment.summaryHeader", {
+                orders: report.totalGrandArchiveOrders,
+                copies: report.totalGrandArchiveCopies,
+              })}
+            </div>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {hasShippingCapability && lifecycleTab === "open" && (
+          {/* Permanent Bridge Actions */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onOpenVendas}
+            className="gap-1.5 text-xs border-sky-500/30 text-sky-300 hover:bg-sky-500/10"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            {t("fulfillment.openMypVendasBtn")}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onCopyUserscript}
+            className="gap-1.5 text-xs text-slate-300 hover:bg-slate-800"
+          >
+            <Copy className="h-3.5 w-3.5" />
+            {t("securityModal.copyScriptBtn")}
+          </Button>
+
+          {/* Contextual Active Batch Actions */}
+          {hasShippingCapability && lifecycleTab === "open" && report && report.buyerPacks && report.buyerPacks.length > 0 && (
             <Button
               size="sm"
               onClick={onOpenShippingModal}
@@ -70,24 +97,28 @@ export default function FulfillmentHeader({
               )}
             </Button>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onCopyText}
-            className="gap-1.5 text-xs"
-          >
-            <Copy className="h-3.5 w-3.5" />
-            {t("fulfillment.copyTextBtn")}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onClearBatch}
-            className="gap-1.5 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-950/20"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            {t("fulfillment.clearBatchBtn")}
-          </Button>
+          {report && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onCopyText}
+                className="gap-1.5 text-xs"
+              >
+                <Copy className="h-3.5 w-3.5" />
+                {t("fulfillment.copyTextBtn")}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onClearBatch}
+                className="gap-1.5 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-950/20"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                {t("fulfillment.clearBatchBtn")}
+              </Button>
+            </>
+          )}
         </div>
       </div>
 

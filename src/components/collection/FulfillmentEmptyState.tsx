@@ -1,77 +1,31 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { Package, ExternalLink, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/lib/i18n";
-import { useToast } from "@/components/ToastProvider";
+import { useMypBridge } from "@/hooks/use-myp-bridge";
 
 interface FulfillmentEmptyStateProps {
   mypUsername?: string | null;
   userId?: string | null;
   syncToken?: string | null;
+  onOpenVendas?: () => void;
+  onCopyUserscript?: () => void;
 }
 
 export default function FulfillmentEmptyState({
   mypUsername,
-  userId: propUserId,
-  syncToken: propSyncToken,
+  userId,
+  syncToken,
+  onOpenVendas,
+  onCopyUserscript,
 }: FulfillmentEmptyStateProps) {
   const { t } = useTranslation();
-  const { showToast } = useToast();
+  const bridge = useMypBridge({ mypUsername, userId, syncToken });
 
-  const [resolvedUserId, setResolvedUserId] = useState<string | null>(propUserId || null);
-  const [resolvedSyncToken, setResolvedSyncToken] = useState<string | null>(propSyncToken || null);
-
-  useEffect(() => {
-    if (propUserId && !resolvedUserId) setResolvedUserId(propUserId);
-    if (propSyncToken && !resolvedSyncToken) setResolvedSyncToken(propSyncToken);
-
-    if (!resolvedSyncToken || !resolvedUserId) {
-      fetch("/api/settings")
-        .then((r) => r.json())
-        .then((data) => {
-          if (data?.user?.id && !resolvedUserId) setResolvedUserId(data.user.id);
-          if (data?.user?.watchlistSyncToken && !resolvedSyncToken) setResolvedSyncToken(data.user.watchlistSyncToken);
-        })
-        .catch(() => {});
-    }
-  }, [resolvedSyncToken, resolvedUserId, propUserId, propSyncToken]);
-
-  const cleanUser = mypUsername?.trim();
-  const baseVendasUrl = cleanUser
-    ? `https://mypcards.com/${encodeURIComponent(cleanUser)}/vendas`
-    : "https://mypcards.com/Fabrino/vendas";
-
-  const handleOpenVendas = () => {
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    let targetUrl = baseVendasUrl;
-    if (origin) {
-      if (resolvedUserId && resolvedSyncToken) {
-        const bridge = {
-          version: 1,
-          appUrl: origin,
-          userId: resolvedUserId,
-          token: resolvedSyncToken,
-        };
-        targetUrl = `${baseVendasUrl}#ga_fulfillment_bridge=${encodeURIComponent(JSON.stringify(bridge))}`;
-      } else {
-        targetUrl = `${baseVendasUrl}#ga_app_url=${encodeURIComponent(origin)}`;
-      }
-    }
-    window.open(targetUrl, "_blank");
-  };
-
-  const handleCopyUserscript = async () => {
-    try {
-      const res = await fetch("/scripts/myp-watchlist-sync.user.js");
-      const code = await res.text();
-      await navigator.clipboard.writeText(code);
-      showToast(t("securityModal.copiedToast"));
-    } catch (e) {
-      console.error("Failed to copy userscript:", e);
-    }
-  };
+  const handleOpenVendas = onOpenVendas ?? bridge.handleOpenVendas;
+  const handleCopyUserscript = onCopyUserscript ?? bridge.handleCopyUserscript;
 
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-700 bg-slate-900/40 p-12 text-center">
