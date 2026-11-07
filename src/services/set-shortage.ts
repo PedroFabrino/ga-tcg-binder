@@ -25,7 +25,9 @@ import {
   groupDefs,
   prefixToGroupMap,
   slugsInGroup,
+  type DemandCard,
 } from "./set-shortage-math";
+import { allocateCardDemand, type DeckCardDemand } from "./deck-allocation";
 import { matchesSetChecklistFilters } from "@ga/contracts";
 import type {
   FeaturedSetSummary,
@@ -175,23 +177,12 @@ export async function getSetGroupChecklistReport(
     options?.target,
   );
 
-  const deckDemandBySlug = new Map<string, number[]>();
-  const deckMetaBySlug = new Map<
-    string,
-    { deckId: string; deckName: string; quantity: number }[]
-  >();
+  const targetDemandsBySlug = new Map<string, DemandCard[]>();
   for (const dc of targetDemandCards) {
     if (!groupSlugSet.has(dc.cardSlug)) continue;
-    const qs = deckDemandBySlug.get(dc.cardSlug) ?? [];
-    qs.push(dc.quantity);
-    deckDemandBySlug.set(dc.cardSlug, qs);
-    const metas = deckMetaBySlug.get(dc.cardSlug) ?? [];
-    metas.push({
-      deckId: dc.deckId,
-      deckName: dc.deckName ?? "",
-      quantity: dc.quantity,
-    });
-    deckMetaBySlug.set(dc.cardSlug, metas);
+    const list = targetDemandsBySlug.get(dc.cardSlug) ?? [];
+    list.push(dc);
+    targetDemandsBySlug.set(dc.cardSlug, list);
   }
 
   // Build cards
@@ -201,16 +192,37 @@ export async function getSetGroupChecklistReport(
     const ownedTotal = colBySlug.get(row.slug) ?? 0;
     const ownedNormal = normalBySlug.get(row.slug) ?? 0;
     const ownedFoil = foilBySlug.get(row.slug) ?? 0;
-    const demands = deckDemandBySlug.get(row.slug) ?? [];
-    const deckReqs = deckMetaBySlug.get(row.slug) ?? [];
+    const demands = targetDemandsBySlug.get(row.slug) ?? [];
 
-    const { peakMissing, concurrentMissing } = computeCardShortage(
-      demands,
-      ownedTotal,
-    );
+    const deckDemands: DeckCardDemand[] = demands.map((d) => ({
+      deckId: d.deckId,
+      deckName: d.deckName,
+      section: d.section ?? "4fun",
+      priority: d.priority ?? 0,
+      createdAt: d.createdAt,
+      demand: d.quantity,
+    }));
 
-    const required = demands.reduce((s, q) => s + q, 0);
+    const alloc = allocateCardDemand(ownedTotal, deckDemands);
+    const allocMap = new Map(alloc.deckAllocations.map((a) => [a.deckId, a]));
+
+    const peakMissing = alloc.peakMissing;
+    const concurrentMissing = alloc.concurrentMissing;
+    const required = deckDemands.reduce((s, d) => s + d.demand, 0);
     const missing = Math.max(0, required - ownedTotal);
+
+    const deckReqs: SetDeckRequirement[] = demands.map((d) => {
+      const a = allocMap.get(d.deckId);
+      return {
+        deckId: d.deckId,
+        deckName: d.deckName,
+        quantity: d.quantity,
+        section: d.section ?? "4fun",
+        priority: d.priority ?? 0,
+        hardMissing: a?.hardMissing ?? 0,
+        sharedMissing: a?.sharedMissing ?? 0,
+      };
+    });
 
     // Prefer first (lowest collector number) edition in narrowest prefix
     const sortedEds = [...eds].sort(

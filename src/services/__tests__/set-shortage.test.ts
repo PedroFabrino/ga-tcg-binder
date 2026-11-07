@@ -503,6 +503,49 @@ describe("set-shortage", () => {
       expect(report!.currentTarget).toBe("deck-1");
       expect(report!.availableDecks).toHaveLength(2);
     });
+
+    it("applies competitive deck section priority allocation to card shortages and requirements", async () => {
+      await seedUser();
+      await seedCards();
+      await seedGroupsAndDefs();
+      await seedEditions();
+
+      // User owns 2 copies of Fire Slash
+      await db.insert(collectionItems).values([
+        { id: "ci-1", userId: "user-1", editionId: "ed-fs-doa", foil: false, quantity: 2 },
+      ]);
+
+      // Competitive deck (deck-comp) needs 2 copies
+      // 4Fun deck (deck-4fun) needs 2 copies
+      await db.insert(decks).values([
+        { id: "deck-comp", userId: "user-1", name: "Comp Deck", section: "competitive", priority: 0 },
+        { id: "deck-4fun", userId: "user-1", name: "Casual Deck", section: "4fun", priority: 0 },
+      ]);
+      await db.insert(deckCards).values([
+        { id: "dc-c", deckId: "deck-comp", cardSlug: "fire-slash", zone: "main", quantity: 2 },
+        { id: "dc-f", deckId: "deck-4fun", cardSlug: "fire-slash", zone: "main", quantity: 2 },
+      ]);
+
+      const report = await getSetGroupChecklistReport("dawn-of-ashes", "user-1", undefined, db);
+      expect(report).not.toBeNull();
+
+      const fireCard = report!.cards.find((c) => c.cardSlug === "fire-slash")!;
+      expect(fireCard).toBeDefined();
+
+      // Under ADR 0030: Comp deck takes 2 copies -> 4Fun deck has 2 hard shortage
+      expect(fireCard.peakMissing).toBe(2);
+      expect(fireCard.concurrentMissing).toBe(2);
+      expect(fireCard.shortage).toBe("hard");
+
+      // Verify deckRequirements section attribution
+      const compReq = fireCard.deckRequirements.find((r) => r.deckId === "deck-comp")!;
+      const casualReq = fireCard.deckRequirements.find((r) => r.deckId === "deck-4fun")!;
+
+      expect(compReq.section).toBe("competitive");
+      expect(compReq.hardMissing).toBe(0);
+      expect(casualReq.section).toBe("4fun");
+      expect(casualReq.hardMissing).toBe(2);
+    });
   });
 
   // -----------------------------------------------------------------------

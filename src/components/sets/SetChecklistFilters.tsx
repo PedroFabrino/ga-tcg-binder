@@ -84,26 +84,52 @@ export default function SetChecklistFilters({
         </div>
 
         {/* Target select */}
-        {onTargetChange && (
-          <select
-            value={target}
-            onChange={(e) => onTargetChange(e.target.value)}
-            aria-label={t("sets.targetLabel")}
-            className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/30 appearance-none cursor-pointer"
-          >
-            <option value="all" className="bg-slate-900">
-              {t("sets.targetAll")}
-            </option>
-            <option value="wantlist" className="bg-slate-900">
-              {t("sets.targetWantlist")}
-            </option>
-            {availableDecks.map((d) => (
-              <option key={d.id} value={d.id} className="bg-slate-900">
-                {d.name}
+        {onTargetChange && (() => {
+          const competitiveDecks = availableDecks.filter((d) => d.section === "competitive");
+          const fourFunDecks = availableDecks.filter((d) => d.section !== "competitive");
+
+          return (
+            <select
+              value={target}
+              onChange={(e) => onTargetChange(e.target.value)}
+              aria-label={t("sets.targetLabel")}
+              className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/30 appearance-none cursor-pointer"
+            >
+              <option value="all" className="bg-slate-900">
+                {t("sets.targetAll")}
               </option>
-            ))}
-          </select>
-        )}
+              <option value="wantlist" className="bg-slate-900">
+                {t("sets.targetWantlist")}
+              </option>
+              {competitiveDecks.length > 0 ? (
+                <>
+                  <optgroup label={t("decks.sectionCompetitive")} className="bg-slate-900 font-semibold text-amber-400">
+                    {competitiveDecks.map((d) => (
+                      <option key={d.id} value={d.id} className="bg-slate-900 text-white font-normal">
+                        {d.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                  {fourFunDecks.length > 0 && (
+                    <optgroup label={t("decks.section4Fun")} className="bg-slate-900 font-semibold text-slate-400">
+                      {fourFunDecks.map((d) => (
+                        <option key={d.id} value={d.id} className="bg-slate-900 text-white font-normal">
+                          {d.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </>
+              ) : (
+                availableDecks.map((d) => (
+                  <option key={d.id} value={d.id} className="bg-slate-900">
+                    {d.name}
+                  </option>
+                ))
+              )}
+            </select>
+          );
+        })()}
 
         {/* Element select */}
         <select

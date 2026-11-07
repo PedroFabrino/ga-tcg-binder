@@ -3,6 +3,7 @@ import { featuredSetGroups, setDefinitions } from "../featured-set-schema";
 import { users, cards, cardEditions, collectionItems, decks, deckCards } from "../schema";
 import { collectorWants } from "../assistant-schema";
 import { eq, asc, inArray, and } from "drizzle-orm";
+import { compareDecksBySectionAndPriority, type DeckSection } from "@ga/contracts";
 import type { FeaturedSetGroup, InsertFeaturedSetGroup, SetDefinition, InsertSetDefinition } from "../featured-set-schema";
 
 // ---------------------------------------------------------------------------
@@ -252,19 +253,13 @@ export async function loadSetShortageAndInventoryData(
   const d = database ?? db;
 
   const [
-    allDeckCards,
-    userCollection,
-    allEditions,
-    allGroups,
-    allDefs,
-    hiddenRaw,
-    userDecks,
-    personalWants,
+    allDeckCards, userCollection, allEditions, allGroups, allDefs, hiddenRaw, userDecks, personalWants,
   ] = await Promise.all([
     d.select({
       id: deckCards.id, deckId: deckCards.deckId, cardSlug: deckCards.cardSlug,
       zone: deckCards.zone, quantity: deckCards.quantity,
       assignedEditionId: deckCards.assignedEditionId, deckName: decks.name,
+      deckSection: decks.section, deckPriority: decks.priority, deckCreatedAt: decks.createdAt,
     }).from(deckCards).innerJoin(decks, eq(deckCards.deckId, decks.id)).where(eq(decks.userId, userId)),
     d.select({
       id: collectionItems.id, cardSlug: cardEditions.cardSlug,
@@ -280,7 +275,10 @@ export async function loadSetShortageAndInventoryData(
     d.select().from(featuredSetGroups).orderBy(asc(featuredSetGroups.sortOrder), asc(featuredSetGroups.name)),
     d.select().from(setDefinitions).orderBy(asc(setDefinitions.name)),
     d.select({ hiddenSetUuids: users.hiddenSetUuids }).from(users).where(eq(users.id, userId)),
-    d.select({ id: decks.id, name: decks.name }).from(decks).where(eq(decks.userId, userId)).orderBy(asc(decks.name)),
+    d.select({
+      id: decks.id, name: decks.name, section: decks.section,
+      priority: decks.priority, createdAt: decks.createdAt,
+    }).from(decks).where(eq(decks.userId, userId)),
     d.select({
       id: collectorWants.id,
       cardSlug: collectorWants.cardSlug,
@@ -295,7 +293,7 @@ export async function loadSetShortageAndInventoryData(
     allGroups,
     allDefs,
     hidden: parseHiddenSetUuids(hiddenRaw[0]?.hiddenSetUuids),
-    userDecks,
+    userDecks: mapAndSortUserDecks(userDecks),
     personalWants,
   };
 }
@@ -338,6 +336,7 @@ export async function loadSetGroupChecklist(
       ? d.select({
           deckId: deckCards.deckId, deckName: decks.name, cardSlug: deckCards.cardSlug,
           quantity: deckCards.quantity,
+          deckSection: decks.section, deckPriority: decks.priority, deckCreatedAt: decks.createdAt,
         }).from(deckCards).innerJoin(decks, eq(deckCards.deckId, decks.id))
           .where(and(eq(decks.userId, userId), inArray(deckCards.cardSlug, slugs)))
       : [],
@@ -348,7 +347,10 @@ export async function loadSetGroupChecklist(
           quantity: collectorWants.desiredQuantity,
         }).from(collectorWants).where(and(eq(collectorWants.collectorId, userId), inArray(collectorWants.cardSlug, slugs)))
       : [],
-    d.select({ id: decks.id, name: decks.name }).from(decks).where(eq(decks.userId, userId)).orderBy(asc(decks.name)),
+    d.select({
+      id: decks.id, name: decks.name, section: decks.section,
+      priority: decks.priority, createdAt: decks.createdAt,
+    }).from(decks).where(eq(decks.userId, userId)),
   ]);
 
   const slugSet = new Set(slugs);
@@ -360,7 +362,7 @@ export async function loadSetGroupChecklist(
     cards: cardRows,
     collection: allCollection.filter((c) => slugSet.has(c.cardSlug)),
     deckCards: deckCardRows,
-    userDecks,
+    userDecks: mapAndSortUserDecks(userDecks),
     personalWants,
   };
 }
@@ -368,6 +370,14 @@ export async function loadSetGroupChecklist(
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+function mapAndSortUserDecks(rawDecks: Array<{
+  id: string; name: string; section?: string | null; priority?: number | null; createdAt?: Date | string | null;
+}>) {
+  return [...rawDecks].sort(compareDecksBySectionAndPriority).map((d) => ({
+    id: d.id, name: d.name, section: (d.section as DeckSection) || "4fun", priority: d.priority ?? 0,
+  }));
+}
 
 function parseHiddenSetUuids(raw: string | null | undefined): string[] {
   if (raw == null || raw === "") return [];

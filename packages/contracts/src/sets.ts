@@ -7,6 +7,8 @@
 // Domain types (moved from set-shortage service per finding #8)
 // ---------------------------------------------------------------------------
 
+import type { DeckSection } from "./decks";
+
 /** Shortage severity for a card within a set group. */
 export type SetShortageLevel = "hard" | "shared" | "none";
 
@@ -15,6 +17,10 @@ export interface SetDeckRequirement {
   deckId: string;
   deckName: string;
   quantity: number;
+  section?: DeckSection;
+  priority?: number;
+  hardMissing?: number;
+  sharedMissing?: number;
 }
 
 /** A printing (edition) of a card within a set group. */
@@ -146,6 +152,8 @@ export interface SetChecklistReportCard extends SetChecklistCard {
 export interface SetTargetDeck {
   id: string;
   name: string;
+  section?: DeckSection;
+  priority?: number;
 }
 
 /** Dashboard response returned by GET /api/sets */

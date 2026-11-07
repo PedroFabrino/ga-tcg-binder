@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, isValidElement } from "react";
 import { Loader2 } from "lucide-react";
 
 export function SkeletonCard() {
@@ -65,7 +65,7 @@ export function EmptyState({
   return (
     <div className="flex flex-col items-center justify-center py-24 text-center animate-fade-in">
       <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/[0.06] bg-white/[0.02] mb-4">
-        <Icon className="h-7 w-7 text-slate-600" />
+        {isValidElement(Icon) ? Icon : typeof Icon === "function" ? <Icon className="h-7 w-7 text-slate-600" /> : null}
       </div>
       <p className="text-sm font-medium text-slate-400">{title}</p>
       {description && <p className="text-xs text-slate-600 mt-1 max-w-xs">{description}</p>}

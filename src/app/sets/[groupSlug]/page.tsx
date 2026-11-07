@@ -63,9 +63,10 @@ export default function SetChecklistPage() {
     }
   }, [data]);
 
+  const activeReport = report ?? data ?? null;
   const notFound = queryError instanceof Error && queryError.message === "NOT_FOUND";
-  const loading = isLoading && !report && !notFound;
-  const error = isError && !notFound && !report;
+  const loading = isLoading && !activeReport && !notFound;
+  const error = isError && !notFound && !activeReport;
 
   // Quantity loading state per card slug (to serialize concurrent clicks)
   const loadingCardsRef = useRef<Set<string>>(new Set());
@@ -89,10 +90,11 @@ export default function SetChecklistPage() {
       // Optimistic update: adjust ownedNormal, ownedQuantity
       const newOwnedNormal = Math.max(0, card.ownedNormal + delta);
       setReport((prev) => {
-        if (!prev) return prev;
+        const base = prev ?? data;
+        if (!base) return null;
         return {
-          ...prev,
-          cards: prev.cards.map((c) =>
+          ...base,
+          cards: (base.cards ?? (base as any).checklist ?? []).map((c: any) =>
             c.cardSlug === slug
               ? {
                   ...c,
@@ -133,7 +135,8 @@ export default function SetChecklistPage() {
     search: search || null,
   };
 
-  const allCards = report?.cards ?? [];
+  const allCards =
+    activeReport?.cards ?? (activeReport as { checklist?: SetChecklistReportCard[] } | null)?.checklist ?? [];
   const filteredCards = allCards.filter((c) =>
     matchesSetChecklistFilters(c, filters),
   );
@@ -154,7 +157,7 @@ export default function SetChecklistPage() {
     return (
       <div className="mx-auto max-w-5xl px-4 py-8">
         <EmptyState
-          icon={<PackageOpen className="h-10 w-10 text-slate-600" />}
+          icon={PackageOpen}
           title={t("sets.checklist.notFound")}
         />
       </div>
@@ -162,11 +165,11 @@ export default function SetChecklistPage() {
   }
 
   // Error
-  if (error || !report) {
+  if (error || !activeReport) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-8">
         <EmptyState
-          icon={<PackageOpen className="h-10 w-10 text-slate-600" />}
+          icon={PackageOpen}
           title={t("sets.checklist.error")}
         />
       </div>
@@ -176,11 +179,11 @@ export default function SetChecklistPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-8">
       <SetChecklistHeader
-        groupName={report.group.name}
-        imageUrl={report.group.imageUrl}
-        releaseDate={report.group.releaseDate}
-        stats={report.stats}
-        childPrefixes={report.group.childPrefixes}
+        groupName={activeReport.group.name}
+        imageUrl={activeReport.group.imageUrl}
+        releaseDate={activeReport.group.releaseDate}
+        stats={activeReport.stats}
+        childPrefixes={activeReport.group.childPrefixes}
         selectedPrefix={prefix}
         onPrefixChange={setPrefix}
         onRefresh={() => refetch()}
@@ -198,13 +201,13 @@ export default function SetChecklistPage() {
         onRarityChange={setRarity}
         target={target}
         onTargetChange={setTarget}
-        availableDecks={report.availableDecks}
+        availableDecks={activeReport.availableDecks}
       />
 
       {/* Cards grid */}
       {filteredCards.length === 0 ? (
         <EmptyState
-          icon={<PackageOpen className="h-10 w-10 text-slate-600" />}
+          icon={PackageOpen}
           title={t("sets.checklist.empty")}
         />
       ) : (

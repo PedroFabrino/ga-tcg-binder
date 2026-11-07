@@ -96,7 +96,7 @@ describe("/sets Page Component (SetsDashboardView)", () => {
 
   it("renders empty state when no active sets match", () => {
     const html = renderView({ groups: [] });
-    expect(html).toContain("No sets available");
+    expect(html).toContain("No sets match your search");
   });
 
   it("filters sets by query", () => {

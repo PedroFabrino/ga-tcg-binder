@@ -33,13 +33,13 @@ export default function SetChecklistHeader({
 }: Props) {
   const { t } = useTranslation();
   const {
-    totalHardShortageCopies: totalHard,
-    totalSharedShortageCopies: totalShared,
-    totalShortageCopies: totalShortages,
-    totalCardsAcrossGroups: totalCards,
-    totalOwnedCardsAcrossGroups: ownedCards,
-    overallCompletionPercent: completionPercent,
-  } = stats;
+    totalHardShortageCopies: totalHard = 0,
+    totalSharedShortageCopies: totalShared = 0,
+    totalShortageCopies: totalShortages = 0,
+    totalCardsAcrossGroups: totalCards = 0,
+    totalOwnedCardsAcrossGroups: ownedCards = 0,
+    overallCompletionPercent: completionPercent = 0,
+  } = stats ?? {};
 
   const formattedDate = formatIsoDate(releaseDate);
 

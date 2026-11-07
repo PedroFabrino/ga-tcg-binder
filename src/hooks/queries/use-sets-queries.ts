@@ -85,7 +85,27 @@ export function useSetChecklistQuery(groupSlug: string, target?: string | null, 
         throw new Error("NOT_FOUND");
       }
       if (!res.ok) throw new Error("Failed to load set checklist");
-      return res.json();
+      const data = await res.json();
+      return {
+        group: data.group,
+        stats: data.stats ?? data.summary ?? {
+          totalGroups: 1,
+          totalHardShortageCopies: 0,
+          totalSharedShortageCopies: 0,
+          totalShortageCopies: 0,
+          totalCardsAcrossGroups: 0,
+          totalOwnedCardsAcrossGroups: 0,
+          overallCompletionPercent: 0,
+        },
+        cards: Array.isArray(data.cards)
+          ? data.cards
+          : Array.isArray(data.checklist)
+          ? data.checklist
+          : [],
+        availableDecks: Array.isArray(data.availableDecks) ? data.availableDecks : [],
+        hasPersonalWants: Boolean(data.hasPersonalWants),
+        currentTarget: data.currentTarget ?? "all",
+      };
     },
     enabled: Boolean(groupSlug),
   });

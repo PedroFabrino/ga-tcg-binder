@@ -128,6 +128,19 @@ describe("SetChecklistCard", () => {
     expect(html).toContain("DOA-ALT-001");
   });
 
+  it("renders competitive badge on competitive deck requirements", () => {
+    const card = makeCard({
+      deckRequirements: [
+        { deckId: "deck-comp", deckName: "Main Comp", quantity: 3, section: "competitive" },
+        { deckId: "deck-casual", deckName: "Kitchen Table", quantity: 2, section: "4fun" },
+      ],
+    });
+    const html = render(card);
+    expect(html).toContain("Main Comp");
+    expect(html).toContain("Kitchen Table");
+    expect(html).toContain("Competitive");
+  });
+
   it("renders with no imageUrl gracefully", () => {
     const card = makeCard({ imageUrl: null });
     const html = render(card);

@@ -32,6 +32,8 @@ export async function GET(
 
     return NextResponse.json({
       group: report.group,
+      cards: report.cards,
+      stats: report.stats,
       checklist: report.cards,
       summary: report.stats,
       availableDecks: report.availableDecks,

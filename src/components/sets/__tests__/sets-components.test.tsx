@@ -5,6 +5,7 @@ import { I18nProvider } from "@/lib/i18n";
 import SetGroupCard from "../SetGroupCard";
 import SetGroupRow from "../SetGroupRow";
 import SetsToolbar from "../SetsToolbar";
+import SetChecklistFilters from "../SetChecklistFilters";
 import HiddenSetsAccordion from "../HiddenSetsAccordion";
 import type { FeaturedSetSummary, SetTargetDeck } from "@ga/contracts";
 
@@ -227,5 +228,33 @@ describe("SetsToolbar with Target Selector", () => {
     );
     expect(html).toContain("Target:");
     expect(html).toContain("Arthur Fire Aggro");
+  });
+
+  it("renders Competitive and 4Fun deck sections in checklist target selector", () => {
+    const partitionedDecks: SetTargetDeck[] = [
+      { id: "deck-comp", name: "Rai Competitive", section: "competitive", priority: 0 },
+      { id: "deck-fun", name: "Diana Casual", section: "4fun", priority: 0 },
+    ];
+    const html = renderToStaticMarkup(
+      <I18nProvider>
+        <SetChecklistFilters
+          status="all"
+          onStatusChange={() => {}}
+          search=""
+          onSearchChange={() => {}}
+          selectedElement={null}
+          onElementChange={() => {}}
+          selectedRarity={null}
+          onRarityChange={() => {}}
+          target="all"
+          onTargetChange={() => {}}
+          availableDecks={partitionedDecks}
+        />
+      </I18nProvider>,
+    );
+    expect(html).toContain("Competitive");
+    expect(html).toContain("4Fun");
+    expect(html).toContain("Rai Competitive");
+    expect(html).toContain("Diana Casual");
   });
 });

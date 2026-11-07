@@ -18,7 +18,7 @@ vi.mock("@/db", () => ({
 }));
 
 import { createTestDb } from "@/db/test-utils";
-import { users, cards, cardEditions, collectionItems } from "@/db/schema";
+import { users, cards, cardEditions, collectionItems, decks } from "@/db/schema";
 import { featuredSetGroups, setDefinitions } from "@/db/featured-set-schema";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { GET } from "../route";
@@ -78,7 +78,9 @@ describe("Sets Checklist API Route (GET /api/sets/[groupSlug])", () => {
     expect(json.group.name).toBe("Dawn of Ashes");
     expect(Array.isArray(json.checklist)).toBe(true);
     expect(json.checklist).toHaveLength(3);
+    expect(json.cards).toHaveLength(3);
     expect(json.summary.totalCardsAcrossGroups).toBe(3);
+    expect(json.stats.totalCardsAcrossGroups).toBe(3);
     expect(json.summary.totalOwnedCardsAcrossGroups).toBe(1);
   });
 
@@ -125,5 +127,24 @@ describe("Sets Checklist API Route (GET /api/sets/[groupSlug])", () => {
     const searchJson = await searchRes.json();
     expect(searchJson.checklist).toHaveLength(1);
     expect(searchJson.checklist[0].cardSlug).toBe("water-bolt");
+  });
+
+  it("returns availableDecks sorted with competitive decks first", async () => {
+    await seedChecklist();
+    await testDb.insert(decks).values([
+      { id: "deck-fun", userId: DEFAULT_USER_ID, name: "Fun Casual", section: "4fun", priority: 0 },
+      { id: "deck-comp", userId: DEFAULT_USER_ID, name: "Comp Deck", section: "competitive", priority: 0 },
+    ]);
+
+    const req = new NextRequest("http://localhost:3000/api/sets/dawn-of-ashes");
+    const res = await GET(req, { params: { groupSlug: "dawn-of-ashes" } });
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.availableDecks).toHaveLength(2);
+    expect(json.availableDecks[0].id).toBe("deck-comp");
+    expect(json.availableDecks[0].section).toBe("competitive");
+    expect(json.availableDecks[1].id).toBe("deck-fun");
+    expect(json.availableDecks[1].section).toBe("4fun");
   });
 });

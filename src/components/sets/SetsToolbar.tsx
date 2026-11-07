@@ -144,25 +144,71 @@ export default function SetsToolbar({
               >
                 {t("sets.targetWantlist")}
               </DropdownMenuItem>
-              {availableDecks.length > 0 && (
-                <>
-                  <div className="px-2 py-1 text-[10px] font-semibold text-slate-500 uppercase tracking-wider border-t border-white/[0.06] mt-1 pt-1">
-                    {t("sets.targetDecksHeader")}
-                  </div>
-                  {availableDecks.map((deck) => (
-                    <DropdownMenuItem
-                      key={deck.id}
-                      onClick={() => onTargetChange(deck.id)}
-                      className={cn(
-                        "text-sm",
-                        target === deck.id && "text-cyan-400 font-medium",
-                      )}
-                    >
-                      {deck.name}
-                    </DropdownMenuItem>
-                  ))}
-                </>
-              )}
+              {availableDecks.length > 0 && (() => {
+                const competitiveDecks = availableDecks.filter((d) => d.section === "competitive");
+                const fourFunDecks = availableDecks.filter((d) => d.section !== "competitive");
+
+                if (competitiveDecks.length === 0) {
+                  return (
+                    <>
+                      <div className="px-2 py-1 text-[10px] font-semibold text-slate-500 uppercase tracking-wider border-t border-white/[0.06] mt-1 pt-1">
+                        {t("sets.targetDecksHeader")}
+                      </div>
+                      {availableDecks.map((deck) => (
+                        <DropdownMenuItem
+                          key={deck.id}
+                          onClick={() => onTargetChange(deck.id)}
+                          className={cn(
+                            "text-sm",
+                            target === deck.id && "text-cyan-400 font-medium",
+                          )}
+                        >
+                          {deck.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </>
+                  );
+                }
+
+                return (
+                  <>
+                    <div className="px-2 py-1 text-[10px] font-semibold text-amber-400/90 uppercase tracking-wider border-t border-white/[0.06] mt-1 pt-1">
+                      {t("decks.sectionCompetitive")}
+                    </div>
+                    {competitiveDecks.map((deck) => (
+                      <DropdownMenuItem
+                        key={deck.id}
+                        onClick={() => onTargetChange(deck.id)}
+                        className={cn(
+                          "text-sm",
+                          target === deck.id && "text-cyan-400 font-medium",
+                        )}
+                      >
+                        {deck.name}
+                      </DropdownMenuItem>
+                    ))}
+                    {fourFunDecks.length > 0 && (
+                      <>
+                        <div className="px-2 py-1 text-[10px] font-semibold text-slate-500 uppercase tracking-wider border-t border-white/[0.06] mt-1 pt-1">
+                          {t("decks.section4Fun")}
+                        </div>
+                        {fourFunDecks.map((deck) => (
+                          <DropdownMenuItem
+                            key={deck.id}
+                            onClick={() => onTargetChange(deck.id)}
+                            className={cn(
+                              "text-sm",
+                              target === deck.id && "text-cyan-400 font-medium",
+                            )}
+                          >
+                            {deck.name}
+                          </DropdownMenuItem>
+                        ))}
+                      </>
+                    )}
+                  </>
+                );
+              })()}
             </DropdownMenuContent>
           </DropdownMenu>
         )}

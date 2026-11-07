@@ -152,12 +152,19 @@ export default function SetChecklistCard({
               {card.deckRequirements.map((dr) => (
                 <li
                   key={dr.deckId}
-                  className="text-[10px] text-slate-500"
+                  className="flex items-center gap-1.5 text-[10px] text-slate-500"
                 >
-                  {t("sets.checklist.deckRequirementItem", {
-                    deckName: dr.deckName,
-                    quantity: dr.quantity,
-                  })}
+                  <span>
+                    {t("sets.checklist.deckRequirementItem", {
+                      deckName: dr.deckName,
+                      quantity: dr.quantity,
+                    })}
+                  </span>
+                  {dr.section === "competitive" && (
+                    <span className="rounded bg-rose-500/10 px-1 py-0.2 text-[9px] font-semibold text-rose-300 border border-rose-500/20">
+                      {t("decks.sectionCompetitive")}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>

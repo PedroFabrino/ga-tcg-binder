@@ -3,7 +3,8 @@
  * No I/O: callers pass already-loaded rows.
  */
 
-import type { FeaturedSetSummary } from "@ga/contracts";
+import type { DeckSection, FeaturedSetSummary } from "@ga/contracts";
+import { allocateCardDemand, type DeckCardDemand } from "./deck-allocation";
 
 export interface PerCardShortage {
   peakMissing: number;
@@ -13,8 +14,7 @@ export interface PerCardShortage {
 
 /**
  * Compute shortage metrics for a single card given its deck demands and
- * the user's owned quantity. Used by both `computeShortages` (bulk) and
- * the checklist report (per-card).
+ * the user's owned quantity. Backward-compatible fallback when sections are absent.
  */
 export function computeCardShortage(
   deckQuantities: number[],
@@ -28,44 +28,73 @@ export function computeCardShortage(
   };
 }
 
-/** peakMissing = max(0, peakDemand - owned), concurrentMissing = max(0, totalDemand - owned) */
+/** Section-aware shortage computation across all cards. */
 export function computeShortages(
   allDeckCards: Array<{
     deckId: string;
     cardSlug: string;
     quantity: number;
+    section?: DeckSection | string;
+    priority?: number;
+    createdAt?: Date | string | null;
   }>,
   userCollection: Array<{ cardSlug: string; quantity: number }>,
+  userDecks?: Array<{
+    id: string;
+    name?: string;
+    section?: DeckSection | string;
+    priority?: number;
+    createdAt?: Date | string | null;
+  }>,
 ): Map<string, PerCardShortage> {
-  const demandByCard = new Map<string, Map<string, number>>();
+  const deckLookup = new Map(userDecks?.map((d) => [d.id, d]));
+  const demandByCard = new Map<
+    string,
+    Map<string, { demand: number; section: DeckSection; priority: number; createdAt?: Date | string | null }>
+  >();
+
   for (const dc of allDeckCards) {
     let entry = demandByCard.get(dc.cardSlug);
     if (!entry) {
       entry = new Map();
       demandByCard.set(dc.cardSlug, entry);
     }
-    entry.set(dc.deckId, (entry.get(dc.deckId) ?? 0) + dc.quantity);
+    const current = entry.get(dc.deckId);
+    const d = deckLookup.get(dc.deckId);
+    const section = ((d?.section ?? dc.section) as DeckSection) || "4fun";
+    const priority = d?.priority ?? dc.priority ?? 0;
+    const createdAt = d?.createdAt ?? dc.createdAt;
+    entry.set(dc.deckId, {
+      demand: (current?.demand ?? 0) + dc.quantity,
+      section,
+      priority,
+      createdAt,
+    });
   }
 
   const ownedByCard = new Map<string, number>();
   for (const ci of userCollection) {
-    ownedByCard.set(
-      ci.cardSlug,
-      (ownedByCard.get(ci.cardSlug) ?? 0) + ci.quantity,
-    );
+    ownedByCard.set(ci.cardSlug, (ownedByCard.get(ci.cardSlug) ?? 0) + ci.quantity);
   }
 
   const result = new Map<string, PerCardShortage>();
   for (const [slug, deckMap] of demandByCard) {
     const owned = ownedByCard.get(slug) ?? 0;
-    const quantities = [...deckMap.values()];
-    const { peakMissing, concurrentMissing } = computeCardShortage(
-      quantities,
-      owned,
-    );
+    const deckDemands: DeckCardDemand[] = [];
+    for (const [deckId, info] of deckMap) {
+      deckDemands.push({
+        deckId,
+        demand: info.demand,
+        section: info.section,
+        priority: info.priority,
+        createdAt: info.createdAt,
+      });
+    }
+
+    const alloc = allocateCardDemand(owned, deckDemands);
     result.set(slug, {
-      peakMissing,
-      concurrentMissing,
+      peakMissing: alloc.peakMissing,
+      concurrentMissing: alloc.concurrentMissing,
       deckIds: [...deckMap.keys()],
     });
   }
@@ -102,20 +131,15 @@ export function cardToGroupsMap(
   for (const e of editions) {
     const g = prefixToGroup.get(e.setPrefix);
     if (!g) continue;
-    let groups = m.get(e.cardSlug);
-    if (!groups) {
-      groups = new Set();
-      m.set(e.cardSlug, groups);
-    }
+    const groups = m.get(e.cardSlug) ?? new Set();
     groups.add(g);
+    m.set(e.cardSlug, groups);
   }
   return m;
 }
 
 /** Map set definitions to their group UUID. */
-export function groupDefs<T extends { groupUuid: string }>(
-  defs: T[],
-): Map<string, T[]> {
+export function groupDefs<T extends { groupUuid: string }>(defs: T[]): Map<string, T[]> {
   const m = new Map<string, T[]>();
   for (const d of defs) {
     const list = m.get(d.groupUuid);
@@ -134,12 +158,9 @@ export function slugsInGroup(
   for (const e of editions) {
     const g = prefixToGroup.get(e.setPrefix);
     if (!g) continue;
-    let s = m.get(g);
-    if (!s) {
-      s = new Set();
-      m.set(g, s);
-    }
+    const s = m.get(g) ?? new Set();
     s.add(e.cardSlug);
+    m.set(g, s);
   }
   return m;
 }
@@ -171,25 +192,26 @@ export interface DemandCard {
   deckName: string;
   cardSlug: string;
   quantity: number;
+  section?: DeckSection;
+  priority?: number;
+  createdAt?: Date | string | null;
 }
 
-/**
- * Filters demand cards according to the selected target:
- * - "wantlist": only personal wants
- * - specific deckId: only cards required by that deck
- * - "all" / undefined: all deck cards plus personal wants
- */
+/** Filters demand cards according to the selected target. */
 export function filterTargetDemandCards(
   allDeckCards: Array<{
     deckId: string;
     deckName?: string | null;
+    deckSection?: string | null;
+    deckPriority?: number | null;
+    deckCreatedAt?: Date | string | null;
+    section?: string | null;
+    priority?: number | null;
+    createdAt?: Date | string | null;
     cardSlug: string;
     quantity: number;
   }>,
-  personalWants: Array<{
-    cardSlug: string;
-    quantity: number;
-  }> = [],
+  personalWants: Array<{ cardSlug: string; quantity: number }> = [],
   target?: string,
 ): DemandCard[] {
   const wantsAsDemands: DemandCard[] = personalWants.map((w) => ({
@@ -197,32 +219,27 @@ export function filterTargetDemandCards(
     deckName: "Personal Wants",
     cardSlug: w.cardSlug,
     quantity: w.quantity,
+    section: "4fun",
+    priority: 999999,
   }));
 
-  if (target === "wantlist") {
-    return wantsAsDemands;
-  }
+  if (target === "wantlist") return wantsAsDemands;
+
+  const mapDeckCard = (dc: typeof allDeckCards[0]): DemandCard => ({
+    deckId: dc.deckId,
+    deckName: dc.deckName ?? "",
+    cardSlug: dc.cardSlug,
+    quantity: dc.quantity,
+    section: ((dc.deckSection ?? dc.section) as DeckSection) || "4fun",
+    priority: dc.deckPriority ?? dc.priority ?? 0,
+    createdAt: dc.deckCreatedAt ?? dc.createdAt,
+  });
 
   if (target && target !== "all") {
-    return allDeckCards
-      .filter((dc) => dc.deckId === target)
-      .map((dc) => ({
-        deckId: dc.deckId,
-        deckName: dc.deckName ?? "",
-        cardSlug: dc.cardSlug,
-        quantity: dc.quantity,
-      }));
+    return allDeckCards.filter((dc) => dc.deckId === target).map(mapDeckCard);
   }
 
-  return [
-    ...allDeckCards.map((dc) => ({
-      deckId: dc.deckId,
-      deckName: dc.deckName ?? "",
-      cardSlug: dc.cardSlug,
-      quantity: dc.quantity,
-    })),
-    ...wantsAsDemands,
-  ];
+  return [...allDeckCards.map(mapDeckCard), ...wantsAsDemands];
 }
 
 export interface SetShortageRawData {
@@ -234,6 +251,12 @@ export interface SetShortageRawData {
     quantity: number;
     assignedEditionId?: string | null;
     deckName?: string | null;
+    deckSection?: string | null;
+    deckPriority?: number | null;
+    deckCreatedAt?: Date | string | null;
+    section?: string | null;
+    priority?: number | null;
+    createdAt?: Date | string | null;
   }>;
   userCollection: Array<{
     id?: string;
@@ -266,7 +289,13 @@ export interface SetShortageRawData {
     releaseDate?: string | null;
   }>;
   hidden: string[];
-  userDecks?: Array<{ id: string; name: string }>;
+  userDecks?: Array<{
+    id: string;
+    name: string;
+    section?: DeckSection | string;
+    priority?: number;
+    createdAt?: Date | string | null;
+  }>;
   personalWants?: Array<{ id?: string; cardSlug: string; quantity: number }>;
 }
 
@@ -274,16 +303,11 @@ export function computeSummariesFromData(
   data: SetShortageRawData,
   target?: string,
 ): FeaturedSetSummary[] {
-  const { allDeckCards, userCollection, allEditions, allGroups, allDefs, hidden, personalWants = [] } = data;
+  const { allDeckCards, userCollection, allEditions, allGroups, allDefs, hidden, userDecks, personalWants = [] } = data;
   if (allGroups.length === 0) return [];
 
-  const targetDemandCards = filterTargetDemandCards(
-    allDeckCards,
-    personalWants,
-    target,
-  );
-
-  const shortages = computeShortages(targetDemandCards, userCollection);
+  const targetDemandCards = filterTargetDemandCards(allDeckCards, personalWants, target);
+  const shortages = computeShortages(targetDemandCards, userCollection, userDecks);
   const prefixToGroup = prefixToGroupMap(allDefs);
   const cardToGroups = cardToGroupsMap(allEditions, prefixToGroup);
   const defsByGroup = groupDefs(allDefs);
