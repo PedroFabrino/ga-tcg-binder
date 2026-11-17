@@ -18,6 +18,7 @@ import {
   resolveMypItem,
   type ParsedMypItem,
 } from "./marketplace";
+import { unwrapFlareSolverrResponse } from "./market-request-helper";
 
 export interface MypSyncCheckpoint {
   page: number;
@@ -208,9 +209,10 @@ export async function syncGlobalMarketplace(
           buildMypLoadMoreUrl(p),
           customFetch
         );
-        let htmlChunk = moreText;
+        const normalizedText = unwrapFlareSolverrResponse(moreText);
+        let htmlChunk = normalizedText;
         try {
-          const json = JSON.parse(moreText);
+          const json = JSON.parse(normalizedText);
           if (json && json.success && json.html) {
             htmlChunk = json.html;
           }

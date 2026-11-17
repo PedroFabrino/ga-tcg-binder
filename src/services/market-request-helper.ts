@@ -1,4 +1,7 @@
-import { isCloudflareChallenge as baseIsCloudflareChallenge } from "./market-crawl";
+import {
+  decodeHtml,
+  isCloudflareChallenge as baseIsCloudflareChallenge,
+} from "./market-crawl";
 import {
   loadStoreSession,
   executeStoreFetch,
@@ -98,6 +101,42 @@ export function resetStoreFetchConfigs(): void {
   }
 }
 
+const IMPERSONATE_MANAGED_HEADERS = new Set([
+  "user-agent",
+  "accept",
+  "accept-encoding",
+  "accept-language",
+  "cache-control",
+  "pragma",
+  "sec-ch-ua",
+  "sec-ch-ua-mobile",
+  "sec-ch-ua-platform",
+  "sec-fetch-dest",
+  "sec-fetch-mode",
+  "sec-fetch-site",
+  "sec-fetch-user",
+  "upgrade-insecure-requests",
+]);
+
+/**
+ * Unwraps JSON payloads that FlareSolverr's Chromium browser renders inside an
+ * HTML `<pre>` tag with entity-encoded characters.
+ */
+export function unwrapFlareSolverrResponse(raw: string): string {
+  const preMatch = raw.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
+  if (!preMatch) return raw;
+
+  const decoded = decodeHtml(preMatch[1]).trim();
+  if (!decoded.startsWith("{") && !decoded.startsWith("[")) return raw;
+
+  try {
+    JSON.parse(decoded);
+    return decoded;
+  } catch {
+    return raw;
+  }
+}
+
 /**
  * Sends a request to FlareSolverr to solve a Cloudflare challenge and returns
  * the rendered page HTML. Returns null when FlareSolverr is unconfigured, unreachable,
@@ -143,7 +182,7 @@ export async function solveWithFlareSolverr(
     };
 
     if (data?.status === "ok" && data.solution?.response) {
-      return data.solution.response;
+      return unwrapFlareSolverrResponse(data.solution.response);
     }
 
     console.warn(`[FlareSolverr] Solver did not return solution for ${url}`);
@@ -163,35 +202,41 @@ export async function fetchWithCurl(
   timeoutSec = 25
 ): Promise<string> {
   const { execFileSync } = await import("node:child_process");
-  let curlBin = "curl_chrome152";
-  if (process.platform === "win32") {
-    curlBin = "curl.exe";
-  }
-  const headerArgs: string[] = [];
+  const curlBin = process.platform === "win32" ? "curl.exe" : "curl_chrome152";
+
+  const customHeaderArgs: string[] = [];
+  const fullHeaderArgs: string[] = [];
   if (headers) {
     for (const [k, v] of Object.entries(headers)) {
-      headerArgs.push("-H", `${k}: ${v}`);
+      fullHeaderArgs.push("-H", `${k}: ${v}`);
+      if (!IMPERSONATE_MANAGED_HEADERS.has(k.toLowerCase())) {
+        customHeaderArgs.push("-H", `${k}: ${v}`);
+      }
     }
   }
-  const args = [
-    "-sS",
-    "-L",
-    "--max-time",
-    String(timeoutSec),
-    "-A",
-    DEFAULT_BROWSER_USER_AGENT,
-    ...headerArgs,
-    url,
-  ];
 
-  try {
-    return execFileSync(curlBin, args, { encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 });
-  } catch (err) {
-    if (curlBin === "curl_chrome152") {
-      return execFileSync("curl", args, { encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 });
+  const execOpts = { encoding: "utf-8" as const, maxBuffer: 10 * 1024 * 1024 };
+  const baseFlags = ["-sS", "-L", "--max-time", String(timeoutSec)];
+
+  if (curlBin === "curl_chrome152") {
+    try {
+      // Let curl-impersonate supply its native Chrome 152 UA and Sec-Ch-Ua headers
+      // so the HTTP headers match the Chrome 152 TLS fingerprint.
+      return execFileSync(curlBin, [...baseFlags, ...customHeaderArgs, url], execOpts);
+    } catch {
+      return execFileSync(
+        "curl",
+        [...baseFlags, "-A", DEFAULT_BROWSER_USER_AGENT, ...fullHeaderArgs, url],
+        execOpts
+      );
     }
-    throw err;
   }
+
+  return execFileSync(
+    curlBin,
+    [...baseFlags, "-A", DEFAULT_BROWSER_USER_AGENT, ...fullHeaderArgs, url],
+    execOpts
+  );
 }
 
 export interface FetchWithRetryOptions extends StoreFetchConfig {

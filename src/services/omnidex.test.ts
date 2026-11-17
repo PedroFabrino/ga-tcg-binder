@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { parseOmnidexText, serializeOmnidexText, decodeHtmlEntities, fetchDeckFromUrl } from "./omnidex";
+import {
+  parseOmnidexText,
+  serializeOmnidexText,
+  serializeShortagesOmnidexText,
+  decodeHtmlEntities,
+  fetchDeckFromUrl,
+} from "./omnidex";
 
 describe("Omnidex Decklist Parser & Serializer", () => {
   it("decodes HTML entities properly in deck names", () => {
@@ -205,6 +211,67 @@ describe("Omnidex Decklist Parser & Serializer", () => {
       await expect(
         fetchDeckFromUrl("https://example.com/not-a-deck")
       ).rejects.toThrow("Could not extract a valid decklist from this URL");
+    });
+  });
+
+  describe("serializeShortagesOmnidexText", () => {
+    it("serializes only items with missingQuantity > 0 across zones and round-trips with parseOmnidexText", () => {
+      const text = serializeShortagesOmnidexText([
+        { cardName: "Spirit of Fire", cardSlug: "spirit-of-fire", zone: "material", missingQuantity: 1 },
+        { cardName: "Backup Charger", cardSlug: "backup-charger", zone: "material", missingQuantity: 0 },
+        { cardName: "Fracturize", cardSlug: "fracturize", zone: "main", missingQuantity: 3 },
+        { cardName: "Creative Shock", cardSlug: "creative-shock", zone: "main", missingQuantity: 0 },
+        { cardName: "Dispel", cardSlug: "dispel", zone: "side", missingQuantity: 2 },
+      ]);
+
+      expect(text).toBe(
+        [
+          "# Material Deck",
+          "1 Spirit of Fire",
+          "",
+          "# Main Deck",
+          "3 Fracturize",
+          "",
+          "# Sideboard",
+          "2 Dispel",
+        ].join("\n")
+      );
+
+      const reparsed = parseOmnidexText(text);
+      expect(reparsed.material).toEqual([{ name: "Spirit of Fire", quantity: 1, collectorCode: undefined }]);
+      expect(reparsed.main).toEqual([{ name: "Fracturize", quantity: 3, collectorCode: undefined }]);
+      expect(reparsed.side).toEqual([{ name: "Dispel", quantity: 2, collectorCode: undefined }]);
+    });
+
+    it("omits zone headers for zones that have no shortages", () => {
+      const text = serializeShortagesOmnidexText([
+        { cardName: "Spirit of Fire", zone: "material", missingQuantity: 0 },
+        { cardName: "Fracturize", zone: "main", missingQuantity: 2 },
+        { cardName: "Dispel", zone: "sideboard", missingQuantity: 0 },
+      ]);
+
+      expect(text).toBe("# Main Deck\n2 Fracturize");
+      expect(text).not.toContain("# Material Deck");
+      expect(text).not.toContain("# Sideboard");
+    });
+
+    it("returns an empty string when all items have zero missingQuantity or the list is empty", () => {
+      expect(serializeShortagesOmnidexText([])).toBe("");
+      expect(
+        serializeShortagesOmnidexText([
+          { cardName: "Spirit of Fire", zone: "material", missingQuantity: 0 },
+          { cardName: "Fracturize", zone: "main", missingQuantity: 0 },
+        ])
+      ).toBe("");
+    });
+
+    it("falls back to cardSlug when cardName is null or empty", () => {
+      const text = serializeShortagesOmnidexText([
+        { cardName: null, cardSlug: "arcane-disposition", zone: "main", missingQuantity: 2 },
+        { cardName: "   ", cardSlug: "prismatic-barrier", zone: "side", missingQuantity: 1 },
+      ]);
+
+      expect(text).toBe("# Main Deck\n2 arcane-disposition\n\n# Sideboard\n1 prismatic-barrier");
     });
   });
 });

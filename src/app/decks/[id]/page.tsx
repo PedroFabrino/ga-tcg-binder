@@ -19,6 +19,7 @@ import { buildCollectionUpdateRequest } from "@/lib/collection-stepper";
 import { useTranslation } from "@/lib/i18n";
 import { useDeckWithShortageQuery } from "@/hooks/queries/use-decks-queries";
 import { invalidateDeckQueries, invalidateCollectionQueries } from "@/lib/query-invalidation";
+import { serializeShortagesOmnidexText } from "@/services/omnidex";
 
 interface BinderTarget {
   cardSlug: string;
@@ -37,6 +38,7 @@ export default function DeckDetailPage() {
   const { data: payload, isLoading, isFetching, refetch } = useDeckWithShortageQuery(deckId, session?.user?.id);
 
   const [copied, setCopied] = useState(false);
+  const [copiedShortages, setCopiedShortages] = useState(false);
   const [addingSlug, setAddingSlug] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -67,16 +69,31 @@ export default function DeckDetailPage() {
   const notFound = payload?.notFound ?? false;
   const advisorAllowed = payload?.advisorAllowed ?? false;
 
-  const copyOmnidex = async () => {
+  const shortagesOmnidexText = useMemo(
+    () => serializeShortagesOmnidexText(shortage?.items || []),
+    [shortage?.items]
+  );
+
+  const copyToClipboard = async (
+    text: string,
+    setFlag: (val: boolean) => void,
+    successMessage: string
+  ) => {
     try {
-      await navigator.clipboard.writeText(omnidexText);
-      setCopied(true);
-      showToast(t("decks.copied"), "success");
-      setTimeout(() => setCopied(false), 2000);
+      await navigator.clipboard.writeText(text);
+      setFlag(true);
+      showToast(successMessage, "success");
+      setTimeout(() => setFlag(false), 2000);
     } catch {
       showToast(t("friends.clipboardError"), "error");
     }
   };
+
+  const copyOmnidex = () => copyToClipboard(omnidexText, setCopied, t("decks.copied"));
+  const copyShortagesOmnidex = () =>
+    shortagesOmnidexText
+      ? copyToClipboard(shortagesOmnidexText, setCopiedShortages, t("decks.shortagesCopied"))
+      : undefined;
 
   const resolveEdition = async (cardSlug: string, assignedEditionId?: string | null) => {
     if (assignedEditionId) {
@@ -212,6 +229,16 @@ export default function DeckDetailPage() {
           <Button onClick={copyOmnidex} size="sm" variant="outline">
             {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4 text-slate-400" />}
             {copied ? t("decks.copied") : t("decks.copyOmnidex")}
+          </Button>
+          <Button
+            onClick={copyShortagesOmnidex}
+            size="sm"
+            variant="outline"
+            disabled={!shortagesOmnidexText}
+            title={!shortagesOmnidexText ? t("decks.noShortagesToExport") : t("decks.copyShortagesOmnidex")}
+          >
+            {copiedShortages ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4 text-rose-400" />}
+            {copiedShortages ? t("decks.copied") : t("decks.copyShortagesOmnidex")}
           </Button>
           <Button onClick={() => setConfirmDelete(true)} size="sm" variant="ghost" className="text-rose-400 hover:bg-rose-500/10 hover:text-rose-300">
             <Trash2 className="h-4 w-4" />

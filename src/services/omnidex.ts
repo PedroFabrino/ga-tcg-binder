@@ -53,6 +53,43 @@ export function serializeOmnidexText(deck: {
   return sections.join("\n").trim();
 }
 
+export interface OmnidexShortageItem {
+  cardName?: string | null;
+  cardSlug?: string;
+  zone: string;
+  missingQuantity: number;
+}
+
+/**
+ * Serializes deck shortage items (only entries with missingQuantity > 0) into
+ * zone-partitioned Omnidex text format.
+ */
+export function serializeShortagesOmnidexText(
+  items: ReadonlyArray<OmnidexShortageItem>
+): string {
+  const material: { name: string; quantity: number }[] = [];
+  const main: { name: string; quantity: number }[] = [];
+  const side: { name: string; quantity: number }[] = [];
+
+  for (const item of items) {
+    if (!item || item.missingQuantity <= 0) continue;
+    const rawName = (item.cardName ?? "").trim() || (item.cardSlug ?? "").trim();
+    const name = decodeHtmlEntities(rawName);
+    if (!name) continue;
+    const zone = item.zone.toLowerCase();
+    const entry = { name, quantity: item.missingQuantity };
+    if (zone === "material") {
+      material.push(entry);
+    } else if (zone === "side" || zone === "sideboard") {
+      side.push(entry);
+    } else {
+      main.push(entry);
+    }
+  }
+
+  return serializeOmnidexText({ material, main, side });
+}
+
 interface NextDataCard {
   name?: unknown;
   quantity?: unknown;

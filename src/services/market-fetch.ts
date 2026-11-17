@@ -1,3 +1,5 @@
+import { isCloudflareChallenge } from "./market-crawl";
+
 const BROWSER_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
@@ -30,9 +32,13 @@ export async function fetchMarketHtml(
     });
 
     if (response.ok) {
-      return await response.text();
+      const text = await response.text();
+      if (customFetch !== fetch || !isCloudflareChallenge(text)) {
+        return text;
+      }
+    } else {
+      fetchStatus = response.status;
     }
-    fetchStatus = response.status;
   } catch {
     // Fallback to curl below
   }
@@ -46,24 +52,24 @@ export async function fetchMarketHtml(
   }
 
   const { execFileSync } = await import("node:child_process");
-  const curlBin = process.platform === "win32" ? "curl.exe" : "curl";
+  const execOpts = { encoding: "utf-8" as const, maxBuffer: 5 * 1024 * 1024 };
+  const baseArgs = ["-sS", "-f", "-L", "--max-time", String(REQUEST_TIMEOUT_MS / 1000)];
 
   let stdout: string;
   try {
-    stdout = execFileSync(
-      curlBin,
-      [
-        "-sS",
-        "-f",
-        "-L",
-        "--max-time",
-        String(REQUEST_TIMEOUT_MS / 1000),
-        "-A",
-        BROWSER_USER_AGENT,
-        url,
-      ],
-      { encoding: "utf-8", maxBuffer: 5 * 1024 * 1024 }
-    );
+    if (process.platform === "win32") {
+      stdout = execFileSync("curl.exe", [...baseArgs, "-A", BROWSER_USER_AGENT, url], execOpts);
+    } else {
+      try {
+        stdout = execFileSync("curl_chrome152", [...baseArgs, url], execOpts);
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException)?.code === "ENOENT") {
+          stdout = execFileSync("curl", [...baseArgs, "-A", BROWSER_USER_AGENT, url], execOpts);
+        } else {
+          throw err;
+        }
+      }
+    }
   } catch (err) {
     const stderr = (err as { stderr?: unknown })?.stderr
       ? String((err as { stderr?: unknown }).stderr).trim()

@@ -15,6 +15,7 @@ import {
 import { DEFAULT_USER_ID } from "./seed";
 import { resolveMypItem as resolveListingMypItem } from "./listing-resolver";
 import { decodeHtml, parseBrlPrice, isCloudflareChallenge } from "./market-crawl";
+import { unwrapFlareSolverrResponse } from "./market-request-helper";
 
 export { parseBrlPrice, isCloudflareChallenge };
 
@@ -622,7 +623,7 @@ export async function syncUserMarketplace(
     )}&marca=grandarchive&page=${page}`;
     try {
       const moreText = await fetchMypText(moreUrl, customFetch);
-      const json = JSON.parse(moreText);
+      const json = JSON.parse(unwrapFlareSolverrResponse(moreText));
       if (!json || !json.success || !json.html) break;
       const pageItems = parseMypHtml(json.html, defaultVendor);
       if (pageItems.length === 0) break;

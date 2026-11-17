@@ -294,4 +294,41 @@ describe("syncGlobalMarketplace listing parity", () => {
     const cardBRow = rows.find((r) => r.itemId === CARD_B.itemId);
     expect(cardBRow?.quantity).toBe(3);
   });
+
+  it("unwraps FlareSolverr <pre>-wrapped entity-encoded JSON on /produto/load-more page 2", async () => {
+    const { db } = await createTestDb();
+    await seedCatalog(db);
+    await db.delete(marketCards);
+    clearMypSyncCheckpoint();
+
+    const rawJson = JSON.stringify({ success: true, html: cardBlock(CARD_B) });
+    const entityEncodedJson = rawJson
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+    const flareWrappedPage2 = `<html><head></head><body><pre>${entityEncodedJson}</pre></body></html>`;
+
+    const flareFetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/produto/load-more")) {
+        return new Response(flareWrappedPage2, { status: 200 });
+      }
+      return new Response(pageHtml([CARD_A], 60), { status: 200 });
+    });
+
+    const result = await syncGlobalMarketplace(db, {
+      customFetch: flareFetch as unknown as typeof fetch,
+      retryDelayMs: 5,
+    });
+
+    expect(result.complete).toBe(true);
+    expect(result.totalSynced).toBe(2);
+    expect(result.matchedCount).toBe(2);
+
+    const rows = await db.select().from(marketCards);
+    expect(rows.map((r) => r.itemId).sort()).toEqual([
+      CARD_A.itemId,
+      CARD_B.itemId,
+    ]);
+  });
 });

@@ -35,6 +35,15 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install curl-impersonate (curl_chrome152)
+        run: |
+          docker create --name curl-impersonate-bin lexiforest/curl-impersonate:latest
+          sudo docker cp curl-impersonate-bin:/usr/local/bin/curl-impersonate /usr/local/bin/curl-impersonate
+          sudo docker cp curl-impersonate-bin:/usr/local/bin/curl_chrome152 /usr/local/bin/curl_chrome152
+          sudo chmod +x /usr/local/bin/curl-impersonate /usr/local/bin/curl_chrome152
+          docker rm curl-impersonate-bin
+          curl_chrome152 --version
+
       - name: Start FlareSolverr Container
         run: |
           docker run -d \

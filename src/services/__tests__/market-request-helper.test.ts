@@ -6,6 +6,7 @@ import {
   resetStoreFetchConfigs,
   setStoreFetchConfig,
   solveWithFlareSolverr,
+  unwrapFlareSolverrResponse,
 } from "../market-request-helper";
 
 describe("market-request-helper", () => {
@@ -113,6 +114,37 @@ describe("market-request-helper", () => {
       });
 
       expect(result).toBeNull();
+    });
+
+    it("unwraps Chromium <pre>-wrapped JSON payloads returned by FlareSolverr", async () => {
+      process.env.FLARESOLVERR_URL = "http://localhost:8191";
+      const wrappedResponse =
+        '<html><head></head><body><pre>{"success":true,"html":"&lt;div class=\\"card\\"&gt;Test &amp;amp; Card&lt;/div&gt;"}</pre></body></html>';
+
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          status: "ok",
+          solution: { response: wrappedResponse },
+        }),
+      });
+
+      const result = await solveWithFlareSolverr("https://example.com/load-more", {
+        customFetch: mockFetch as unknown as typeof fetch,
+      });
+
+      expect(result).toBe('{"success":true,"html":"<div class=\\"card\\">Test &amp; Card</div>"}');
+      expect(JSON.parse(result!)).toEqual({
+        success: true,
+        html: '<div class="card">Test &amp; Card</div>',
+      });
+    });
+  });
+
+  describe("unwrapFlareSolverrResponse", () => {
+    it("leaves plain HTML and non-JSON <pre> content unchanged", () => {
+      const html = "<html><body><div>Normal Page</div><pre>not json</pre></body></html>";
+      expect(unwrapFlareSolverrResponse(html)).toBe(html);
     });
   });
 
