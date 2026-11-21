@@ -26,9 +26,10 @@ import {
 import { CardPreviewTrigger } from "@/components/CardHoverPreview";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ToastProvider";
-import { ALL_ELEMENTS, ELEMENT_COLORS, ELEMENT_LABELS, normalizeElement } from "@/lib/elements";
+import { ALL_ELEMENTS, ELEMENT_COLORS, ELEMENT_LABELS } from "@/lib/elements";
 import { RARITIES } from "@/lib/rarities";
 import { readShippingCapability, readMypUsername } from "@/lib/settings-capabilities";
+import { filterPersonalMarketplaceCards } from "@/components/marketplace/filter";
 import type { MarketplaceCardItem, MarketplaceReport } from "@/services/marketplace";
 import FulfillmentView from "./FulfillmentView";
 import MypStoreSubTabs, { type MypSubView } from "./MypStoreSubTabs";
@@ -199,38 +200,13 @@ const { showToast } = useToast();
 
   const filteredCards = useMemo(() => {
     if (!report?.cards) return [];
-    let list = report.cards;
-
-    if (filterMode === "SHORTAGES" || onlyShortages) {
-      list = list.filter((c) => c.isShortageOffset);
-    } else if (filterMode === "STAPLES") {
-      list = list.filter((c) => c.isStapleDeficit);
-    }
-
-    if (selectedElements.length > 0) {
-      list = list.filter((c) => {
-        const el = normalizeElement(c.element);
-        return selectedElements.some((sel) => normalizeElement(sel) === el);
-      });
-    }
-
-    if (selectedRarities.length > 0) {
-      list = list.filter((c) => selectedRarities.includes(c.rarity || 1));
-    }
-
-    if (query.trim()) {
-      const q = query.trim().toLowerCase();
-      list = list.filter((c) => {
-        const nameMatch =
-          c.cardName.toLowerCase().includes(q) || c.rawName.toLowerCase().includes(q);
-        const setMatch = c.setPrefix.toLowerCase().includes(q);
-        const deckMatch = c.deckNeeds.some((d) => d.deckName.toLowerCase().includes(q));
-        const stapleMatch = c.stapleCategories?.some((cat) => cat.toLowerCase().includes(q));
-        return nameMatch || setMatch || deckMatch || stapleMatch;
-      });
-    }
-
-    return list;
+    return filterPersonalMarketplaceCards(report.cards, {
+      filterMode,
+      onlyShortages,
+      selectedElements,
+      selectedRarities,
+      query,
+    });
   }, [report?.cards, filterMode, onlyShortages, selectedElements, selectedRarities, query]);
 
   const summary = report?.summary;

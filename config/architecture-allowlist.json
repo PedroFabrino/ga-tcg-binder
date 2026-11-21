@@ -2,7 +2,6 @@
   "$schema": "./architecture-allowlist.schema.json",
   "maxLines": [
     "src/services/marketplace.ts",
-    "src/app/marketplace/page.tsx",
     "src/components/collection/MypStoreView.tsx",
     "src/services/meta.ts",
     "src/app/scan/dashboard/page.tsx",
