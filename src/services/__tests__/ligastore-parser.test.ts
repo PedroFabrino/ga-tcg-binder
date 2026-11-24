@@ -354,4 +354,34 @@ describe("buildLigaStoreSearchUrl", () => {
     expect(url).toContain("ultimas=");
     expect(url).not.toContain("txt_estoque=1");
   });
+
+  it("produces Last Place TCG search URLs for count, latest, and pagination", () => {
+    const lastplaceStore = {
+      id: "lastplace",
+      platform: "liga_store",
+      baseUrl: "https://www.lastplacetcg.com.br",
+      tcgId: "21",
+    };
+
+    const countUrl = buildLigaStoreSearchUrl(lastplaceStore, "count");
+    expect(countUrl).not.toBeNull();
+    expect(countUrl).toContain("page=1");
+    expect(countUrl).toContain("id=26240");
+    expect(countUrl).toContain("txt_limit=120");
+    expect(countUrl).toContain("txt_order=6");
+    expect(countUrl).toContain("&ultimas=&");
+    expect(countUrl).toContain("txt_estoque=1");
+
+    const latestUrl = buildLigaStoreSearchUrl(lastplaceStore, "latest");
+    expect(latestUrl).not.toBeNull();
+    expect(latestUrl).toContain("id=26240");
+    expect(latestUrl).toContain("txt_order=12");
+    expect(latestUrl).toContain("ultimas=1");
+    expect(latestUrl).toContain("txt_estoque=1");
+
+    const page2Url = buildLigaStoreSearchUrl(lastplaceStore, "count", 2);
+    expect(page2Url).not.toBeNull();
+    expect(page2Url).toContain("page=2");
+    expect(page2Url).toContain("id=26240");
+  });
 });

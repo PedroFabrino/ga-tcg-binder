@@ -526,4 +526,126 @@ describe("ligastore-sync", () => {
       storedAfterRun1.map((c) => c.itemId).sort()
     );
   });
+
+  it("syncLigaStore crawls Last Place TCG with sprite pricing, saves listings, and reconciles on follow-up scan", async () => {
+    await upsertMarketStore(
+      {
+        id: "lastplace",
+        platform: "liga_store",
+        name: "Last Place TCG",
+        baseUrl: "https://www.lastplacetcg.com.br",
+        tcgId: "21",
+        enabled: true,
+      },
+      testDb
+    );
+
+    const LASTPLACE_PAGE_1 = `
+      <table class="ecomresp-tab">
+        <tr><td align='left' class='textoMaior'> 1-2 de <b>2</b></td></tr>
+      </table>
+
+      <div class="card-item">
+        <div class="card-img">
+          <a href="https://www.lastplacetcg.com.br/?view=ecom/item&refid=lp_ref_flame">
+            <img class="lazy" data-src="//repositorio.sbrauble.com/flame.jpg">
+          </a>
+        </div>
+        <div class="card-desc">
+          <div class="title">
+            <a href="https://www.lastplacetcg.com.br/?view=ecom/item&refid=lp_ref_flame">
+              Flame-Rune Swordsman (#136)
+            </a>
+          </div>
+          <div class="qty ">
+            <div class="vidgmi"><div class="eAlQu lKzJf rScHf">&nbsp;</div></div>
+            <div class="vidlbl" title="Unidades">un.</div>
+          </div>
+          <div class="price ">
+            <div class="vidlbl">R$</div>
+            <div class="vidgmi"><div class="eAlQu iMrYd lKzJf">&nbsp;</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-item">
+        <div class="card-desc">
+          <div class="title">
+            <a href="https://www.lastplacetcg.com.br/?view=ecom/item&refid=lp_ref_frost">
+              Frostbind (028) (#28b)
+            </a>
+          </div>
+          <div class="qty ">
+            <div class="vidgmi"><div class="eAlQu eNuQo lKzJf">&nbsp;</div></div>
+            <div class="vidlbl" title="Unidades">un.</div>
+          </div>
+          <div class="price ">
+            <div class="vidlbl">R$</div>
+            <div class="vidgmi"><div class="eAlQu lKzJf rScHf">&nbsp;</div></div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const requestedUrls: string[] = [];
+    const customFetch1 = async (input: RequestInfo | URL) => {
+      requestedUrls.push(String(input));
+      return new Response(LASTPLACE_PAGE_1, { status: 200 });
+    };
+
+    const stats1 = await syncLigaStore({
+      storeId: "lastplace",
+      customFetch: customFetch1 as any,
+      database: testDb,
+    });
+
+    expect(requestedUrls).toHaveLength(1);
+    expect(requestedUrls[0]).toContain("id=26240");
+    expect(requestedUrls[0]).toContain("txt_limit=120");
+    expect(requestedUrls[0]).toContain("txt_order=6");
+    expect(requestedUrls[0]).toContain("txt_estoque=1");
+    expect(requestedUrls[0]).not.toContain("&&");
+
+    expect(stats1.storeName).toBe("Last Place TCG");
+    expect(stats1.totalSynced).toBe(2);
+    expect(stats1.matchedCount).toBe(2);
+
+    const activeRun1 = await getMarketCards({ storeId: "lastplace", inStockOnly: true }, testDb);
+    expect(activeRun1).toHaveLength(2);
+    expect(activeRun1.map((l) => l.itemId).sort()).toEqual(["lp_ref_flame", "lp_ref_frost"]);
+
+    const LASTPLACE_PAGE_2 = `
+      <table class="ecomresp-tab">
+        <tr><td align='left' class='textoMaior'> 1-1 de <b>1</b></td></tr>
+      </table>
+      <div class="card-item">
+        <div class="card-desc">
+          <div class="title">
+            <a href="https://www.lastplacetcg.com.br/?view=ecom/item&refid=lp_ref_flame">
+              Flame-Rune Swordsman (#136)
+            </a>
+          </div>
+          <div class="price ">
+            <div class="vidlbl">R$</div>
+            <div class="vidgmi"><div class="eAlQu iMrYd lKzJf">&nbsp;</div></div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const customFetch2 = async () => new Response(LASTPLACE_PAGE_2, { status: 200 });
+    await syncLigaStore({
+      storeId: "lastplace",
+      customFetch: customFetch2 as any,
+      database: testDb,
+    });
+
+    const activeRun2 = await getMarketCards({ storeId: "lastplace", inStockOnly: true }, testDb);
+    expect(activeRun2).toHaveLength(1);
+    expect(activeRun2[0].itemId).toBe("lp_ref_flame");
+
+    const allRun2 = await getMarketCards({ storeId: "lastplace" }, testDb);
+    const reconciledFrost = allRun2.find((l) => l.itemId === "lp_ref_frost");
+    expect(reconciledFrost?.quantity).toBe(0);
+  });
 });

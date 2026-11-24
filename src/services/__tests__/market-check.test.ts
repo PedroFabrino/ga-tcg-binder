@@ -320,6 +320,57 @@ describe("checkMarketStores resilience", () => {
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
+    it("polls Last Place TCG and detects count and latest card changes", async () => {
+      const { db } = await createTestDb();
+      await db.update(schema.marketStores).set({ enabled: false });
+
+      await db.insert(schema.marketStores).values({
+        id: "lastplace",
+        platform: "liga_store",
+        name: "Last Place TCG",
+        baseUrl: "https://www.lastplacetcg.com.br",
+        tcgId: "21",
+        enabled: true,
+        lastCount: 4,
+        lastLatestCardRefId: "lp_old_ref",
+      });
+
+      const requestedUrls: string[] = [];
+      const mockFetch = vi.fn().mockImplementation(async (url: string) => {
+        requestedUrls.push(url);
+        if (url.includes("txt_order=6")) {
+          return {
+            ok: true,
+            text: async () => `<td align='left' class='textoMaior'> 1-5 de <b>5</b></td>`,
+          };
+        }
+        return {
+          ok: true,
+          text: async () =>
+            `<div class="card-item"><a href="https://www.lastplacetcg.com.br/?view=ecom/item&refid=lp_new_ref">New Card</a></div>`,
+        };
+      });
+
+      const report = await checkMarketStores(db, mockFetch as any);
+
+      expect(report.stores).toHaveLength(1);
+      const lastplace = report.stores[0];
+      expect(lastplace.storeId).toBe("lastplace");
+      expect(lastplace.skipped).toBeFalsy();
+      expect(lastplace.observedCount).toBe(5);
+      expect(lastplace.changed).toBe(true);
+      expect(lastplace.latestCardRefId).toBe("lp_new_ref");
+      expect(lastplace.latestCardChanged).toBe(true);
+
+      expect(requestedUrls).toHaveLength(2);
+      expect(requestedUrls[0]).toContain("id=26240");
+      expect(requestedUrls[0]).toContain("txt_order=6");
+      expect(requestedUrls[0]).toContain("txt_estoque=1");
+      expect(requestedUrls[0]).toContain("txt_limit=120");
+      expect(requestedUrls[1]).toContain("txt_order=12");
+      expect(requestedUrls[1]).toContain("ultimas=1");
+    });
+
     it("polls Brandão TCG and detects count changes with working stock filter", async () => {
       const { db } = await createTestDb();
       await db.update(schema.marketStores).set({ enabled: false });

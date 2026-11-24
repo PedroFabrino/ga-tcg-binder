@@ -6,7 +6,7 @@ Accepted (supersedes the LigaStore retirement clause of ADR 0025)
 
 ## Context
 
-ADR 0025 retired LigaStore crawling on the premise that its Grand Archive catalog was dormant, noting that "Reintroducing it is a new adapter behind the engine, not a re-enable flag." Collectors actively monitor vendor storefronts on the LigaMagic platform — specifically TabletopSorocaba and Brandão TCG — for card shortages and wants.
+ADR 0025 retired LigaStore crawling on the premise that its Grand Archive catalog was dormant, noting that "Reintroducing it is a new adapter behind the engine, not a re-enable flag." Collectors actively monitor vendor storefronts on the LigaMagic platform — specifically TabletopSorocaba, Brandão TCG, and Last Place TCG — for card shortages and wants.
 
 However, attempting to crawl TabletopSorocaba revealed critical obstacles:
 1. **Cloudflare TLS Fingerprinting:** Cloudflare protects the storefronts. Even when providing a valid browser `cf_clearance` cookie and matching `User-Agent`, Node.js's built-in HTTP client (OpenSSL TLS handshake) is immediately rejected with HTTP 403.
@@ -29,7 +29,7 @@ Spike tests demonstrated:
 
 ## Consequences
 
-- TabletopSorocaba and Brandão TCG can be reliably crawled inside Docker.
+- TabletopSorocaba, Brandão TCG, and Last Place TCG (`lastplace`, `https://www.lastplacetcg.com.br`, `ecomId: 26240`, with a working `txt_estoque=1` stock filter supporting both the hourly full sync and 5-minute Count Poll + Latest Card Detection via `.secrets/lastplace.session`) can be reliably crawled inside Docker.
 - Requires the collector to supply a valid `cf_clearance` cookie and User-Agent when Cloudflare challenges activate.
 - Docker image incorporates `curl-impersonate` binary (~20MB binary vs ~1.5GB full browser).
 - Database contains clean in-stock availability records without sprite-parsing fragility.

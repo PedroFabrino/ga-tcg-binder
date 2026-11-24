@@ -329,66 +329,9 @@ export function parseLigaStoreLatestCardRefId(html: string): string | null {
   return null;
 }
 
-export interface LigaStoreConfig {
-  ecomId: string;
-  hasWorkingStockFilter: boolean;
-  limit: number;
-  order: number;
-  ultimas: string;
-}
-
-export const LIGA_STORE_CONFIGS: Record<string, LigaStoreConfig> = {
-  brandao: {
-    ecomId: "207836",
-    hasWorkingStockFilter: true,
-    limit: 30,
-    order: 6,
-    ultimas: "1",
-  },
-  tabletopsorocaba: {
-    ecomId: "546923",
-    hasWorkingStockFilter: false,
-    limit: 120,
-    order: 1,
-    ultimas: "",
-  },
-  tabletop_sorocaba: {
-    ecomId: "546923",
-    hasWorkingStockFilter: false,
-    limit: 120,
-    order: 1,
-    ultimas: "",
-  },
-};
-
-/**
- * Retired (ADR-0025): builds the LigaStore search URL. Kept alongside the
- * retired parser for reference; LigaStore is no longer crawled.
- */
-export function buildLigaStoreSearchUrl(
-  store: { baseUrl: string | null; tcgId?: string | null; id: string },
-  sort: "count" | "latest" = "count"
-): string | null {
-  if (!store.baseUrl) {
-    return null;
-  }
-
-  const baseUrl = store.baseUrl.replace(/\/+$/, "");
-  const tcgId = store.tcgId ?? "21";
-  const config = LIGA_STORE_CONFIGS[store.id.toLowerCase()] || {
-    ecomId: store.id,
-    hasWorkingStockFilter: true,
-    limit: 30,
-    order: 6,
-    ultimas: "1",
-  };
-
-  const storeIdParam = `&id=${encodeURIComponent(config.ecomId)}`;
-  const orderParam = sort === "latest" ? "txt_order=12" : `txt_order=${config.order}`;
-  const ultimasParam = sort === "latest" ? "ultimas=1" : (config.ultimas ? `ultimas=${config.ultimas}` : "ultimas=");
-  const stockParam = config.hasWorkingStockFilter ? "&txt_estoque=1" : "";
-
-  return (
-    `${baseUrl}/?view=ecom/itens&page=1&id=${encodeURIComponent(config.ecomId)}&comdesconto=&tcg=${encodeURIComponent(tcgId)}&txt_idioma=&txt_qualid=&${ultimasParam}&txt_filtro_multiestoque=&txt_extras%5B%5D=&${orderParam}&txt_raridade=&txt_cor=&txt_limit=${config.limit}${stockParam}&btFiltrar=Filtrar`
-  );
-}
+export {
+  LIGA_STORE_CONFIGS,
+  buildLigaStoreSearchUrl,
+  getLigaStoreConfig,
+  type LigaStoreConfig,
+} from "./ligastore-config";

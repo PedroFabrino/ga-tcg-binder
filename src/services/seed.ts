@@ -76,6 +76,14 @@ export async function seedMarketStores(database?: AuthDatabase) {
       enabled: true,
     },
     {
+      id: "lastplace",
+      platform: "liga_store",
+      name: "Last Place TCG",
+      baseUrl: "https://www.lastplacetcg.com.br",
+      tcgId: "21",
+      enabled: true,
+    },
+    {
       id: "lootcards",
       platform: "lootcards",
       name: "Lootcards",

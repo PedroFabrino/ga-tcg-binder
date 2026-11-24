@@ -1,6 +1,8 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { checkMarketStores } from "../src/services/market-check";
 import { db } from "../src/db";
+import { runMigrations } from "../src/db/init";
+import { ensureDefaultUserAndSeed } from "../src/services/seed";
 
 const pollIntervalMinutes =
   Number(process.env.CHECK_INTERVAL_MINUTES ?? "5") || 5;
@@ -11,7 +13,7 @@ const pollIntervalMs = pollIntervalMinutes * 60 * 1000;
 const pollJitterMs = Math.max(1, Math.floor(pollIntervalMs * 0.1));
 
 const fullSyncIntervalHours =
-  Number(process.env.FULL_SYNC_HOURS ?? "6") || 6;
+  Number(process.env.FULL_SYNC_HOURS ?? "1") || 1;
 const fullSyncIntervalMs = fullSyncIntervalHours * 60 * 60 * 1000;
 
 let timer: NodeJS.Timeout | undefined;
@@ -129,8 +131,11 @@ function scheduleNextPoll(): void {
 }
 
 async function main() {
+  await runMigrations();
+  await ensureDefaultUserAndSeed(db);
+
   console.log(
-    `[sync-daemon] Initialized. Polling store card counts every ${pollIntervalMinutes} min (with jitter); periodic full reconciliation every ${fullSyncIntervalHours} hours.`
+    `[sync-daemon] Initialized. Polling store card counts every ${pollIntervalMinutes} min (with jitter); periodic full reconciliation every ${fullSyncIntervalHours} hour${fullSyncIntervalHours === 1 ? "" : "s"}.`
   );
 
   // Initial check on startup

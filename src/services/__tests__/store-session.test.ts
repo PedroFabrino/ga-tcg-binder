@@ -106,6 +106,56 @@ describe("store-session", () => {
       expect(session?.userAgent).toContain("150");
     });
 
+    it("loads session from .session JSON file for lastplace", () => {
+      const mockFs = {
+        existsSync: vi.fn().mockImplementation((filePath: string) =>
+          filePath.endsWith("lastplace.session")
+        ),
+        readFileSync: vi.fn().mockReturnValue(
+          JSON.stringify({
+            userAgent: "Mozilla/5.0 Chrome/145.0.0.0",
+            cookie: "cf_clearance=lp-secret; LIGASID=abc",
+          })
+        ),
+      };
+
+      const session = loadStoreSession("lastplace", {
+        sessionDir: "/app/secrets",
+        fs: mockFs as any,
+        env: {},
+      });
+
+      expect(session).not.toBeNull();
+      expect(session?.storeId).toBe("lastplace");
+      expect(session?.cookie).toBe("cf_clearance=lp-secret; LIGASID=abc");
+      expect(session?.userAgent).toContain("Chrome/145");
+    });
+
+    it("logs a warning without leaking secrets and returns null when .session JSON is malformed", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const mockFs = {
+        existsSync: vi.fn().mockImplementation((filePath: string) =>
+          filePath.endsWith("lastplace.session")
+        ),
+        readFileSync: vi.fn().mockReturnValue('{\n"cookie": "cf_clearance=supersecret\n"\n}'),
+      };
+
+      const session = loadStoreSession("lastplace", {
+        sessionDir: "/app/secrets",
+        fs: mockFs as any,
+        env: {},
+      });
+
+      expect(session).toBeNull();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[StoreSession: lastplace] Failed to parse session file "lastplace.session"'),
+        expect.any(String)
+      );
+      const loggedOutput = warnSpy.mock.calls.flat().join(" ");
+      expect(loggedOutput).not.toContain("supersecret");
+      warnSpy.mockRestore();
+    });
+
     it("returns null when no file or env var exists for the store", () => {
       const mockFs = {
         existsSync: vi.fn().mockReturnValue(false),

@@ -17,11 +17,11 @@ export class SessionExpiredError extends Error {
 }
 
 export function isSessionExpiredError(err: unknown): err is SessionExpiredError {
-  return (
-    err instanceof Error &&
-    (err as any).isSessionExpired === true &&
-    typeof (err as any).storeId === "string"
-  );
+  if (!(err instanceof Error)) {
+    return false;
+  }
+  const candidate = err as { isSessionExpired?: unknown; storeId?: unknown };
+  return candidate.isSessionExpired === true && typeof candidate.storeId === "string";
 }
 
 export interface StoreSession {
@@ -139,8 +139,11 @@ export function loadStoreSession(
             };
           }
         }
-      } catch {
-        // Continue to check env vars
+      } catch (err: unknown) {
+        console.warn(
+          `[StoreSession: ${storeId}] Failed to parse session file "${path.basename(filePath)}":`,
+          err instanceof Error ? err.message : String(err)
+        );
       }
     }
   }
@@ -245,7 +248,7 @@ function handleResponse(
   session: StoreSession,
   url: string,
   resolve: (value: string) => void,
-  reject: (reason?: any) => void
+  reject: (reason?: unknown) => void
 ) {
   const markerIdx = output.lastIndexOf(HTTP_STATUS_MARKER);
   let status = 200;

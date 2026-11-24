@@ -6,6 +6,7 @@ type MarketplaceDatabase,
 } from "../db/repositories/marketplace-repository";
 import { parseLootcardsTotalCount, parseLootcardsLatestCardRefId } from "./lootcards-parser";
 import { fetchMarketHtml } from "./market-fetch";
+import { executeStoreFetch, loadStoreSession } from "./store-session";
 import {
   buildLigaStoreSearchUrl,
   parseLigaStoreTotalCount,
@@ -88,6 +89,15 @@ export function parseMypLatestCardRefId(html: string): string | null {
   return match?.[1]?.trim() || null;
 }
 
+async function fetchLigaStoreCheckHtml(
+  storeId: string,
+  url: string,
+  customFetch: typeof fetch
+): Promise<string> {
+  const session = customFetch === fetch ? loadStoreSession(storeId) : null;
+  return session ? executeStoreFetch(url, { session }) : fetchMarketHtml(url, customFetch);
+}
+
 interface StoreObservation {
   count: number | null;
   latestCardRefId: string | null;
@@ -121,12 +131,12 @@ async function fetchStoreObservation(
     };
   }
 
-  // LigaStore is retired (ADR-0025): it is no longer polled or rescanned.
+  // LigaStore (ADR-0027): poll stores with working stock filters using session if available.
   if (store.platform === "liga_store") {
     const config = LIGA_STORE_CONFIGS[store.id.toLowerCase()];
     if (!config?.hasWorkingStockFilter) {
       console.log(
-        `[market-check] Store "${store.id}" skipped from 5-minute Count Poll: stock filter is broken, relying on 6-hour full sync.`
+        `[market-check] Store "${store.id}" skipped from 5-minute Count Poll: stock filter is broken, relying on periodic full sync.`
       );
       return {
         count: null,
@@ -139,14 +149,14 @@ async function fetchStoreObservation(
     if (!countUrl) {
       return { count: null, latestCardRefId: null };
     }
-    const html = await fetchMarketHtml(countUrl, customFetch);
+    const html = await fetchLigaStoreCheckHtml(store.id, countUrl, customFetch);
     const count = parseLigaStoreTotalCount(html);
 
     let latestCardRefId: string | null = null;
     try {
       const latestUrl = buildLigaStoreSearchUrl(store, "latest");
       if (latestUrl) {
-        const latestHtml = await fetchMarketHtml(latestUrl, customFetch);
+        const latestHtml = await fetchLigaStoreCheckHtml(store.id, latestUrl, customFetch);
         latestCardRefId = parseLigaStoreLatestCardRefId(latestHtml);
       }
     } catch (err) {

@@ -2,6 +2,8 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { runMarketSync } from "../market-sync-runner";
 import { createTestDb } from "../../db/test-utils";
 import { marketStores } from "../../db/schema";
+import { getMarketStoreById } from "../../db/repositories/marketplace-repository";
+import { seedMarketStores } from "../seed";
 import * as mypSyncModule from "../myp-sync";
 import * as ligaSyncModule from "../ligastore-sync";
 import * as lootcardsSyncModule from "../lootcards-sync";
@@ -167,5 +169,49 @@ describe("market-sync-runner", () => {
     expect(mypResult?.error).toContain("MyP network error");
     expect(brandaoResult?.status).toBe("success");
     expect(lootResult?.status).toBe("success");
+  });
+
+  it("seeds Last Place TCG and dispatches syncLigaStore when filtering by storeId=lastplace", async () => {
+    await testDb.delete(marketStores);
+    await seedMarketStores(testDb);
+
+    const seededLastplace = await getMarketStoreById("lastplace", testDb);
+    expect(seededLastplace).toMatchObject({
+      id: "lastplace",
+      platform: "liga_store",
+      name: "Last Place TCG",
+      baseUrl: "https://www.lastplacetcg.com.br",
+      tcgId: "21",
+      enabled: true,
+    });
+
+    const syncSpy = vi.spyOn(ligaSyncModule, "syncLigaStore").mockResolvedValue({
+      storeName: "Last Place TCG",
+      totalSynced: 4,
+      matchedCount: 4,
+      unmatchedCount: 0,
+      enrichedCount: 0,
+    });
+    vi.spyOn(marketNotificationsModule, "writeMarketNotifications").mockResolvedValue(0);
+    vi.spyOn(discordMarketNotifierModule, "deliverDiscordNotifications").mockResolvedValue({
+      disabled: true,
+      attempted: 0,
+      delivered: 0,
+    });
+    vi.spyOn(discordDealNotifierModule, "dispatchDealAlerts").mockResolvedValue({
+      matched: 0,
+      sent: 0,
+    });
+
+    const result = await runMarketSync({
+      storeId: "lastplace",
+      database: testDb,
+    });
+
+    expect(syncSpy).toHaveBeenCalledWith({
+      storeId: "lastplace",
+      database: testDb,
+    });
+    expect(result.stores).toEqual([{ storeId: "lastplace", status: "success" }]);
   });
 });

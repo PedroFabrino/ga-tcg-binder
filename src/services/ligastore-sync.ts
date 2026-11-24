@@ -6,7 +6,10 @@ updateStoreFullScanAt,
 upsertMarketCards,
 } from "../db/repositories/marketplace-repository";
 import {
-  LIGA_STORE_CONFIGS,
+  buildLigaStoreSearchUrl,
+  getLigaStoreConfig,
+} from "./ligastore-config";
+import {
   parseLigaStoreSearchPage,
   type ParsedLigaStoreItem,
 } from "./ligastore-parser";
@@ -52,7 +55,6 @@ export async function syncLigaStore(options?: {
 }): Promise<LigaStoreSyncResult> {
   const storeId = options?.storeId ?? "brandao";
   const database = options?.database || db;
-  const fetchFn = options?.customFetch || fetch;
   const store = await getMarketStoreById(storeId, database);
 
   if (!store) {
@@ -60,20 +62,14 @@ export async function syncLigaStore(options?: {
   }
 
   const storeData = store as any;
-  const config = LIGA_STORE_CONFIGS[storeData.id.toLowerCase()] || {
-    ecomId: storeData.id,
-    hasWorkingStockFilter: true,
-    limit: 30,
-    order: 6,
-    ultimas: "1",
-  };
+  const config = getLigaStoreConfig(storeData.id);
 
   const buildPageUrl = (page: number) => {
-    const stockParam = config.hasWorkingStockFilter ? "&txt_estoque=1" : "";
-    const ultimasParam = config.ultimas ? `&ultimas=${encodeURIComponent(config.ultimas)}` : "&ultimas=";
-    return `${storeData.baseUrl}/?view=ecom/itens&page=${page}&id=${
-      config.ecomId
-    }&comdesconto=&tcg=${encodeURIComponent(storeData.tcgId || "21")}&txt_idioma=&txt_qualid=&${ultimasParam}&txt_filtro_multiestoque=&txt_extras%5B%5D=&txt_order=${config.order}&txt_raridade=&txt_cor=&txt_limit=${config.limit}${stockParam}&btFiltrar=Filtrar`;
+    const url = buildLigaStoreSearchUrl(storeData, "count", page);
+    if (!url) {
+      throw new Error(`Marketplace store "${storeId}" has no baseUrl configured`);
+    }
+    return url;
   };
 
   async function fetchText(url: string, retries = 3): Promise<string> {
